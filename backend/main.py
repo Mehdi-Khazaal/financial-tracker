@@ -19,7 +19,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://financial-tracker-gamma-sable.vercel.app",  # Your Vercel URL
+        "https://financial-tracker-gamma-sable.vercel.app",
+        "https://financial-tracker-esjhlztp3-mehdi-khazaals-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

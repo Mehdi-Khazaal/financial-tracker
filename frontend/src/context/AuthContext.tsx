@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 
 interface User {
   id: number;
@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUser = async (authToken: string) => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/auth/me', {
+      const response = await api.get('/auth/me', {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setUser(response.data);
@@ -49,10 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (username: string, password: string) => {
-    const response = await axios.post('http://127.0.0.1:8000/auth/login', {
-      username,
-      password,
-    });
+    const response = await api.post('/auth/login', { username, password });
     const { access_token } = response.data;
     setToken(access_token);
     localStorage.setItem('token', access_token);
@@ -60,11 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (email: string, username: string, password: string) => {
-    await axios.post('http://127.0.0.1:8000/auth/signup', {
-      email,
-      username,
-      password,
-    });
+    await api.post('/auth/signup', { email, username, password });
     await login(username, password);
   };
 
