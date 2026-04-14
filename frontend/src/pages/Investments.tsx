@@ -35,7 +35,7 @@ const loadInvestments = async () => {
 
     // Fetch new prices (be careful with rate limits!)
     const prices: Record<string, number> = {};
-    const stockAssets = assets.filter(a => a.type === 'stock');
+    const stockAssets = (assets as Asset[]).filter((a: Asset) => a.type === 'stock');
     
     console.log(`🔄 Fetching prices for ${stockAssets.length} stocks...`);
     
