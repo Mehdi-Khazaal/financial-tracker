@@ -19,8 +19,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://your-app.vercel.app",  # Will add this after Vercel deploy
-        "*"  # Keep for now, remove in production
+        "https://your-app.vercel.app",  # Add your Vercel URL
+        "*"  # Remove this in production
     ],
     allow_credentials=True,
     allow_methods=["*"],
