@@ -10,29 +10,21 @@ const Transactions: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [filterAccount, setFilterAccount] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterType, setFilterType] = useState('all');
 
-  // Filters
-  const [filterAccount, setFilterAccount] = useState<string>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all'); // all, income, expense
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [transactionsRes, accountsRes, categoriesRes] = await Promise.all([
-        getTransactions(),
-        getAccounts(),
-        getCategories(),
-      ]);
-      setTransactions(transactionsRes.data);
-      setAccounts(accountsRes.data);
-      setCategories(categoriesRes.data);
-    } catch (error) {
-      console.error('Failed to load data:', error);
+      const [txRes, accRes, catRes] = await Promise.all([getTransactions(), getAccounts(), getCategories()]);
+      setTransactions(txRes.data);
+      setAccounts(accRes.data);
+      setCategories(catRes.data);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
@@ -40,186 +32,161 @@ const Transactions: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Delete this transaction?')) return;
-
     try {
       await deleteTransaction(id);
       loadData();
-    } catch (error) {
-      console.error('Failed to delete transaction:', error);
+    } catch {
       alert('Failed to delete transaction');
     }
   };
 
-  const getAccountName = (accountId: number) => {
-    return accounts.find(a => a.id === accountId)?.name || 'Unknown';
-  };
+  const getAccountName = (id: number) => accounts.find((a) => a.id === id)?.name ?? 'Unknown';
+  const getCategory = (id: number | null) => categories.find((c) => c.id === id);
 
-  const getCategoryName = (categoryId: number | null) => {
-    if (!categoryId) return 'Uncategorized';
-    return categories.find(c => c.id === categoryId)?.name || 'Unknown';
-  };
+  const filtered = transactions
+    .filter((t) => {
+      if (filterAccount !== 'all' && t.account_id !== parseInt(filterAccount)) return false;
+      if (filterCategory !== 'all' && t.category_id !== parseInt(filterCategory)) return false;
+      if (filterType === 'income' && Number(t.amount) < 0) return false;
+      if (filterType === 'expense' && Number(t.amount) >= 0) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
 
-  const getCategoryColor = (categoryId: number | null) => {
-    if (!categoryId) return '#84848A';
-    return categories.find(c => c.id === categoryId)?.color || '#84848A';
-  };
-
-  // Apply filters
-  const filteredTransactions = transactions.filter(transaction => {
-    if (filterAccount !== 'all' && transaction.account_id !== parseInt(filterAccount)) return false;
-    if (filterCategory !== 'all' && transaction.category_id !== parseInt(filterCategory)) return false;
-    
-    if (filterType === 'income' && Number(transaction.amount) < 0) return false;
-    if (filterType === 'expense' && Number(transaction.amount) >= 0) return false;
-    
-    return true;
-  });
-
-  // Calculate totals
-  const totalIncome = filteredTransactions
-    .filter(t => Number(t.amount) > 0)
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  
-  const totalExpenses = filteredTransactions
-    .filter(t => Number(t.amount) < 0)
-    .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+  const totalIncome = filtered.filter((t) => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+  const totalExpenses = filtered.filter((t) => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">
-      <div className="text-xl text-primary">Loading...</div>
-    </div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
     <>
       <Navigation />
-      
-      <div className="md:ml-64 min-h-screen bg-beige pb-20 md:pb-8">
-        <div className="p-4 md:p-8">
-          <h1 className="text-4xl font-bold text-primary mb-8">Transactions</h1>
+      <div className="md:ml-64 min-h-screen bg-slate-50 pb-24 md:pb-8">
+        <div className="p-4 md:p-8 max-w-5xl">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-navy">Transactions</h1>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="hidden md:flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition"
+            >
+              + Add Transaction
+            </button>
+          </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-lg p-6 shadow">
-              <p className="text-gray text-sm mb-2">Total Income</p>
-              <p className="text-3xl font-bold text-lime">+${totalIncome.toFixed(2)}</p>
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-2xl p-4 border border-slate-100">
+              <p className="text-xs text-gray mb-1">Income</p>
+              <p className="text-xl font-bold text-primary">+${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-white rounded-lg p-6 shadow">
-              <p className="text-gray text-sm mb-2">Total Expenses</p>
-              <p className="text-3xl font-bold text-accent">-${totalExpenses.toFixed(2)}</p>
+            <div className="bg-white rounded-2xl p-4 border border-slate-100">
+              <p className="text-xs text-gray mb-1">Expenses</p>
+              <p className="text-xl font-bold text-accent">-${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-white rounded-lg p-6 shadow">
-              <p className="text-gray text-sm mb-2">Net</p>
-              <p className={`text-3xl font-bold ${(totalIncome - totalExpenses) >= 0 ? 'text-lime' : 'text-accent'}`}>
-                ${(totalIncome - totalExpenses).toFixed(2)}
+            <div className="bg-white rounded-2xl p-4 border border-slate-100">
+              <p className="text-xs text-gray mb-1">Net</p>
+              <p className={`text-xl font-bold ${(totalIncome - totalExpenses) >= 0 ? 'text-primary' : 'text-accent'}`}>
+                ${(totalIncome - totalExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg p-6 shadow mb-6">
-            <h2 className="text-lg font-bold text-navy mb-4">Filters</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-navy mb-2">Type</label>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 mb-6">
+            <div className="flex gap-2 mb-3">
+              {(['all', 'income', 'expense'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFilterType(t)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                    filterType === t ? 'bg-primary text-white' : 'bg-slate-100 text-gray hover:bg-slate-200'
+                  }`}
                 >
-                  <option value="all">All</option>
-                  <option value="income">Income Only</option>
-                  <option value="expense">Expenses Only</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-navy mb-2">Account</label>
-                <select
-                  value={filterAccount}
-                  onChange={(e) => setFilterAccount(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">All Accounts</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>{account.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-navy mb-2">Category</label>
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">All Categories</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
-              </div>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={filterAccount}
+                onChange={(e) => setFilterAccount(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-navy bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Accounts</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-navy bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Categories</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
 
-          {/* Transactions List */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            {filteredTransactions.length === 0 ? (
-              <p className="p-8 text-center text-gray">No transactions found</p>
-            ) : (
-              <div className="divide-y">
-                {filteredTransactions
-                  .sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
-                  .map(transaction => (
-                    <div key={transaction.id} className="p-4 hover:bg-beige transition">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: getCategoryColor(transaction.category_id) }}
-                            />
-                            <h3 className="font-semibold text-navy">
-                              {transaction.description || 'No description'}
-                            </h3>
-                          </div>
-                          <div className="flex flex-wrap gap-3 text-sm text-gray">
-                            <span>📅 {transaction.transaction_date}</span>
-                            <span>🏦 {getAccountName(transaction.account_id)}</span>
-                            <span>🏷️ {getCategoryName(transaction.category_id)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <p className={`text-2xl font-bold ${Number(transaction.amount) >= 0 ? 'text-lime' : 'text-accent'}`}>
-                            {Number(transaction.amount) >= 0 ? '+' : ''}${Number(transaction.amount).toFixed(2)}
-                          </p>
-                          <button
-                            onClick={() => handleDelete(transaction.id)}
-                            className="px-3 py-1 bg-accent text-white text-sm rounded hover:opacity-90"
-                          >
-                            Delete
-                          </button>
+          {/* Transaction list */}
+          {filtered.length === 0 ? (
+            <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
+              <p className="text-4xl mb-3">📭</p>
+              <p className="font-semibold text-navy">No transactions found</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              {filtered.map((tx, i) => {
+                const cat = getCategory(tx.category_id);
+                const isPositive = Number(tx.amount) >= 0;
+                return (
+                  <div
+                    key={tx.id}
+                    className={`flex items-center justify-between p-4 group ${i !== filtered.length - 1 ? 'border-b border-slate-50' : ''} hover:bg-slate-50 transition`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-2 h-10 rounded-full shrink-0"
+                        style={{ backgroundColor: cat?.color ?? (isPositive ? '#BBD151' : '#B12B24') }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-navy truncate">{tx.description || 'No description'}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray">
+                          <span>{tx.transaction_date}</span>
+                          <span>·</span>
+                          <span>{getAccountName(tx.account_id)}</span>
+                          {cat && <><span>·</span><span>{cat.name}</span></>}
                         </div>
                       </div>
                     </div>
-                  ))}
-              </div>
-            )}
-          </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <p className={`font-bold text-sm ${isPositive ? 'text-primary' : 'text-accent'}`}>
+                        {isPositive ? '+' : '-'}${Math.abs(Number(tx.amount)).toFixed(2)}
+                      </p>
+                      <button
+                        onClick={() => handleDelete(tx.id)}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-accent hover:underline transition-opacity"
+                      >
+                        Del
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
       <FloatingAddButton
-        onAddAccount={() => {}}
-        onAddTransaction={() => setShowAddTransaction(true)}
+        actions={[{ label: 'Add Transaction', icon: '↕', color: '#B12B24', onClick: () => setShowAdd(true) }]}
       />
 
-      <AddTransactionModal
-        isOpen={showAddTransaction}
-        onClose={() => setShowAddTransaction(false)}
-        onSuccess={loadData}
-      />
+      <AddTransactionModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={loadData} />
     </>
   );
 };
