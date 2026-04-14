@@ -18,7 +18,7 @@ const Assets: React.FC = () => {
     try {
       const response = await getAssets();
       // Filter out investment types (stocks, crypto, etc) - show only physical assets
-      const physicalAssets = response.data.filter(a => 
+      const physicalAssets = response.data.filter((a: Asset) =>
         !['stock', 'crypto', 'bond'].includes(a.type)
       );
       setAssets(physicalAssets);
