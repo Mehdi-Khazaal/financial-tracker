@@ -19,7 +19,7 @@ const Investments: React.FC = () => {
   const [fetchingPrices, setFetchingPrices] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = async () => {
     setLoading(true);
