@@ -42,15 +42,14 @@ const Investments: React.FC = () => {
     if (!stockAssets.length) return;
     setFetchingPrices(true);
     const prices: Record<string, number> = {};
-    for (let i = 0; i < stockAssets.length; i++) {
-      const sym = stockAssets[i].name.match(/\(([A-Z]+)\)/)?.[1];
+    await Promise.all(stockAssets.map(async asset => {
+      const sym = asset.name.match(/\(([A-Z]+)\)/)?.[1];
       if (sym) {
         const price = await getStockPrice(sym);
         prices[sym] = price ?? getMockStockPrice(sym);
         setStockPrices(prev => ({ ...prev, [sym]: prices[sym] }));
-        if (i < stockAssets.length - 1) await new Promise(r => setTimeout(r, 13000));
       }
-    }
+    }));
     localStorage.setItem('stock_prices_cache', JSON.stringify(prices));
     localStorage.setItem('stock_prices_cache_time', Date.now().toString());
     setFetchingPrices(false);

@@ -18,7 +18,6 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
   const [toId, setToId] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -47,7 +46,7 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
         to_account_id:   parseInt(toId),
         amount: parseFloat(amount),
         note: note || null,
-        transfer_date: date,
+        transfer_date: new Date().toISOString().split('T')[0],
       });
       onSuccess(); onClose();
       setAmount(''); setNote('');
@@ -101,11 +100,6 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
           <p className="label mb-2">Note <span className="text-dim">(optional)</span></p>
           <input type="text" value={note} onChange={e => setNote(e.target.value)}
             className="input-dark" placeholder={isPayCard ? 'Card payment' : 'Transfer note'} />
-        </div>
-
-        <div>
-          <p className="label mb-2">Date</p>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input-dark" required />
         </div>
 
         <button type="submit" disabled={loading || !amount || fromId === toId}

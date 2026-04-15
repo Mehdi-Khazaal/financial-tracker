@@ -34,7 +34,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
   const [quantity, setQuantity] = useState('');
   const [valuePerUnit, setValuePerUnit] = useState('');
   const [totalValue, setTotalValue] = useState('');
-  const [purchaseDate, setPurchaseDate] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
   const isInvestment = mode === 'investment';
@@ -62,7 +62,8 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
         currency: 'USD',
       });
       onSuccess(); onClose();
-      setName(''); setQuantity(''); setValuePerUnit(''); setTotalValue(''); setPurchaseDate('');
+      setName(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
+      setPurchaseDate(new Date().toISOString().split('T')[0]);
       setAssetType(types[0].value);
     } catch { alert('Failed to create asset'); }
     finally { setLoading(false); }
