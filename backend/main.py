@@ -13,6 +13,23 @@ if os.getenv("RESET_DB", "false").lower() == "true":
     print("⚠️  Database wiped.")
 Base.metadata.create_all(bind=engine)
 
+# ── Schema migrations (safe to re-run — ADD COLUMN IF NOT EXISTS) ─────────────
+def _run_migrations():
+    with engine.connect() as conn:
+        migrations = [
+            "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        ]
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+            except Exception as e:
+                print(f"Migration skipped ({e})")
+        conn.commit()
+
+from sqlalchemy import text
+_run_migrations()
+
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Fintrack API", version="2.0.0")
 
