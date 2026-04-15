@@ -30,7 +30,7 @@ export const updateCategory  = (id: number, data: any) => api.put(`/categories/$
 export const deleteCategory  = (id: number) => api.delete(`/categories/${id}`);
 
 // ── Transactions ──────────────────────────────────────────────────────────────
-export const getTransactions = (params?: Record<string, any>) =>
+export const getTransactions   = (params?: Record<string, any>) =>
   api.get('/transactions/', { params });
 export const createTransaction = (data: any) => api.post('/transactions/', data);
 export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);
@@ -52,5 +52,16 @@ export const getSavingsGoals   = () => api.get('/savings-goals/');
 export const createSavingsGoal = (data: any) => api.post('/savings-goals/', data);
 export const updateSavingsGoal = (id: number, data: any) => api.put(`/savings-goals/${id}`, data);
 export const deleteSavingsGoal = (id: number) => api.delete(`/savings-goals/${id}`);
+
+// ── Recurring Transactions ────────────────────────────────────────────────────
+export const getRecurring     = () => api.get('/recurring/');
+export const createRecurring  = (data: any) => api.post('/recurring/', data);
+export const updateRecurring  = (id: number, data: any) => api.patch(`/recurring/${id}`, data);
+export const deleteRecurring  = (id: number) => api.delete(`/recurring/${id}`);
+export const processDueRecurring = () => api.post('/recurring/process-due');
+
+// ── History ───────────────────────────────────────────────────────────────────
+export const getNetWorthHistory     = (months = 12) => api.get(`/history/net-worth?months=${months}`);
+export const getAccountHistory      = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
 
 export default api;

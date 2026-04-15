@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from models.database import Base, engine
 from routers import accounts, categories, transactions, assets, auth
-from routers import transfers, savings_goals, stocks
+from routers import transfers, savings_goals, stocks, recurring_transactions, history
 
 # ── DB init ───────────────────────────────────────────────────────────────────
 # Set RESET_DB=true in Render env vars to wipe and recreate all tables on next deploy.
@@ -36,6 +36,8 @@ app.include_router(transfers.router)
 app.include_router(assets.router)
 app.include_router(savings_goals.router)
 app.include_router(stocks.router)
+app.include_router(recurring_transactions.router)
+app.include_router(history.router)
 
 
 @app.get("/")

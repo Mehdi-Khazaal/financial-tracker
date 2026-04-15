@@ -11,6 +11,7 @@ import Investments from './pages/Investments';
 import Assets from './pages/Assets';
 import Savings from './pages/Savings';
 import Analytics from './pages/Analytics';
+import Recurring from './pages/Recurring';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ function App() {
           <Route path="/assets" element={<PrivateRoute><Assets /></PrivateRoute>} />
           <Route path="/savings" element={<PrivateRoute><Savings /></PrivateRoute>} />
           <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
+          <Route path="/recurring" element={<PrivateRoute><Recurring /></PrivateRoute>} />
           {/* Legacy redirect */}
           <Route path="/accounts" element={<Navigate to="/wallet" replace />} />
         </Routes>

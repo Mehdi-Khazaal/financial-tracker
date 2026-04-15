@@ -3,8 +3,8 @@ import {
   PieChart, Pie, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { getTransactions, getAccounts, getCategories, getAssets } from '../utils/api';
-import { Transaction, Account, Category, Asset } from '../types';
+import { getTransactions, getAccounts, getCategories, getAssets, getNetWorthHistory } from '../utils/api';
+import { Transaction, Account, Category, Asset, MonthSnapshot } from '../types';
 import Navigation from '../components/Navigation';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,6 +17,7 @@ const Analytics: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('This month');
 
@@ -24,13 +25,14 @@ const Analytics: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [txRes, accRes, catRes, asRes] = await Promise.all([
-        getTransactions(), getAccounts(), getCategories(), getAssets(),
+      const [txRes, accRes, catRes, asRes, nwRes] = await Promise.all([
+        getTransactions(), getAccounts(), getCategories(), getAssets(), getNetWorthHistory(12),
       ]);
       setTransactions(txRes.data);
       setAccounts(accRes.data);
       setCategories(catRes.data);
       setAssets(asRes.data);
+      setNetWorthSnapshots(nwRes.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
@@ -86,24 +88,16 @@ const Analytics: React.FC = () => {
       }));
   })();
 
-  const netWorthTrend = (() => {
-    const months: Record<string, number> = {};
-    let running = 0;
-    [...transactions]
-      .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
-      .forEach(t => {
-        running += Number(t.amount);
-        const m = t.transaction_date.substring(0, 7);
-        months[m] = running;
-      });
-    return Object.entries(months)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([month, value]) => ({
-        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
-        Value: value,
-      }));
-  })();
+  const netWorthTrend = netWorthSnapshots
+    .slice(-12)
+    .map(snap => ({
+      month: new Date(snap.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      Value: snap.net_worth ?? 0,
+    }));
+
+  const nwChange = netWorthTrend.length >= 2
+    ? netWorthTrend[netWorthTrend.length - 1].Value - netWorthTrend[0].Value
+    : 0;
 
   const tooltipStyle = {
     contentStyle: {
@@ -204,19 +198,38 @@ const Analytics: React.FC = () => {
             </div>
           </div>
 
-          {/* Net worth trend */}
+          {/* Net worth history */}
           {netWorthTrend.length > 1 && (
             <div className="card p-5">
-              <p className="font-semibold text-text mb-4 text-sm">Cash Flow Trend</p>
-              <ResponsiveContainer width="100%" height={160}>
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="font-semibold text-text text-sm">Net Worth Over Time</p>
+                  <p className="text-xs text-muted mt-0.5">12-month history</p>
+                </div>
+                {nwChange !== 0 && (
+                  <div className="text-right">
+                    <p className="text-xs text-muted">Change</p>
+                    <p className="font-mono font-bold text-sm" style={{ color: nwChange >= 0 ? '#2ecc8a' : '#ff5f6d' }}>
+                      {nwChange >= 0 ? '+' : '-'}${fmt(Math.abs(nwChange))}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={netWorthTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#252a3a" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#7880a0' }} axisLine={false} tickLine={false} />
+                  <defs>
+                    <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#5b8fff" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#5b8fff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#7880a0' }} axisLine={false} tickLine={false} />
                   <YAxis hide />
-                  <Tooltip {...tooltipStyle} formatter={(v: any) => `$${fmt(Number(v))}`} />
+                  <Tooltip {...tooltipStyle} formatter={(v: any) => [`$${fmt(Number(v))}`, 'Net Worth']} />
                   <Line
-                    type="monotone" dataKey="Value" stroke="#5b8fff" strokeWidth={2}
-                    dot={{ fill: '#5b8fff', r: 3 }} activeDot={{ r: 5, fill: '#5b8fff' }}
+                    type="monotone" dataKey="Value" stroke="#5b8fff" strokeWidth={2.5}
+                    dot={false} activeDot={{ r: 5, fill: '#5b8fff', stroke: '#0b0d12', strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>

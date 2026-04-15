@@ -4,6 +4,7 @@ import { getAccounts, getTransactions, deleteAccount } from '../utils/api';
 import Navigation from '../components/Navigation';
 import TransferModal from '../components/modals/TransferModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
+import EditAccountModal from '../components/modals/EditAccountModal';
 import ProgressBar from '../components/ProgressBar';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,6 +15,7 @@ const Cards: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [payCard, setPayCard] = useState<Account | null>(null);
+  const [editCard, setEditCard] = useState<Account | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -143,6 +145,11 @@ const Cards: React.FC = () => {
                         style={{ background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', color: 'white' }}>
                         Pay Card
                       </button>
+                      <button onClick={() => setEditCard(card)}
+                        className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
+                        style={{ backgroundColor: 'rgba(91,143,255,.1)', color: '#5b8fff', border: '1px solid rgba(91,143,255,.2)' }}>
+                        Edit
+                      </button>
                       <button onClick={() => handleDelete(card.id, card.name)}
                         className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
                         style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.2)' }}>
@@ -188,6 +195,7 @@ const Cards: React.FC = () => {
       </button>
 
       <AddAccountModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} />
+      <EditAccountModal isOpen={!!editCard} onClose={() => setEditCard(null)} onSuccess={load} account={editCard} />
 
       {payCard && (
         <TransferModal

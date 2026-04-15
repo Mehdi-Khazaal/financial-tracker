@@ -3,6 +3,7 @@ import { Transaction, Account, Category } from '../types';
 import { getTransactions, getAccounts, getCategories, deleteTransaction } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
+import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -15,6 +16,7 @@ const Transactions: React.FC = () => {
   const [showTx, setShowTx] = useState(false);
   const [txType, setTxType] = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [filterAccount, setFilterAccount] = useState('all');
 
@@ -81,7 +83,10 @@ const Transactions: React.FC = () => {
 
           {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-text">Transactions</h1>
+            <div>
+              <h1 className="text-xl font-bold text-text">Transactions</h1>
+              <p className="text-xs text-muted mt-0.5">Tap any transaction to edit</p>
+            </div>
             <div className="hidden md:flex gap-2">
               <button onClick={() => { setTxType('income'); setShowTx(true); }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-full"
@@ -165,7 +170,8 @@ const Transactions: React.FC = () => {
                         const pos = Number(tx.amount) >= 0;
                         return (
                           <div key={tx.id}
-                            className={`flex items-center gap-3 px-4 py-3 group hover:bg-surface2 transition-colors ${i !== dayTxs.length - 1 ? 'border-b border-border' : ''}`}>
+                            onClick={() => setEditTx(tx)}
+                            className={`flex items-center gap-3 px-4 py-3 group hover:bg-surface2 transition-colors cursor-pointer ${i !== dayTxs.length - 1 ? 'border-b border-border' : ''}`}>
                             <div className="w-1.5 h-10 rounded-full shrink-0"
                               style={{ backgroundColor: cat?.color ?? (pos ? '#2ecc8a' : '#ff5f6d') }} />
                             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -183,11 +189,12 @@ const Transactions: React.FC = () => {
                               <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#2ecc8a' : '#ff5f6d' }}>
                                 {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                               </p>
-                              <button onClick={() => handleDelete(tx.id)}
-                                className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
-                                style={{ color: '#3e4460' }}
-                                onMouseEnter={e => (e.target as HTMLElement).style.color = '#ff5f6d'}
-                                onMouseLeave={e => (e.target as HTMLElement).style.color = '#3e4460'}>
+                              <button
+                                onClick={e => { e.stopPropagation(); handleDelete(tx.id); }}
+                                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-all"
+                                style={{ color: '#3e4460', backgroundColor: 'rgba(255,95,109,0)' }}
+                                onMouseEnter={e => { (e.currentTarget).style.color = '#ff5f6d'; (e.currentTarget).style.backgroundColor = 'rgba(255,95,109,.1)'; }}
+                                onMouseLeave={e => { (e.currentTarget).style.color = '#3e4460'; (e.currentTarget).style.backgroundColor = 'rgba(255,95,109,0)'; }}>
                                 ✕
                               </button>
                             </div>
@@ -213,6 +220,7 @@ const Transactions: React.FC = () => {
       </button>
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
+      <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
     </>
   );

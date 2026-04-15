@@ -67,6 +67,28 @@ export interface SavingsGoal {
   created_at: string;
 }
 
+export type RecurringPeriod = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: number;
+  user_id: number;
+  account_id: number;
+  category_id: number | null;
+  amount: number;
+  description: string | null;
+  period: RecurringPeriod;
+  next_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface MonthSnapshot {
+  month: string;
+  net_worth?: number;
+  accounts?: number;
+  balance?: number;
+}
+
 export interface User {
   id: number;
   email: string;

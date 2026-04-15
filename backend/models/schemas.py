@@ -153,6 +153,37 @@ class SavingsGoalUpdate(BaseModel):
     account_id: Optional[int] = None
     deadline: Optional[date] = None
 
+# ─── Recurring Transaction ────────────────────────────────────────────────────
+class RecurringTransactionBase(BaseModel):
+    account_id: int
+    category_id: Optional[int] = None
+    amount: Decimal
+    description: Optional[str] = None
+    period: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
+    next_date: date
+
+class RecurringTransactionCreate(RecurringTransactionBase):
+    pass
+
+class RecurringTransactionUpdate(BaseModel):
+    account_id: Optional[int] = None
+    category_id: Optional[int] = None
+    amount: Optional[Decimal] = None
+    description: Optional[str] = None
+    period: Optional[str] = None
+    next_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class RecurringTransactionResponse(RecurringTransactionBase):
+    id: int
+    user_id: int
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class SavingsGoalResponse(SavingsGoalBase):
     id: int
     user_id: int
