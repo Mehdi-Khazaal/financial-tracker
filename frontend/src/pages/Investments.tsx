@@ -61,7 +61,10 @@ const Investments: React.FC = () => {
     catch { alert('Failed to delete'); }
   };
 
-  const getSymbol       = (name: string) => name.match(/\(([A-Z]+)\)/)?.[1] ?? null;
+  // Match "(AAPL)" format, or fall back to the name itself if it looks like a ticker
+  const getSymbol = (name: string) =>
+    name.match(/\(([A-Z0-9]+)\)/)?.[1] ??
+    (/^[A-Z0-9]{1,10}$/.test(name.trim()) ? name.trim() : null);
   const getCurrentPrice = (a: Asset) => { const sym = getSymbol(a.name); return sym && stockPrices[sym] ? stockPrices[sym] : Number(a.value_per_unit ?? 0); };
   const getCurrentValue = (a: Asset) => getCurrentPrice(a) * Number(a.quantity ?? 1);
   const getGainLoss     = (a: Asset) => getCurrentValue(a) - Number(a.total_value);

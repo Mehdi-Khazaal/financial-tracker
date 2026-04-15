@@ -27,10 +27,13 @@ const PHYSICAL_TYPES = [
   { value: 'other',       label: 'Other',       icon: '📦' },
 ];
 
+const TICKER_TYPES = new Set(['stock', 'crypto', 'etf']);
+
 const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) => {
   const types = mode === 'investment' ? INVESTMENT_TYPES : PHYSICAL_TYPES;
   const [assetType, setAssetType] = useState(types[0].value);
   const [name, setName] = useState('');
+  const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState('');
   const [valuePerUnit, setValuePerUnit] = useState('');
   const [totalValue, setTotalValue] = useState('');
@@ -38,6 +41,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
   const [loading, setLoading] = useState(false);
 
   const isInvestment = mode === 'investment';
+  const hasTicker = isInvestment && TICKER_TYPES.has(assetType);
 
   // Auto-calc total
   const calcTotal = () => {
@@ -51,8 +55,13 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
     e.preventDefault();
     setLoading(true);
     try {
+      // Append ticker in (SYMBOL) format so live prices can be fetched
+      const sym = ticker.trim().toUpperCase();
+      const finalName = hasTicker && sym
+        ? (name.trim() ? `${name.trim()} (${sym})` : sym)
+        : name.trim();
       await createAsset({
-        name,
+        name: finalName,
         type: assetType,
         asset_class: isInvestment ? 'investment' : 'physical',
         quantity: quantity ? parseFloat(quantity) : null,
@@ -62,7 +71,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
         currency: 'USD',
       });
       onSuccess(); onClose();
-      setName(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
+      setName(''); setTicker(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
       setPurchaseDate(new Date().toISOString().split('T')[0]);
       setAssetType(types[0].value);
     } catch { alert('Failed to create asset'); }
@@ -77,7 +86,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
           <p className="label mb-2">Type</p>
           <div className="grid grid-cols-3 gap-2">
             {types.map(t => (
-              <button key={t.value} type="button" onClick={() => setAssetType(t.value)}
+              <button key={t.value} type="button" onClick={() => { setAssetType(t.value); setTicker(''); }}
                 className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all"
                 style={assetType === t.value
                   ? { borderColor: '#5b8fff', backgroundColor: 'rgba(91,143,255,.08)' }
@@ -91,12 +100,32 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
           </div>
         </div>
 
+        {/* Ticker symbol (stocks/crypto/etf only) */}
+        {hasTicker && (
+          <div>
+            <p className="label mb-2">Ticker Symbol <span className="text-muted font-normal">(required for live prices)</span></p>
+            <input
+              type="text"
+              value={ticker}
+              onChange={e => setTicker(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              className="input-dark font-mono tracking-widest"
+              placeholder={assetType === 'crypto' ? 'BTC' : assetType === 'etf' ? 'SPY' : 'AAPL'}
+              maxLength={10}
+              required
+            />
+            <p className="text-[11px] text-muted mt-1">Enter the exchange ticker, e.g. AAPL, BTC, ETH, SPY</p>
+          </div>
+        )}
+
         {/* Name */}
         <div>
-          <p className="label mb-2">Name</p>
+          <p className="label mb-2">Name <span className="text-muted font-normal">{hasTicker ? '(optional)' : ''}</span></p>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
             className="input-dark"
-            placeholder={isInvestment ? 'e.g. Apple Inc. (AAPL)' : 'e.g. My Apartment'} required />
+            placeholder={isInvestment
+              ? hasTicker ? 'e.g. Apple Inc.' : 'e.g. Gold Bar'
+              : 'e.g. My Apartment'}
+            required={!hasTicker} />
         </div>
 
         {/* Quantity & Price */}
