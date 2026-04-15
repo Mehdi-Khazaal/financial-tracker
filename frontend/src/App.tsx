@@ -2,64 +2,48 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
-import Accounts from './pages/Accounts';
+import Wallet from './pages/Wallet';
+import Cards from './pages/Cards';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Transactions from './pages/Transactions';
 import Investments from './pages/Investments';
 import Assets from './pages/Assets';
+import Savings from './pages/Savings';
 import Analytics from './pages/Analytics';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">
-      <div className="text-xl text-primary">Loading...</div>
-    </div>;
+    return (
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow"
+          style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+      </div>
+    );
   }
-  
+
   return user ? <>{children}</> : <Navigate to="/login" />;
 };
-
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login"  element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
-          } />
-          <Route path="/accounts" element={
-            <PrivateRoute>
-              <Accounts />
-            </PrivateRoute>
-          } />
-          <Route path="/transactions" element={
-            <PrivateRoute>
-              <Transactions />
-            </PrivateRoute>
-          } />
-          <Route path="/investments" element={
-            <PrivateRoute>
-              <Investments />
-            </PrivateRoute>
-          } />
-          <Route path="/assets" element={
-            <PrivateRoute>
-              <Assets />
-            </PrivateRoute>
-          } />
-          <Route path="/analytics" element={
-            <PrivateRoute>
-              <Analytics />
-            </PrivateRoute>
-          } />
+          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
+          <Route path="/cards" element={<PrivateRoute><Cards /></PrivateRoute>} />
+          <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
+          <Route path="/investments" element={<PrivateRoute><Investments /></PrivateRoute>} />
+          <Route path="/assets" element={<PrivateRoute><Assets /></PrivateRoute>} />
+          <Route path="/savings" element={<PrivateRoute><Savings /></PrivateRoute>} />
+          <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
+          {/* Legacy redirect */}
+          <Route path="/accounts" element={<Navigate to="/wallet" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

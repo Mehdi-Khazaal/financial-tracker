@@ -1,59 +1,62 @@
-from pydantic import BaseModel, Field, validator
-from datetime import date, datetime
-from typing import Optional
+from pydantic import BaseModel
+from typing import Optional, Literal
 from decimal import Decimal
+from datetime import datetime, date
 
-# ============ ACCOUNT SCHEMAS ============
 
+# ─── Account ─────────────────────────────────────────────────────────────────
 class AccountBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    type: str = Field(..., min_length=1, max_length=50)
-    balance: Decimal = Field(default=0, ge=0)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    name: str
+    type: Literal["checking", "savings", "credit_card", "cash", "investment"]
+    balance: Decimal = Decimal("0")
+    credit_limit: Optional[Decimal] = None
+    currency: str = "USD"
 
 class AccountCreate(AccountBase):
     pass
 
 class AccountUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    type: Optional[str] = Field(None, min_length=1, max_length=50)
-    balance: Optional[Decimal] = Field(None, ge=0)
-    currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    name: Optional[str] = None
+    type: Optional[str] = None
+    balance: Optional[Decimal] = None
+    credit_limit: Optional[Decimal] = None
+    currency: Optional[str] = None
 
 class AccountResponse(AccountBase):
     id: int
+    user_id: int
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
-# ============ CATEGORY SCHEMAS ============
-
+# ─── Category ─────────────────────────────────────────────────────────────────
 class CategoryBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    type: str = Field(..., pattern="^(income|expense)$")
-    color: str = Field(default="#6366f1", pattern="^#[0-9A-Fa-f]{6}$")
+    name: str
+    type: Literal["income", "expense"]
+    color: str = "#5b8fff"
 
 class CategoryCreate(CategoryBase):
     pass
 
 class CategoryUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    type: Optional[str] = Field(None, pattern="^(income|expense)$")
-    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
+    name: Optional[str] = None
+    type: Optional[str] = None
+    color: Optional[str] = None
 
 class CategoryResponse(CategoryBase):
     id: int
+    user_id: Optional[int]
+    is_system: bool
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
-# ============ TRANSACTION SCHEMAS ============
-
+# ─── Transaction ──────────────────────────────────────────────────────────────
 class TransactionBase(BaseModel):
     account_id: int
     category_id: Optional[int] = None
@@ -73,39 +76,87 @@ class TransactionUpdate(BaseModel):
 
 class TransactionResponse(TransactionBase):
     id: int
+    user_id: int
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
-# ============ ASSET SCHEMAS ============
+# ─── Transfer ─────────────────────────────────────────────────────────────────
+class TransferBase(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: Decimal
+    note: Optional[str] = None
+    transfer_date: date
 
+class TransferCreate(TransferBase):
+    pass
+
+class TransferResponse(TransferBase):
+    id: int
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Asset ────────────────────────────────────────────────────────────────────
 class AssetBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    type: str = Field(..., min_length=1, max_length=50)
-    quantity: Optional[Decimal] = Field(None, ge=0)
-    value_per_unit: Optional[Decimal] = Field(None, ge=0)
-    total_value: Decimal = Field(..., ge=0)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    name: str
+    type: str
+    asset_class: Literal["investment", "physical"] = "physical"
+    quantity: Optional[Decimal] = None
+    value_per_unit: Optional[Decimal] = None
+    total_value: Decimal
+    currency: str = "USD"
     purchase_date: Optional[date] = None
 
 class AssetCreate(AssetBase):
     pass
 
 class AssetUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    type: Optional[str] = Field(None, min_length=1, max_length=50)
-    quantity: Optional[Decimal] = Field(None, ge=0)
-    value_per_unit: Optional[Decimal] = Field(None, ge=0)
-    total_value: Optional[Decimal] = Field(None, ge=0)
-    currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    name: Optional[str] = None
+    type: Optional[str] = None
+    asset_class: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    value_per_unit: Optional[Decimal] = None
+    total_value: Optional[Decimal] = None
+    currency: Optional[str] = None
     purchase_date: Optional[date] = None
 
 class AssetResponse(AssetBase):
     id: int
+    user_id: int
     created_at: datetime
     updated_at: datetime
-    
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Savings Goal ─────────────────────────────────────────────────────────────
+class SavingsGoalBase(BaseModel):
+    name: str
+    target_amount: Decimal
+    account_id: Optional[int] = None
+    deadline: Optional[date] = None
+
+class SavingsGoalCreate(SavingsGoalBase):
+    pass
+
+class SavingsGoalUpdate(BaseModel):
+    name: Optional[str] = None
+    target_amount: Optional[Decimal] = None
+    account_id: Optional[int] = None
+    deadline: Optional[date] = None
+
+class SavingsGoalResponse(SavingsGoalBase):
+    id: int
+    user_id: int
+    created_at: datetime
+
     class Config:
         from_attributes = True

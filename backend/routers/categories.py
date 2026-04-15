@@ -1,51 +1,50 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List
 from models.database import get_db, Category
+from models.auth import User
 from models.schemas import CategoryCreate, CategoryUpdate, CategoryResponse
+from utils.auth import get_current_user
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
+
 @router.post("/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
-def create_category(category: CategoryCreate, db: Session = Depends(get_db)):
-    db_category = Category(**category.dict())
-    db.add(db_category)
+def create_category(category: CategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_cat = Category(**category.model_dump(), user_id=current_user.id, is_system=False)
+    db.add(db_cat)
     db.commit()
-    db.refresh(db_category)
-    return db_category
+    db.refresh(db_cat)
+    return db_cat
+
 
 @router.get("/", response_model=List[CategoryResponse])
-def get_categories(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    categories = db.query(Category).offset(skip).limit(limit).all()
-    return categories
+def get_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return (
+        db.query(Category)
+        .filter(or_(Category.user_id == current_user.id, Category.user_id.is_(None)))
+        .order_by(Category.type, Category.name)
+        .all()
+    )
 
-@router.get("/{category_id}", response_model=CategoryResponse)
-def get_category(category_id: int, db: Session = Depends(get_db)):
-    category = db.query(Category).filter(Category.id == category_id).first()
-    if category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return category
 
 @router.put("/{category_id}", response_model=CategoryResponse)
-def update_category(category_id: int, category_update: CategoryUpdate, db: Session = Depends(get_db)):
-    db_category = db.query(Category).filter(Category.id == category_id).first()
-    if db_category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
-    
-    update_data = category_update.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_category, key, value)
-    
+def update_category(category_id: int, update: CategoryUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cat = db.query(Category).filter(Category.id == category_id, Category.user_id == current_user.id).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found or not editable")
+    for field, value in update.model_dump(exclude_unset=True).items():
+        setattr(cat, field, value)
     db.commit()
-    db.refresh(db_category)
-    return db_category
+    db.refresh(cat)
+    return cat
+
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_id: int, db: Session = Depends(get_db)):
-    db_category = db.query(Category).filter(Category.id == category_id).first()
-    if db_category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
-    
-    db.delete(db_category)
+def delete_category(category_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cat = db.query(Category).filter(Category.id == category_id, Category.user_id == current_user.id).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found or not deletable")
+    db.delete(cat)
     db.commit()
-    return None

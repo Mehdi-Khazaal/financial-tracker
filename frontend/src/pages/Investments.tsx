@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Asset } from '../types';
 import { getAssets, deleteAsset } from '../utils/api';
-import Navigation from '../components/Navigation';
-import FloatingAddButton from '../components/FloatingAddButton';
-import AddInvestmentModal from '../components/AddInvestmentModal';
 import { getStockPrice, getMockStockPrice } from '../utils/stockApi';
+import Navigation from '../components/Navigation';
+import AddAssetModal from '../components/modals/AddAssetModal';
+
+const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const TYPE_ICONS: Record<string, string> = {
+  stock: '📈', crypto: '₿', gold: '🥇', silver: '🥈', etf: '📊', bond: '📜',
+};
 
 const Investments: React.FC = () => {
   const [investments, setInvestments] = useState<Asset[]>([]);
@@ -12,88 +17,68 @@ const Investments: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [stockPrices, setStockPrices] = useState<Record<string, number>>({});
   const [fetchingPrices, setFetchingPrices] = useState(false);
+  const [filter, setFilter] = useState('all');
 
-  useEffect(() => { loadInvestments(); }, []);
+  useEffect(() => { load(); }, []);
 
-  const loadInvestments = async () => {
+  const load = async () => {
     setLoading(true);
     try {
-      const res = await getAssets();
-      const all = res.data as Asset[];
-      setInvestments(all);
-      fetchPricesBackground(all);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
+      const res = await getAssets({ asset_class: 'investment' });
+      setInvestments(res.data);
+      fetchPricesBackground(res.data);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
   };
 
   const fetchPricesBackground = async (assets: Asset[]) => {
-    const cached = localStorage.getItem('stock_prices_cache');
+    const cached    = localStorage.getItem('stock_prices_cache');
     const cacheTime = localStorage.getItem('stock_prices_cache_time');
-    const now = Date.now();
-
-    if (cached && cacheTime && now - parseInt(cacheTime) < 5 * 60 * 1000) {
+    if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000) {
       setStockPrices(JSON.parse(cached));
       return;
     }
-
-    const stockAssets = assets.filter((a) => a.type === 'stock' || a.type === 'crypto');
-    if (stockAssets.length === 0) return;
-
+    const stockAssets = assets.filter(a => a.type === 'stock' || a.type === 'crypto');
+    if (!stockAssets.length) return;
     setFetchingPrices(true);
     const prices: Record<string, number> = {};
-
     for (let i = 0; i < stockAssets.length; i++) {
-      const asset = stockAssets[i];
-      const match = asset.name.match(/\(([A-Z]+)\)/);
-      if (match) {
-        const symbol = match[1];
-        const price = await getStockPrice(symbol);
-        prices[symbol] = price ?? getMockStockPrice(symbol);
-        setStockPrices((prev) => ({ ...prev, [symbol]: prices[symbol] }));
-        if (i < stockAssets.length - 1) {
-          await new Promise((r) => setTimeout(r, 13000));
-        }
+      const sym = stockAssets[i].name.match(/\(([A-Z]+)\)/)?.[1];
+      if (sym) {
+        const price = await getStockPrice(sym);
+        prices[sym] = price ?? getMockStockPrice(sym);
+        setStockPrices(prev => ({ ...prev, [sym]: prices[sym] }));
+        if (i < stockAssets.length - 1) await new Promise(r => setTimeout(r, 13000));
       }
     }
-
     localStorage.setItem('stock_prices_cache', JSON.stringify(prices));
-    localStorage.setItem('stock_prices_cache_time', now.toString());
+    localStorage.setItem('stock_prices_cache_time', Date.now().toString());
     setFetchingPrices(false);
   };
 
   const handleDelete = async (id: number, name: string) => {
     if (!window.confirm(`Delete "${name}"?`)) return;
-    try {
-      await deleteAsset(id);
-      loadInvestments();
-    } catch {
-      alert('Failed to delete investment');
-    }
+    try { await deleteAsset(id); load(); }
+    catch { alert('Failed to delete'); }
   };
 
-  const getSymbol = (name: string) => name.match(/\(([A-Z]+)\)/)?.[1] ?? null;
-  const getCurrentPrice = (a: Asset) => {
-    const sym = getSymbol(a.name);
-    return sym && stockPrices[sym] ? stockPrices[sym] : Number(a.value_per_unit ?? 0);
-  };
+  const getSymbol       = (name: string) => name.match(/\(([A-Z]+)\)/)?.[1] ?? null;
+  const getCurrentPrice = (a: Asset) => { const sym = getSymbol(a.name); return sym && stockPrices[sym] ? stockPrices[sym] : Number(a.value_per_unit ?? 0); };
   const getCurrentValue = (a: Asset) => getCurrentPrice(a) * Number(a.quantity ?? 1);
-  const getGainLoss = (a: Asset) => getCurrentValue(a) - Number(a.total_value);
-  const getGainLossPct = (a: Asset) => {
-    const cost = Number(a.total_value);
-    return cost > 0 ? ((getGainLoss(a) / cost) * 100) : 0;
-  };
+  const getGainLoss     = (a: Asset) => getCurrentValue(a) - Number(a.total_value);
+  const getGainLossPct  = (a: Asset) => { const cost = Number(a.total_value); return cost > 0 ? (getGainLoss(a) / cost) * 100 : 0; };
 
-  const totalCost = investments.reduce((s, a) => s + Number(a.total_value), 0);
+  const filtered     = filter === 'all' ? investments : investments.filter(a => a.type === filter);
+  const totalCost    = investments.reduce((s, a) => s + Number(a.total_value), 0);
   const totalCurrent = investments.reduce((s, a) => s + getCurrentValue(a), 0);
-  const totalGainLoss = totalCurrent - totalCost;
+  const totalGain    = totalCurrent - totalCost;
+
+  const types = ['all', ...Array.from(new Set(investments.map(a => a.type)))];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -101,106 +86,127 @@ const Investments: React.FC = () => {
   return (
     <>
       <Navigation />
-      <div className="md:ml-64 min-h-screen bg-slate-50 pb-24 md:pb-8">
-        <div className="p-4 md:p-8 max-w-5xl">
-          <div className="flex justify-between items-center mb-6">
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+        <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-navy">Investments</h1>
+              <h1 className="text-xl font-bold text-text">Investments</h1>
               {fetchingPrices && (
-                <p className="text-xs text-gray mt-1 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-lime rounded-full animate-pulse inline-block" />
-                  Fetching live prices...
+                <p className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: '#5b8fff' }} />
+                  Fetching live prices…
                 </p>
               )}
             </div>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="hidden md:flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition"
-            >
-              + Add Investment
+            <button onClick={() => setShowAdd(true)}
+              className="hidden md:block text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}>
+              + Investment
             </button>
           </div>
 
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-2xl p-5 border border-slate-100">
-              <p className="text-xs text-gray mb-1">Current Value</p>
-              <p className="text-2xl font-bold text-navy">${totalCurrent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-100">
-              <p className="text-xs text-gray mb-1">Total Invested</p>
-              <p className="text-2xl font-bold text-navy">${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            </div>
-            <div className={`rounded-2xl p-5 border ${totalGainLoss >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
-              <p className="text-xs text-gray mb-1">Total Gain/Loss</p>
-              <p className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-primary' : 'text-accent'}`}>
-                {totalGainLoss >= 0 ? '+' : '-'}${Math.abs(totalGainLoss).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
+          {/* Hero */}
+          <div className="rounded-3xl p-6 relative overflow-hidden"
+            style={{ background: 'linear-gradient(145deg, #11141c, #181c28)', border: '1px solid #252a3a' }}>
+            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-15 pointer-events-none"
+              style={{ background: 'radial-gradient(circle, #5b8fff, transparent)' }} />
+            <p className="label mb-1">Portfolio Value</p>
+            <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px' }}>
+              ${fmt(totalCurrent)}
+            </p>
+            <div className="flex gap-6">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Invested</p>
+                <p className="font-mono text-sm font-semibold text-text">${fmt(totalCost)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Gain / Loss</p>
+                <p className="font-mono text-sm font-semibold" style={{ color: totalGain >= 0 ? '#2ecc8a' : '#ff5f6d' }}>
+                  {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
+                </p>
+              </div>
             </div>
           </div>
 
+          {/* Type filter */}
+          {investments.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {types.map(t => (
+                <button key={t} onClick={() => setFilter(t)}
+                  className="pill shrink-0 transition-all capitalize"
+                  style={filter === t
+                    ? { backgroundColor: 'rgba(91,143,255,.15)', color: '#5b8fff', border: '1px solid rgba(91,143,255,.3)' }
+                    : { backgroundColor: '#11141c', color: '#7880a0' }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* List */}
           {investments.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
-              <p className="text-5xl mb-4">📈</p>
-              <p className="text-xl font-bold text-navy mb-2">No investments yet</p>
-              <p className="text-gray mb-6">Track your stocks, crypto, gold, and more</p>
-              <button onClick={() => setShowAdd(true)} className="bg-primary text-white px-8 py-3 rounded-xl font-medium hover:opacity-90">
-                Add First Investment
-              </button>
+            <div className="card py-12 text-center">
+              <p className="text-3xl mb-3">📈</p>
+              <p className="font-semibold text-text mb-1">No investments yet</p>
+              <p className="text-sm text-muted mb-5">Track stocks, crypto, gold, ETFs, and more</p>
+              <button onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Investment</button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {investments.map((inv) => {
+            <div className="space-y-3">
+              {filtered.map(inv => {
                 const gainLoss = getGainLoss(inv);
-                const gainPct = getGainLossPct(inv);
-                const currentPrice = getCurrentPrice(inv);
-                const currentVal = getCurrentValue(inv);
-                const sym = getSymbol(inv.name);
-                const isGain = gainLoss >= 0;
+                const gainPct  = getGainLossPct(inv);
+                const curPrice = getCurrentPrice(inv);
+                const curVal   = getCurrentValue(inv);
+                const sym      = getSymbol(inv.name);
+                const isGain   = gainLoss >= 0;
 
                 return (
-                  <div key={inv.id} className="bg-white rounded-2xl p-5 border border-slate-100 hover:shadow-md transition-shadow group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-bold text-navy">{inv.name}</h3>
-                        <span className="text-xs bg-slate-100 text-gray px-2 py-0.5 rounded-full capitalize">{inv.type}</span>
+                  <div key={inv.id} className="card card-hover p-4 group">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{TYPE_ICONS[inv.type] ?? '💰'}</span>
+                        <div>
+                          <p className="font-semibold text-sm text-text">{inv.name}</p>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full capitalize"
+                            style={{ backgroundColor: '#252a3a', color: '#7880a0' }}>{inv.type}</span>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleDelete(inv.id, inv.name)}
-                        className="opacity-0 group-hover:opacity-100 text-xs text-accent hover:underline transition-opacity"
-                      >
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-gray mb-0.5">Purchased at</p>
-                        <p className="font-semibold text-navy">${Number(inv.value_per_unit ?? 0).toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray mb-0.5">
-                          Current price {sym && stockPrices[sym] ? '' : sym ? '(mock)' : ''}
-                        </p>
-                        <p className="font-semibold text-navy">${currentPrice.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray mb-0.5">Quantity</p>
-                        <p className="font-semibold text-navy">{Number(inv.quantity ?? 0).toFixed(4)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray mb-0.5">Current value</p>
-                        <p className="font-bold text-primary">${currentVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold font-mono" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
+                          {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
+                        </span>
+                        <button onClick={() => handleDelete(inv.id, inv.name)}
+                          className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
+                          style={{ color: '#3e4460' }}
+                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#ff5f6d'}
+                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#3e4460'}>
+                          ✕
+                        </button>
                       </div>
                     </div>
 
-                    <div className={`mt-4 pt-4 border-t border-slate-50 flex justify-between items-center`}>
-                      <p className="text-xs text-gray">Invested: ${Number(inv.total_value).toFixed(2)}</p>
-                      <div className={`flex items-center gap-1 font-bold text-sm ${isGain ? 'text-primary' : 'text-accent'}`}>
-                        <span>{isGain ? '▲' : '▼'}</span>
-                        <span>{Math.abs(gainPct).toFixed(2)}%</span>
-                        <span className="text-xs font-normal">({isGain ? '+' : '-'}${Math.abs(gainLoss).toFixed(2)})</span>
-                      </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
+                        { label: `Current${sym && !stockPrices[sym] ? ' (est.)' : ''}`, value: `$${curPrice.toFixed(2)}` },
+                        { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
+                        { label: 'Value',      value: `$${fmt(curVal)}`, highlight: isGain ? '#2ecc8a' : '#ff5f6d' },
+                      ].map(stat => (
+                        <div key={stat.label}>
+                          <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
+                          <p className="font-mono text-sm font-semibold" style={{ color: stat.highlight ?? '#e8eaf2' }}>{stat.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between items-center mt-3 pt-3" style={{ borderTop: '1px solid #252a3a' }}>
+                      <p className="text-xs text-muted">Invested: ${fmt(Number(inv.total_value))}</p>
+                      <p className="font-mono text-xs font-bold" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
+                        {isGain ? '+' : '-'}${fmt(Math.abs(gainLoss))}
+                      </p>
                     </div>
                   </div>
                 );
@@ -208,18 +214,18 @@ const Investments: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </main>
 
-      <FloatingAddButton
-        actions={[{ label: 'Add Investment', icon: '📈', color: '#1F422C', onClick: () => setShowAdd(true) }]}
-      />
+      {/* FAB */}
+      <button onClick={() => setShowAdd(true)}
+        className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
+        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', boxShadow: '0 8px 32px rgba(91,143,255,.4)' }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
 
-      <AddInvestmentModal
-        isOpen={showAdd}
-        onClose={() => setShowAdd(false)}
-        onSuccess={loadInvestments}
-        mode="investment"
-      />
+      <AddAssetModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} mode="investment" />
     </>
   );
 };

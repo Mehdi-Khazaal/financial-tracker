@@ -1,3 +1,137 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background-color: #0b0d12;
+  color: #e8eaf2;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+/* numbers and amounts */
+.font-mono { font-family: 'DM Mono', monospace !important; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #252a3a; border-radius: 99px; }
+
+/* ── CSS variables ─────────────────────────────────────────────────────────── */
+:root {
+  --bg:       #0b0d12;
+  --surface:  #11141c;
+  --surface2: #181c28;
+  --border:   #252a3a;
+  --border2:  #323855;
+  --text:     #e8eaf2;
+  --muted:    #7880a0;
+  --dim:      #3e4460;
+  --accent:   #5b8fff;
+  --purple:   #a78bfa;
+  --green:    #2ecc8a;
+  --red:      #ff5f6d;
+  --orange:   #f5a623;
+  --gradient: linear-gradient(135deg, #5b8fff 0%, #a78bfa 100%);
+}
+
+/* ── Components ────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-surface border border-border rounded-2xl;
+    background-image: linear-gradient(145deg, rgba(255,255,255,.025) 0%, transparent 60%);
+  }
+  .card-hover {
+    @apply transition-all duration-200 cursor-pointer;
+  }
+  .card-hover:hover {
+    @apply border-border2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  }
+  .card-hover:active { transform: scale(.985); }
+
+  /* Glow variants */
+  .glow-accent { box-shadow: 0 0 24px rgba(91,143,255,.15); }
+  .glow-green  { box-shadow: 0 0 24px rgba(46,204,138,.15); }
+  .glow-red    { box-shadow: 0 0 24px rgba(255,95,109,.15); }
+  .glow-orange { box-shadow: 0 0 24px rgba(245,166,35,.15); }
+  .glow-purple { box-shadow: 0 0 24px rgba(167,139,250,.15); }
+
+  /* Buttons */
+  .btn-gradient {
+    @apply font-semibold text-white rounded-xl px-5 py-3 text-sm transition-all active:scale-95;
+    background: var(--gradient);
+    box-shadow: 0 4px 20px rgba(91,143,255,.25);
+  }
+  .btn-gradient:hover { opacity: .9; box-shadow: 0 6px 28px rgba(91,143,255,.35); }
+
+  .btn-ghost {
+    @apply font-semibold text-muted border border-border bg-surface2 rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
+  }
+  .btn-ghost:hover { @apply border-border2 text-text; }
+
+  .btn-danger {
+    @apply font-semibold rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
+    background: rgba(255,95,109,.1);
+    border: 1px solid rgba(255,95,109,.3);
+    color: #ff5f6d;
+  }
+
+  /* Inputs */
+  .input-dark {
+    @apply w-full bg-surface2 border border-border rounded-xl px-4 py-3 text-sm text-text placeholder-dim transition-all outline-none;
+  }
+  .input-dark:focus {
+    @apply border-accent;
+    box-shadow: 0 0 0 3px rgba(91,143,255,.1);
+  }
+
+  /* Pills / Badges */
+  .pill {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+  }
+  .pill-accent { @apply pill bg-accent/10 text-accent; }
+  .pill-green  { @apply pill bg-green/10 text-green; }
+  .pill-red    { @apply pill bg-red/10 text-red; }
+  .pill-orange { @apply pill bg-orange/10 text-orange; }
+  .pill-purple { @apply pill bg-purple/10 text-purple; }
+  .pill-muted  { @apply pill bg-surface2 text-muted; }
+
+  /* Stat value */
+  .stat-value { @apply font-mono font-bold; letter-spacing: -0.5px; }
+
+  /* Section label */
+  .label { @apply text-[10px] font-semibold uppercase tracking-widest text-muted; }
+}
+
+/* ── Animations ────────────────────────────────────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+.slide-up    { animation: slideUp .28s cubic-bezier(.32,1,.4,1) both; }
+.fade-in     { animation: fadeIn .2s ease both; }
+.pulse-dot   { animation: pulse-glow 1.8s ease-in-out infinite; }
+.spin-slow   { animation: spin-slow .9s linear infinite; }
+
+/* ── Safe area (iPhone notch) ──────────────────────────────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

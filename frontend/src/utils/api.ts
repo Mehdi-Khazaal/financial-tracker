@@ -1,45 +1,56 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000',
+});
 
-const api = axios.create({ baseURL: API_URL });
-
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Auth
-export const signup = (data: { email: string; username: string; password: string }) =>
-  api.post('/auth/signup', data);
-export const login = (data: { email: string; password: string }) =>
-  api.post('/auth/login', data);
-export const getCurrentUser = () => api.get('/auth/me');
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export const login    = (identifier: string, password: string) =>
+  api.post('/auth/login', { identifier, password });
+export const signup   = (email: string, username: string, password: string) =>
+  api.post('/auth/signup', { email, username, password });
+export const getMe    = () => api.get('/auth/me');
 
-// Accounts
-export const getAccounts = () => api.get('/accounts/');
-export const createAccount = (data: object) => api.post('/accounts/', data);
-export const updateAccount = (id: number, data: object) => api.put(`/accounts/${id}`, data);
-export const deleteAccount = (id: number) => api.delete(`/accounts/${id}`);
-export const getTotalBalance = () => api.get('/accounts/summary/total-balance');
+// ── Accounts ──────────────────────────────────────────────────────────────────
+export const getAccounts    = () => api.get('/accounts/');
+export const createAccount  = (data: any) => api.post('/accounts/', data);
+export const updateAccount  = (id: number, data: any) => api.put(`/accounts/${id}`, data);
+export const deleteAccount  = (id: number) => api.delete(`/accounts/${id}`);
 
-// Transactions
-export const getTransactions = () => api.get('/transactions/');
-export const createTransaction = (data: object) => api.post('/transactions/', data);
-export const updateTransaction = (id: number, data: object) => api.put(`/transactions/${id}`, data);
+// ── Categories ────────────────────────────────────────────────────────────────
+export const getCategories   = () => api.get('/categories/');
+export const createCategory  = (data: any) => api.post('/categories/', data);
+export const updateCategory  = (id: number, data: any) => api.put(`/categories/${id}`, data);
+export const deleteCategory  = (id: number) => api.delete(`/categories/${id}`);
+
+// ── Transactions ──────────────────────────────────────────────────────────────
+export const getTransactions = (params?: Record<string, any>) =>
+  api.get('/transactions/', { params });
+export const createTransaction = (data: any) => api.post('/transactions/', data);
+export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);
 export const deleteTransaction = (id: number) => api.delete(`/transactions/${id}`);
 
-// Categories
-export const getCategories = () => api.get('/categories/');
-export const createCategory = (data: { name: string; type: string; color: string }) =>
-  api.post('/categories/', data);
-export const deleteCategory = (id: number) => api.delete(`/categories/${id}`);
+// ── Transfers ─────────────────────────────────────────────────────────────────
+export const getTransfers   = () => api.get('/transfers/');
+export const createTransfer = (data: any) => api.post('/transfers/', data);
+export const deleteTransfer = (id: number) => api.delete(`/transfers/${id}`);
 
-// Assets (investments + physical)
-export const getAssets = () => api.get('/assets/');
-export const createAsset = (data: object) => api.post('/assets/', data);
-export const updateAsset = (id: number, data: object) => api.put(`/assets/${id}`, data);
+// ── Assets ────────────────────────────────────────────────────────────────────
+export const getAssets   = (params?: Record<string, any>) => api.get('/assets/', { params });
+export const createAsset = (data: any) => api.post('/assets/', data);
+export const updateAsset = (id: number, data: any) => api.put(`/assets/${id}`, data);
 export const deleteAsset = (id: number) => api.delete(`/assets/${id}`);
+
+// ── Savings Goals ─────────────────────────────────────────────────────────────
+export const getSavingsGoals   = () => api.get('/savings-goals/');
+export const createSavingsGoal = (data: any) => api.post('/savings-goals/', data);
+export const updateSavingsGoal = (id: number, data: any) => api.put(`/savings-goals/${id}`, data);
+export const deleteSavingsGoal = (id: number) => api.delete(`/savings-goals/${id}`);
 
 export default api;

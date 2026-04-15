@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { signup } = useAuth();
   const navigate = useNavigate();
 
@@ -15,76 +15,72 @@ const Signup: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       await signup(email, username, password);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Signup failed');
+      setError(err.response?.data?.detail || 'Signup failed. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-beige flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold text-primary mb-6">Create Account</h1>
-        
-        {error && (
-          <div className="bg-accent bg-opacity-10 border border-accent text-accent px-4 py-3 rounded mb-4">
-            {error}
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#0b0d12' }}>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-5"
+          style={{ background: 'radial-gradient(circle, #a78bfa, transparent)', filter: 'blur(60px)' }} />
+      </div>
+
+      <div className="w-full max-w-sm fade-in">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
+            style={{ background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', boxShadow: '0 8px 32px rgba(91,143,255,.3)' }}>
+            <span className="text-white font-bold text-xl">F</span>
           </div>
-        )}
+          <h1 className="text-2xl font-bold text-text">Create account</h1>
+          <p className="text-muted text-sm mt-1">Start tracking your finances</p>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-navy font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-          </div>
+        <div className="card p-6 space-y-4">
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.2)' }}>
+              {error}
+            </div>
+          )}
 
-          <div className="mb-4">
-            <label className="block text-navy font-medium mb-2">Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <p className="label mb-2">Email</p>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                className="input-dark" placeholder="you@example.com" required autoFocus />
+            </div>
+            <div>
+              <p className="label mb-2">Username</p>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)}
+                className="input-dark" placeholder="your_name" required />
+            </div>
+            <div>
+              <p className="label mb-2">Password</p>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                className="input-dark" placeholder="Min. 8 characters" required minLength={8} />
+            </div>
+            <button type="submit" disabled={loading}
+              className="btn-gradient w-full py-3.5 text-base disabled:opacity-60 mt-2">
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white spin-slow" />
+                  Creating account…
+                </span>
+              ) : 'Create Account'}
+            </button>
+          </form>
+        </div>
 
-          <div className="mb-6">
-            <label className="block text-navy font-medium mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-              minLength={6}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50"
-          >
-            {loading ? 'Creating account...' : 'Sign Up'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-gray">
+        <p className="text-center text-muted text-sm mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="text-primary font-medium hover:underline">
-            Login
+          <Link to="/login" className="font-semibold transition-colors" style={{ color: '#5b8fff' }}>
+            Sign in
           </Link>
         </p>
       </div>
