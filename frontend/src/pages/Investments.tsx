@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Asset } from '../types';
 import { getAssets, deleteAsset } from '../utils/api';
-import { getStockPrice, getMockStockPrice } from '../utils/stockApi';
+import { getStockPrice } from '../utils/stockApi';
 import Navigation from '../components/Navigation';
 import AddAssetModal from '../components/modals/AddAssetModal';
 
@@ -31,23 +31,40 @@ const Investments: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  const fetchPricesBackground = async (assets: Asset[]) => {
-    const cached    = localStorage.getItem('stock_prices_cache');
-    const cacheTime = localStorage.getItem('stock_prices_cache_time');
-    if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000) {
-      setStockPrices(JSON.parse(cached));
-      return;
+  const fetchPricesBackground = async (assets: Asset[], force = false) => {
+    const tickerAssets = assets.filter(a => a.type === 'stock' || a.type === 'crypto' || a.type === 'etf');
+    if (!tickerAssets.length) return;
+
+    const symbols = tickerAssets
+      .map(a => getSymbol(a.name))
+      .filter((s): s is string => !!s);
+
+    if (!symbols.length) return;
+
+    // Use cache only if not forced AND all current symbols are already cached
+    if (!force) {
+      const cached    = localStorage.getItem('stock_prices_cache');
+      const cacheTime = localStorage.getItem('stock_prices_cache_time');
+      if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000) {
+        const cachedPrices = JSON.parse(cached) as Record<string, number>;
+        const allCached = symbols.every(s => cachedPrices[s] != null);
+        if (allCached) {
+          setStockPrices(cachedPrices);
+          return;
+        }
+        // Some symbols missing from cache — fall through to fetch
+      }
     }
-    const stockAssets = assets.filter(a => a.type === 'stock' || a.type === 'crypto');
-    if (!stockAssets.length) return;
+
     setFetchingPrices(true);
     const prices: Record<string, number> = {};
-    await Promise.all(stockAssets.map(async asset => {
-      const sym = asset.name.match(/\(([A-Z]+)\)/)?.[1];
-      if (sym) {
-        const price = await getStockPrice(sym);
-        prices[sym] = price ?? getMockStockPrice(sym);
-        setStockPrices(prev => ({ ...prev, [sym]: prices[sym] }));
+    await Promise.all(tickerAssets.map(async asset => {
+      const sym = getSymbol(asset.name);
+      if (!sym) return;
+      const price = await getStockPrice(sym);
+      if (price != null) {
+        prices[sym] = price;
+        setStockPrices(prev => ({ ...prev, [sym]: price }));
       }
     }));
     localStorage.setItem('stock_prices_cache', JSON.stringify(prices));
@@ -65,15 +82,19 @@ const Investments: React.FC = () => {
   const getSymbol = (name: string) =>
     name.match(/\(([A-Z0-9]+)\)/)?.[1] ??
     (/^[A-Z0-9]{1,10}$/.test(name.trim()) ? name.trim() : null);
-  const getCurrentPrice = (a: Asset) => { const sym = getSymbol(a.name); return sym && stockPrices[sym] ? stockPrices[sym] : Number(a.value_per_unit ?? 0); };
+  const getLivePrice    = (a: Asset): number | null => { const sym = getSymbol(a.name); return (sym && stockPrices[sym] != null) ? stockPrices[sym] : null; };
+  const getCurrentPrice = (a: Asset) => getLivePrice(a) ?? Number(a.value_per_unit ?? 0);
+  const hasLivePrice    = (a: Asset) => getLivePrice(a) != null;
   const getCurrentValue = (a: Asset) => getCurrentPrice(a) * Number(a.quantity ?? 1);
-  const getGainLoss     = (a: Asset) => getCurrentValue(a) - Number(a.total_value);
-  const getGainLossPct  = (a: Asset) => { const cost = Number(a.total_value); return cost > 0 ? (getGainLoss(a) / cost) * 100 : 0; };
+  const getGainLoss     = (a: Asset) => hasLivePrice(a) ? getCurrentValue(a) - Number(a.total_value) : null;
+  const getGainLossPct  = (a: Asset) => { const cost = Number(a.total_value); const gl = getGainLoss(a); return (gl != null && cost > 0) ? (gl / cost) * 100 : null; };
 
   const filtered     = filter === 'all' ? investments : investments.filter(a => a.type === filter);
   const totalCost    = investments.reduce((s, a) => s + Number(a.total_value), 0);
-  const totalCurrent = investments.reduce((s, a) => s + getCurrentValue(a), 0);
-  const totalGain    = totalCurrent - totalCost;
+  // Only sum current value for assets where we have a live price
+  const priceKnownAssets = investments.filter(a => hasLivePrice(a));
+  const totalCurrent = priceKnownAssets.reduce((s, a) => s + getCurrentValue(a), 0);
+  const totalGain    = priceKnownAssets.length > 0 ? totalCurrent - priceKnownAssets.reduce((s, a) => s + Number(a.total_value), 0) : null;
 
   const types = ['all', ...Array.from(new Set(investments.map(a => a.type)))];
 
@@ -95,11 +116,20 @@ const Investments: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-text">Investments</h1>
-              {fetchingPrices && (
+              {fetchingPrices ? (
                 <p className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: '#5b8fff' }} />
                   Fetching live prices…
                 </p>
+              ) : (
+                <button
+                  onClick={() => { localStorage.removeItem('stock_prices_cache'); localStorage.removeItem('stock_prices_cache_time'); fetchPricesBackground(investments, true); }}
+                  className="text-xs text-muted mt-0.5 hover:text-accent transition-colors"
+                  style={{ color: '#3e4460' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#5b8fff')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#3e4460')}>
+                  ↻ Refresh prices
+                </button>
               )}
             </div>
             <button onClick={() => setShowAdd(true)}
@@ -116,7 +146,7 @@ const Investments: React.FC = () => {
               style={{ background: 'radial-gradient(circle, #5b8fff, transparent)' }} />
             <p className="label mb-1">Portfolio Value</p>
             <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px' }}>
-              ${fmt(totalCurrent)}
+              {priceKnownAssets.length > 0 ? `$${fmt(totalCurrent)}` : `$${fmt(totalCost)}`}
             </p>
             <div className="flex gap-6">
               <div>
@@ -125,9 +155,13 @@ const Investments: React.FC = () => {
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Gain / Loss</p>
-                <p className="font-mono text-sm font-semibold" style={{ color: totalGain >= 0 ? '#2ecc8a' : '#ff5f6d' }}>
-                  {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
-                </p>
+                {totalGain != null ? (
+                  <p className="font-mono text-sm font-semibold" style={{ color: totalGain >= 0 ? '#2ecc8a' : '#ff5f6d' }}>
+                    {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
+                  </p>
+                ) : (
+                  <p className="font-mono text-sm font-semibold text-muted">—</p>
+                )}
               </div>
             </div>
           </div>
@@ -158,12 +192,14 @@ const Investments: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {filtered.map(inv => {
-                const gainLoss = getGainLoss(inv);
-                const gainPct  = getGainLossPct(inv);
-                const curPrice = getCurrentPrice(inv);
-                const curVal   = getCurrentValue(inv);
-                const sym      = getSymbol(inv.name);
-                const isGain   = gainLoss >= 0;
+                const gainLoss  = getGainLoss(inv);
+                const gainPct   = getGainLossPct(inv);
+                const curPrice  = getCurrentPrice(inv);
+                const livePx    = getLivePrice(inv);
+                const curVal    = getCurrentValue(inv);
+                const sym       = getSymbol(inv.name);
+                const isGain    = (gainLoss ?? 0) >= 0;
+                const hasPx     = hasLivePrice(inv);
 
                 return (
                   <div key={inv.id} className="card card-hover p-4 group">
@@ -177,9 +213,16 @@ const Investments: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold font-mono" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
-                          {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
-                        </span>
+                        {hasPx && gainPct != null ? (
+                          <span className="text-xs font-bold font-mono" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
+                            {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs font-mono flex items-center gap-1" style={{ color: '#f5a623' }}>
+                            <span className="w-1.5 h-1.5 rounded-full inline-block pulse-dot" style={{ backgroundColor: '#f5a623' }} />
+                            fetching…
+                          </span>
+                        )}
                         <button onClick={() => handleDelete(inv.id, inv.name)}
                           className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
                           style={{ color: '#3e4460' }}
@@ -193,9 +236,9 @@ const Investments: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
-                        { label: `Current${sym && !stockPrices[sym] ? ' (est.)' : ''}`, value: `$${curPrice.toFixed(2)}` },
+                        { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—', highlight: hasPx ? '#e8eaf2' : '#7880a0' },
                         { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
-                        { label: 'Value',      value: `$${fmt(curVal)}`, highlight: isGain ? '#2ecc8a' : '#ff5f6d' },
+                        { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '—', highlight: hasPx ? (isGain ? '#2ecc8a' : '#ff5f6d') : '#7880a0' },
                       ].map(stat => (
                         <div key={stat.label}>
                           <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
@@ -206,9 +249,13 @@ const Investments: React.FC = () => {
 
                     <div className="flex justify-between items-center mt-3 pt-3" style={{ borderTop: '1px solid #252a3a' }}>
                       <p className="text-xs text-muted">Invested: ${fmt(Number(inv.total_value))}</p>
-                      <p className="font-mono text-xs font-bold" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
-                        {isGain ? '+' : '-'}${fmt(Math.abs(gainLoss))}
-                      </p>
+                      {hasPx && gainLoss != null ? (
+                        <p className="font-mono text-xs font-bold" style={{ color: isGain ? '#2ecc8a' : '#ff5f6d' }}>
+                          {isGain ? '+' : '-'}${fmt(Math.abs(gainLoss))}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted">No live price</p>
+                      )}
                     </div>
                   </div>
                 );
@@ -227,7 +274,11 @@ const Investments: React.FC = () => {
         </svg>
       </button>
 
-      <AddAssetModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} mode="investment" />
+      <AddAssetModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={() => {
+        localStorage.removeItem('stock_prices_cache');
+        localStorage.removeItem('stock_prices_cache_time');
+        load();
+      }} mode="investment" />
     </>
   );
 };

@@ -191,3 +191,36 @@ class SavingsGoalResponse(SavingsGoalBase):
 
     class Config:
         from_attributes = True
+
+
+# ─── Loan ─────────────────────────────────────────────────────────────────────
+class LoanCreate(BaseModel):
+    borrower_name: str
+    amount: Decimal
+    note: Optional[str] = None
+    loan_date: date
+    due_date: Optional[date] = None
+
+class LoanUpdate(BaseModel):
+    borrower_name: Optional[str] = None
+    amount: Optional[Decimal] = None
+    amount_repaid: Optional[Decimal] = None
+    note: Optional[str] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None
+
+class LoanResponse(BaseModel):
+    id: int
+    user_id: int
+    borrower_name: str
+    amount: Decimal
+    amount_repaid: Decimal
+    note: Optional[str] = None
+    loan_date: date
+    due_date: Optional[date] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -60,6 +60,12 @@ export const updateRecurring  = (id: number, data: any) => api.patch(`/recurring
 export const deleteRecurring  = (id: number) => api.delete(`/recurring/${id}`);
 export const processDueRecurring = () => api.post('/recurring/process-due');
 
+// ── Loans ─────────────────────────────────────────────────────────────────────
+export const getLoans    = () => api.get('/loans/');
+export const createLoan  = (data: any) => api.post('/loans/', data);
+export const updateLoan  = (id: number, data: any) => api.patch(`/loans/${id}`, data);
+export const deleteLoan  = (id: number) => api.delete(`/loans/${id}`);
+
 // ── History ───────────────────────────────────────────────────────────────────
 export const getNetWorthHistory     = (months = 12) => api.get(`/history/net-worth?months=${months}`);
 export const getAccountHistory      = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);

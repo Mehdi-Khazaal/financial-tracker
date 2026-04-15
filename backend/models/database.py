@@ -126,6 +126,23 @@ class RecurringTransaction(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+# ─── Loan ─────────────────────────────────────────────────────────────────────
+class Loan(Base):
+    __tablename__ = "loans"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    user_id        = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    borrower_name  = Column(String(100), nullable=False)
+    amount         = Column(Numeric(15, 2), nullable=False)
+    amount_repaid  = Column(Numeric(15, 2), nullable=False, default=0)
+    note           = Column(Text, nullable=True)
+    loan_date      = Column(Date, nullable=False)
+    due_date       = Column(Date, nullable=True)
+    status         = Column(String(20), nullable=False, default="active")  # active|repaid|written_off
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ─── Savings Goal ─────────────────────────────────────────────────────────────
 class SavingsGoal(Base):
     __tablename__ = "savings_goals"

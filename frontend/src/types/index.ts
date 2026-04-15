@@ -89,6 +89,20 @@ export interface MonthSnapshot {
   balance?: number;
 }
 
+export interface Loan {
+  id: number;
+  user_id: number;
+  borrower_name: string;
+  amount: number;
+  amount_repaid: number;
+  note: string | null;
+  loan_date: string;
+  due_date: string | null;
+  status: 'active' | 'repaid' | 'written_off';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: number;
   email: string;
