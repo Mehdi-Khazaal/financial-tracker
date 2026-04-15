@@ -118,11 +118,12 @@ class RecurringTransaction(Base):
     user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     account_id  = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"))
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
-    amount      = Column(Numeric(15, 2), nullable=False)
+    amount      = Column(Numeric(15, 2), nullable=False)  # fixed amount, or last known for variable
     description = Column(Text, nullable=True)
     period      = Column(String(20), nullable=False)   # weekly|biweekly|monthly|quarterly|yearly
     next_date   = Column(Date, nullable=False)
     is_active   = Column(Boolean, default=True)
+    is_variable = Column(Boolean, default=False)  # True = amount changes each time (bills)
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 

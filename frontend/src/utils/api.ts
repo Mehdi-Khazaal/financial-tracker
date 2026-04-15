@@ -59,6 +59,8 @@ export const createRecurring  = (data: any) => api.post('/recurring/', data);
 export const updateRecurring  = (id: number, data: any) => api.patch(`/recurring/${id}`, data);
 export const deleteRecurring  = (id: number) => api.delete(`/recurring/${id}`);
 export const processDueRecurring = () => api.post('/recurring/process-due');
+export const logVariableRecurring = (id: number, amount: number, transaction_date?: string) =>
+  api.post(`/recurring/${id}/log`, { amount, transaction_date });
 
 // ── Loans ─────────────────────────────────────────────────────────────────────
 export const getLoans    = () => api.get('/loans/');

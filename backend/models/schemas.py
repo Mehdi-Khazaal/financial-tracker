@@ -161,6 +161,7 @@ class RecurringTransactionBase(BaseModel):
     description: Optional[str] = None
     period: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
     next_date: date
+    is_variable: bool = False
 
 class RecurringTransactionCreate(RecurringTransactionBase):
     pass
@@ -173,15 +174,21 @@ class RecurringTransactionUpdate(BaseModel):
     period: Optional[str] = None
     next_date: Optional[date] = None
     is_active: Optional[bool] = None
+    is_variable: Optional[bool] = None
 
 class RecurringTransactionResponse(RecurringTransactionBase):
     id: int
     user_id: int
     is_active: bool
+    is_variable: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class LogVariableRecurringRequest(BaseModel):
+    amount: Decimal
+    transaction_date: Optional[date] = None
 
 
 class SavingsGoalResponse(SavingsGoalBase):

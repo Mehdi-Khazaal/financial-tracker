@@ -6,7 +6,7 @@ import calendar
 
 from models.database import get_db, RecurringTransaction, Transaction, Account
 from models.auth import User
-from models.schemas import RecurringTransactionCreate, RecurringTransactionUpdate, RecurringTransactionResponse, TransactionResponse
+from models.schemas import RecurringTransactionCreate, RecurringTransactionUpdate, RecurringTransactionResponse, TransactionResponse, LogVariableRecurringRequest
 from utils.auth import get_current_user
 
 router = APIRouter(prefix="/recurring", tags=["recurring"])
@@ -79,13 +79,14 @@ def delete_recurring(rec_id: int, db: Session = Depends(get_db), current_user: U
 
 @router.post("/process-due", response_model=List[TransactionResponse])
 def process_due(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Create actual transactions for all overdue recurring entries and advance their next_date."""
+    """Create transactions for all overdue FIXED recurring entries. Variable ones are skipped."""
     today = date.today()
     due = (
         db.query(RecurringTransaction)
         .filter(
             RecurringTransaction.user_id == current_user.id,
             RecurringTransaction.is_active == True,
+            RecurringTransaction.is_variable == False,
             RecurringTransaction.next_date <= today,
         )
         .all()
@@ -111,3 +112,41 @@ def process_due(db: Session = Depends(get_db), current_user: User = Depends(get_
     for tx in created:
         db.refresh(tx)
     return created
+
+
+@router.post("/{rec_id}/log", response_model=TransactionResponse)
+def log_variable(
+    rec_id: int,
+    data: LogVariableRecurringRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Log a variable-amount recurring bill with the actual amount for this period."""
+    rec = db.query(RecurringTransaction).filter(
+        RecurringTransaction.id == rec_id,
+        RecurringTransaction.user_id == current_user.id,
+    ).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    account = db.query(Account).filter(Account.id == rec.account_id).first()
+    if not account:
+        raise HTTPException(status_code=400, detail="Account not found")
+
+    tx_date = data.transaction_date or rec.next_date
+    tx = Transaction(
+        user_id=current_user.id,
+        account_id=rec.account_id,
+        category_id=rec.category_id,
+        amount=data.amount,
+        description=rec.description,
+        transaction_date=tx_date,
+    )
+    db.add(tx)
+    account.balance = float(account.balance) + float(data.amount)
+    # Save this amount as the new estimate for next time
+    rec.amount = data.amount
+    rec.next_date = _next_date(rec.next_date, rec.period)
+    db.commit()
+    db.refresh(tx)
+    return tx

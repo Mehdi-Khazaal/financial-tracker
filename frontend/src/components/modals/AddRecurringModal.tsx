@@ -27,6 +27,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const [description, setDescription] = useState('');
   const [period, setPeriod] = useState<RecurringPeriod>('monthly');
   const [nextDate, setNextDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isVariable, setIsVariable] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -57,9 +58,10 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         description: description || null,
         period,
         next_date: nextDate,
+        is_variable: isVariable,
       });
       onSuccess(); onClose();
-      setAmount(''); setDescription('');
+      setAmount(''); setDescription(''); setIsVariable(false);
       setNextDate(new Date().toISOString().split('T')[0]);
     } catch { alert('Failed to create recurring transaction'); }
     finally { setLoading(false); }
@@ -87,14 +89,43 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
         {/* Amount */}
         <div>
-          <p className="label mb-2">Amount</p>
+          <p className="label mb-2">
+            {isVariable ? 'Estimated Amount' : 'Amount'}
+            {isVariable && <span className="text-muted font-normal ml-1">(used as hint next time)</span>}
+          </p>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono font-bold text-muted">$</span>
             <input type="number" step="0.01" min="0" value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="input-dark pl-8 text-lg font-mono" placeholder="0.00" required />
+              className="input-dark pl-8 text-lg font-mono"
+              placeholder={isVariable ? 'e.g. last bill amount' : '0.00'}
+              required />
           </div>
         </div>
+
+        {/* Variable amount toggle */}
+        <button
+          type="button"
+          onClick={() => setIsVariable(v => !v)}
+          className="flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all"
+          style={{
+            backgroundColor: isVariable ? 'rgba(245,166,35,.08)' : '#11141c',
+            border: `1px solid ${isVariable ? 'rgba(245,166,35,.3)' : '#252a3a'}`,
+          }}>
+          <div className="text-left">
+            <p className="text-sm font-semibold" style={{ color: isVariable ? '#f5a623' : '#e8eaf2' }}>
+              Variable amount
+            </p>
+            <p className="text-xs text-muted mt-0.5">
+              {isVariable ? 'You\'ll enter the real amount each time it\'s due (e.g. bills)' : 'Fixed amount every time (e.g. subscriptions)'}
+            </p>
+          </div>
+          <div className="w-10 h-6 rounded-full transition-all relative ml-3 shrink-0"
+            style={{ backgroundColor: isVariable ? '#f5a623' : '#252a3a' }}>
+            <div className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
+              style={{ left: isVariable ? '22px' : '4px' }} />
+          </div>
+        </button>
 
         {/* Period */}
         <div>

@@ -79,6 +79,7 @@ export interface RecurringTransaction {
   period: RecurringPeriod;
   next_date: string;
   is_active: boolean;
+  is_variable: boolean;
   created_at: string;
 }
 
