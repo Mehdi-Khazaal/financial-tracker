@@ -194,10 +194,8 @@ const Investments: React.FC = () => {
               {filtered.map(inv => {
                 const gainLoss  = getGainLoss(inv);
                 const gainPct   = getGainLossPct(inv);
-                const curPrice  = getCurrentPrice(inv);
                 const livePx    = getLivePrice(inv);
                 const curVal    = getCurrentValue(inv);
-                const sym       = getSymbol(inv.name);
                 const isGain    = (gainLoss ?? 0) >= 0;
                 const hasPx     = hasLivePrice(inv);
 
