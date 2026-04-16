@@ -28,11 +28,11 @@ const Analytics: React.FC = () => {
       const [txRes, accRes, catRes, asRes, nwRes] = await Promise.all([
         getTransactions(), getAccounts(), getCategories(), getAssets(), getNetWorthHistory(12),
       ]);
-      setTransactions(txRes.data);
-      setAccounts(accRes.data);
-      setCategories(catRes.data);
-      setAssets(asRes.data);
-      setNetWorthSnapshots(nwRes.data);
+      setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
+      setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
+      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
+      setAssets(Array.isArray(asRes.data) ? asRes.data : []);
+      setNetWorthSnapshots(Array.isArray(nwRes.data) ? nwRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };

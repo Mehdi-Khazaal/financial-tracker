@@ -27,8 +27,9 @@ const Investments: React.FC = () => {
     setLoading(true);
     try {
       const res = await getAssets({ asset_class: 'investment' });
-      setInvestments(res.data);
-      fetchPricesBackground(res.data);
+      const inv = Array.isArray(res.data) ? res.data : [];
+      setInvestments(inv);
+      fetchPricesBackground(inv);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };

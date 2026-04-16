@@ -28,8 +28,8 @@ const Savings: React.FC = () => {
     setLoading(true);
     try {
       const [aRes, gRes] = await Promise.all([getAccounts(), getSavingsGoals()]);
-      setAccounts(aRes.data);
-      setGoals(gRes.data);
+      setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
+      setGoals(Array.isArray(gRes.data) ? gRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);

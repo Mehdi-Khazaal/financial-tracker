@@ -29,7 +29,7 @@ const Assets: React.FC = () => {
     setLoading(true);
     try {
       const res = await getAssets({ asset_class: 'physical' });
-      setAssets(res.data);
+      setAssets(Array.isArray(res.data) ? res.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);

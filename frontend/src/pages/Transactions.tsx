@@ -122,7 +122,9 @@ const Transactions: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const [txRes, accRes, catRes] = await Promise.all([getTransactions(), getAccounts(), getCategories()]);
-      setTransactions(txRes.data); setAccounts(accRes.data); setCategories(catRes.data);
+      setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
+      setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
+      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);

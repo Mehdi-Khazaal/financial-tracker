@@ -33,7 +33,7 @@ const Settings: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    try { const res = await getCategories(); setCategories(res.data); }
+    try { const res = await getCategories(); setCategories(Array.isArray(res.data) ? res.data : []); }
     catch { /* ignore */ }
     finally { setLoading(false); }
   };
@@ -100,7 +100,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     if (user?.is_admin) {
       setAdminLoading(true);
-      adminGetUsers().then(r => setAdminUsers(r.data)).finally(() => setAdminLoading(false));
+      adminGetUsers().then(r => setAdminUsers(Array.isArray(r.data) ? r.data : [])).finally(() => setAdminLoading(false));
     }
   }, [user?.is_admin]);
 

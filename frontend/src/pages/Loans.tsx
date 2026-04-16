@@ -172,7 +172,7 @@ const Loans: React.FC = () => {
   const [repaying, setRepaying] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    try { const res = await getLoans(); setLoans(res.data); }
+    try { const res = await getLoans(); setLoans(Array.isArray(res.data) ? res.data : []); }
     catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);

@@ -22,8 +22,8 @@ const Cards: React.FC = () => {
   const load = async () => {
     try {
       const [aRes, tRes] = await Promise.all([getAccounts(), getTransactions()]);
-      setAccounts(aRes.data.filter((a: Account) => a.type === 'credit_card'));
-      setTransactions(tRes.data);
+      setAccounts(Array.isArray(aRes.data) ? aRes.data.filter((a: Account) => a.type === 'credit_card') : []);
+      setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };

@@ -33,9 +33,9 @@ const Recurring: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const [rRes, aRes, cRes] = await Promise.all([getRecurring(), getAccounts(), getCategories()]);
-      setItems(rRes.data);
-      setAccounts(aRes.data);
-      setCategories(cRes.data);
+      setItems(Array.isArray(rRes.data) ? rRes.data : []);
+      setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
+      setCategories(Array.isArray(cRes.data) ? cRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -59,7 +59,7 @@ const Recurring: React.FC = () => {
     setProcessing(true);
     try {
       const res = await processDueRecurring();
-      const count = res.data.length;
+      const count = Array.isArray(res.data) ? res.data.length : 0;
       if (count > 0) {
         toast.success(`Logged ${count} transaction${count !== 1 ? 's' : ''}`);
       } else {

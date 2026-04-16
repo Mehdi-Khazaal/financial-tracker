@@ -56,7 +56,7 @@ const Wallet: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const res = await getAccounts();
-      const accs: Account[] = res.data;
+      const accs: Account[] = Array.isArray(res.data) ? res.data : [];
       setAccounts(accs);
       // Fetch balance history for all accounts in parallel
       const histEntries = await Promise.all(
