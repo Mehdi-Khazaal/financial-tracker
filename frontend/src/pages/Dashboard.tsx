@@ -73,7 +73,10 @@ const Dashboard: React.FC = () => {
   const loadAll = async () => {
     try {
       const [aRes, tRes, asRes, gRes] = await Promise.all([getAccounts(), getTransactions(), getAssets(), getSavingsGoals()]);
-      setAccounts(aRes.data); setTransactions(tRes.data); setAssets(asRes.data); setSavingsGoals(gRes.data);
+      setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
+      setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
+      setAssets(Array.isArray(asRes.data) ? asRes.data : []);
+      setSavingsGoals(Array.isArray(gRes.data) ? gRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
