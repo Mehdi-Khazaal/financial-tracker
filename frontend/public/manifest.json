@@ -1,26 +1,50 @@
 {
-  "short_name": "Finance Tracker",
-  "name": "Personal Financial Tracker",
+  "name": "Fintrack",
+  "short_name": "Fintrack",
+  "description": "Personal finance, beautifully tracked",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#070810",
+  "background_color": "#070810",
+  "categories": ["finance", "productivity"],
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
-      "src": "logo192.png",
+      "src": "icon-512.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "512x512",
+      "purpose": "any"
     },
     {
-      "src": "logo512.png",
+      "src": "icon-maskable-192.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#1F422C",
-  "background_color": "#ECDFC7",
-  "orientation": "portrait"
+  "shortcuts": [
+    {
+      "name": "Add Transaction",
+      "url": "/transactions",
+      "description": "Quickly add a new transaction"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/",
+      "description": "View your financial overview"
+    }
+  ]
 }

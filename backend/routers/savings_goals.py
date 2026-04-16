@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
@@ -10,6 +10,7 @@ from models.schemas import (
     AllocationResponse, SetAllocationsRequest,
 )
 from utils.auth import get_current_user
+from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/savings-goals", tags=["savings"])
 
@@ -89,6 +90,7 @@ def update_goal(goal_id: int, update: SavingsGoalUpdate, db: Session = Depends(g
 def set_allocations(
     goal_id: int,
     request: SetAllocationsRequest,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -135,7 +137,23 @@ def set_allocations(
             ))
 
     db.commit()
-    return _serialize_goal(_load_goal(goal_id, current_user.id, db))
+    result = _serialize_goal(_load_goal(goal_id, current_user.id, db))
+
+    # Push notification on milestone (50%, 75%, 100%)
+    target = float(result.target_amount)
+    current = float(result.current_amount)
+    if target > 0:
+        pct = current / target
+        for milestone, label in [(1.0, "100%"), (0.75, "75%"), (0.5, "50%")]:
+            if pct >= milestone:
+                icon = "🎉" if milestone == 1.0 else "🎯"
+                msg = f"Goal reached!" if milestone == 1.0 else f"You're {label} of the way there!"
+                background.add_task(send_push_to_user, db, current_user.id,
+                                    f"{icon} {result.name}",
+                                    msg, url="/savings", tag=f"goal-{goal_id}")
+                break
+
+    return result
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)

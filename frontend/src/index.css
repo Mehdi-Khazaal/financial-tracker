@@ -100,6 +100,8 @@ body {
   /* Inputs */
   .input-dark {
     @apply w-full bg-surface2 border border-border rounded-xl px-4 py-3 text-sm text-text placeholder-dim transition-all outline-none;
+    /* Prevent iOS auto-zoom on focus (requires font-size >= 16px on touch devices) */
+    font-size: 16px;
   }
   .input-dark:focus {
     @apply border-accent;

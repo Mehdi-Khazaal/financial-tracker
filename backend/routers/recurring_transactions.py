@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import date, timedelta
@@ -8,6 +8,7 @@ from models.database import get_db, RecurringTransaction, Transaction, Account
 from models.auth import User
 from models.schemas import RecurringTransactionCreate, RecurringTransactionUpdate, RecurringTransactionResponse, TransactionResponse, LogVariableRecurringRequest
 from utils.auth import get_current_user
+from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/recurring", tags=["recurring"])
 
@@ -78,7 +79,7 @@ def delete_recurring(rec_id: int, db: Session = Depends(get_db), current_user: U
 
 
 @router.post("/process-due", response_model=List[TransactionResponse])
-def process_due(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def process_due(background: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create transactions for all overdue FIXED recurring entries. Variable ones are skipped."""
     today = date.today()
     due = (
@@ -111,6 +112,14 @@ def process_due(db: Session = Depends(get_db), current_user: User = Depends(get_
     db.commit()
     for tx in created:
         db.refresh(tx)
+
+    if created:
+        n = len(created)
+        msg = f"{created[0].description}" if n == 1 else f"{n} recurring transactions"
+        background.add_task(send_push_to_user, db, current_user.id,
+                            "Recurring transactions processed",
+                            f"{msg} {'was' if n == 1 else 'were'} recorded automatically.",
+                            url="/recurring", tag="recurring")
     return created
 
 

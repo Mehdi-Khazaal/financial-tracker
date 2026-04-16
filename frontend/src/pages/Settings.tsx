@@ -4,6 +4,7 @@ import { getCategories, createCategory, updateCategory, deleteCategory } from '.
 import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -69,6 +70,24 @@ const Settings: React.FC = () => {
     catch { toast.error('Failed to delete'); }
   };
 
+  const [pushEnabled, setPushEnabled] = useState(getPushPermission() === 'granted');
+  const [pushLoading, setPushLoading] = useState(false);
+
+  const togglePush = async () => {
+    setPushLoading(true);
+    if (pushEnabled) {
+      await unsubscribeFromPush();
+      setPushEnabled(false);
+      toast.success('Notifications disabled');
+    } else {
+      const ok = await subscribeToPush();
+      setPushEnabled(ok);
+      if (ok) toast.success('Notifications enabled');
+      else toast.error('Could not enable notifications — check browser permissions');
+    }
+    setPushLoading(false);
+  };
+
   const shown = categories.filter(c => c.type === catTab);
   const incomeCount  = categories.filter(c => c.type === 'income').length;
   const expenseCount = categories.filter(c => c.type === 'expense').length;
@@ -102,6 +121,27 @@ const Settings: React.FC = () => {
               Sign out
             </button>
           </section>
+
+          {/* ── Notifications ── */}
+          {isPushSupported() && (
+            <section className="card p-5">
+              <p className="label mb-4">Notifications</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-text">Push notifications</p>
+                  <p className="text-xs text-muted mt-0.5">Recurring transactions, savings milestones</p>
+                </div>
+                <button
+                  onClick={togglePush}
+                  disabled={pushLoading}
+                  className="relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50"
+                  style={{ backgroundColor: pushEnabled ? '#6366f1' : '#1a1f2e' }}>
+                  <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                    style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
+                </button>
+              </div>
+            </section>
+          )}
 
           {/* ── Categories ── */}
           <section>
