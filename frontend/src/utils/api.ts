@@ -6,7 +6,7 @@ const api = axios.create({
 });
 
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
-let _refreshing: Promise<void> | null = null;
+let _refreshing: Promise<unknown> | null = null;
 
 api.interceptors.response.use(
   res => res,
