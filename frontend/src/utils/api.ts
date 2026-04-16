@@ -48,10 +48,12 @@ export const updateAsset = (id: number, data: any) => api.put(`/assets/${id}`, d
 export const deleteAsset = (id: number) => api.delete(`/assets/${id}`);
 
 // ── Savings Goals ─────────────────────────────────────────────────────────────
-export const getSavingsGoals   = () => api.get('/savings-goals/');
-export const createSavingsGoal = (data: any) => api.post('/savings-goals/', data);
-export const updateSavingsGoal = (id: number, data: any) => api.put(`/savings-goals/${id}`, data);
-export const deleteSavingsGoal = (id: number) => api.delete(`/savings-goals/${id}`);
+export const getSavingsGoals      = () => api.get('/savings-goals/');
+export const createSavingsGoal    = (data: any) => api.post('/savings-goals/', data);
+export const updateSavingsGoal    = (id: number, data: any) => api.put(`/savings-goals/${id}`, data);
+export const deleteSavingsGoal    = (id: number) => api.delete(`/savings-goals/${id}`);
+export const setGoalAllocations   = (goalId: number, allocations: { account_id: number; amount: number }[]) =>
+  api.put(`/savings-goals/${goalId}/allocations`, { allocations });
 
 // ── Recurring Transactions ────────────────────────────────────────────────────
 export const getRecurring     = () => api.get('/recurring/');

@@ -5,6 +5,8 @@ import Navigation from '../components/Navigation';
 import AddAccountModal from '../components/modals/AddAccountModal';
 import EditAccountModal from '../components/modals/EditAccountModal';
 import TransferModal from '../components/modals/TransferModal';
+import WithdrawModal from '../components/modals/WithdrawModal';
+import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
@@ -47,6 +49,8 @@ const Wallet: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [showDeposit, setShowDeposit] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
@@ -122,6 +126,22 @@ const Wallet: React.FC = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-text">Wallet</h1>
             <div className="flex gap-2">
+              <button onClick={() => setShowDeposit(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                style={{ backgroundColor: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.2)', color: '#10b981' }}>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Deposit
+              </button>
+              <button onClick={() => setShowWithdraw(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                style={{ backgroundColor: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.2)', color: '#f59e0b' }}>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                Withdraw
+              </button>
               <button onClick={() => setShowTransfer(true)}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
                 style={{ backgroundColor: 'rgba(99,102,241,.1)', border: '1px solid rgba(99,102,241,.2)', color: '#6366f1' }}>
@@ -285,6 +305,8 @@ const Wallet: React.FC = () => {
       <AddAccountModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} />
       <EditAccountModal isOpen={!!editAccount} onClose={() => setEditAccount(null)} onSuccess={load} account={editAccount} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
+      <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={load} />
+      <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={load} />
     </>
   );
 };

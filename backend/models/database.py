@@ -150,10 +150,25 @@ class SavingsGoal(Base):
 
     id            = Column(Integer, primary_key=True, index=True)
     user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    account_id    = Column(Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
+    account_id    = Column(Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)  # kept for migration compat
     name          = Column(String(100), nullable=False)
     target_amount = Column(Numeric(15, 2), nullable=False)
     deadline      = Column(Date, nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow)
 
-    account = relationship("Account", back_populates="savings_goals")
+    account     = relationship("Account", back_populates="savings_goals")
+    allocations = relationship("SavingsGoalAllocation", back_populates="goal", cascade="all, delete-orphan")
+
+
+# ─── Savings Goal Allocation ──────────────────────────────────────────────────
+class SavingsGoalAllocation(Base):
+    __tablename__ = "savings_goal_allocations"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    goal_id    = Column(Integer, ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    amount     = Column(Numeric(15, 2), nullable=False)
+
+    goal    = relationship("SavingsGoal", back_populates="allocations")
+    account = relationship("Account")

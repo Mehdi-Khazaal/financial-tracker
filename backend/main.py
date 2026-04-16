@@ -19,6 +19,13 @@ def _run_migrations():
         migrations = [
             "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+            """CREATE TABLE IF NOT EXISTS savings_goal_allocations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                goal_id INTEGER NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+                account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                amount NUMERIC(15,2) NOT NULL
+            )""",
         ]
         for sql in migrations:
             try:

@@ -1,29 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
-import { createSavingsGoal, getAccounts } from '../../utils/api';
-import { Account } from '../../types';
+import { createSavingsGoal } from '../../utils/api';
 import { useToast } from '../../context/ToastContext';
 
 interface Props { isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
 const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const toast = useToast();
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
-  const [accountId, setAccountId] = useState('');
   const [deadline, setDeadline] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      getAccounts().then(res => {
-        const savings = res.data.filter((a: Account) => a.type === 'savings');
-        setAccounts(savings);
-        if (savings.length > 0) setAccountId(String(savings[0].id));
-      });
-    }
-  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,11 +19,12 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =>
       await createSavingsGoal({
         name,
         target_amount: parseFloat(targetAmount),
-        account_id: accountId ? parseInt(accountId) : null,
         deadline: deadline || null,
       });
-      onSuccess(); onClose();
+      onSuccess();
+      onClose();
       setName(''); setTargetAmount(''); setDeadline('');
+      toast.success('Goal created — now allocate money to it');
     } catch { toast.error('Failed to create goal'); }
     finally { setLoading(false); }
   };
@@ -61,20 +49,13 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =>
         </div>
 
         <div>
-          <p className="label mb-2">Linked Savings Account <span className="text-dim">(optional)</span></p>
-          <select value={accountId} onChange={e => setAccountId(e.target.value)} className="input-dark">
-            <option value="">No linked account</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name} (${Number(a.balance).toFixed(2)})</option>)}
-          </select>
-          {accounts.length === 0 && (
-            <p className="text-xs text-muted mt-1">Create a savings account to link it to this goal.</p>
-          )}
-        </div>
-
-        <div>
           <p className="label mb-2">Deadline <span className="text-dim">(optional)</span></p>
           <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input-dark" />
         </div>
+
+        <p className="text-xs text-muted">
+          After creating, use the <span className="font-semibold" style={{ color: '#6366f1' }}>Allocate</span> button to assign money from your accounts.
+        </p>
 
         <button type="submit" disabled={loading || !name.trim() || !targetAmount}
           className="btn-gradient w-full py-3.5 disabled:opacity-40">

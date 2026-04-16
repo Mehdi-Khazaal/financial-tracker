@@ -57,14 +57,22 @@ export interface Asset {
   updated_at: string;
 }
 
+export interface GoalAllocation {
+  id: number;
+  account_id: number;
+  account_name: string;
+  amount: number;
+}
+
 export interface SavingsGoal {
   id: number;
   user_id: number;
-  account_id: number | null;
   name: string;
   target_amount: number;
   deadline: string | null;
   created_at: string;
+  allocations: GoalAllocation[];
+  current_amount: number;
 }
 
 export type RecurringPeriod = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';

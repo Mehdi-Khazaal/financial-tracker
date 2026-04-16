@@ -191,10 +191,31 @@ class LogVariableRecurringRequest(BaseModel):
     transaction_date: Optional[date] = None
 
 
-class SavingsGoalResponse(SavingsGoalBase):
+class AllocationResponse(BaseModel):
+    id: int
+    account_id: int
+    account_name: str
+    amount: Decimal
+
+    class Config:
+        from_attributes = True
+
+class AllocationItem(BaseModel):
+    account_id: int
+    amount: Decimal
+
+class SetAllocationsRequest(BaseModel):
+    allocations: list[AllocationItem]
+
+class SavingsGoalResponse(BaseModel):
     id: int
     user_id: int
+    name: str
+    target_amount: Decimal
+    deadline: Optional[date] = None
     created_at: datetime
+    allocations: list[AllocationResponse] = []
+    current_amount: Decimal = Decimal("0")
 
     class Config:
         from_attributes = True

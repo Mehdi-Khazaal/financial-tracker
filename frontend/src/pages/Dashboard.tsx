@@ -7,6 +7,8 @@ import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
+import WithdrawModal from '../components/modals/WithdrawModal';
+import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -63,6 +65,8 @@ const Dashboard: React.FC = () => {
   const [txType, setTxType] = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [showDeposit, setShowDeposit] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -100,12 +104,10 @@ const Dashboard: React.FC = () => {
   const expenseDiff = lastMonthExpenses > 0 ? monthExpenses - lastMonthExpenses : null;
 
   // Savings goals progress
-  const savingsAccounts = accounts.filter(a => a.type === 'savings');
   const activeGoals = savingsGoals.slice(0, 3).map(g => {
-    const account = savingsAccounts.find(a => a.id === g.account_id);
-    const balance = account ? Number(account.balance) : 0;
-    const progress = Math.min((balance / Number(g.target_amount)) * 100, 100);
-    return { ...g, balance, progress };
+    const current = Number(g.current_amount);
+    const progress = Math.min((current / Number(g.target_amount)) * 100, 100);
+    return { ...g, current, progress };
   });
 
   const recent = transactions.slice(0, 8);
@@ -215,7 +217,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* ── Quick Actions ── */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button onClick={() => { setTxType('expense'); setShowTx(true); }}
               className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
               style={{ backgroundColor: 'rgba(244,63,94,.12)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
@@ -233,6 +235,22 @@ const Dashboard: React.FC = () => {
               style={{ backgroundColor: 'rgba(99,102,241,.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" /></svg>
               Transfer
+            </button>
+            <button onClick={() => setShowWithdraw(true)}
+              className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
+              style={{ backgroundColor: 'rgba(245,158,11,.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+              </svg>
+              Withdraw
+            </button>
+            <button onClick={() => setShowDeposit(true)}
+              className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95 col-span-2 sm:col-span-1"
+              style={{ backgroundColor: 'rgba(16,185,129,.12)', color: '#10b981', border: '1px solid rgba(16,185,129,.2)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Deposit
             </button>
           </div>
 
@@ -322,7 +340,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold text-text">{goal.name}</p>
                       <div className="flex items-center gap-2">
-                        <p className="font-mono text-xs text-muted">${fmt(goal.balance)}<span className="text-dim"> / ${fmt(Number(goal.target_amount))}</span></p>
+                        <p className="font-mono text-xs text-muted">${fmt(goal.current)}<span className="text-dim"> / ${fmt(Number(goal.target_amount))}</span></p>
                         <p className="font-mono text-xs font-bold" style={{ color: goal.progress >= 100 ? '#10b981' : '#6366f1' }}>
                           {goal.progress.toFixed(0)}%
                         </p>
@@ -385,6 +403,8 @@ const Dashboard: React.FC = () => {
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
       <AddAccountModal isOpen={showAddAccount} onClose={() => setShowAddAccount(false)} onSuccess={loadAll} />
+      <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={loadAll} />
+      <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={loadAll} />
     </>
   );
 };
