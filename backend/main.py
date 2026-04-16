@@ -54,8 +54,8 @@ app.add_middleware(
         "https://financial-tracker-esjhlztp3-mehdi-khazaals-projects.vercel.app",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(auth.router)
