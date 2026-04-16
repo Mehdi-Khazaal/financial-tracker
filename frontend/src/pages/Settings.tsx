@@ -5,8 +5,8 @@ import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 
 const PRESET_COLORS = [
-  '#ff5f6d', '#ff8e53', '#f5a623', '#2ecc8a', '#1abc9c',
-  '#5b8fff', '#a78bfa', '#ec4899', '#7880a0', '#e8eaf2',
+  '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
+  '#6366f1', '#a855f7', '#ec4899', '#666e90', '#eef0f8',
 ];
 
 const Settings: React.FC = () => {
@@ -73,7 +73,7 @@ const Settings: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-6 fade-in">
 
           {/* Header */}
@@ -84,7 +84,7 @@ const Settings: React.FC = () => {
             <p className="label mb-4">Profile</p>
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shrink-0"
-                style={{ background: 'linear-gradient(135deg, #5b8fff, #a78bfa)' }}>
+                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
                 <span className="text-white">{user?.username.charAt(0).toUpperCase()}</span>
               </div>
               <div>
@@ -95,7 +95,7 @@ const Settings: React.FC = () => {
             <button
               onClick={logout}
               className="mt-4 w-full py-2.5 text-sm font-semibold rounded-xl transition-all"
-              style={{ backgroundColor: 'rgba(255,95,109,.08)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.15)' }}>
+              style={{ backgroundColor: 'rgba(244,63,94,.08)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.15)' }}>
               Sign out
             </button>
           </section>
@@ -108,14 +108,14 @@ const Settings: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: '#11141c' }}>
+            <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: '#0d1018' }}>
               {(['expense', 'income'] as const).map(t => (
                 <button key={t} onClick={() => setCatTab(t)}
                   className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize"
                   style={catTab === t
-                    ? { backgroundColor: t === 'expense' ? 'rgba(255,95,109,.15)' : 'rgba(46,204,138,.15)',
-                        color: t === 'expense' ? '#ff5f6d' : '#2ecc8a' }
-                    : { color: '#7880a0' }}>
+                    ? { backgroundColor: t === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
+                        color: t === 'expense' ? '#f43f5e' : '#10b981' }
+                    : { color: '#666e90' }}>
                   {t}
                 </button>
               ))}
@@ -148,9 +148,9 @@ const Settings: React.FC = () => {
                 </div>
                 <button type="submit" disabled={adding || !newName.trim()}
                   className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all disabled:opacity-40"
-                  style={{ backgroundColor: catTab === 'expense' ? 'rgba(255,95,109,.15)' : 'rgba(46,204,138,.15)',
-                           color: catTab === 'expense' ? '#ff5f6d' : '#2ecc8a',
-                           border: `1px solid ${catTab === 'expense' ? 'rgba(255,95,109,.25)' : 'rgba(46,204,138,.25)'}` }}>
+                  style={{ backgroundColor: catTab === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
+                           color: catTab === 'expense' ? '#f43f5e' : '#10b981',
+                           border: `1px solid ${catTab === 'expense' ? 'rgba(244,63,94,.25)' : 'rgba(16,185,129,.25)'}` }}>
                   {adding ? '…' : '+ Add'}
                 </button>
               </div>
@@ -160,7 +160,7 @@ const Settings: React.FC = () => {
             {loading ? (
               <div className="card py-8 text-center">
                 <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
-                  style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+                  style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
               </div>
             ) : shown.length === 0 ? (
               <div className="card py-8 text-center text-muted text-sm">No {catTab} categories yet</div>
@@ -197,12 +197,12 @@ const Settings: React.FC = () => {
                           </div>
                           <button onClick={() => handleSaveEdit(cat.id)} disabled={saving || !editName.trim()}
                             className="px-3 py-2 text-xs font-semibold rounded-lg disabled:opacity-40"
-                            style={{ backgroundColor: 'rgba(46,204,138,.15)', color: '#2ecc8a' }}>
+                            style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
                             {saving ? '…' : 'Save'}
                           </button>
                           <button onClick={() => setEditId(null)}
                             className="px-3 py-2 text-xs font-semibold rounded-lg"
-                            style={{ backgroundColor: '#252a3a', color: '#7880a0' }}>
+                            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>
                             Cancel
                           </button>
                         </div>
@@ -214,18 +214,18 @@ const Settings: React.FC = () => {
                         <p className="text-sm text-text flex-1">{cat.name}</p>
                         {cat.is_system && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: '#252a3a', color: '#7880a0' }}>default</span>
+                            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>default</span>
                         )}
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(cat)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
-                            style={{ backgroundColor: 'rgba(91,143,255,.1)', color: '#5b8fff' }}>
-                            ✎
+                            style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1' }}>
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                           </button>
                           <button onClick={() => handleDelete(cat.id, cat.name)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
-                            style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d' }}>
-                            ✕
+                            style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                           </button>
                         </div>
                       </div>

@@ -75,8 +75,8 @@ const Loans: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -97,10 +97,10 @@ const Loans: React.FC = () => {
               <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-base shrink-0"
                 style={{
                   background: isActive
-                    ? 'linear-gradient(135deg, rgba(245,166,35,.2), rgba(245,166,35,.1))'
-                    : 'rgba(46,204,138,.1)',
-                  color: isActive ? '#f5a623' : '#2ecc8a',
-                  border: `1px solid ${isActive ? 'rgba(245,166,35,.3)' : 'rgba(46,204,138,.2)'}`,
+                    ? 'linear-gradient(135deg, rgba(245,158,11,.2), rgba(245,158,11,.1))'
+                    : 'rgba(16,185,129,.1)',
+                  color: isActive ? '#f59e0b' : '#10b981',
+                  border: `1px solid ${isActive ? 'rgba(245,158,11,.3)' : 'rgba(16,185,129,.2)'}`,
                 }}>
                 {loan.borrower_name.charAt(0).toUpperCase()}
               </div>
@@ -113,7 +113,7 @@ const Loans: React.FC = () => {
             <div className="flex items-start gap-2">
               <div className="text-right">
                 <p className="font-mono font-bold text-base"
-                  style={{ color: isActive ? '#f5a623' : '#2ecc8a' }}>
+                  style={{ color: isActive ? '#f59e0b' : '#10b981' }}>
                   ${fmt(isActive ? outstanding : Number(loan.amount))}
                 </p>
                 {isActive && Number(loan.amount_repaid) > 0 && (
@@ -121,13 +121,13 @@ const Loans: React.FC = () => {
                 )}
                 {loan.status === 'repaid' && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={{ backgroundColor: 'rgba(46,204,138,.15)', color: '#2ecc8a' }}>
+                    style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
                     Repaid ✓
                   </span>
                 )}
                 {loan.status === 'written_off' && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={{ backgroundColor: 'rgba(120,128,160,.15)', color: '#7880a0' }}>
+                    style={{ backgroundColor: 'rgba(120,128,160,.15)', color: '#666e90' }}>
                     Written off
                   </span>
                 )}
@@ -135,8 +135,8 @@ const Loans: React.FC = () => {
               <button
                 onClick={() => handleDelete(loan.id, loan.borrower_name)}
                 className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all mt-0.5"
-                style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d' }}>
-                ✕
+                style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               </button>
             </div>
           </div>
@@ -151,8 +151,8 @@ const Loans: React.FC = () => {
             <div className="flex items-center gap-1.5 mb-3">
               <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
                 style={{
-                  backgroundColor: dueStatus === 'overdue' ? 'rgba(255,95,109,.15)' : dueStatus === 'soon' ? 'rgba(245,166,35,.15)' : 'rgba(91,143,255,.1)',
-                  color: dueStatus === 'overdue' ? '#ff5f6d' : dueStatus === 'soon' ? '#f5a623' : '#5b8fff',
+                  backgroundColor: dueStatus === 'overdue' ? 'rgba(244,63,94,.15)' : dueStatus === 'soon' ? 'rgba(245,158,11,.15)' : 'rgba(99,102,241,.1)',
+                  color: dueStatus === 'overdue' ? '#f43f5e' : dueStatus === 'soon' ? '#f59e0b' : '#6366f1',
                 }}>
                 {dueStatus === 'overdue' ? '⚠ Overdue · ' : '📅 Due '}
                 {formatDate(loan.due_date)}
@@ -167,9 +167,9 @@ const Loans: React.FC = () => {
                 <span>Repaid ${fmt(Number(loan.amount_repaid))}</span>
                 <span>{progress.toFixed(0)}%</span>
               </div>
-              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: '#252a3a' }}>
+              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: '#1a1f2e' }}>
                 <div className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: '#2ecc8a' }} />
+                  style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: '#10b981' }} />
               </div>
             </div>
           )}
@@ -195,7 +195,7 @@ const Loans: React.FC = () => {
                 onClick={() => handleRepayment(loan)}
                 disabled={repaying === loan.id || !repayInput[loan.id] || parseFloat(repayInput[loan.id] ?? '0') <= 0}
                 className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
-                style={{ backgroundColor: 'rgba(46,204,138,.15)', color: '#2ecc8a', border: '1px solid rgba(46,204,138,.2)' }}>
+                style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981', border: '1px solid rgba(16,185,129,.2)' }}>
                 {repaying === loan.id ? '…' : '+ Got paid'}
               </button>
             </div>
@@ -203,13 +203,13 @@ const Loans: React.FC = () => {
               <button
                 onClick={() => handleMarkFullyRepaid(loan.id)}
                 className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95"
-                style={{ backgroundColor: 'rgba(46,204,138,.08)', color: '#2ecc8a', border: '1px solid rgba(46,204,138,.15)' }}>
+                style={{ backgroundColor: 'rgba(16,185,129,.08)', color: '#10b981', border: '1px solid rgba(16,185,129,.15)' }}>
                 ✓ Mark fully repaid
               </button>
               <button
                 onClick={() => handleWriteOff(loan.id)}
                 className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95"
-                style={{ backgroundColor: 'rgba(120,128,160,.08)', color: '#7880a0', border: '1px solid rgba(120,128,160,.15)' }}>
+                style={{ backgroundColor: 'rgba(120,128,160,.08)', color: '#666e90', border: '1px solid rgba(120,128,160,.15)' }}>
                 ✗ Write off
               </button>
             </div>
@@ -222,7 +222,7 @@ const Loans: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
@@ -233,7 +233,7 @@ const Loans: React.FC = () => {
             </div>
             <button onClick={() => setShowAdd(true)}
               className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}>
+              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
               + New Loan
             </button>
           </div>
@@ -242,19 +242,19 @@ const Loans: React.FC = () => {
           {loans.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl p-4"
-                style={{ backgroundColor: '#11141c', border: '1px solid #252a3a', boxShadow: '0 0 20px rgba(245,166,35,.08)' }}>
+                style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: '0 0 20px rgba(245,158,11,.08)' }}>
                 <p className="label mb-1">Outstanding</p>
-                <p className="font-mono font-bold text-sm" style={{ color: '#f5a623' }}>${fmt(totalOutstanding)}</p>
+                <p className="font-mono font-bold text-sm" style={{ color: '#f59e0b' }}>${fmt(totalOutstanding)}</p>
               </div>
               <div className="rounded-2xl p-4"
-                style={{ backgroundColor: '#11141c', border: '1px solid #252a3a' }}>
+                style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e' }}>
                 <p className="label mb-1">Total Lent</p>
                 <p className="font-mono font-bold text-sm text-text">${fmt(totalLent)}</p>
               </div>
               <div className="rounded-2xl p-4"
-                style={{ backgroundColor: '#11141c', border: '1px solid #252a3a', boxShadow: '0 0 20px rgba(46,204,138,.08)' }}>
+                style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: '0 0 20px rgba(16,185,129,.08)' }}>
                 <p className="label mb-1">Recovered</p>
-                <p className="font-mono font-bold text-sm" style={{ color: '#2ecc8a' }}>${fmt(totalRecovered)}</p>
+                <p className="font-mono font-bold text-sm" style={{ color: '#10b981' }}>${fmt(totalRecovered)}</p>
               </div>
             </div>
           )}
@@ -275,7 +275,7 @@ const Loans: React.FC = () => {
           {active.length > 0 && (
             <div className="space-y-3">
               <p className="label">Waiting for repayment <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full"
-                style={{ backgroundColor: 'rgba(245,166,35,.15)', color: '#f5a623' }}>
+                style={{ backgroundColor: 'rgba(245,158,11,.15)', color: '#f59e0b' }}>
                 {active.length}
               </span></p>
               {active.map(l => <LoanCard key={l.id} loan={l} />)}
@@ -308,7 +308,7 @@ const Loans: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAdd(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #f5a623, #f97316)', boxShadow: '0 8px 32px rgba(245,166,35,.35)' }}>
+        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #f59e0b, #f97316)', boxShadow: '0 8px 32px rgba(245,158,11,.35)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>

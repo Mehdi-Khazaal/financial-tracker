@@ -11,8 +11,8 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  real_estate: '#5b8fff', vehicle: '#a78bfa', business: '#2ecc8a',
-  jewelry: '#f5a623', art: '#ff5f6d', other: '#7880a0',
+  real_estate: '#6366f1', vehicle: '#a855f7', business: '#10b981',
+  jewelry: '#f59e0b', art: '#f43f5e', other: '#666e90',
 };
 
 const Assets: React.FC = () => {
@@ -48,8 +48,8 @@ const Assets: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -57,7 +57,7 @@ const Assets: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
@@ -68,16 +68,16 @@ const Assets: React.FC = () => {
             </div>
             <button onClick={() => setShowAdd(true)}
               className="hidden md:block text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}>
+              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
               + Asset
             </button>
           </div>
 
           {/* Hero */}
           <div className="rounded-3xl p-6 relative overflow-hidden"
-            style={{ background: 'linear-gradient(145deg, #11141c, #181c28)', border: '1px solid #252a3a' }}>
+            style={{ background: 'linear-gradient(145deg, #0d1018, #121620)', border: '1px solid #1a1f2e' }}>
             <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, #a78bfa, transparent)' }} />
+              style={{ background: 'radial-gradient(circle, #a855f7, transparent)' }} />
             <p className="label mb-1">Total Asset Value</p>
             <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px' }}>
               ${fmt(totalValue)}
@@ -107,7 +107,7 @@ const Assets: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {assets.map(asset => {
-                const color = TYPE_COLORS[asset.type] ?? '#7880a0';
+                const color = TYPE_COLORS[asset.type] ?? '#666e90';
                 return (
                   <div key={asset.id} className="card card-hover p-4 group">
                     <div className="flex items-start justify-between mb-3">
@@ -128,10 +128,10 @@ const Assets: React.FC = () => {
                         <p className="font-mono font-bold text-lg text-text">${fmt(Number(asset.total_value))}</p>
                         <button onClick={() => handleDelete(asset.id, asset.name)}
                           className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
-                          style={{ color: '#3e4460' }}
-                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#ff5f6d'}
-                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#3e4460'}>
-                          ✕
+                          style={{ color: '#363d56' }}
+                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#f43f5e'}
+                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#363d56'}>
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                         </button>
                       </div>
                     </div>
@@ -154,7 +154,7 @@ const Assets: React.FC = () => {
                     )}
 
                     {asset.purchase_date && (
-                      <div className="pt-3" style={{ borderTop: '1px solid #252a3a' }}>
+                      <div className="pt-3" style={{ borderTop: '1px solid #1a1f2e' }}>
                         <p className="text-xs text-muted">Acquired {asset.purchase_date}</p>
                       </div>
                     )}
@@ -169,7 +169,7 @@ const Assets: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAdd(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #a78bfa, #5b8fff)', boxShadow: '0 8px 32px rgba(167,139,250,.4)' }}>
+        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', boxShadow: '0 8px 32px rgba(168,85,247,.4)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>

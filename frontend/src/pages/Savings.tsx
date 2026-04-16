@@ -56,8 +56,8 @@ const Savings: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -65,7 +65,7 @@ const Savings: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
@@ -73,16 +73,16 @@ const Savings: React.FC = () => {
             <h1 className="text-xl font-bold text-text">Savings</h1>
             <button onClick={() => setShowAddGoal(true)}
               className="hidden md:block text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}>
+              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
               + Goal
             </button>
           </div>
 
           {/* Hero */}
           <div className="rounded-3xl p-6 relative overflow-hidden"
-            style={{ background: 'linear-gradient(145deg, #11141c, #181c28)', border: '1px solid #252a3a' }}>
+            style={{ background: 'linear-gradient(145deg, #0d1018, #121620)', border: '1px solid #1a1f2e' }}>
             <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, #2ecc8a, transparent)' }} />
+              style={{ background: 'radial-gradient(circle, #10b981, transparent)' }} />
             <p className="label mb-1">Total Savings</p>
             <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px' }}>
               ${fmt(totalSavings)}
@@ -115,7 +115,7 @@ const Savings: React.FC = () => {
                         <p className="text-xs text-muted">Savings Account</p>
                       </div>
                     </div>
-                    <p className="font-mono font-bold text-lg" style={{ color: '#2ecc8a' }}>
+                    <p className="font-mono font-bold text-lg" style={{ color: '#10b981' }}>
                       ${fmt(Number(account.balance))}
                     </p>
                   </div>
@@ -129,7 +129,7 @@ const Savings: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
               <p className="label">Goals</p>
               <button onClick={() => setShowAddGoal(true)}
-                className="text-xs font-semibold transition-colors" style={{ color: '#5b8fff' }}>
+                className="text-xs font-semibold transition-colors" style={{ color: '#6366f1' }}>
                 + New Goal
               </button>
             </div>
@@ -160,13 +160,13 @@ const Savings: React.FC = () => {
                             <p className="font-semibold text-sm text-text">{goal.name}</p>
                             {isComplete && (
                               <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                                style={{ backgroundColor: 'rgba(46,204,138,.15)', color: '#2ecc8a' }}>
+                                style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
                                 Complete ✓
                               </span>
                             )}
                           </div>
                           {daysLeft !== null && (
-                            <p className="text-xs mt-0.5" style={{ color: daysLeft < 30 ? '#ff5f6d' : '#7880a0' }}>
+                            <p className="text-xs mt-0.5" style={{ color: daysLeft < 30 ? '#f43f5e' : '#666e90' }}>
                               {daysLeft > 0 ? `${daysLeft} days left` : daysLeft === 0 ? 'Due today' : 'Overdue'}
                               {goal.deadline && ` · ${new Date(goal.deadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                             </p>
@@ -174,10 +174,10 @@ const Savings: React.FC = () => {
                         </div>
                         <button onClick={() => handleDeleteGoal(goal.id, goal.name)}
                           className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
-                          style={{ color: '#3e4460' }}
-                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#ff5f6d'}
-                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#3e4460'}>
-                          ✕
+                          style={{ color: '#363d56' }}
+                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#f43f5e'}
+                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#363d56'}>
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                         </button>
                       </div>
 
@@ -186,7 +186,7 @@ const Savings: React.FC = () => {
                           <span className="text-muted">
                             ${fmt(balance)} saved
                           </span>
-                          <span className="font-mono font-semibold" style={{ color: isComplete ? '#2ecc8a' : '#e8eaf2' }}>
+                          <span className="font-mono font-semibold" style={{ color: isComplete ? '#10b981' : '#eef0f8' }}>
                             ${fmt(Number(goal.target_amount))} goal
                           </span>
                         </div>
@@ -197,7 +197,7 @@ const Savings: React.FC = () => {
                         <p className="text-xs text-muted">
                           {isComplete ? '🎉 Goal reached!' : `$${fmt(remaining)} remaining`}
                         </p>
-                        <p className="font-mono text-sm font-bold" style={{ color: isComplete ? '#2ecc8a' : '#5b8fff' }}>
+                        <p className="font-mono text-sm font-bold" style={{ color: isComplete ? '#10b981' : '#6366f1' }}>
                           {progress.toFixed(0)}%
                         </p>
                       </div>
@@ -222,7 +222,7 @@ const Savings: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAddGoal(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #2ecc8a, #5b8fff)', boxShadow: '0 8px 32px rgba(46,204,138,.4)' }}>
+        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #10b981, #6366f1)', boxShadow: '0 8px 32px rgba(16,185,129,.4)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>

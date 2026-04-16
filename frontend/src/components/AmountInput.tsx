@@ -15,7 +15,7 @@ const AmountInput: React.FC<Props> = ({ value, onChange, currency = '$', autoFoc
       className="flex items-center justify-center gap-1 bg-surface rounded-2xl p-5 cursor-text"
       onClick={() => inputRef.current?.focus()}
     >
-      <span className="font-mono font-bold text-3xl" style={{ color: '#3e4460' }}>{currency}</span>
+      <span className="font-mono font-bold text-3xl" style={{ color: '#363d56' }}>{currency}</span>
       <input
         ref={inputRef}
         type="number"

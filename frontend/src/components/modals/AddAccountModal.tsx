@@ -56,10 +56,10 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <button key={t.value} type="button" onClick={() => setType(t.value)}
                 className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all"
                 style={type === t.value
-                  ? { borderColor: '#5b8fff', backgroundColor: 'rgba(91,143,255,.08)' }
-                  : { borderColor: '#252a3a', backgroundColor: '#11141c' }}>
+                  ? { borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.08)' }
+                  : { borderColor: '#1a1f2e', backgroundColor: '#0d1018' }}>
                 <span className="text-xl">{t.icon}</span>
-                <span className="text-xs font-semibold" style={{ color: type === t.value ? '#5b8fff' : '#7880a0' }}>
+                <span className="text-xs font-semibold" style={{ color: type === t.value ? '#6366f1' : '#666e90' }}>
                   {t.label}
                 </span>
               </button>

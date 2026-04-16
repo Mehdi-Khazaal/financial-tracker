@@ -11,7 +11,7 @@ interface Props {
   defaultType?: 'income' | 'expense';
 }
 
-const COLORS = ['#5b8fff','#a78bfa','#2ecc8a','#ff5f6d','#f5a623','#7880a0','#e8eaf2','#ff9f43'];
+const COLORS = ['#6366f1','#a855f7','#10b981','#f43f5e','#f59e0b','#666e90','#eef0f8','#ff9f43'];
 
 const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defaultType = 'expense' }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -77,7 +77,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   };
 
   const filteredCats = categories.filter(c => c.type === type);
-  const accentColor = type === 'expense' ? '#ff5f6d' : '#2ecc8a';
+  const accentColor = type === 'expense' ? '#f43f5e' : '#10b981';
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title={type === 'expense' ? 'Record Expense' : 'Record Income'}>
@@ -90,15 +90,15 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Type toggle */}
-            <div className="flex p-1 rounded-xl" style={{ backgroundColor: '#0b0d12' }}>
+            <div className="flex p-1 rounded-xl" style={{ backgroundColor: '#070810' }}>
               {(['expense', 'income'] as const).map(t => (
                 <button key={t} type="button" onClick={() => setType(t)}
                   className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all"
                   style={type === t
-                    ? { backgroundColor: t === 'expense' ? 'rgba(255,95,109,.15)' : 'rgba(46,204,138,.15)',
-                        color: t === 'expense' ? '#ff5f6d' : '#2ecc8a' }
-                    : { color: '#7880a0' }}>
-                  {t === 'expense' ? '↓ Expense' : '↑ Income'}
+                    ? { backgroundColor: t === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
+                        color: t === 'expense' ? '#f43f5e' : '#10b981' }
+                    : { color: '#666e90' }}>
+                  {t === 'expense' ? <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Expense</> : <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Income</>}
                 </button>
               ))}
             </div>
@@ -122,26 +122,26 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                 <p className="label">Category</p>
                 <button type="button" onClick={() => setShowNewCat(!showNewCat)}
                   className="text-xs font-semibold transition-colors"
-                  style={{ color: '#5b8fff' }}>
+                  style={{ color: '#6366f1' }}>
                   {showNewCat ? 'Cancel' : '+ New'}
                 </button>
               </div>
 
               {showNewCat ? (
-                <div className="p-3 rounded-xl space-y-3" style={{ backgroundColor: '#0b0d12', border: '1px solid #252a3a' }}>
+                <div className="p-3 rounded-xl space-y-3" style={{ backgroundColor: '#070810', border: '1px solid #1a1f2e' }}>
                   <input value={newCatName} onChange={e => setNewCatName(e.target.value)}
                     placeholder="Category name" className="input-dark text-sm" />
                   <div className="flex gap-2">
                     {COLORS.map(c => (
                       <button key={c} type="button" onClick={() => setNewCatColor(c)}
                         className="w-6 h-6 rounded-full border-2 transition-transform"
-                        style={{ backgroundColor: c, borderColor: newCatColor === c ? '#e8eaf2' : 'transparent',
+                        style={{ backgroundColor: c, borderColor: newCatColor === c ? '#eef0f8' : 'transparent',
                           transform: newCatColor === c ? 'scale(1.25)' : 'scale(1)' }} />
                     ))}
                   </div>
                   <button type="button" onClick={handleAddCat} disabled={addingCat || !newCatName.trim()}
                     className="w-full py-2 text-sm font-semibold rounded-lg disabled:opacity-40 transition-opacity"
-                    style={{ backgroundColor: '#5b8fff', color: 'white' }}>
+                    style={{ backgroundColor: '#6366f1', color: 'white' }}>
                     {addingCat ? 'Adding…' : 'Add Category'}
                   </button>
                 </div>
@@ -149,7 +149,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => setCategoryId('')}
                     className="pill transition-all"
-                    style={!categoryId ? { backgroundColor: '#252a3a', color: '#e8eaf2' } : { backgroundColor: '#11141c', color: '#7880a0' }}>
+                    style={!categoryId ? { backgroundColor: '#1a1f2e', color: '#eef0f8' } : { backgroundColor: '#0d1018', color: '#666e90' }}>
                     None
                   </button>
                   {filteredCats.map(c => (
@@ -157,7 +157,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                       className="pill transition-all"
                       style={categoryId === String(c.id)
                         ? { backgroundColor: c.color + '20', color: c.color, border: `1px solid ${c.color}40` }
-                        : { backgroundColor: '#11141c', color: '#7880a0' }}>
+                        : { backgroundColor: '#0d1018', color: '#666e90' }}>
                       {c.name}
                     </button>
                   ))}

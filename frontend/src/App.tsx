@@ -20,9 +20,9 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
         <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow"
-          style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+          style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
       </div>
     );
   }

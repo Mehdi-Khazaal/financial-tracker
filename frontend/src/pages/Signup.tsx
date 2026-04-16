@@ -26,16 +26,16 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#0b0d12' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#070810' }}>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-5"
-          style={{ background: 'radial-gradient(circle, #a78bfa, transparent)', filter: 'blur(60px)' }} />
+          style={{ background: 'radial-gradient(circle, #a855f7, transparent)', filter: 'blur(60px)' }} />
       </div>
 
       <div className="w-full max-w-sm fade-in">
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', boxShadow: '0 8px 32px rgba(91,143,255,.3)' }}>
+            style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 32px rgba(99,102,241,.3)' }}>
             <span className="text-white font-bold text-xl">F</span>
           </div>
           <h1 className="text-2xl font-bold text-text">Create account</h1>
@@ -44,7 +44,7 @@ const Signup: React.FC = () => {
 
         <div className="card p-6 space-y-4">
           {error && (
-            <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.2)' }}>
+            <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
               {error}
             </div>
           )}
@@ -79,7 +79,7 @@ const Signup: React.FC = () => {
 
         <p className="text-center text-muted text-sm mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold transition-colors" style={{ color: '#5b8fff' }}>
+          <Link to="/login" className="font-semibold transition-colors" style={{ color: '#6366f1' }}>
             Sign in
           </Link>
         </p>

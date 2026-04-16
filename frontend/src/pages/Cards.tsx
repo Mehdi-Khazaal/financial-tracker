@@ -40,8 +40,8 @@ const Cards: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -49,7 +49,7 @@ const Cards: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
@@ -57,7 +57,7 @@ const Cards: React.FC = () => {
             <h1 className="text-xl font-bold text-text">Credit Cards</h1>
             <button onClick={() => setShowAdd(true)}
               className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}>
+              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
               + Card
             </button>
           </div>
@@ -81,7 +81,7 @@ const Cards: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted">Owed</p>
-                      <p className="font-mono font-semibold text-sm" style={{ color: '#ff5f6d' }}>${fmt(totalOwed)}</p>
+                      <p className="font-mono font-semibold text-sm" style={{ color: '#f43f5e' }}>${fmt(totalOwed)}</p>
                       <p className="text-xs text-muted mt-0.5">Limit ${fmt(totalLimit)}</p>
                     </div>
                   </div>
@@ -101,11 +101,11 @@ const Cards: React.FC = () => {
                   <div key={card.id} className="card overflow-hidden">
                     {/* Card visual */}
                     <div className="relative p-5 overflow-hidden" style={{
-                      background: 'linear-gradient(135deg, #181c28 0%, #252a3a 100%)',
-                      borderBottom: '1px solid #252a3a',
+                      background: 'linear-gradient(135deg, #121620 0%, #1a1f2e 100%)',
+                      borderBottom: '1px solid #1a1f2e',
                     }}>
                       <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full opacity-20"
-                        style={{ background: 'radial-gradient(circle, #5b8fff, transparent)' }} />
+                        style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
                       <div className="flex justify-between items-start mb-6">
                         <div>
                           <p className="font-bold text-text">{card.name}</p>
@@ -116,12 +116,12 @@ const Cards: React.FC = () => {
                       <div className="flex justify-between items-end">
                         <div>
                           <p className="text-[10px] uppercase tracking-widest text-muted mb-1">Balance Owed</p>
-                          <p className="font-mono font-bold text-2xl" style={{ color: '#ff5f6d' }}>${fmt(owed)}</p>
+                          <p className="font-mono font-bold text-2xl" style={{ color: '#f43f5e' }}>${fmt(owed)}</p>
                         </div>
                         {limit > 0 && (
                           <div className="text-right">
                             <p className="text-[10px] uppercase tracking-widest text-muted mb-1">Available</p>
-                            <p className="font-mono font-bold text-lg" style={{ color: '#2ecc8a' }}>${fmt(available)}</p>
+                            <p className="font-mono font-bold text-lg" style={{ color: '#10b981' }}>${fmt(available)}</p>
                           </div>
                         )}
                       </div>
@@ -129,7 +129,7 @@ const Cards: React.FC = () => {
 
                     {/* Stats + progress */}
                     {limit > 0 && (
-                      <div className="px-5 py-4" style={{ borderBottom: '1px solid #252a3a' }}>
+                      <div className="px-5 py-4" style={{ borderBottom: '1px solid #1a1f2e' }}>
                         <div className="flex justify-between text-xs text-muted mb-2">
                           <span>Used: ${fmt(owed)}</span>
                           <span>Limit: ${fmt(limit)}</span>
@@ -139,20 +139,20 @@ const Cards: React.FC = () => {
                     )}
 
                     {/* Actions */}
-                    <div className="px-5 py-3 flex gap-2" style={{ borderBottom: cardTxs.length > 0 ? '1px solid #252a3a' : 'none' }}>
+                    <div className="px-5 py-3 flex gap-2" style={{ borderBottom: cardTxs.length > 0 ? '1px solid #1a1f2e' : 'none' }}>
                       <button onClick={() => setPayCard(card)}
                         className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                        style={{ background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', color: 'white' }}>
+                        style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white' }}>
                         Pay Card
                       </button>
                       <button onClick={() => setEditCard(card)}
                         className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                        style={{ backgroundColor: 'rgba(91,143,255,.1)', color: '#5b8fff', border: '1px solid rgba(91,143,255,.2)' }}>
+                        style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
                         Edit
                       </button>
                       <button onClick={() => handleDelete(card.id, card.name)}
                         className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                        style={{ backgroundColor: 'rgba(255,95,109,.1)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.2)' }}>
+                        style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
                         Delete
                       </button>
                     </div>
@@ -169,7 +169,7 @@ const Cards: React.FC = () => {
                                 <p className="text-sm font-medium text-text">{tx.description || 'No note'}</p>
                                 <p className="text-xs text-muted">{tx.transaction_date}</p>
                               </div>
-                              <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#2ecc8a' : '#ff5f6d' }}>
+                              <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#10b981' : '#f43f5e' }}>
                                 {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                               </p>
                             </div>
@@ -188,7 +188,7 @@ const Cards: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAdd(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #5b8fff, #a78bfa)', boxShadow: '0 8px 32px rgba(91,143,255,.4)' }}>
+        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 32px rgba(99,102,241,.4)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>

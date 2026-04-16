@@ -10,9 +10,46 @@ import AddAccountModal from '../components/modals/AddAccountModal';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ACCOUNT_ICONS: Record<string, string> = {
-  checking: '🏦', savings: '💰', credit_card: '💳', investment: '📈', cash: '💵',
+// SVG path data for account type icons
+const ACCOUNT_ICON_PATHS: Record<string, { path: string; color: string }> = {
+  checking:    { path: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z', color: '#6366f1' },
+  savings:     { path: 'M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267zm4-4.849a3 3 0 11-6 0 3 3 0 016 0z M10 18a8 8 0 100-16 8 8 0 000 16z', color: '#10b981' },
+  credit_card: { path: 'M2 5a2 2 0 012-2h12a2 2 0 012 2v2H2V5zm0 4h16v7a2 2 0 01-2 2H4a2 2 0 01-2-2V9zm3 3a1 1 0 000 2h.01a1 1 0 000-2H5zm2 0a1 1 0 000 2h3a1 1 0 000-2H7z', color: '#f43f5e' },
+  investment:  { path: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z', color: '#a855f7' },
+  cash:        { path: 'M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z', color: '#f59e0b' },
 };
+const defaultAcctIcon = { path: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z', color: '#6366f1' };
+
+const AccountIcon: React.FC<{ type: string }> = ({ type }) => {
+  const { path, color } = ACCOUNT_ICON_PATHS[type] ?? defaultAcctIcon;
+  return (
+    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+      style={{ backgroundColor: color + '18' }}>
+      <svg viewBox="0 0 20 20" fill={color} className="w-4 h-4">
+        <path d={path} />
+      </svg>
+    </div>
+  );
+};
+
+// Dashboard skeleton
+const DashboardSkeleton: React.FC = () => (
+  <div className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
+    <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2"><div className="skeleton h-3 w-24" /><div className="skeleton h-6 w-40" /></div>
+        <div className="skeleton h-7 w-24 rounded-full" />
+      </div>
+      <div className="skeleton h-36 w-full rounded-3xl" />
+      <div className="grid grid-cols-3 gap-3">{[0,1,2].map(i => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>
+      <div className="grid grid-cols-3 gap-2">{[0,1,2].map(i => <div key={i} className="skeleton h-14 rounded-2xl" />)}</div>
+      <div className="space-y-3">
+        <div className="skeleton h-3 w-20" />
+        <div className="grid grid-cols-2 gap-3">{[0,1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}</div>
+      </div>
+    </div>
+  </div>
+);
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -57,12 +94,10 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#0b0d12' }}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-7 h-7 rounded-full border-2 border-accent border-t-transparent spin-slow" style={{ borderColor: '#5b8fff', borderTopColor: 'transparent' }} />
-          <p className="text-xs text-muted font-medium">Loading…</p>
-        </div>
-      </div>
+      <>
+        <Navigation />
+        <DashboardSkeleton />
+      </>
     );
   }
 
@@ -71,32 +106,32 @@ const Dashboard: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#0b0d12' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* ── Greeting ── */}
           <div className="flex items-center justify-between">
             <div>
               <p className="label">{monthLabel}</p>
-              <h1 className="text-xl font-bold text-text mt-0.5">Hey, {user?.username} 👋</h1>
+              <h1 className="text-xl font-bold text-text mt-0.5">Hey, {user?.username}</h1>
             </div>
             <button onClick={() => setShowAddAccount(true)}
               className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#181c28', border: '1px solid #252a3a', color: '#7880a0' }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.color = '#5b8fff'; (e.target as HTMLElement).style.borderColor = '#5b8fff'; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.color = '#7880a0'; (e.target as HTMLElement).style.borderColor = '#252a3a'; }}>
+              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}
+              onMouseEnter={e => { (e.target as HTMLElement).style.color = '#6366f1'; (e.target as HTMLElement).style.borderColor = '#6366f1'; }}
+              onMouseLeave={e => { (e.target as HTMLElement).style.color = '#666e90'; (e.target as HTMLElement).style.borderColor = '#1a1f2e'; }}>
               + Account
             </button>
           </div>
 
           {/* ── Net Worth Hero ── */}
           <div className="relative overflow-hidden rounded-3xl p-6"
-            style={{ background: 'linear-gradient(145deg, #11141c 0%, #181c28 100%)', border: '1px solid #252a3a' }}>
+            style={{ background: 'linear-gradient(145deg, #0d1018 0%, #121620 100%)', border: '1px solid #1a1f2e' }}>
             {/* Glow orbs */}
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, #5b8fff, transparent)' }} />
+              style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
             <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-10 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, #a78bfa, transparent)' }} />
+              style={{ background: 'radial-gradient(circle, #a855f7, transparent)' }} />
 
             <div className="relative">
               <p className="label mb-1">Net Worth</p>
@@ -105,15 +140,15 @@ const Dashboard: React.FC = () => {
               </p>
               <div className="flex gap-6">
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#5b8fff' }}>Accounts</p>
+                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#6366f1' }}>Accounts</p>
                   <p className="font-mono font-semibold text-sm text-text">${fmt(accountsTotal)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#a78bfa' }}>Assets</p>
+                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#a855f7' }}>Assets</p>
                   <p className="font-mono font-semibold text-sm text-text">${fmt(assetsTotal)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#2ecc8a' }}>Spendable</p>
+                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#10b981' }}>Spendable</p>
                   <p className="font-mono font-semibold text-sm text-text">${fmt(spendable)}</p>
                 </div>
               </div>
@@ -123,11 +158,11 @@ const Dashboard: React.FC = () => {
           {/* ── Month stats ── */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Income', value: `+$${fmt(monthIncome)}`, color: '#2ecc8a', glow: 'rgba(46,204,138,.1)' },
-              { label: 'Expenses', value: `-$${fmt(monthExpenses)}`, color: '#ff5f6d', glow: 'rgba(255,95,109,.1)' },
-              { label: 'Saved', value: `${savingsRate.toFixed(0)}%`, color: savingsRate >= 0 ? '#2ecc8a' : '#ff5f6d', glow: 'rgba(91,143,255,.1)' },
+              { label: 'Income', value: `+$${fmt(monthIncome)}`, color: '#10b981', glow: 'rgba(16,185,129,.1)' },
+              { label: 'Expenses', value: `-$${fmt(monthExpenses)}`, color: '#f43f5e', glow: 'rgba(244,63,94,.1)' },
+              { label: 'Saved', value: `${savingsRate.toFixed(0)}%`, color: savingsRate >= 0 ? '#10b981' : '#f43f5e', glow: 'rgba(99,102,241,.1)' },
             ].map(s => (
-              <div key={s.label} className="rounded-2xl p-4" style={{ backgroundColor: '#11141c', border: '1px solid #252a3a', boxShadow: `0 0 20px ${s.glow}` }}>
+              <div key={s.label} className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: `0 0 20px ${s.glow}` }}>
                 <p className="label mb-1.5">{s.label}</p>
                 <p className="font-mono font-bold text-sm" style={{ color: s.color }}>{s.value}</p>
               </div>
@@ -137,19 +172,22 @@ const Dashboard: React.FC = () => {
           {/* ── Quick Actions ── */}
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-              className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
-              style={{ backgroundColor: 'rgba(255,95,109,.12)', color: '#ff5f6d', border: '1px solid rgba(255,95,109,.2)' }}>
-              ↓ Expense
+              className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
+              style={{ backgroundColor: 'rgba(244,63,94,.12)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+              Expense
             </button>
             <button onClick={() => { setTxType('income'); setShowTx(true); }}
-              className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
-              style={{ backgroundColor: 'rgba(46,204,138,.12)', color: '#2ecc8a', border: '1px solid rgba(46,204,138,.2)' }}>
-              ↑ Income
+              className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
+              style={{ backgroundColor: 'rgba(16,185,129,.12)', color: '#10b981', border: '1px solid rgba(16,185,129,.2)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+              Income
             </button>
             <button onClick={() => setShowTransfer(true)}
-              className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
-              style={{ backgroundColor: 'rgba(91,143,255,.12)', color: '#5b8fff', border: '1px solid rgba(91,143,255,.2)' }}>
-              ⇄ Transfer
+              className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95"
+              style={{ backgroundColor: 'rgba(99,102,241,.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" /></svg>
+              Transfer
             </button>
           </div>
 
@@ -157,7 +195,7 @@ const Dashboard: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="label">Accounts</p>
-              <Link to="/wallet" className="text-xs font-semibold transition-colors" style={{ color: '#5b8fff' }}>View all →</Link>
+              <Link to="/wallet" className="text-xs font-semibold transition-colors" style={{ color: '#6366f1' }}>View all →</Link>
             </div>
             {accounts.length === 0 ? (
               <button onClick={() => setShowAddAccount(true)}
@@ -169,11 +207,11 @@ const Dashboard: React.FC = () => {
                 {accounts.slice(0, 4).map(a => (
                   <div key={a.id} className="card card-hover p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">{ACCOUNT_ICONS[a.type] ?? '💰'}</span>
+                      <AccountIcon type={a.type} />
                       <p className="text-xs text-muted capitalize">{a.type.replace('_', ' ')}</p>
                     </div>
                     <p className="text-xs text-muted truncate mb-0.5">{a.name}</p>
-                    <p className="font-mono font-bold text-lg" style={{ color: Number(a.balance) < 0 ? '#ff5f6d' : '#e8eaf2' }}>
+                    <p className="font-mono font-bold text-lg" style={{ color: Number(a.balance) < 0 ? '#f43f5e' : '#eef0f8' }}>
                       {Number(a.balance) < 0 ? '-' : ''}${fmt(Number(a.balance))}
                     </p>
                     {a.type === 'credit_card' && a.credit_limit && (
@@ -197,7 +235,7 @@ const Dashboard: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="label">Credit Cards</p>
-                <Link to="/cards" className="text-xs font-semibold" style={{ color: '#5b8fff' }}>Manage →</Link>
+                <Link to="/cards" className="text-xs font-semibold" style={{ color: '#6366f1' }}>Manage →</Link>
               </div>
               <div className="space-y-3">
                 {ccAccounts.slice(0, 2).map(card => {
@@ -211,12 +249,12 @@ const Dashboard: React.FC = () => {
                           <p className="font-semibold text-sm text-text">{card.name}</p>
                           {limit > 0 && <p className="text-xs text-muted mt-0.5">Limit: ${fmt(limit)}</p>}
                         </div>
-                        <p className="font-mono font-bold text-lg" style={{ color: '#ff5f6d' }}>${fmt(owed)}</p>
+                        <p className="font-mono font-bold text-lg" style={{ color: '#f43f5e' }}>${fmt(owed)}</p>
                       </div>
                       {limit > 0 && (
-                        <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: '#252a3a' }}>
+                        <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: '#1a1f2e' }}>
                           <div className="h-full rounded-full transition-all"
-                            style={{ width: `${Math.min(used, 100)}%`, backgroundColor: used > 70 ? '#ff5f6d' : used > 30 ? '#f5a623' : '#2ecc8a' }} />
+                            style={{ width: `${Math.min(used, 100)}%`, backgroundColor: used > 70 ? '#f43f5e' : used > 30 ? '#f59e0b' : '#10b981' }} />
                         </div>
                       )}
                     </div>
@@ -230,13 +268,13 @@ const Dashboard: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="label">Recent</p>
-              <Link to="/transactions" className="text-xs font-semibold" style={{ color: '#5b8fff' }}>View all →</Link>
+              <Link to="/transactions" className="text-xs font-semibold" style={{ color: '#6366f1' }}>View all →</Link>
             </div>
             {recent.length === 0 ? (
               <div className="card py-10 text-center">
                 <p className="text-muted text-sm">No transactions yet</p>
                 <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-                  className="mt-3 text-xs font-semibold" style={{ color: '#5b8fff' }}>
+                  className="mt-3 text-xs font-semibold" style={{ color: '#6366f1' }}>
                   Add one →
                 </button>
               </div>
@@ -247,15 +285,20 @@ const Dashboard: React.FC = () => {
                   return (
                     <div key={tx.id}
                       className={`flex items-center gap-3 px-4 py-3 ${i !== recent.length - 1 ? 'border-b border-border' : ''}`}>
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ backgroundColor: pos ? 'rgba(46,204,138,.15)' : 'rgba(255,95,109,.15)', color: pos ? '#2ecc8a' : '#ff5f6d' }}>
-                        {pos ? '↑' : '↓'}
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: pos ? 'rgba(16,185,129,.12)' : 'rgba(244,63,94,.12)', color: pos ? '#10b981' : '#f43f5e' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                          {pos
+                            ? <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            : <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          }
+                        </svg>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text truncate">{tx.description || 'No note'}</p>
                         <p className="text-xs text-muted">{tx.transaction_date}</p>
                       </div>
-                      <p className="font-mono font-semibold text-sm shrink-0" style={{ color: pos ? '#2ecc8a' : '#ff5f6d' }}>
+                      <p className="font-mono font-semibold text-sm shrink-0" style={{ color: pos ? '#10b981' : '#f43f5e' }}>
                         {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                       </p>
                     </div>
