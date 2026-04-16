@@ -1,9 +1,10 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from jose import JWTError, jwt
 from models.database import get_db, Category
-from models.auth import User, UserCreate, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
+from models.auth import User, UserCreate, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
 from utils.auth import (
     get_password_hash, verify_password,
     create_verify_token, create_reset_token,
@@ -87,6 +88,12 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
             detail="Invalid credentials",
         )
 
+    # Auto-promote to admin if email matches ADMIN_EMAIL env var
+    admin_email = os.getenv("ADMIN_EMAIL", "").lower()
+    if admin_email and db_user.email.lower() == admin_email and not db_user.is_admin:
+        db_user.is_admin = True
+        db.commit()
+
     set_auth_cookies(response, db_user.id)
     return {"message": "Logged in successfully"}
 
@@ -125,6 +132,20 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# ─── Change password (authenticated) ─────────────────────────────────────────
+@router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    current_user.hashed_password = get_password_hash(body.new_password)
+    db.commit()
+    return {"message": "Password changed successfully"}
 
 
 # ─── Forgot password ──────────────────────────────────────────────────────────

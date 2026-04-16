@@ -38,6 +38,13 @@ export const signup   = (email: string, username: string, password: string) =>
   api.post('/auth/signup', { email, username, password });
 export const getMe    = () => api.get('/auth/me');
 export const logout   = () => api.post('/auth/logout');
+export const changePassword = (current_password: string, new_password: string) =>
+  api.post('/auth/change-password', { current_password, new_password });
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+export const adminGetUsers = () => api.get('/admin/users');
+export const adminResetPassword = (userId: number) => api.post(`/admin/users/${userId}/reset-password`);
+
 export const forgotPassword = (email: string) =>
   api.post('/auth/forgot-password', { email });
 export const resetPassword = (token: string, new_password: string) =>

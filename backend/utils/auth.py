@@ -26,9 +26,7 @@ IS_PROD = os.getenv("ENVIRONMENT") == "production"
 
 
 def cookie_cfg(path: str = "/") -> dict:
-    if IS_PROD:
-        return {"httponly": True, "secure": True, "samesite": "none", "path": path}
-    return {"httponly": True, "secure": False, "samesite": "lax", "path": path}
+    return {"httponly": True, "secure": IS_PROD, "samesite": "lax", "path": path}
 
 
 # ── Password hashing ──────────────────────────────────────────────────────────
@@ -68,12 +66,12 @@ def set_auth_cookies(response, user_id: int):
     access = create_access_token({"sub": str(user_id)})
     refresh = create_refresh_token({"sub": str(user_id)})
     response.set_cookie("access_token", access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
-    response.set_cookie("refresh_token", refresh, max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600, **cookie_cfg("/auth/refresh"))
+    response.set_cookie("refresh_token", refresh, max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600, **cookie_cfg())
 
 
 def clear_auth_cookies(response):
     response.delete_cookie("access_token", **cookie_cfg())
-    response.delete_cookie("refresh_token", **cookie_cfg("/auth/refresh"))
+    response.delete_cookie("refresh_token", **cookie_cfg())
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────

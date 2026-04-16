@@ -5,7 +5,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from models.database import Base, engine
 from routers import accounts, categories, transactions, assets, auth
-from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans, push
+from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans, push, admin
 from utils.limiter import limiter
 
 # ── DB init ───────────────────────────────────────────────────────────────────
@@ -21,6 +21,7 @@ def _run_migrations():
             "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE",
             """CREATE TABLE IF NOT EXISTS push_subscriptions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -78,6 +79,7 @@ app.include_router(recurring_transactions.router)
 app.include_router(history.router)
 app.include_router(loans.router)
 app.include_router(push.router)
+app.include_router(admin.router)
 
 
 @app.get("/")

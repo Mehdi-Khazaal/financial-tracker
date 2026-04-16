@@ -117,5 +117,6 @@ export interface User {
   email: string;
   username: string;
   is_verified: boolean;
+  is_admin: boolean;
   created_at: string;
 }

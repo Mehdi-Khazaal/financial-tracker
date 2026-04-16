@@ -5,6 +5,7 @@ import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
+import { changePassword, adminGetUsers, adminResetPassword } from '../utils/api';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -70,6 +71,50 @@ const Settings: React.FC = () => {
     catch { toast.error('Failed to delete'); }
   };
 
+  // Change password
+  const [pwOpen, setPwOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPw !== confirmPw) { toast.error('New passwords do not match'); return; }
+    if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    setPwLoading(true);
+    try {
+      await changePassword(currentPw, newPw);
+      toast.success('Password changed successfully');
+      setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwOpen(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail ?? 'Failed to change password');
+    } finally { setPwLoading(false); }
+  };
+
+  // Admin
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [resettingId, setResettingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (user?.is_admin) {
+      setAdminLoading(true);
+      adminGetUsers().then(r => setAdminUsers(r.data)).finally(() => setAdminLoading(false));
+    }
+  }, [user?.is_admin]);
+
+  const handleAdminReset = async (u: any) => {
+    const ok = await toast.confirm(`Send a password reset email to ${u.email}?`);
+    if (!ok) return;
+    setResettingId(u.id);
+    try {
+      await adminResetPassword(u.id);
+      toast.success(`Reset email sent to ${u.email}`);
+    } catch { toast.error('Failed to send reset email'); }
+    finally { setResettingId(null); }
+  };
+
   const [pushEnabled, setPushEnabled] = useState(getPushPermission() === 'granted');
   const [pushLoading, setPushLoading] = useState(false);
 
@@ -120,6 +165,48 @@ const Settings: React.FC = () => {
               style={{ backgroundColor: 'rgba(244,63,94,.08)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.15)' }}>
               Sign out
             </button>
+          </section>
+
+          {/* ── Change Password ── */}
+          <section className="card p-5">
+            <button onClick={() => setPwOpen(o => !o)}
+              className="w-full flex items-center justify-between">
+              <p className="label">Security</p>
+              <svg className={`w-4 h-4 text-muted transition-transform ${pwOpen ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {pwOpen && (
+              <form onSubmit={handleChangePassword} className="mt-4 space-y-3">
+                <div>
+                  <p className="label mb-2">Current password</p>
+                  <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+                    className="input-dark" placeholder="••••••••" required />
+                </div>
+                <div>
+                  <p className="label mb-2">New password</p>
+                  <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+                    className="input-dark" placeholder="At least 8 characters" required minLength={8} />
+                </div>
+                <div>
+                  <p className="label mb-2">Confirm new password</p>
+                  <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                    className="input-dark" placeholder="••••••••" required />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button type="submit" disabled={pwLoading}
+                    className="btn-gradient flex-1 py-2.5 text-sm disabled:opacity-60">
+                    {pwLoading ? 'Saving…' : 'Change Password'}
+                  </button>
+                  <button type="button" onClick={() => { setPwOpen(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }}
+                    className="btn-ghost px-4 py-2.5 text-sm">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </section>
 
           {/* ── Notifications ── */}
@@ -278,6 +365,59 @@ const Settings: React.FC = () => {
               </div>
             )}
           </section>
+
+          {/* ── Admin Panel ── */}
+          {user?.is_admin && (
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="label">Admin — All Users</p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={{ backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1' }}>
+                  ADMIN
+                </span>
+              </div>
+
+              {adminLoading ? (
+                <div className="card py-8 text-center">
+                  <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
+                    style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+                </div>
+              ) : (
+                <div className="card overflow-hidden">
+                  {adminUsers.map((u, i) => (
+                    <div key={u.id}
+                      className={`px-4 py-3 flex items-center gap-3 ${i < adminUsers.length - 1 ? 'border-b border-border' : ''}`}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
+                        <span className="text-white">{u.username.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-text truncate">{u.username}</p>
+                          {u.is_admin && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{ backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1' }}>admin</span>
+                          )}
+                          {u.is_verified && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>verified</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted truncate">{u.email}</p>
+                      </div>
+                      <button
+                        onClick={() => handleAdminReset(u)}
+                        disabled={resettingId === u.id}
+                        className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                        style={{ backgroundColor: 'rgba(245,158,11,.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}>
+                        {resettingId === u.id ? '…' : 'Reset PW'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
         </div>
       </main>
