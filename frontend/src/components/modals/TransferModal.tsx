@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
 import { createTransfer, getAccounts } from '../../utils/api';
 import { Account } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselectedFromId, preselectedToId }) => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState('');
@@ -38,7 +40,7 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return;
-    if (fromId === toId) { alert('Cannot transfer to the same account'); return; }
+    if (fromId === toId) { toast.error('Cannot transfer to the same account'); return; }
     setLoading(true);
     try {
       await createTransfer({
@@ -51,7 +53,7 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
       onSuccess(); onClose();
       setAmount(''); setNote('');
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Transfer failed');
+      toast.error(err.response?.data?.detail || 'Transfer failed');
     } finally { setLoading(false); }
   };
 

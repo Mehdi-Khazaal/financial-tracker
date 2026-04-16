@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createAccount } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 
 interface Props { isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
@@ -13,6 +14,7 @@ const TYPES = [
 ];
 
 const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
   const [balance, setBalance] = useState('');
@@ -34,7 +36,7 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       });
       onSuccess(); onClose();
       setName(''); setType('checking'); setBalance(''); setCreditLimit('');
-    } catch { alert('Failed to create account'); }
+    } catch { toast.error('Failed to create account'); }
     finally { setLoading(false); }
   };
 

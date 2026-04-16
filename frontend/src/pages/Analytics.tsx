@@ -49,7 +49,7 @@ const Analytics: React.FC = () => {
     } else {
       return txs;
     }
-    return txs.filter(t => new Date(t.transaction_date) >= from);
+    return txs.filter(t => new Date(t.transaction_date + 'T00:00:00') >= from);
   };
 
   const filtered = filterByPeriod(transactions);
@@ -82,7 +82,7 @@ const Analytics: React.FC = () => {
     return Object.entries(months)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, data]) => ({
-        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+        month: new Date(month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short' }),
         Income: data.income,
         Expenses: data.expenses,
       }));
@@ -91,7 +91,7 @@ const Analytics: React.FC = () => {
   const netWorthTrend = netWorthSnapshots
     .slice(-12)
     .map(snap => ({
-      month: new Date(snap.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      month: new Date(snap.month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
       Value: snap.net_worth ?? 0,
     }));
 

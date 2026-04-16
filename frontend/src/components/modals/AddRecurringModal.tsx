@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createRecurring, getAccounts, getCategories } from '../../utils/api';
 import { Account, Category, RecurringPeriod } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -18,6 +19,7 @@ const PERIODS: { value: RecurringPeriod; label: string }[] = [
 ];
 
 const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -63,7 +65,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       onSuccess(); onClose();
       setAmount(''); setDescription(''); setIsVariable(false);
       setNextDate(new Date().toISOString().split('T')[0]);
-    } catch { alert('Failed to create recurring transaction'); }
+    } catch { toast.error('Failed to create recurring transaction'); }
     finally { setLoading(false); }
   };
 

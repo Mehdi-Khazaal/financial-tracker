@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
 import { updateTransaction, getAccounts, getCategories } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -52,7 +54,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
         transaction_date: date,
       });
       onSuccess(); onClose();
-    } catch { alert('Failed to update transaction'); }
+    } catch { toast.error('Failed to update transaction'); }
     finally { setLoading(false); }
   };
 

@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Account, Transaction, Asset } from '../types';
-import { getAccounts, getTransactions, getAssets } from '../utils/api';
+import { Account, Transaction, Asset, SavingsGoal } from '../types';
+import { getAccounts, getTransactions, getAssets, getSavingsGoals } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
+import ProgressBar from '../components/ProgressBar';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -56,6 +57,7 @@ const Dashboard: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTx, setShowTx] = useState(false);
   const [txType, setTxType] = useState<'income' | 'expense'>('expense');
@@ -66,8 +68,8 @@ const Dashboard: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [aRes, tRes, asRes] = await Promise.all([getAccounts(), getTransactions(), getAssets()]);
-      setAccounts(aRes.data); setTransactions(tRes.data); setAssets(asRes.data);
+      const [aRes, tRes, asRes, gRes] = await Promise.all([getAccounts(), getTransactions(), getAssets(), getSavingsGoals()]);
+      setAccounts(aRes.data); setTransactions(tRes.data); setAssets(asRes.data); setSavingsGoals(gRes.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
@@ -89,6 +91,22 @@ const Dashboard: React.FC = () => {
   const monthIncome   = monthTx.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
   const monthExpenses = monthTx.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
   const savingsRate   = monthIncome > 0 ? ((monthIncome - monthExpenses) / monthIncome) * 100 : 0;
+
+  // Last month comparison
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthTx = transactions.filter(t => t.transaction_date.startsWith(lastMonth));
+  const lastMonthExpenses = lastMonthTx.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const expenseDiff = lastMonthExpenses > 0 ? monthExpenses - lastMonthExpenses : null;
+
+  // Savings goals progress
+  const savingsAccounts = accounts.filter(a => a.type === 'savings');
+  const activeGoals = savingsGoals.slice(0, 3).map(g => {
+    const account = savingsAccounts.find(a => a.id === g.account_id);
+    const balance = account ? Number(account.balance) : 0;
+    const progress = Math.min((balance / Number(g.target_amount)) * 100, 100);
+    return { ...g, balance, progress };
+  });
 
   const recent = transactions.slice(0, 8);
 
@@ -168,6 +186,33 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* ── Month-over-month ── */}
+          {expenseDiff !== null && (
+            <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{
+                backgroundColor: expenseDiff > 0 ? 'rgba(244,63,94,.06)' : 'rgba(16,185,129,.06)',
+                border: `1px solid ${expenseDiff > 0 ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)'}`,
+              }}>
+              <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: expenseDiff > 0 ? 'rgba(244,63,94,.12)' : 'rgba(16,185,129,.12)' }}>
+                <svg viewBox="0 0 20 20" fill={expenseDiff > 0 ? '#f43f5e' : '#10b981'} className="w-3.5 h-3.5">
+                  {expenseDiff > 0
+                    ? <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    : <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  }
+                </svg>
+              </div>
+              <p className="text-xs" style={{ color: expenseDiff > 0 ? '#f43f5e' : '#10b981' }}>
+                <span className="font-semibold">
+                  {expenseDiff > 0 ? '+' : '-'}${fmt(Math.abs(expenseDiff))} spending
+                </span>
+                <span className="text-muted" style={{ color: '#666e90' }}>
+                  {' '}vs last month
+                </span>
+              </p>
+            </div>
+          )}
 
           {/* ── Quick Actions ── */}
           <div className="grid grid-cols-3 gap-2">
@@ -260,6 +305,32 @@ const Dashboard: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Savings Goals ── */}
+          {activeGoals.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="label">Savings Goals</p>
+                <Link to="/savings" className="text-xs font-semibold" style={{ color: '#6366f1' }}>View all →</Link>
+              </div>
+              <div className="space-y-2">
+                {activeGoals.map(goal => (
+                  <div key={goal.id} className="card p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-text">{goal.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono text-xs text-muted">${fmt(goal.balance)}<span className="text-dim"> / ${fmt(Number(goal.target_amount))}</span></p>
+                        <p className="font-mono text-xs font-bold" style={{ color: goal.progress >= 100 ? '#10b981' : '#6366f1' }}>
+                          {goal.progress.toFixed(0)}%
+                        </p>
+                      </div>
+                    </div>
+                    <ProgressBar value={goal.progress} colorAuto height={5} showLabel={false} />
+                  </div>
+                ))}
               </div>
             </div>
           )}

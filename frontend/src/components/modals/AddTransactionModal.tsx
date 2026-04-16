@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
 import { createTransaction, getAccounts, getCategories, createCategory } from '../../utils/api';
 import { Account, Category } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface Props {
 const COLORS = ['#6366f1','#a855f7','#10b981','#f43f5e','#f59e0b','#666e90','#eef0f8','#ff9f43'];
 
 const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defaultType = 'expense' }) => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>(defaultType);
@@ -72,7 +74,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
       });
       onSuccess(); onClose();
       setAmount(''); setDescription(''); setDate(new Date().toISOString().split('T')[0]);
-    } catch { alert('Failed to save transaction'); }
+    } catch { toast.error('Failed to save transaction'); }
     finally { setLoading(false); }
   };
 

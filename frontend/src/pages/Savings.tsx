@@ -1,21 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Account, SavingsGoal } from '../types';
 import { getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddSavingsGoalModal from '../components/modals/AddSavingsGoalModal';
 import ProgressBar from '../components/ProgressBar';
+import PullToRefresh from '../components/PullToRefresh';
+import { useToast } from '../context/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const Savings: React.FC = () => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddGoal, setShowAddGoal] = useState(false);
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [aRes, gRes] = await Promise.all([getAccounts(), getSavingsGoals()]);
@@ -23,12 +25,16 @@ const Savings: React.FC = () => {
       setGoals(gRes.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
   const handleDeleteGoal = async (id: number, name: string) => {
-    if (!window.confirm(`Delete goal "${name}"?`)) return;
-    try { await deleteSavingsGoal(id); load(); }
-    catch { alert('Failed to delete goal'); }
+    const ok = await toast.confirm(`Delete goal "${name}"?`, { danger: true });
+    if (!ok) return;
+    try { await deleteSavingsGoal(id); load(); toast.success('Goal deleted'); }
+    catch { toast.error('Failed to delete goal'); }
   };
 
   const totalSavings = accounts.reduce((s, a) => s + Number(a.balance), 0);
@@ -56,15 +62,23 @@ const Savings: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
-      </div>
+      <>
+        <Navigation />
+        <div className="md:ml-60 min-h-screen" style={{ backgroundColor: '#070810' }}>
+          <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+            <div className="skeleton h-7 w-24 rounded-xl" />
+            <div className="skeleton h-36 w-full rounded-3xl" />
+            {[0,1].map(i => <div key={i} className="skeleton h-32 rounded-2xl" />)}
+          </div>
+        </div>
+      </>
     );
   }
 
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 

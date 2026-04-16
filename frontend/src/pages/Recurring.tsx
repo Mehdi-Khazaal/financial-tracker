@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { RecurringTransaction, Account, Category } from '../types';
 import { getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring, getAccounts, getCategories } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddRecurringModal from '../components/modals/AddRecurringModal';
+import PullToRefresh from '../components/PullToRefresh';
+import { useToast } from '../context/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -17,6 +20,7 @@ const PERIOD_COLORS: Record<string, string> = {
 };
 
 const Recurring: React.FC = () => {
+  const toast = useToast();
   const [items, setItems] = useState<RecurringTransaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -26,9 +30,7 @@ const Recurring: React.FC = () => {
   const [billInputs, setBillInputs] = useState<Record<number, string>>({});
   const [loggingBill, setLoggingBill] = useState<number | null>(null);
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [rRes, aRes, cRes] = await Promise.all([getRecurring(), getAccounts(), getCategories()]);
       setItems(rRes.data);
@@ -36,17 +38,21 @@ const Recurring: React.FC = () => {
       setCategories(cRes.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this recurring transaction?')) return;
-    try { await deleteRecurring(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm('Delete this recurring transaction?', { danger: true });
+    if (!ok) return;
+    try { await deleteRecurring(id); load(); toast.success('Deleted'); }
+    catch { toast.error('Failed to delete'); }
   };
 
   const handleToggle = async (item: RecurringTransaction) => {
     try { await updateRecurring(item.id, { is_active: !item.is_active }); load(); }
-    catch { alert('Failed to update'); }
+    catch { toast.error('Failed to update'); }
   };
 
   const handleProcess = async () => {
@@ -55,12 +61,12 @@ const Recurring: React.FC = () => {
       const res = await processDueRecurring();
       const count = res.data.length;
       if (count > 0) {
-        alert(`✓ Logged ${count} transaction${count !== 1 ? 's' : ''}`);
+        toast.success(`Logged ${count} transaction${count !== 1 ? 's' : ''}`);
       } else {
-        alert('No fixed recurring transactions due right now');
+        toast.info('No fixed recurring transactions due right now');
       }
       load();
-    } catch { alert('Failed to process'); }
+    } catch { toast.error('Failed to process'); }
     finally { setProcessing(false); }
   };
 
@@ -74,7 +80,8 @@ const Recurring: React.FC = () => {
       await logVariableRecurring(item.id, actualAmount);
       setBillInputs(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       load();
-    } catch { alert('Failed to log bill'); }
+      toast.success('Bill logged');
+    } catch { toast.error('Failed to log bill'); }
     finally { setLoggingBill(null); }
   };
 
@@ -231,6 +238,7 @@ const Recurring: React.FC = () => {
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 

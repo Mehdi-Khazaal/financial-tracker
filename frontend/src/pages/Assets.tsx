@@ -1,40 +1,47 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Asset } from '../types';
 import { getAssets, deleteAsset } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddAssetModal from '../components/modals/AddAssetModal';
+import EmptyState from '../components/EmptyState';
+import PullToRefresh from '../components/PullToRefresh';
+import { useToast } from '../context/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const TYPE_ICONS: Record<string, string> = {
-  real_estate: '🏠', vehicle: '🚗', business: '💼', jewelry: '💎', art: '🖼️', other: '📦',
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  real_estate: '#6366f1', vehicle: '#a855f7', business: '#10b981',
-  jewelry: '#f59e0b', art: '#f43f5e', other: '#666e90',
+const TYPE_META: Record<string, { icon: string; color: string }> = {
+  real_estate: { icon: 'M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z', color: '#6366f1' },
+  vehicle:     { icon: 'M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H11a1 1 0 001-1v-1h2v1a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H17a1 1 0 001-1V8a1 1 0 00-.293-.707l-3-3A1 1 0 0014 4H3z', color: '#a855f7' },
+  business:    { icon: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z', color: '#10b981' },
+  jewelry:     { icon: 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z', color: '#f59e0b' },
+  art:         { icon: 'M4 3a2 2 0 100 4h12a2 2 0 100-4H4zm-2 6a1 1 0 011-1h14a1 1 0 110 2v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3a1 1 0 010-2z', color: '#f43f5e' },
+  other:       { icon: 'M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z', color: '#666e90' },
 };
 
 const Assets: React.FC = () => {
+  const toast = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getAssets({ asset_class: 'physical' });
       setAssets(res.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`Delete "${name}"?`)) return;
-    try { await deleteAsset(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm(`Delete "${name}"?`, { danger: true });
+    if (!ok) return;
+    try { await deleteAsset(id); load(); toast.success('Asset deleted'); }
+    catch { toast.error('Failed to delete asset'); }
   };
 
   const totalValue = assets.reduce((s, a) => s + Number(a.total_value), 0);
@@ -48,15 +55,23 @@ const Assets: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
-      </div>
+      <>
+        <Navigation />
+        <div className="md:ml-60 min-h-screen" style={{ backgroundColor: '#070810' }}>
+          <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+            <div className="skeleton h-7 w-24 rounded-xl" />
+            <div className="skeleton h-36 w-full rounded-3xl" />
+            {[0,1,2].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}
+          </div>
+        </div>
+      </>
     );
   }
 
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
@@ -98,28 +113,29 @@ const Assets: React.FC = () => {
 
           {/* List */}
           {assets.length === 0 ? (
-            <div className="card py-12 text-center">
-              <p className="text-3xl mb-3">🏠</p>
-              <p className="font-semibold text-text mb-1">No assets yet</p>
-              <p className="text-sm text-muted mb-5">Track real estate, vehicles, jewelry, and other valuables</p>
-              <button onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Asset</button>
-            </div>
+            <EmptyState
+              iconPath="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"
+              iconColor="#a855f7"
+              title="No assets yet"
+              description="Track real estate, vehicles, jewelry, and other valuable items."
+              action={{ label: 'Add Asset', onClick: () => setShowAdd(true) }}
+            />
           ) : (
             <div className="space-y-3">
               {assets.map(asset => {
-                const color = TYPE_COLORS[asset.type] ?? '#666e90';
+                const meta = TYPE_META[asset.type] ?? TYPE_META.other;
                 return (
                   <div key={asset.id} className="card card-hover p-4 group">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl"
-                          style={{ backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
-                          {TYPE_ICONS[asset.type] ?? '📦'}
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                          style={{ backgroundColor: `${meta.color}15`, border: `1px solid ${meta.color}25` }}>
+                          <svg viewBox="0 0 20 20" fill={meta.color} className="w-5 h-5"><path d={meta.icon} /></svg>
                         </div>
                         <div>
                           <p className="font-semibold text-sm text-text">{asset.name}</p>
                           <span className="text-[10px] px-2 py-0.5 rounded-full capitalize"
-                            style={{ backgroundColor: `${color}15`, color }}>
+                            style={{ backgroundColor: `${meta.color}15`, color: meta.color }}>
                             {asset.type.replace('_', ' ')}
                           </span>
                         </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import { updateAccount } from '../../utils/api';
 import { Account } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -16,6 +17,7 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 };
 
 const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account }) => {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [balance, setBalance] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
@@ -44,7 +46,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
       }
       await updateAccount(account.id, updates);
       onSuccess(); onClose();
-    } catch { alert('Failed to update account'); }
+    } catch { toast.error('Failed to update account'); }
     finally { setLoading(false); }
   };
 

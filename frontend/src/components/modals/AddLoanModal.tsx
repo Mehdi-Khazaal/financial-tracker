@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createLoan } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const AddLoanModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const toast = useToast();
   const [borrowerName, setBorrowerName] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -35,7 +37,7 @@ const AddLoanModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       setNote('');
       setLoanDate(new Date().toISOString().split('T')[0]);
       setDueDate('');
-    } catch { alert('Failed to create loan'); }
+    } catch { toast.error('Failed to create loan'); }
     finally { setLoading(false); }
   };
 

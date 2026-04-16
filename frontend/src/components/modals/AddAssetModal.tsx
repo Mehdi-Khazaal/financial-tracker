@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createAsset } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 
 interface Props {
   isOpen: boolean;
@@ -30,6 +31,7 @@ const PHYSICAL_TYPES = [
 const TICKER_TYPES = new Set(['stock', 'crypto', 'etf']);
 
 const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) => {
+  const toast = useToast();
   const types = mode === 'investment' ? INVESTMENT_TYPES : PHYSICAL_TYPES;
   const [assetType, setAssetType] = useState(types[0].value);
   const [name, setName] = useState('');
@@ -74,7 +76,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
       setName(''); setTicker(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
       setPurchaseDate(new Date().toISOString().split('T')[0]);
       setAssetType(types[0].value);
-    } catch { alert('Failed to create asset'); }
+    } catch { toast.error('Failed to create asset'); }
     finally { setLoading(false); }
   };
 

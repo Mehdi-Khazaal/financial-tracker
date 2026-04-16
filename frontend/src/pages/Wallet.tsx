@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Account, MonthSnapshot } from '../types';
 import { getAccounts, deleteAccount, getAccountHistory } from '../utils/api';
 import Navigation from '../components/Navigation';
@@ -6,6 +6,9 @@ import AddAccountModal from '../components/modals/AddAccountModal';
 import EditAccountModal from '../components/modals/EditAccountModal';
 import TransferModal from '../components/modals/TransferModal';
 import ProgressBar from '../components/ProgressBar';
+import PullToRefresh from '../components/PullToRefresh';
+import { useToast } from '../context/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -38,6 +41,7 @@ const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color })
 };
 
 const Wallet: React.FC = () => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [histories, setHistories] = useState<Record<number, MonthSnapshot[]>>({});
   const [loading, setLoading] = useState(true);
@@ -45,9 +49,7 @@ const Wallet: React.FC = () => {
   const [showTransfer, setShowTransfer] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await getAccounts();
       const accs: Account[] = res.data;
@@ -64,12 +66,17 @@ const Wallet: React.FC = () => {
       setHistories(Object.fromEntries(histEntries));
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`Delete "${name}"? All transactions will also be deleted.`)) return;
-    try { await deleteAccount(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm(`Delete "${name}"? All linked transactions will also be deleted.`, { danger: true });
+    if (!ok) return;
+    try { await deleteAccount(id); load(); toast.success('Account deleted'); }
+    catch { toast.error('Failed to delete account'); }
   };
 
   const spendable = accounts.filter(a => a.type === 'checking' || a.type === 'cash')
@@ -107,6 +114,7 @@ const Wallet: React.FC = () => {
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 

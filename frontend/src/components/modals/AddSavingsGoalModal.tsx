@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createSavingsGoal, getAccounts } from '../../utils/api';
 import { Account } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 interface Props { isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
 const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -35,7 +37,7 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =>
       });
       onSuccess(); onClose();
       setName(''); setTargetAmount(''); setDeadline('');
-    } catch { alert('Failed to create goal'); }
+    } catch { toast.error('Failed to create goal'); }
     finally { setLoading(false); }
   };
 

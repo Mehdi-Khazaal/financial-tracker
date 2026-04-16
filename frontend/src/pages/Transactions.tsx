@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Transaction, Account, Category } from '../types';
 import { getTransactions, getAccounts, getCategories, deleteTransaction } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
+import PullToRefresh from '../components/PullToRefresh';
+import { useToast } from '../context/ToastContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const SWIPE_THRESHOLD = 80;
@@ -104,6 +107,7 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ tx, isLast, cat, getAccountName, on
 };
 
 const Transactions: React.FC = () => {
+  const toast = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -115,20 +119,23 @@ const Transactions: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [filterAccount, setFilterAccount] = useState('all');
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [txRes, accRes, catRes] = await Promise.all([getTransactions(), getAccounts(), getCategories()]);
       setTransactions(txRes.data); setAccounts(accRes.data); setCategories(catRes.data);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this transaction?')) return;
-    try { await deleteTransaction(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm('Delete this transaction?', { danger: true });
+    if (!ok) return;
+    try { await deleteTransaction(id); load(); toast.success('Transaction deleted'); }
+    catch { toast.error('Failed to delete transaction'); }
   };
 
   const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
@@ -187,6 +194,7 @@ const Transactions: React.FC = () => {
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 

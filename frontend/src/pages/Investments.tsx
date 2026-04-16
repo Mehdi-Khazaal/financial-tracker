@@ -4,6 +4,7 @@ import { getAssets, deleteAsset } from '../utils/api';
 import { getStockPrice } from '../utils/stockApi';
 import Navigation from '../components/Navigation';
 import AddAssetModal from '../components/modals/AddAssetModal';
+import { useToast } from '../context/ToastContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -12,6 +13,7 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const Investments: React.FC = () => {
+  const toast = useToast();
   const [investments, setInvestments] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -73,9 +75,10 @@ const Investments: React.FC = () => {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`Delete "${name}"?`)) return;
-    try { await deleteAsset(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm(`Delete "${name}"?`, { danger: true });
+    if (!ok) return;
+    try { await deleteAsset(id); load(); toast.success('Investment deleted'); }
+    catch { toast.error('Failed to delete investment'); }
   };
 
   // Match "(AAPL)" format, or fall back to the name itself if it looks like a ticker

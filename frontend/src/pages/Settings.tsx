@@ -3,6 +3,7 @@ import { Category } from '../types';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../utils/api';
 import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -11,6 +12,7 @@ const PRESET_COLORS = [
 
 const Settings: React.FC = () => {
   const { user, logout } = useAuth();
+  const toast = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [catTab, setCatTab] = useState<'expense' | 'income'>('expense');
@@ -41,8 +43,8 @@ const Settings: React.FC = () => {
     try {
       await createCategory({ name: newName.trim(), type: catTab, color: newColor });
       setNewName(''); setNewColor(PRESET_COLORS[0]);
-      load();
-    } catch { alert('Failed to create category'); }
+      load(); toast.success('Category created');
+    } catch { toast.error('Failed to create category'); }
     finally { setAdding(false); }
   };
 
@@ -55,15 +57,16 @@ const Settings: React.FC = () => {
     setSaving(true);
     try {
       await updateCategory(id, { name: editName.trim(), color: editColor });
-      setEditId(null); load();
-    } catch { alert('Failed to update category'); }
+      setEditId(null); load(); toast.success('Category updated');
+    } catch { toast.error('Failed to update category'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!window.confirm(`Delete "${name}"? Transactions using it will lose their category.`)) return;
-    try { await deleteCategory(id); load(); }
-    catch { alert('Failed to delete'); }
+    const ok = await toast.confirm(`Delete "${name}"? Transactions using it will lose their category.`, { danger: true });
+    if (!ok) return;
+    try { await deleteCategory(id); load(); toast.success('Category deleted'); }
+    catch { toast.error('Failed to delete'); }
   };
 
   const shown = categories.filter(c => c.type === catTab);
