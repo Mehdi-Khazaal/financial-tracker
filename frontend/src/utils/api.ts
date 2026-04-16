@@ -17,11 +17,14 @@ api.interceptors.response.use(
       if (!_refreshing) {
         _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
       }
+      const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
       try {
         await _refreshing;
         return api(original);
       } catch {
-        window.location.href = '/login';
+        if (!PUBLIC.some(p => window.location.pathname.startsWith(p))) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(err);
