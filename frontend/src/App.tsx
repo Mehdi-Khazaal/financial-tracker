@@ -15,6 +15,9 @@ import Analytics from './pages/Analytics';
 import Recurring from './pages/Recurring';
 import Loans from './pages/Loans';
 import Settings from './pages/Settings';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -37,8 +40,11 @@ function App() {
       <AuthProvider>
         <ToastProvider>
         <Routes>
-          <Route path="/login"  element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/login"           element={<Login />} />
+          <Route path="/signup"          element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password"  element={<ResetPassword />} />
+          <Route path="/verify-email"    element={<VerifyEmail />} />
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
           <Route path="/cards" element={<PrivateRoute><Cards /></PrivateRoute>} />

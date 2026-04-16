@@ -58,7 +58,12 @@ const Login: React.FC = () => {
                 className="input-dark" placeholder="you@example.com" required autoFocus />
             </div>
             <div>
-              <p className="label mb-2">Password</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="label">Password</p>
+                <Link to="/forgot-password" className="text-xs transition-colors" style={{ color: '#6366f1' }}>
+                  Forgot password?
+                </Link>
+              </div>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 className="input-dark" placeholder="••••••••" required />
             </div>

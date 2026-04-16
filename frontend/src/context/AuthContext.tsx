@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { login as apiLogin, signup as apiSignup, getMe } from '../utils/api';
+import { login as apiLogin, signup as apiSignup, logout as apiLogout, getMe } from '../utils/api';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -7,7 +7,7 @@ interface AuthContextType {
   loading: boolean;
   login: (identifier: string, password: string) => Promise<void>;
   signup: (email: string, username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -17,31 +17,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      getMe()
-        .then(res => setUser(res.data))
-        .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Cookie is sent automatically — just check if the session is valid
+    getMe()
+      .then(res => setUser(res.data))
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (identifier: string, password: string) => {
-    const res = await apiLogin(identifier, password);
-    localStorage.setItem('token', res.data.access_token);
+    await apiLogin(identifier, password);
     const me = await getMe();
     setUser(me.data);
   };
 
   const signup = async (email: string, username: string, password: string) => {
     await apiSignup(email, username, password);
-    await login(email, password);
+    const me = await getMe();
+    setUser(me.data);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    await apiLogout().catch(() => {});
     setUser(null);
   };
 

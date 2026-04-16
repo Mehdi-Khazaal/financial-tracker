@@ -10,3 +10,4 @@ email-validator>=2.0.0
 python-multipart>=0.0.20
 requests>=2.31.0
 yfinance>=0.2.40
+slowapi>=0.1.9

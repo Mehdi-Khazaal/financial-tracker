@@ -1,24 +1,26 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from models.database import Base, engine
 from routers import accounts, categories, transactions, assets, auth
 from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans
+from utils.limiter import limiter
 
 # ── DB init ───────────────────────────────────────────────────────────────────
-# Set RESET_DB=true in Render env vars to wipe and recreate all tables on next deploy.
-# Remove it after the first clean deploy.
 if os.getenv("RESET_DB", "false").lower() == "true":
     Base.metadata.drop_all(bind=engine)
     print("⚠️  Database wiped.")
 Base.metadata.create_all(bind=engine)
 
-# ── Schema migrations (safe to re-run — ADD COLUMN IF NOT EXISTS) ─────────────
+# ── Schema migrations (safe to re-run) ───────────────────────────────────────
 def _run_migrations():
     with engine.connect() as conn:
         migrations = [
             "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
             """CREATE TABLE IF NOT EXISTS savings_goal_allocations (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -34,11 +36,15 @@ def _run_migrations():
                 print(f"Migration skipped ({e})")
         conn.commit()
 
+
 from sqlalchemy import text
 _run_migrations()
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Fintrack API", version="2.0.0")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

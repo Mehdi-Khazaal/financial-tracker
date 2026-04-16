@@ -2,13 +2,31 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000',
+  withCredentials: true, // send httpOnly cookies automatically
 });
 
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// ── 401 → try refresh → retry once ───────────────────────────────────────────
+let _refreshing: Promise<void> | null = null;
+
+api.interceptors.response.use(
+  res => res,
+  async err => {
+    const original = err.config;
+    if (err.response?.status === 401 && !original._retried && original.url !== '/auth/refresh') {
+      original._retried = true;
+      if (!_refreshing) {
+        _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
+      }
+      try {
+        await _refreshing;
+        return api(original);
+      } catch {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(err);
+  }
+);
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login    = (identifier: string, password: string) =>
@@ -16,6 +34,13 @@ export const login    = (identifier: string, password: string) =>
 export const signup   = (email: string, username: string, password: string) =>
   api.post('/auth/signup', { email, username, password });
 export const getMe    = () => api.get('/auth/me');
+export const logout   = () => api.post('/auth/logout');
+export const forgotPassword = (email: string) =>
+  api.post('/auth/forgot-password', { email });
+export const resetPassword = (token: string, new_password: string) =>
+  api.post('/auth/reset-password', { token, new_password });
+export const verifyEmail = (token: string) =>
+  api.get(`/auth/verify-email?token=${token}`);
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
 export const getAccounts    = () => api.get('/accounts/');
@@ -71,7 +96,7 @@ export const updateLoan  = (id: number, data: any) => api.patch(`/loans/${id}`, 
 export const deleteLoan  = (id: number) => api.delete(`/loans/${id}`);
 
 // ── History ───────────────────────────────────────────────────────────────────
-export const getNetWorthHistory     = (months = 12) => api.get(`/history/net-worth?months=${months}`);
-export const getAccountHistory      = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
+export const getNetWorthHistory = (months = 12) => api.get(`/history/net-worth?months=${months}`);
+export const getAccountHistory  = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
 
 export default api;
