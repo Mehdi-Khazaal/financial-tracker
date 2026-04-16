@@ -1,34 +1,34 @@
 const CACHE = 'fintrack-v1';
-const STATIC = ['/', '/index.html', '/offline.html'];
 
-// ── Install: cache app shell ──────────────────────────────────────────────────
-self.addEventListener('install', e => {
-  self.skipWaiting();
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC).catch(() => {}))
-  );
-});
+// ── Install ───────────────────────────────────────────────────────────────────
+self.addEventListener('install', () => self.skipWaiting());
 
-// ── Activate: clean old caches ────────────────────────────────────────────────
+// ── Activate ──────────────────────────────────────────────────────────────────
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// ── Fetch: network-first, fall back to cache ──────────────────────────────────
+// ── Fetch: only cache static assets, never API calls ─────────────────────────
 self.addEventListener('fetch', e => {
-  // Skip non-GET and cross-origin (API) requests
+  const url = new URL(e.request.url);
+
+  // Skip non-GET, API routes, and cross-origin requests entirely
   if (e.request.method !== 'GET') return;
-  if (!e.request.url.startsWith(self.location.origin)) return;
+  if (url.pathname.startsWith('/api/')) return;
+  if (url.origin !== self.location.origin) return;
 
   e.respondWith(
     fetch(e.request)
       .then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+        // Only cache valid successful responses
+        if (res.ok && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone).catch(() => {}));
+        }
         return res;
       })
       .catch(() => caches.match(e.request))
@@ -37,14 +37,14 @@ self.addEventListener('fetch', e => {
 
 // ── Push: show notification ───────────────────────────────────────────────────
 self.addEventListener('push', e => {
-  let data = { title: 'Fintrack', body: 'You have a new update', icon: '/icon-192.png', badge: '/icon-192.png' };
+  let data = { title: 'Fintrack', body: 'You have a new update', icon: '/icon-192.png' };
   try { data = { ...data, ...e.data.json() }; } catch {}
 
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: data.icon || '/icon-192.png',
-      badge: data.badge || '/icon-192.png',
+      badge: '/icon-192.png',
       vibrate: [100, 50, 100],
       data: { url: data.url || '/' },
       tag: data.tag || 'fintrack',
@@ -53,7 +53,7 @@ self.addEventListener('push', e => {
   );
 });
 
-// ── Notification click: open app ──────────────────────────────────────────────
+// ── Notification click ────────────────────────────────────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = e.notification.data?.url || '/';
