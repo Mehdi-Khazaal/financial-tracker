@@ -88,7 +88,6 @@ const Dashboard: React.FC = () => {
   const nonCCAccounts = accounts.filter(a => a.type !== 'credit_card');
   const ccAccounts    = accounts.filter(a => a.type === 'credit_card');
   const accountsTotal = accounts.filter(a => a.type !== 'investment').reduce((s, a) => s + Number(a.balance), 0);
-  const assetsTotal   = assets.reduce((s, a) => s + Number(a.total_value), 0);
   const netWorth      = accountsTotal;
   const spendable     = nonCCAccounts
     .filter(a => a.type === 'checking' || a.type === 'cash')
