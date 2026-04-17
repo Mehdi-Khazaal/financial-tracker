@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Account, Transaction, Asset, SavingsGoal } from '../types';
-import { getAccounts, getTransactions, getAssets, getSavingsGoals } from '../utils/api';
+import { Account, Transaction, SavingsGoal } from '../types';
+import { getAccounts, getTransactions, getSavingsGoals } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
@@ -58,7 +58,6 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTx, setShowTx] = useState(false);
@@ -72,10 +71,9 @@ const Dashboard: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [aRes, tRes, asRes, gRes] = await Promise.all([getAccounts(), getTransactions(), getAssets(), getSavingsGoals()]);
+      const [aRes, tRes, gRes] = await Promise.all([getAccounts(), getTransactions(), getSavingsGoals()]);
       setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
       setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
-      setAssets(Array.isArray(asRes.data) ? asRes.data : []);
       setSavingsGoals(Array.isArray(gRes.data) ? gRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
