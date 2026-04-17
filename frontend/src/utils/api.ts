@@ -5,6 +5,14 @@ const api = axios.create({
   withCredentials: true, // send httpOnly cookies automatically
 });
 
+// Bust Vercel CDN cache on every GET request
+api.interceptors.request.use(config => {
+  if (config.method === 'get') {
+    config.params = { ...config.params, _t: Date.now() };
+  }
+  return config;
+});
+
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
 
