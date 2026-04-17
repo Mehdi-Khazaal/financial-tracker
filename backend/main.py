@@ -97,3 +97,12 @@ app.add_middleware(NoCacheMiddleware)
 @app.get("/")
 def root():
     return {"message": "Fintrack API v2", "docs": "/docs"}
+
+
+@app.get("/debug/whoami")
+async def whoami(request: Request):
+    return {
+        "cookies_received": list(request.cookies.keys()),
+        "has_access_token": "access_token" in request.cookies,
+        "access_token_preview": request.cookies.get("access_token", "")[:30] + "..." if request.cookies.get("access_token") else None,
+    }
