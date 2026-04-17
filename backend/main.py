@@ -101,8 +101,23 @@ def root():
 
 @app.get("/debug/whoami")
 async def whoami(request: Request):
-    return {
-        "cookies_received": list(request.cookies.keys()),
-        "has_access_token": "access_token" in request.cookies,
-        "access_token_preview": request.cookies.get("access_token", "")[:30] + "..." if request.cookies.get("access_token") else None,
-    }
+    from jose import jwt as _jwt
+    from models.database import SessionLocal
+    from models.auth import User as _User
+    from utils.auth import SECRET_KEY
+    token = request.cookies.get("access_token")
+    if not token:
+        return {"error": "no access_token cookie"}
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = int(payload["sub"])
+        db = SessionLocal()
+        user = db.query(_User).filter(_User.id == user_id).first()
+        db.close()
+        return {
+            "user_id": user_id,
+            "email": user.email if user else "NOT FOUND",
+            "username": user.username if user else "NOT FOUND",
+        }
+    except Exception as e:
+        return {"error": str(e)}
