@@ -99,6 +99,26 @@ def root():
     return {"message": "Fintrack API v2", "docs": "/docs"}
 
 
+@app.get("/debug/accounts")
+async def debug_accounts(request: Request):
+    from jose import jwt as _jwt
+    from models.database import SessionLocal, Account
+    from utils.auth import SECRET_KEY
+    token = request.cookies.get("access_token")
+    if not token:
+        return {"error": "no token"}
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = int(payload["sub"])
+        db = SessionLocal()
+        accounts = db.query(Account).filter(Account.user_id == user_id).all()
+        result = [{"id": a.id, "name": a.name, "balance": str(a.balance)} for a in accounts]
+        db.close()
+        return {"user_id": user_id, "count": len(result), "accounts": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/debug/whoami")
 async def whoami(request: Request):
     from jose import jwt as _jwt
