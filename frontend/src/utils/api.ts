@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  baseURL: process.env.REACT_APP_API_URL || 'https://financial-tracker-api-1osn.onrender.com',
   withCredentials: true, // send httpOnly cookies automatically
 });
 

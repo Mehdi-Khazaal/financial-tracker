@@ -26,7 +26,9 @@ IS_PROD = os.getenv("ENVIRONMENT") == "production"
 
 
 def cookie_cfg(path: str = "/") -> dict:
-    return {"httponly": True, "secure": IS_PROD, "samesite": "lax", "path": path}
+    # SameSite=none required for cross-origin requests (Vercel frontend → Render API)
+    samesite = "none" if IS_PROD else "lax"
+    return {"httponly": True, "secure": IS_PROD, "samesite": samesite, "path": path}
 
 
 # ── Password hashing ──────────────────────────────────────────────────────────
