@@ -12,6 +12,12 @@ const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFraction
 const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time'] as const;
 type Period = typeof PERIODS[number];
 
+const pct = (curr: number, prev: number) => {
+  if (prev === 0) return null;
+  return ((curr - prev) / prev) * 100;
+};
+const fmtPct = (p: number) => `${p >= 0 ? '+' : ''}${p.toFixed(1)}%`;
+
 const Analytics: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -98,6 +104,37 @@ const Analytics: React.FC = () => {
   const nwChange = netWorthTrend.length >= 2
     ? netWorthTrend[netWorthTrend.length - 1].Value - netWorthTrend[0].Value
     : 0;
+
+  // ── Year-over-Year ────────────────────────────────────────────────────────────
+  const now = new Date();
+  const thisMonthKey     = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastYearMonthKey = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const thisMonthTxs     = transactions.filter(t => t.transaction_date.startsWith(thisMonthKey));
+  const lastYearMonthTxs = transactions.filter(t => t.transaction_date.startsWith(lastYearMonthKey));
+
+  const yoyThisIncome    = thisMonthTxs.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+  const yoyLastIncome    = lastYearMonthTxs.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+  const yoyThisExpenses  = thisMonthTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const yoyLastExpenses  = lastYearMonthTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+
+  const incomeChange   = pct(yoyThisIncome, yoyLastIncome);
+  const expensesChange = pct(yoyThisExpenses, yoyLastExpenses);
+
+  const yoyMonthLabel = now.toLocaleDateString('en-US', { month: 'long' });
+
+  const yoyBarData = [
+    {
+      name: String(now.getFullYear() - 1),
+      Income: yoyLastIncome,
+      Expenses: yoyLastExpenses,
+    },
+    {
+      name: String(now.getFullYear()),
+      Income: yoyThisIncome,
+      Expenses: yoyThisExpenses,
+    },
+  ];
 
   const tooltipStyle = {
     contentStyle: {
@@ -233,6 +270,58 @@ const Analytics: React.FC = () => {
                   />
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Year-over-Year */}
+          {(yoyThisIncome > 0 || yoyThisExpenses > 0 || yoyLastIncome > 0 || yoyLastExpenses > 0) && (
+            <div className="card p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="font-semibold text-text text-sm">Year over Year</p>
+                  <p className="text-xs text-muted mt-0.5">{yoyMonthLabel} this year vs last year</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[
+                  { label: 'Income', curr: yoyThisIncome, change: incomeChange, positive: true },
+                  { label: 'Expenses', curr: yoyThisExpenses, change: expensesChange, positive: false },
+                ].map(({ label, curr, change, positive }) => (
+                  <div key={label} className="rounded-xl p-3" style={{ backgroundColor: '#070810', border: '1px solid #1a1f2e' }}>
+                    <p className="label mb-1">{label}</p>
+                    <p className="font-mono font-bold text-sm text-text">${fmt(curr)}</p>
+                    {change !== null && (
+                      <p className="text-xs font-semibold mt-1"
+                        style={{ color: (positive ? change >= 0 : change <= 0) ? '#10b981' : '#f43f5e' }}>
+                        {fmtPct(change)} vs last year
+                      </p>
+                    )}
+                    {change === null && <p className="text-xs text-muted mt-1">No data last year</p>}
+                  </div>
+                ))}
+              </div>
+
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={yoyBarData} barCategoryGap="40%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1f2e" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#666e90' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip {...tooltipStyle} formatter={(v: any) => `$${fmt(Number(v))}`} />
+                  <Bar dataKey="Income"   fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Expenses" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 mt-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#10b981' }} />
+                  <span className="text-[11px] text-muted">Income</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f43f5e' }} />
+                  <span className="text-[11px] text-muted">Expenses</span>
+                </div>
+              </div>
             </div>
           )}
 

@@ -86,6 +86,16 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ tx, isLast, cat, getAccountName, on
             <span>{getAccountName(tx.account_id)}</span>
             {cat && <><span>·</span><span>{cat.name}</span></>}
           </div>
+          {tx.tags && tx.tags.length > 0 && (
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {tx.tags.map(tag => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#818cf8' }}>
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#10b981' : '#f43f5e' }}>
@@ -117,8 +127,18 @@ const Transactions: React.FC = () => {
   const [txType, setTxType] = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
+
+  // Filters
+  const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [filterAccount, setFilterAccount] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterAmountMin, setFilterAmountMin] = useState('');
+  const [filterAmountMax, setFilterAmountMax] = useState('');
+  const [filterTag, setFilterTag] = useState('');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -144,10 +164,43 @@ const Transactions: React.FC = () => {
   const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
   const getCategory    = (id: number | null) => categories.find(c => c.id === id);
 
+  // Collect all unique tags from transactions
+  const allTags = Array.from(new Set(transactions.flatMap(t => t.tags ?? []))).sort();
+
+  const activeFilterCount = [
+    filterCategory !== 'all',
+    filterDateFrom !== '',
+    filterDateTo !== '',
+    filterAmountMin !== '',
+    filterAmountMax !== '',
+    filterTag !== '',
+  ].filter(Boolean).length;
+
+  const clearMoreFilters = () => {
+    setFilterCategory('all');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterAmountMin('');
+    setFilterAmountMax('');
+    setFilterTag('');
+  };
+
   const filtered = transactions.filter(t => {
     if (filterAccount !== 'all' && t.account_id !== parseInt(filterAccount)) return false;
     if (filterType === 'income'  && Number(t.amount) < 0) return false;
     if (filterType === 'expense' && Number(t.amount) >= 0) return false;
+    if (filterCategory !== 'all' && t.category_id !== parseInt(filterCategory)) return false;
+    if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
+    if (filterDateTo && t.transaction_date > filterDateTo) return false;
+    if (filterAmountMin && Math.abs(Number(t.amount)) < parseFloat(filterAmountMin)) return false;
+    if (filterAmountMax && Math.abs(Number(t.amount)) > parseFloat(filterAmountMax)) return false;
+    if (filterTag && !(t.tags?.includes(filterTag))) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const descMatch = t.description?.toLowerCase().includes(q);
+      const tagMatch  = t.tags?.some(tag => tag.toLowerCase().includes(q));
+      if (!descMatch && !tagMatch) return false;
+    }
     return true;
   });
 
@@ -249,7 +302,29 @@ const Transactions: React.FC = () => {
 
           {/* Filters */}
           <div className="card p-4 space-y-3">
-            <div className="flex gap-2">
+            {/* Search */}
+            <div className="relative">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+                style={{ color: '#666e90' }}>
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by note or tag…"
+                className="input-dark pl-9 text-sm"
+              />
+              {search && (
+                <button onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors text-lg leading-none">
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Type + Account row */}
+            <div className="flex gap-2 flex-wrap">
               {(['all', 'income', 'expense'] as const).map(t => (
                 <button key={t} onClick={() => setFilterType(t)}
                   className="pill transition-all"
@@ -265,6 +340,79 @@ const Transactions: React.FC = () => {
               <option value="all">All Accounts</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
+
+            {/* More filters toggle */}
+            <button
+              onClick={() => setShowMoreFilters(p => !p)}
+              className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
+              style={{ color: activeFilterCount > 0 ? '#6366f1' : '#666e90' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+              </svg>
+              {showMoreFilters ? 'Hide filters' : `More filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
+            </button>
+
+            {showMoreFilters && (
+              <div className="space-y-3 pt-1 border-t" style={{ borderColor: '#1a1f2e' }}>
+                {/* Category */}
+                <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="input-dark text-sm">
+                  <option value="all">All Categories</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+
+                {/* Date range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="label mb-1">From</p>
+                    <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="input-dark text-sm" />
+                  </div>
+                  <div>
+                    <p className="label mb-1">To</p>
+                    <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="input-dark text-sm" />
+                  </div>
+                </div>
+
+                {/* Amount range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="label mb-1">Min amount</p>
+                    <input type="number" min="0" value={filterAmountMin} onChange={e => setFilterAmountMin(e.target.value)}
+                      placeholder="0" className="input-dark text-sm" />
+                  </div>
+                  <div>
+                    <p className="label mb-1">Max amount</p>
+                    <input type="number" min="0" value={filterAmountMax} onChange={e => setFilterAmountMax(e.target.value)}
+                      placeholder="∞" className="input-dark text-sm" />
+                  </div>
+                </div>
+
+                {/* Tag filter */}
+                {allTags.length > 0 && (
+                  <div>
+                    <p className="label mb-2">Filter by tag</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTags.map(tag => (
+                        <button key={tag} type="button" onClick={() => setFilterTag(filterTag === tag ? '' : tag)}
+                          className="text-xs px-2 py-1 rounded-full transition-all"
+                          style={filterTag === tag
+                            ? { backgroundColor: 'rgba(99,102,241,.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,.4)' }
+                            : { backgroundColor: '#0d1018', color: '#666e90', border: '1px solid #1a1f2e' }}>
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeFilterCount > 0 && (
+                  <button onClick={clearMoreFilters}
+                    className="text-xs font-semibold transition-colors"
+                    style={{ color: '#f43f5e' }}>
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Transaction list grouped by date */}

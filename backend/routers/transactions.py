@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import date
 from models.database import get_db, Transaction, Account
@@ -35,6 +36,9 @@ def get_transactions(
     type: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
+    search: Optional[str] = Query(None),
+    amount_min: Optional[float] = Query(None),
+    amount_max: Optional[float] = Query(None),
     limit: int = Query(500, le=1000),
     skip: int = Query(0),
     db: Session = Depends(get_db),
@@ -53,6 +57,12 @@ def get_transactions(
         q = q.filter(Transaction.transaction_date >= date_from)
     if date_to:
         q = q.filter(Transaction.transaction_date <= date_to)
+    if search:
+        q = q.filter(Transaction.description.ilike(f"%{search}%"))
+    if amount_min is not None:
+        q = q.filter(func.abs(Transaction.amount) >= amount_min)
+    if amount_max is not None:
+        q = q.filter(func.abs(Transaction.amount) <= amount_max)
     return q.order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc()).offset(skip).limit(limit).all()
 
 

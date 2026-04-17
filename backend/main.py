@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from models.database import Base, engine
 from routers import accounts, categories, transactions, assets, auth
-from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans, push, admin
+from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans, push, admin, cron
 from utils.limiter import limiter
 
 # ── DB init ───────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ def _run_migrations():
                 account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                 amount NUMERIC(15,2) NOT NULL
             )""",
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS tags JSONB",
         ]
         for sql in migrations:
             try:
@@ -81,6 +82,7 @@ app.include_router(history.router)
 app.include_router(loans.router)
 app.include_router(push.router)
 app.include_router(admin.router)
+app.include_router(cron.router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

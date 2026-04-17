@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from decimal import Decimal
 from datetime import datetime, date
 
@@ -63,6 +63,7 @@ class TransactionBase(BaseModel):
     amount: Decimal
     description: Optional[str] = None
     transaction_date: date
+    tags: Optional[List[str]] = None
 
 class TransactionCreate(TransactionBase):
     pass
@@ -73,6 +74,7 @@ class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = None
     description: Optional[str] = None
     transaction_date: Optional[date] = None
+    tags: Optional[List[str]] = None
 
 class TransactionResponse(TransactionBase):
     id: int
