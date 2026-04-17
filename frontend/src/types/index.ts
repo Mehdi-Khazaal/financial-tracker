@@ -29,7 +29,6 @@ export interface Transaction {
   description: string | null;
   transaction_date: string;
   created_at: string;
-  tags: string[] | null;
 }
 
 export interface Transfer {

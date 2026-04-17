@@ -100,6 +100,8 @@ export const updateSavingsGoal    = (id: number, data: any) => api.put(`/savings
 export const deleteSavingsGoal    = (id: number) => api.delete(`/savings-goals/${id}`);
 export const setGoalAllocations   = (goalId: number, allocations: { account_id: number; amount: number }[]) =>
   api.put(`/savings-goals/${goalId}/allocations`, { allocations });
+export const spendFromGoal = (goalId: number, data: { account_id: number; amount: number; description?: string; transaction_date: string }) =>
+  api.post(`/savings-goals/${goalId}/spend`, data);
 
 // ── Recurring Transactions ────────────────────────────────────────────────────
 export const getRecurring     = () => api.get('/recurring/');

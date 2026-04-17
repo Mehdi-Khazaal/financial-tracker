@@ -3,8 +3,8 @@ import {
   PieChart, Pie, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { getTransactions, getAccounts, getCategories, getAssets, getNetWorthHistory } from '../utils/api';
-import { Transaction, Account, Category, Asset, MonthSnapshot } from '../types';
+import { getTransactions, getAccounts, getCategories, getNetWorthHistory } from '../utils/api';
+import { Transaction, Account, Category, MonthSnapshot } from '../types';
 import Navigation from '../components/Navigation';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -22,7 +22,6 @@ const Analytics: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('This month');
@@ -31,13 +30,12 @@ const Analytics: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [txRes, accRes, catRes, asRes, nwRes] = await Promise.all([
-        getTransactions(), getAccounts(), getCategories(), getAssets(), getNetWorthHistory(12),
+      const [txRes, accRes, catRes, nwRes] = await Promise.all([
+        getTransactions(), getAccounts(), getCategories(), getNetWorthHistory(12),
       ]);
       setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
       setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
       setCategories(Array.isArray(catRes.data) ? catRes.data : []);
-      setAssets(Array.isArray(asRes.data) ? asRes.data : []);
       setNetWorthSnapshots(Array.isArray(nwRes.data) ? nwRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
@@ -64,7 +62,7 @@ const Analytics: React.FC = () => {
   const totalExpenses = filtered.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
   const net           = totalIncome - totalExpenses;
   const savingsRate   = totalIncome > 0 ? (net / totalIncome) * 100 : 0;
-  const netWorth      = accounts.reduce((s, a) => s + Number(a.balance), 0) + assets.reduce((s, a) => s + Number(a.total_value), 0);
+  const netWorth      = accounts.filter(a => a.type !== 'investment').reduce((s, a) => s + Number(a.balance), 0);
 
   const spendingByCategory = categories
     .filter(c => c.type === 'expense')

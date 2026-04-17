@@ -4,6 +4,7 @@ import { getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddSavingsGoalModal from '../components/modals/AddSavingsGoalModal';
 import ManageAllocationsModal from '../components/modals/ManageAllocationsModal';
+import SpendFromGoalModal from '../components/modals/SpendFromGoalModal';
 import ProgressBar from '../components/ProgressBar';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
@@ -23,6 +24,7 @@ const Savings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
+  const [spendGoal, setSpendGoal] = useState<SavingsGoal | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -224,6 +226,14 @@ const Savings: React.FC = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          {goal.allocations.length > 0 && (
+                            <button
+                              onClick={() => setSpendGoal(goal)}
+                              className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
+                              style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+                              Spend
+                            </button>
+                          )}
                           <button
                             onClick={() => setEditGoal(goal)}
                             className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-all"
@@ -316,6 +326,13 @@ const Savings: React.FC = () => {
       </button>
 
       <AddSavingsGoalModal isOpen={showAddGoal} onClose={() => setShowAddGoal(false)} onSuccess={load} />
+      <SpendFromGoalModal
+        isOpen={!!spendGoal}
+        onClose={() => setSpendGoal(null)}
+        onSuccess={load}
+        goal={spendGoal}
+        accounts={accounts}
+      />
       <ManageAllocationsModal
         isOpen={!!editGoal}
         onClose={() => setEditGoal(null)}

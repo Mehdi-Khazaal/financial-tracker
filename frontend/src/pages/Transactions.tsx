@@ -86,16 +86,6 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ tx, isLast, cat, getAccountName, on
             <span>{getAccountName(tx.account_id)}</span>
             {cat && <><span>·</span><span>{cat.name}</span></>}
           </div>
-          {tx.tags && tx.tags.length > 0 && (
-            <div className="flex gap-1 mt-1 flex-wrap">
-              {tx.tags.map(tag => (
-                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#818cf8' }}>
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#10b981' : '#f43f5e' }}>
@@ -137,7 +127,6 @@ const Transactions: React.FC = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
-  const [filterTag, setFilterTag] = useState('');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const load = useCallback(async () => {
@@ -164,16 +153,12 @@ const Transactions: React.FC = () => {
   const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
   const getCategory    = (id: number | null) => categories.find(c => c.id === id);
 
-  // Collect all unique tags from transactions
-  const allTags = Array.from(new Set(transactions.flatMap(t => t.tags ?? []))).sort();
-
   const activeFilterCount = [
     filterCategory !== 'all',
     filterDateFrom !== '',
     filterDateTo !== '',
     filterAmountMin !== '',
     filterAmountMax !== '',
-    filterTag !== '',
   ].filter(Boolean).length;
 
   const clearMoreFilters = () => {
@@ -182,7 +167,6 @@ const Transactions: React.FC = () => {
     setFilterDateTo('');
     setFilterAmountMin('');
     setFilterAmountMax('');
-    setFilterTag('');
   };
 
   const filtered = transactions.filter(t => {
@@ -194,12 +178,12 @@ const Transactions: React.FC = () => {
     if (filterDateTo && t.transaction_date > filterDateTo) return false;
     if (filterAmountMin && Math.abs(Number(t.amount)) < parseFloat(filterAmountMin)) return false;
     if (filterAmountMax && Math.abs(Number(t.amount)) > parseFloat(filterAmountMax)) return false;
-    if (filterTag && !(t.tags?.includes(filterTag))) return false;
     if (search) {
       const q = search.toLowerCase();
       const descMatch = t.description?.toLowerCase().includes(q);
-      const tagMatch  = t.tags?.some(tag => tag.toLowerCase().includes(q));
-      if (!descMatch && !tagMatch) return false;
+      const cat = categories.find(c => c.id === t.category_id);
+      const catMatch  = cat?.name.toLowerCase().includes(q);
+      if (!descMatch && !catMatch) return false;
     }
     return true;
   });
@@ -385,24 +369,6 @@ const Transactions: React.FC = () => {
                       placeholder="∞" className="input-dark text-sm" />
                   </div>
                 </div>
-
-                {/* Tag filter */}
-                {allTags.length > 0 && (
-                  <div>
-                    <p className="label mb-2">Filter by tag</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {allTags.map(tag => (
-                        <button key={tag} type="button" onClick={() => setFilterTag(filterTag === tag ? '' : tag)}
-                          className="text-xs px-2 py-1 rounded-full transition-all"
-                          style={filterTag === tag
-                            ? { backgroundColor: 'rgba(99,102,241,.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,.4)' }
-                            : { backgroundColor: '#0d1018', color: '#666e90', border: '1px solid #1a1f2e' }}>
-                          #{tag}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {activeFilterCount > 0 && (
                   <button onClick={clearMoreFilters}

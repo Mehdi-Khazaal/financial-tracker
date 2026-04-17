@@ -30,8 +30,6 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState(COLORS[0]);
   const [addingCat, setAddingCat] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => { setType(defaultType); }, [defaultType, isOpen]);
 
@@ -74,10 +72,9 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
         amount: finalAmount,
         description: description || null,
         transaction_date: date,
-        tags: tags.length > 0 ? tags : null,
       });
       onSuccess(); onClose();
-      setAmount(''); setDescription(''); setDate(localDateStr()); setTags([]); setTagInput('');
+      setAmount(''); setDescription(''); setDate(localDateStr());
     } catch { toast.error('Failed to save transaction'); }
     finally { setLoading(false); }
   };
@@ -177,38 +174,6 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
               <p className="label mb-2">Note</p>
               <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                 className="input-dark" placeholder="What was this for?" />
-            </div>
-
-            {/* Tags */}
-            <div>
-              <p className="label mb-2">Tags</p>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {tags.map(tag => (
-                    <span key={tag} className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
-                      style={{ backgroundColor: 'rgba(99,102,241,.12)', color: '#818cf8' }}>
-                      #{tag}
-                      <button type="button" onClick={() => setTags(prev => prev.filter(t => t !== tag))}
-                        className="opacity-60 hover:opacity-100 ml-0.5">×</button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <input
-                type="text"
-                value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    const tag = tagInput.trim().replace(/^#/, '').toLowerCase();
-                    if (tag && !tags.includes(tag)) setTags(prev => [...prev, tag]);
-                    setTagInput('');
-                  }
-                }}
-                className="input-dark text-sm"
-                placeholder="Type a tag and press Enter (e.g. vacation)"
-              />
             </div>
 
             {/* Date */}

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, Date, Text, ForeignKey, Boolean, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, Date, Text, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -67,7 +67,6 @@ class Transaction(Base):
     amount           = Column(Numeric(15, 2), nullable=False)
     description      = Column(Text)
     transaction_date = Column(Date, nullable=False)
-    tags             = Column(JSON, nullable=True)
     created_at       = Column(DateTime, default=datetime.utcnow)
 
     account  = relationship("Account", back_populates="transactions")

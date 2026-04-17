@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
 from decimal import Decimal
-from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account
+from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account, Transaction
 from models.auth import User
 from models.schemas import (
     SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse,
-    AllocationResponse, SetAllocationsRequest,
+    AllocationResponse, SetAllocationsRequest, SpendFromGoalRequest,
+    TransactionResponse,
 )
 from utils.auth import get_current_user
 from utils.push_sender import send_push_to_user
@@ -154,6 +155,51 @@ def set_allocations(
                 break
 
     return result
+
+
+@router.post("/{goal_id}/spend", response_model=SavingsGoalResponse)
+def spend_from_goal(
+    goal_id: int,
+    body: SpendFromGoalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Deduct a spend from a goal allocation and record it as a transaction."""
+    goal = _load_goal(goal_id, current_user.id, db)
+
+    alloc = next((a for a in goal.allocations if a.account_id == body.account_id), None)
+    if not alloc:
+        raise HTTPException(status_code=404, detail="No allocation found for this account on this goal")
+
+    if float(body.amount) <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    if float(body.amount) > float(alloc.amount) + 0.001:
+        raise HTTPException(status_code=400, detail=f"Only ${float(alloc.amount):.2f} allocated from this account")
+
+    account = db.query(Account).filter(Account.id == body.account_id, Account.user_id == current_user.id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Reduce allocation
+    new_alloc_amount = float(alloc.amount) - float(body.amount)
+    if new_alloc_amount <= 0.001:
+        db.delete(alloc)
+    else:
+        alloc.amount = new_alloc_amount
+
+    # Create expense transaction
+    tx = Transaction(
+        user_id=current_user.id,
+        account_id=body.account_id,
+        amount=-abs(float(body.amount)),
+        description=body.description or f"Spent from {goal.name}",
+        transaction_date=body.transaction_date,
+    )
+    db.add(tx)
+    account.balance = float(account.balance) - float(body.amount)
+
+    db.commit()
+    return _serialize_goal(_load_goal(goal_id, current_user.id, db))
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)

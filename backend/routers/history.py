@@ -4,7 +4,7 @@ from typing import List
 from datetime import date
 import calendar
 
-from models.database import get_db, Account, Transaction, Asset
+from models.database import get_db, Account, Transaction
 from models.auth import User
 from utils.auth import get_current_user
 
@@ -39,12 +39,18 @@ def net_worth_history(
     Returns monthly net worth snapshots.
     Strategy: current_account_balances - sum(transactions after month_end) per month.
     """
-    accounts = db.query(Account).filter(Account.user_id == current_user.id).all()
-    transactions = db.query(Transaction).filter(Transaction.user_id == current_user.id).all()
-    assets = db.query(Asset).filter(Asset.user_id == current_user.id).all()
+    # Exclude investment accounts — user treats them as hidden/separate
+    accounts = db.query(Account).filter(
+        Account.user_id == current_user.id,
+        Account.type != "investment",
+    ).all()
+    account_ids = {a.id for a in accounts}
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.account_id.in_(account_ids),
+    ).all()
 
     current_accounts_total = sum(float(a.balance) for a in accounts)
-    assets_total = sum(float(a.total_value) for a in assets)
 
     result = []
     for year, month in _month_range(months):
@@ -55,7 +61,7 @@ def net_worth_history(
         account_total_at_month = current_accounts_total - future_tx_sum
         result.append({
             "month": f"{year}-{month:02d}",
-            "net_worth": round(account_total_at_month + assets_total, 2),
+            "net_worth": round(account_total_at_month, 2),
             "accounts": round(account_total_at_month, 2),
         })
     return result

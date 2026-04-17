@@ -38,7 +38,6 @@ def _run_migrations():
                 account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                 amount NUMERIC(15,2) NOT NULL
             )""",
-            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS tags JSONB",
         ]
         for sql in migrations:
             try:
