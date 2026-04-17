@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import { spendFromGoal } from '../../utils/api';
-import { SavingsGoal, Account } from '../../types';
+import { SavingsGoal } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
 
@@ -10,12 +10,11 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   goal: SavingsGoal | null;
-  accounts: Account[];
 }
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal, accounts }) => {
+const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal }) => {
   const toast = useToast();
   const [accountId, setAccountId] = useState('');
   const [amount, setAmount] = useState('');
@@ -83,7 +82,6 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal,
                 <p className="label mb-2">Which account?</p>
                 <div className="space-y-2">
                   {goal.allocations.map(alloc => {
-                    const acc = accounts.find(a => a.id === alloc.account_id);
                     const selected = String(alloc.account_id) === accountId;
                     return (
                       <button

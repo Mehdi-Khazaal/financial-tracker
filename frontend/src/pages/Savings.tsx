@@ -331,7 +331,6 @@ const Savings: React.FC = () => {
         onClose={() => setSpendGoal(null)}
         onSuccess={load}
         goal={spendGoal}
-        accounts={accounts}
       />
       <ManageAllocationsModal
         isOpen={!!editGoal}
