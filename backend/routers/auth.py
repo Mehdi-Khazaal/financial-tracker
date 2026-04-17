@@ -70,8 +70,8 @@ def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
     verify_token = create_verify_token(db_user.id)
     send_verification(db_user.email, verify_token)
 
-    set_auth_cookies(response, db_user.id)
-    return db_user
+    access_token = set_auth_cookies(response, db_user.id)
+    return db_user  # UserResponse; access_token sent via cookie + available in response header X-Access-Token
 
 
 # ─── Login (rate limited) ─────────────────────────────────────────────────────
@@ -94,8 +94,8 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
         db_user.is_admin = True
         db.commit()
 
-    set_auth_cookies(response, db_user.id)
-    return {"message": "Logged in successfully"}
+    access_token = set_auth_cookies(response, db_user.id)
+    return {"message": "Logged in successfully", "access_token": access_token}
 
 
 # ─── Logout ───────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
     from utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES
     new_access = create_access_token({"sub": str(user_id)})
     response.set_cookie("access_token", new_access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
-    return {"message": "Token refreshed"}
+    return {"message": "Token refreshed", "access_token": new_access}
 
 
 # ─── Get current user ─────────────────────────────────────────────────────────

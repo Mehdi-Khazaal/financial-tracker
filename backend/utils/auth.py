@@ -64,11 +64,12 @@ def create_verify_token(user_id: int) -> str:
 
 
 # ── Cookie helpers ────────────────────────────────────────────────────────────
-def set_auth_cookies(response, user_id: int):
+def set_auth_cookies(response, user_id: int) -> str:
     access = create_access_token({"sub": str(user_id)})
     refresh = create_refresh_token({"sub": str(user_id)})
     response.set_cookie("access_token", access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
     response.set_cookie("refresh_token", refresh, max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600, **cookie_cfg())
+    return access
 
 
 def clear_auth_cookies(response):
@@ -78,7 +79,11 @@ def clear_auth_cookies(response):
 
 # ── Dependency ────────────────────────────────────────────────────────────────
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
-    token = request.cookies.get("access_token")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    else:
+        token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 

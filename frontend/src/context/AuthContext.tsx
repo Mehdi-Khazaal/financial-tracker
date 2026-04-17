@@ -25,7 +25,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (identifier: string, password: string) => {
-    await apiLogin(identifier, password);
+    const res = await apiLogin(identifier, password);
+    if (res.data?.access_token) localStorage.setItem('access_token', res.data.access_token);
     const me = await getMe();
     setUser(me.data);
   };
@@ -38,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     await apiLogout().catch(() => {});
+    localStorage.removeItem('access_token');
     setUser(null);
   };
 

@@ -5,11 +5,10 @@ const api = axios.create({
   withCredentials: true, // send httpOnly cookies automatically
 });
 
-// Bust Vercel CDN cache on every GET request
+// Attach stored access token as Authorization header (needed for Safari cross-origin)
 api.interceptors.request.use(config => {
-  if (config.method === 'get') {
-    config.params = { ...config.params, _t: Date.now() };
-  }
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers['Authorization'] = `Bearer ${token}`;
   return config;
 });
 
@@ -27,9 +26,13 @@ api.interceptors.response.use(
       }
       const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
       try {
-        await _refreshing;
+        const refreshRes = await _refreshing as any;
+        if (refreshRes?.data?.access_token) {
+          localStorage.setItem('access_token', refreshRes.data.access_token);
+        }
         return api(original);
       } catch {
+        localStorage.removeItem('access_token');
         if (!PUBLIC.some(p => window.location.pathname.startsWith(p))) {
           window.location.href = '/login';
         }
