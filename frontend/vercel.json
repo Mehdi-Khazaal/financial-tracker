@@ -1,13 +1,13 @@
 {
   "rewrites": [
     {
-      "source": "/api/:path*",
+      "source": "/be/:path*",
       "destination": "https://financial-tracker-api-1osn.onrender.com/:path*"
     }
   ],
   "headers": [
     {
-      "source": "/api/:path*",
+      "source": "/be/:path*",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
         { "key": "Pragma", "value": "no-cache" }
