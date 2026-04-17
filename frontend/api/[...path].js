@@ -1,45 +1,62 @@
-const RENDER = 'https://financial-tracker-api-1osn.onrender.com';
+const https = require('https');
+const http  = require('http');
+
+const RENDER_HOST = 'financial-tracker-api-1osn.onrender.com';
 
 export const config = { api: { bodyParser: true } };
 
-export default async function handler(req, res) {
-  const parts = req.query.path || [];
-  const path  = Array.isArray(parts) ? parts.join('/') : parts;
+function proxyRequest(options, body) {
+  return new Promise((resolve, reject) => {
+    const mod = options.protocol === 'http:' ? http : https;
+    const req = mod.request(options, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
 
-  const qs = { ...req.query };
+export default async function handler(req, res) {
+  const parts    = req.query.path || [];
+  const path     = Array.isArray(parts) ? parts.join('/') : parts;
+  const qs       = { ...req.query };
   delete qs.path;
   const queryStr = Object.keys(qs).length ? '?' + new URLSearchParams(qs).toString() : '';
+  const urlPath  = `/${path}${queryStr}`;
 
-  const url = `${RENDER}/${path}${queryStr}`;
+  const forwardHeaders = { ...req.headers };
+  forwardHeaders.host  = RENDER_HOST;
+  delete forwardHeaders['content-length'];
+  delete forwardHeaders['transfer-encoding'];
 
-  const headers = { ...req.headers };
-  headers.host = 'financial-tracker-api-1osn.onrender.com';
-  delete headers['content-length'];
-  delete headers['transfer-encoding'];
-
-  const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
   let body;
-  if (hasBody && req.body) {
-    body = JSON.stringify(req.body);
-    headers['content-type'] = 'application/json';
+  if (!['GET', 'HEAD'].includes(req.method) && req.body != null) {
+    body = Buffer.from(JSON.stringify(req.body));
+    forwardHeaders['content-type']   = 'application/json';
+    forwardHeaders['content-length'] = String(body.length);
   }
 
   let upstream;
   try {
-    upstream = await fetch(url, { method: req.method, headers, body });
+    upstream = await proxyRequest({
+      hostname: RENDER_HOST,
+      path:     urlPath,
+      method:   req.method,
+      headers:  forwardHeaders,
+    }, body);
   } catch (err) {
-    res.status(502).json({ error: 'upstream_error', message: String(err) });
-    return;
+    return res.status(502).json({ error: 'upstream_error', message: String(err) });
   }
 
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-
-  for (const [k, v] of upstream.headers.entries()) {
-    const lower = k.toLowerCase();
-    if (['transfer-encoding', 'content-encoding', 'content-length', 'connection'].includes(lower)) continue;
+  // Forward headers — Node's http module preserves multiple Set-Cookie entries as array
+  for (const [k, v] of Object.entries(upstream.headers)) {
+    if (['transfer-encoding', 'content-encoding', 'connection'].includes(k.toLowerCase())) continue;
     res.setHeader(k, v);
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
 
-  const buf = await upstream.arrayBuffer();
-  res.status(upstream.status).send(Buffer.from(buf));
+  res.status(upstream.status).send(upstream.body);
 }
