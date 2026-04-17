@@ -51,6 +51,7 @@ const Wallet: React.FC = () => {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
+  const [showFundsMenu, setShowFundsMenu] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
@@ -126,22 +127,41 @@ const Wallet: React.FC = () => {
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-text">Wallet</h1>
             <div className="flex gap-2">
-              <button onClick={() => setShowDeposit(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                style={{ backgroundColor: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.2)', color: '#10b981' }}>
-                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                Deposit
-              </button>
-              <button onClick={() => setShowWithdraw(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                style={{ backgroundColor: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.2)', color: '#f59e0b' }}>
-                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                  <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
-                </svg>
-                Withdraw
-              </button>
+              {/* Combined Deposit / Withdraw */}
+              <div className="relative">
+                <button onClick={() => setShowFundsMenu(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                  style={{ backgroundColor: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.2)', color: '#10b981' }}>
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z M5 17a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Funds
+                </button>
+                {showFundsMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowFundsMenu(false)} />
+                    <div className="absolute right-0 top-9 z-20 rounded-xl overflow-hidden shadow-2xl"
+                      style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', minWidth: '130px' }}>
+                      <button onClick={() => { setShowFundsMenu(false); setShowDeposit(true); }}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-surface"
+                        style={{ color: '#10b981' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Deposit
+                      </button>
+                      <button onClick={() => { setShowFundsMenu(false); setShowWithdraw(true); }}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-surface"
+                        style={{ color: '#f59e0b', borderTop: '1px solid #1a1f2e' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                          <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+                        </svg>
+                        Withdraw
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <button onClick={() => setShowTransfer(true)}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
                 style={{ backgroundColor: 'rgba(99,102,241,.1)', border: '1px solid rgba(99,102,241,.2)', color: '#6366f1' }}>

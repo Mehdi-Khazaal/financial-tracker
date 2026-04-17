@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { localDateStr } from '../utils/date';
 import { RecurringTransaction, Account, Category } from '../types';
 import { getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring, getAccounts, getCategories } from '../utils/api';
 import Navigation from '../components/Navigation';
@@ -88,7 +89,7 @@ const Recurring: React.FC = () => {
   const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
   const getCategory = (id: number | null) => categories.find(c => c.id === id);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   const dueNow        = items.filter(i => i.is_active && i.next_date <= today);
   const dueFixed      = dueNow.filter(i => !i.is_variable);
   const dueBills      = dueNow.filter(i => i.is_variable);
@@ -110,7 +111,7 @@ const Recurring: React.FC = () => {
     .reduce((s, i) => s + Math.abs(Number(i.amount)) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
 
   const formatNextDate = (d: string) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     if (d === today) return 'Due today';
     if (d < today) return 'Overdue';
     const days = Math.ceil((new Date(d).getTime() - new Date(today).getTime()) / 86400000);

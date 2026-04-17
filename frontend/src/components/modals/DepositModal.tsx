@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
 import { createTransfer, getAccounts } from '../../utils/api';
 import { Account } from '../../types';
+import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
 
 interface Props {
@@ -49,7 +50,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         to_account_id:   parseInt(toId),
         amount: parseFloat(amount),
         note: note.trim() || 'Cash deposit',
-        transfer_date: new Date().toISOString().split('T')[0],
+        transfer_date: localDateStr(),
       });
       toast.success(`$${parseFloat(amount).toFixed(2)} deposited to ${toAccount?.name ?? 'account'}`);
       onSuccess();

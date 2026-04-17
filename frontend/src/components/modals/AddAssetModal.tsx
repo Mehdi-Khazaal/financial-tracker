@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createAsset } from '../../utils/api';
 import { useToast } from '../../context/ToastContext';
+import { localDateStr } from '../../utils/date';
 
 interface Props {
   isOpen: boolean;
@@ -39,7 +40,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
   const [quantity, setQuantity] = useState('');
   const [valuePerUnit, setValuePerUnit] = useState('');
   const [totalValue, setTotalValue] = useState('');
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purchaseDate, setPurchaseDate] = useState(localDateStr());
   const [loading, setLoading] = useState(false);
 
   const isInvestment = mode === 'investment';
@@ -74,7 +75,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
       });
       onSuccess(); onClose();
       setName(''); setTicker(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
-      setPurchaseDate(new Date().toISOString().split('T')[0]);
+      setPurchaseDate(localDateStr());
       setAssetType(types[0].value);
     } catch { toast.error('Failed to create asset'); }
     finally { setLoading(false); }

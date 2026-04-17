@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
 import { createTransaction, getAccounts, getCategories, createCategory } from '../../utils/api';
 import { Account, Category } from '../../types';
+import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
 
 interface Props {
@@ -23,7 +24,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(localDateStr());
   const [loading, setLoading] = useState(false);
   const [showNewCat, setShowNewCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -73,7 +74,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
         transaction_date: date,
       });
       onSuccess(); onClose();
-      setAmount(''); setDescription(''); setDate(new Date().toISOString().split('T')[0]);
+      setAmount(''); setDescription(''); setDate(localDateStr());
     } catch { toast.error('Failed to save transaction'); }
     finally { setLoading(false); }
   };

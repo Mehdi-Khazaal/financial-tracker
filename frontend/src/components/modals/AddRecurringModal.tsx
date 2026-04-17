@@ -3,6 +3,7 @@ import BottomSheet from '../BottomSheet';
 import { createRecurring, getAccounts, getCategories } from '../../utils/api';
 import { Account, Category, RecurringPeriod } from '../../types';
 import { useToast } from '../../context/ToastContext';
+import { localDateStr } from '../../utils/date';
 
 interface Props {
   isOpen: boolean;
@@ -28,7 +29,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const [period, setPeriod] = useState<RecurringPeriod>('monthly');
-  const [nextDate, setNextDate] = useState(new Date().toISOString().split('T')[0]);
+  const [nextDate, setNextDate] = useState(localDateStr());
   const [isVariable, setIsVariable] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -64,7 +65,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       });
       onSuccess(); onClose();
       setAmount(''); setDescription(''); setIsVariable(false);
-      setNextDate(new Date().toISOString().split('T')[0]);
+      setNextDate(localDateStr());
     } catch { toast.error('Failed to create recurring transaction'); }
     finally { setLoading(false); }
   };

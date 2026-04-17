@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { localDateStr } from '../utils/date';
 import { Loan } from '../types';
 import { getLoans, updateLoan, deleteLoan } from '../utils/api';
 import Navigation from '../components/Navigation';
@@ -15,7 +16,7 @@ const formatDate = (d: string) =>
 
 const getDueStatus = (loan: Loan): 'overdue' | 'soon' | 'ok' | null => {
   if (!loan.due_date || loan.status !== 'active') return null;
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   if (loan.due_date < today) return 'overdue';
   const days = Math.ceil((new Date(loan.due_date).getTime() - new Date(today).getTime()) / 86400000);
   return days <= 7 ? 'soon' : 'ok';

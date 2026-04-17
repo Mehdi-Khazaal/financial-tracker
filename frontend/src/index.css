@@ -225,8 +225,14 @@ body {
   margin-left: 64px !important;
 }
 
-/* ── Safe area (iPhone notch) ──────────────────────────────────────────────── */
+/* ── Safe area (iPhone notch / Dynamic Island) ─────────────────────────────── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+
+/* Push all page content below the Dynamic Island on mobile */
+@media (max-width: 767px) {
+  body { padding-top: env(safe-area-inset-top, 0px); }
+}
 
 /* ── Select dark styling ────────────────────────────────────────────────────── */
 select.input-dark option {

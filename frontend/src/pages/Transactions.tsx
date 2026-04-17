@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { localDateStr } from '../utils/date';
 import { Transaction, Account, Category } from '../types';
 import { getTransactions, getAccounts, getCategories, deleteTransaction } from '../utils/api';
 import Navigation from '../components/Navigation';
@@ -160,8 +161,8 @@ const Transactions: React.FC = () => {
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   const formatDate = (d: string) => {
-    const today     = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today     = localDateStr();
+    const yesterday = localDateStr(new Date(Date.now() - 86400000));
     if (d === today) return 'Today';
     if (d === yesterday) return 'Yesterday';
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
