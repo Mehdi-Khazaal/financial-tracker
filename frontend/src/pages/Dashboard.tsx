@@ -87,9 +87,9 @@ const Dashboard: React.FC = () => {
 
   const nonCCAccounts = accounts.filter(a => a.type !== 'credit_card');
   const ccAccounts    = accounts.filter(a => a.type === 'credit_card');
-  const accountsTotal = accounts.reduce((s, a) => s + Number(a.balance), 0);
+  const accountsTotal = accounts.filter(a => a.type !== 'investment').reduce((s, a) => s + Number(a.balance), 0);
   const assetsTotal   = assets.reduce((s, a) => s + Number(a.total_value), 0);
-  const netWorth      = accountsTotal + assetsTotal;
+  const netWorth      = accountsTotal;
   const spendable     = nonCCAccounts
     .filter(a => a.type === 'checking' || a.type === 'cash')
     .reduce((s, a) => s + Number(a.balance), 0);
@@ -165,10 +165,6 @@ const Dashboard: React.FC = () => {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#6366f1' }}>Accounts</p>
                   <p className="font-mono font-semibold text-sm text-text">${fmt(accountsTotal)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#a855f7' }}>Assets</p>
-                  <p className="font-mono font-semibold text-sm text-text">${fmt(assetsTotal)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: '#10b981' }}>Spendable</p>
