@@ -111,6 +111,7 @@ const Settings: React.FC = () => {
 
   const { open: openPlaidLink, ready: plaidReady } = usePlaidLink({
     token: plaidLinkToken,
+    receivedRedirectUri: undefined,
     onSuccess: async (public_token, metadata) => {
       const institution_name = (metadata as any)?.institution?.name as string | undefined;
       try {
@@ -436,7 +437,7 @@ const Settings: React.FC = () => {
                     {plaidSyncing ? 'Syncing…' : 'Sync Now'}
                   </button>
                 )}
-                <button onClick={() => openPlaidLink()} disabled={!plaidReady || !plaidLinkToken}
+                <button onClick={() => { if (plaidLinkToken) sessionStorage.setItem('plaid_link_token', plaidLinkToken); openPlaidLink(); }} disabled={!plaidReady || !plaidLinkToken}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
                   + Connect Bank
