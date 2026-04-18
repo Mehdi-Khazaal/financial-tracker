@@ -7,7 +7,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from models.database import get_db, Base, Transaction, Account, SessionLocal
+from models.database import get_db, Base, Transaction, Account, SessionLocal, Category
 from models.auth import User
 from utils.auth import get_current_user
 from utils.push_sender import send_push_to_user
@@ -65,6 +65,51 @@ class PlaidItemResponse(BaseModel):
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+# Maps Plaid's primary category → your category names (case-insensitive match)
+PLAID_CATEGORY_MAP: dict[str, str] = {
+    "food and drink":       "Food & Dining",
+    "restaurants":          "Food & Dining",
+    "groceries":            "Groceries",
+    "supermarkets":         "Groceries",
+    "travel":               "Travel",
+    "airlines":             "Travel",
+    "hotels":               "Travel",
+    "transportation":       "Transportation",
+    "taxi":                 "Transportation",
+    "ride share":           "Transportation",
+    "gas stations":         "Transportation",
+    "entertainment":        "Entertainment",
+    "recreation":           "Entertainment",
+    "shops":                "Shopping",
+    "shopping":             "Shopping",
+    "healthcare":           "Healthcare",
+    "medical":              "Healthcare",
+    "pharmacy":             "Healthcare",
+    "education":            "Education",
+    "utilities":            "Utilities",
+    "rent":                 "Housing & Rent",
+    "housing":              "Housing & Rent",
+    "subscription":         "Subscriptions",
+    "service":              "Subscriptions",
+    "payroll":              "Salary",
+    "income":               "Salary",
+}
+
+
+def _resolve_category(plaid_categories: list, user_id: int, db: Session) -> int | None:
+    """Match Plaid category list to a local user/system category. Returns category_id or None."""
+    for plaid_cat in plaid_categories:
+        name = PLAID_CATEGORY_MAP.get(plaid_cat.lower())
+        if name:
+            cat = db.query(Category).filter(
+                Category.name == name,
+                (Category.user_id == user_id) | (Category.user_id == None),
+            ).first()
+            if cat:
+                return cat.id
+    return None
+
+
 PLAID_TO_ACCOUNT_TYPE = {
     "checking":    "checking",
     "savings":     "savings",
@@ -125,11 +170,13 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             # Plaid: positive amount = money leaving account (expense), negative = income
             amount = -float(tx["amount"])
             name = tx.get("merchant_name") or tx.get("name") or "Transaction"
+            plaid_cats = tx.get("category") or []
+            category_id = _resolve_category(plaid_cats, user_id, db)
 
             new_tx = Transaction(
                 user_id=user_id,
                 account_id=account.id,
-                category_id=None,
+                category_id=category_id,
                 amount=amount,
                 description=f"[plaid:{plaid_tx_id}] {name}",
                 transaction_date=date.fromisoformat(tx["date"]),

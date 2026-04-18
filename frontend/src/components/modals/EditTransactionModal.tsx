@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
-import { updateTransaction, getAccounts, getCategories } from '../../utils/api';
+import { updateTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
 import { useToast } from '../../context/ToastContext';
 
@@ -31,7 +31,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
       setAmount(Math.abs(Number(transaction.amount)).toString());
       setAccountId(String(transaction.account_id));
       setCategoryId(transaction.category_id ? String(transaction.category_id) : '');
-      setDescription(transaction.description || '');
+      setDescription(cleanDescription(transaction.description));
       setDate(transaction.transaction_date);
       Promise.all([getAccounts(), getCategories()]).then(([aRes, cRes]) => {
         setAccounts(aRes.data);
