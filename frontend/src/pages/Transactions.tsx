@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { localDateStr } from '../utils/date';
 import { Transaction, Account, Category } from '../types';
-import { getTransactions, getAccounts, getCategories, deleteTransaction } from '../utils/api';
+import { getTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
@@ -81,7 +81,7 @@ const SwipeRow: React.FC<SwipeRowProps> = ({ tx, isLast, cat, getAccountName, on
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-text truncate">{tx.description || 'No note'}</p>
+          <p className="text-sm font-medium text-text truncate">{cleanDescription(tx.description)}</p>
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <span>{getAccountName(tx.account_id)}</span>
             {cat && <><span>·</span><span>{cat.name}</span></>}
@@ -180,7 +180,7 @@ const Transactions: React.FC = () => {
     if (filterAmountMax && Math.abs(Number(t.amount)) > parseFloat(filterAmountMax)) return false;
     if (search) {
       const q = search.toLowerCase();
-      const descMatch = t.description?.toLowerCase().includes(q);
+      const descMatch = cleanDescription(t.description).toLowerCase().includes(q);
       const cat = categories.find(c => c.id === t.category_id);
       const catMatch  = cat?.name.toLowerCase().includes(q);
       if (!descMatch && !catMatch) return false;

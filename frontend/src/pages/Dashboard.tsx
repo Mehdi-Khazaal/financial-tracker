@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Account, Transaction, SavingsGoal } from '../types';
-import { getAccounts, getTransactions, getSavingsGoals } from '../utils/api';
+import { getAccounts, getTransactions, getSavingsGoals, cleanDescription } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
@@ -380,7 +380,7 @@ const Dashboard: React.FC = () => {
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text truncate">{tx.description || 'No note'}</p>
+                        <p className="text-sm font-medium text-text truncate">{cleanDescription(tx.description)}</p>
                         <p className="text-xs text-muted">{tx.transaction_date}</p>
                       </div>
                       <p className="font-mono font-semibold text-sm shrink-0" style={{ color: pos ? '#10b981' : '#f43f5e' }}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Account, Transaction } from '../types';
-import { getAccounts, getTransactions, deleteAccount } from '../utils/api';
+import { getAccounts, getTransactions, deleteAccount, cleanDescription } from '../utils/api';
 import Navigation from '../components/Navigation';
 import TransferModal from '../components/modals/TransferModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
@@ -166,7 +166,7 @@ const Cards: React.FC = () => {
                           return (
                             <div key={tx.id} className={`flex items-center justify-between py-2.5 ${i !== cardTxs.length - 1 ? 'border-b border-border' : ''}`}>
                               <div>
-                                <p className="text-sm font-medium text-text">{tx.description || 'No note'}</p>
+                                <p className="text-sm font-medium text-text">{cleanDescription(tx.description)}</p>
                                 <p className="text-xs text-muted">{tx.transaction_date}</p>
                               </div>
                               <p className="font-mono font-semibold text-sm" style={{ color: pos ? '#10b981' : '#f43f5e' }}>
