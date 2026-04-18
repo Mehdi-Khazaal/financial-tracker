@@ -122,4 +122,12 @@ export const deleteLoan  = (id: number) => api.delete(`/loans/${id}`);
 export const getNetWorthHistory = (months = 12) => api.get(`/history/net-worth?months=${months}`);
 export const getAccountHistory  = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
 
+// ── Plaid ─────────────────────────────────────────────────────────────────────
+export const plaidCreateLinkToken  = () => api.post('/plaid/link-token');
+export const plaidExchangeToken    = (public_token: string, institution_name?: string) =>
+  api.post('/plaid/exchange-token', { public_token, institution_name });
+export const plaidGetItems         = () => api.get('/plaid/items');
+export const plaidDeleteItem       = (id: number) => api.delete(`/plaid/items/${id}`);
+export const plaidSyncAll          = () => api.post('/plaid/sync');
+
 export default api;

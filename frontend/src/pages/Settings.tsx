@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Category } from '../types';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../utils/api';
 import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
-import { changePassword, adminGetUsers, adminResetPassword } from '../utils/api';
+import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll } from '../utils/api';
+import { usePlaidLink } from 'react-plaid-link';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -90,6 +91,57 @@ const Settings: React.FC = () => {
     } catch (err: any) {
       toast.error(err.response?.data?.detail ?? 'Failed to change password');
     } finally { setPwLoading(false); }
+  };
+
+  // Plaid
+  const [plaidItems, setPlaidItems] = useState<any[]>([]);
+  const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
+  const [plaidSyncing, setPlaidSyncing] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
+
+  const loadPlaidItems = useCallback(async () => {
+    try { const r = await plaidGetItems(); setPlaidItems(Array.isArray(r.data) ? r.data : []); } catch {}
+  }, []);
+
+  useEffect(() => { loadPlaidItems(); }, [loadPlaidItems]);
+
+  useEffect(() => {
+    plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => {});
+  }, []);
+
+  const { open: openPlaidLink, ready: plaidReady } = usePlaidLink({
+    token: plaidLinkToken,
+    onSuccess: async (public_token, metadata) => {
+      const institution_name = (metadata as any)?.institution?.name as string | undefined;
+      try {
+        await plaidExchangeToken(public_token, institution_name);
+        toast.success(`${institution_name || 'Bank'} connected! Syncing transactions...`);
+        await loadPlaidItems();
+        // Refresh token so user can connect another bank
+        plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
+      } catch (e: any) {
+        toast.error(e?.response?.data?.detail || 'Failed to connect bank');
+        // Reset token so user can try again
+        plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
+      }
+    },
+    onExit: () => {},
+  });
+
+  const handlePlaidSync = async () => {
+    setPlaidSyncing(true);
+    try { await plaidSyncAll(); toast.success('Sync started — you\'ll get a notification when done'); }
+    catch (e: any) { toast.error(e?.response?.data?.detail || 'Sync failed'); }
+    finally { setPlaidSyncing(false); }
+  };
+
+  const handleDisconnect = async (item: any) => {
+    const ok = await toast.confirm(`Disconnect ${item.institution_name || 'this bank'}? Your existing transactions won't be deleted.`);
+    if (!ok) return;
+    setDisconnectingId(item.id);
+    try { await plaidDeleteItem(item.id); setPlaidItems(p => p.filter(i => i.id !== item.id)); toast.success('Bank disconnected'); }
+    catch { toast.error('Failed to disconnect'); }
+    finally { setDisconnectingId(null); }
   };
 
   // Admin
@@ -360,6 +412,61 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── Connected Banks ── */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <p className="label">Connected Banks</p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
+                  PLAID
+                </span>
+              </div>
+              <div className="flex gap-2">
+                {plaidItems.length > 0 && (
+                  <button onClick={handlePlaidSync} disabled={plaidSyncing}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                    style={{ backgroundColor: 'rgba(16,185,129,.1)', color: '#10b981', border: '1px solid rgba(16,185,129,.2)' }}>
+                    {plaidSyncing ? 'Syncing…' : 'Sync Now'}
+                  </button>
+                )}
+                <button onClick={() => openPlaidLink()} disabled={!plaidReady || !plaidLinkToken}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                  style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
+                  + Connect Bank
+                </button>
+              </div>
+            </div>
+
+            {plaidItems.length === 0 ? (
+              <div className="card py-8 text-center">
+                <p className="text-sm text-muted">No banks connected yet.</p>
+                <p className="text-xs text-muted mt-1">Connect your Capital One or PNC account to auto-import transactions.</p>
+              </div>
+            ) : (
+              <div className="card overflow-hidden">
+                {plaidItems.map((item, i) => (
+                  <div key={item.id}
+                    className={`px-4 py-3 flex items-center gap-3 ${i < plaidItems.length - 1 ? 'border-b border-border' : ''}`}>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #10b981, #1abc9c)' }}>
+                      <span className="text-white">{(item.institution_name || 'B').charAt(0)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text truncate">{item.institution_name || 'Bank'}</p>
+                      <p className="text-xs text-muted">Connected {new Date(item.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <button onClick={() => handleDisconnect(item)} disabled={disconnectingId === item.id}
+                      className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                      style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
+                      {disconnectingId === item.id ? '…' : 'Disconnect'}
+                    </button>
                   </div>
                 ))}
               </div>

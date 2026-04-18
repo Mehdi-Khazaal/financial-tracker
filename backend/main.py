@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from models.database import Base, engine
 from routers import accounts, categories, transactions, assets, auth
 from routers import transfers, savings_goals, stocks, recurring_transactions, history, loans, push, admin, cron
+from routers import plaid_router  # must be imported before create_all so PlaidItem registers with Base
 from utils.limiter import limiter
 
 # ── DB init ───────────────────────────────────────────────────────────────────
@@ -37,6 +38,15 @@ def _run_migrations():
                 goal_id INTEGER NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
                 account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                 amount NUMERIC(15,2) NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS plaid_items (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                access_token TEXT NOT NULL,
+                item_id VARCHAR(200) NOT NULL UNIQUE,
+                institution_name VARCHAR(200),
+                cursor TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
             )""",
         ]
         for sql in migrations:
@@ -82,6 +92,7 @@ app.include_router(loans.router)
 app.include_router(push.router)
 app.include_router(admin.router)
 app.include_router(cron.router)
+app.include_router(plaid_router.router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
