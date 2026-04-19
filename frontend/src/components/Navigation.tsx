@@ -20,7 +20,6 @@ const SETTINGS_ITEM = {
   icon: 'M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z',
 };
 
-// Mobile: 5 main + More drawer
 const MOBILE_MAIN = navItems.slice(0, 5);
 const MOBILE_MORE = navItems.slice(5);
 
@@ -58,21 +57,23 @@ const Navigation: React.FC = () => {
       {/* ── Desktop sidebar ─────────────────────────────────────────── */}
       <aside
         className="nav-sidebar hidden md:flex flex-col fixed inset-y-0 left-0 z-40 transition-all duration-300"
-        style={{ width: collapsed ? '64px' : '240px', backgroundColor: '#070810', borderRight: '1px solid #1a1f2e' }}>
+        style={{ width: collapsed ? '64px' : '240px', backgroundColor: 'var(--bg)', borderRight: '1px solid var(--line)' }}>
 
         {/* Logo + collapse toggle */}
-        <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: '1px solid #1a1f2e' }}>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
-            <span className="text-white font-bold text-xs">F</span>
+        <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
+          <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+            style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+            <span className="font-mono font-bold text-xs" style={{ color: 'var(--accent)' }}>F</span>
           </div>
           {!collapsed && (
             <>
-              <span className="nav-logo-text font-bold text-sm tracking-wide text-text ml-3 flex-1 whitespace-nowrap">Fintrack</span>
+              <span className="nav-logo-text font-semibold text-sm ml-3 flex-1 whitespace-nowrap" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>Fintrack</span>
               <button
                 onClick={toggleCollapse}
-                className="w-6 h-6 flex items-center justify-center rounded-lg transition-colors hover:bg-surface2 ml-1"
-                style={{ color: '#363d56' }}
+                className="w-6 h-6 flex items-center justify-center rounded-md transition-colors"
+                style={{ color: 'var(--dim)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--muted)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}
                 title="Collapse sidebar">
                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                   <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -83,37 +84,39 @@ const Navigation: React.FC = () => {
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {navItems.map(item => {
             const active = isActive(item.path);
             return (
               <Link key={item.path} to={item.path}
                 title={collapsed ? item.label : undefined}
-                className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  collapsed ? 'justify-center px-0' : 'px-2.5'
-                } ${active ? 'text-text' : 'text-muted hover:text-text hover:bg-surface'}`}
-                style={active ? { backgroundColor: '#121620', ...(collapsed ? {} : { borderLeft: '2px solid #6366f1', paddingLeft: '8px' }) } : {}}>
-                <span className="shrink-0" style={active ? { color: '#6366f1' } : {}}>
-                  <svg viewBox="0 0 20 20" fill={active ? 'currentColor' : 'none'} stroke="currentColor"
-                    strokeWidth={active ? 0 : 1.5} className="w-5 h-5">
+                className={`flex items-center gap-3 py-2 rounded-md text-sm transition-colors ${
+                  collapsed ? 'justify-center px-0' : 'px-3'
+                }`}
+                style={{
+                  backgroundColor: active ? 'var(--elev-1)' : 'transparent',
+                  color: active ? 'var(--fg)' : 'var(--muted)',
+                }}>
+                <span className="shrink-0" style={{ color: active ? 'var(--accent)' : 'inherit' }}>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
                     <path d={item.icon} />
                   </svg>
                 </span>
                 {!collapsed && <span className="flex-1 whitespace-nowrap">{item.label}</span>}
-                {!collapsed && active && <span className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: '#6366f1' }} />}
+                {!collapsed && active && <span className="nav-dot ml-auto w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent)' }} />}
               </Link>
             );
           })}
         </nav>
 
         {/* Bottom: Settings + user */}
-        <div className="p-2 space-y-1 shrink-0" style={{ borderTop: '1px solid #1a1f2e' }}>
+        <div className="p-2 space-y-1 shrink-0" style={{ borderTop: '1px solid var(--line)' }}>
           {/* Expand button when collapsed */}
           {collapsed && (
             <button
               onClick={toggleCollapse}
-              className="w-full flex items-center justify-center py-2 rounded-xl transition-colors hover:bg-surface2"
-              style={{ color: '#363d56' }}
+              className="w-full flex items-center justify-center py-2 rounded-md transition-colors"
+              style={{ color: 'var(--dim)' }}
               title="Expand sidebar">
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -127,33 +130,35 @@ const Navigation: React.FC = () => {
             return (
               <Link to={SETTINGS_ITEM.path}
                 title={collapsed ? SETTINGS_ITEM.label : undefined}
-                className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  collapsed ? 'justify-center px-0' : 'px-2.5'
-                } ${active ? 'text-text' : 'text-muted hover:text-text hover:bg-surface'}`}
-                style={active ? { backgroundColor: '#121620', ...(collapsed ? {} : { borderLeft: '2px solid #6366f1', paddingLeft: '8px' }) } : {}}>
-                <span className="shrink-0" style={active ? { color: '#6366f1' } : {}}>
-                  <svg viewBox="0 0 20 20" fill={active ? 'currentColor' : 'none'} stroke="currentColor"
-                    strokeWidth={active ? 0 : 1.5} className="w-5 h-5">
+                className={`flex items-center gap-3 py-2 rounded-md text-sm transition-colors ${
+                  collapsed ? 'justify-center px-0' : 'px-3'
+                }`}
+                style={{
+                  backgroundColor: active ? 'var(--elev-1)' : 'transparent',
+                  color: active ? 'var(--fg)' : 'var(--muted)',
+                }}>
+                <span className="shrink-0" style={{ color: active ? 'var(--accent)' : 'inherit' }}>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
                     <path d={SETTINGS_ITEM.icon} />
                   </svg>
                 </span>
                 {!collapsed && <span className="whitespace-nowrap">{SETTINGS_ITEM.label}</span>}
-                {!collapsed && active && <span className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: '#6366f1' }} />}
+                {!collapsed && active && <span className="nav-dot ml-auto w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent)' }} />}
               </Link>
             );
           })()}
 
           {/* User chip */}
-          <div className={`flex items-center gap-3 py-2 ${collapsed ? 'justify-center px-0' : 'px-2.5'}`}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
+          <div className={`flex items-center gap-3 py-2 ${collapsed ? 'justify-center px-0' : 'px-3'}`}>
+            <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+              style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}
               title={collapsed ? user?.username : undefined}>
-              <span className="text-white font-bold text-xs">{user?.username.charAt(0).toUpperCase()}</span>
+              <span className="font-mono font-bold text-xs" style={{ color: 'var(--accent)' }}>{user?.username.charAt(0).toUpperCase()}</span>
             </div>
             {!collapsed && (
-              <div className="text-left min-w-0 flex-1">
-                <p className="text-text text-xs font-medium truncate">{user?.username}</p>
-                <p className="text-muted text-[10px] truncate">{user?.email}</p>
+              <div className="nav-user-info text-left min-w-0 flex-1">
+                <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>{user?.username}</p>
+                <p className="text-[10px] truncate" style={{ color: 'var(--muted)' }}>{user?.email}</p>
               </div>
             )}
           </div>
@@ -162,16 +167,15 @@ const Navigation: React.FC = () => {
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
-        style={{ backgroundColor: 'rgba(7,8,16,.95)', borderTop: '1px solid #1a1f2e', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
+        style={{ backgroundColor: 'rgba(10,10,11,.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
         <div className="flex items-center justify-around h-16 px-1">
           {MOBILE_MAIN.map(item => {
             const active = isActive(item.path);
             return (
               <Link key={item.path} to={item.path}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${active ? '' : 'text-dim'}`}
-                style={active ? { color: '#6366f1' } : {}}>
-                <svg viewBox="0 0 20 20" fill={active ? 'currentColor' : 'none'} stroke="currentColor"
-                  strokeWidth={active ? 0 : 1.5} className="w-5 h-5">
+                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors"
+                style={{ color: active ? 'var(--accent)' : 'var(--dim)' }}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
                   <path d={item.icon} />
                 </svg>
                 <span className="text-[9px] font-semibold leading-none">{item.label}</span>
@@ -181,8 +185,8 @@ const Navigation: React.FC = () => {
 
           {/* More */}
           <button onClick={() => setShowMore(!showMore)}
-            className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors ${showMore ? '' : 'text-dim'}`}
-            style={showMore ? { color: '#6366f1' } : {}}>
+            className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors"
+            style={{ color: showMore ? 'var(--accent)' : 'var(--dim)' }}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
               <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
             </svg>
@@ -195,16 +199,15 @@ const Navigation: React.FC = () => {
           <>
             <div className="absolute inset-0 -top-full" onClick={() => setShowMore(false)} />
             <div className="absolute bottom-full inset-x-0 pb-1 slide-up"
-              style={{ backgroundColor: 'rgba(13,16,24,.97)', backdropFilter: 'blur(28px)', borderTop: '1px solid #1a1f2e' }}>
+              style={{ backgroundColor: 'rgba(17,17,19,.97)', backdropFilter: 'blur(28px)', borderTop: '1px solid var(--line)' }}>
               <div className="grid grid-cols-3 gap-0 px-2 py-3">
                 {[...MOBILE_MORE, SETTINGS_ITEM].map(item => {
                   const active = isActive(item.path);
                   return (
                     <Link key={item.path} to={item.path} onClick={() => setShowMore(false)}
-                      className="flex flex-col items-center gap-2 py-3 rounded-xl transition-colors"
-                      style={active ? { color: '#6366f1', backgroundColor: '#121620' } : { color: '#666e90' }}>
-                      <svg viewBox="0 0 20 20" fill={active ? 'currentColor' : 'none'} stroke="currentColor"
-                        strokeWidth={active ? 0 : 1.5} className="w-5 h-5">
+                      className="flex flex-col items-center gap-2 py-3 rounded-md transition-colors"
+                      style={active ? { color: 'var(--accent)', backgroundColor: 'var(--elev-1)' } : { color: 'var(--muted)' }}>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
                         <path d={item.icon} />
                       </svg>
                       <span className="text-xs font-semibold">{item.label}</span>
@@ -212,8 +215,8 @@ const Navigation: React.FC = () => {
                   );
                 })}
                 <button onClick={logout}
-                  className="flex flex-col items-center gap-2 py-3 rounded-xl"
-                  style={{ color: '#f43f5e' }}>
+                  className="flex flex-col items-center gap-2 py-3 rounded-md"
+                  style={{ color: 'var(--neg)' }}>
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
