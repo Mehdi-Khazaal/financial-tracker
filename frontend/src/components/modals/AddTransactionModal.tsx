@@ -13,7 +13,7 @@ interface Props {
   defaultType?: 'income' | 'expense';
 }
 
-const COLORS = ['var(--accent)','#a855f7','var(--pos)','var(--neg)','#f59e0b','var(--muted)','var(--fg)','#ff9f43'];
+// const COLORS = ['var(--accent)','#a855f7','var(--pos)','var(--neg)','#f59e0b','var(--muted)','var(--fg)','#ff9f43'];
 
 const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defaultType = 'expense' }) => {
   const toast = useToast();
