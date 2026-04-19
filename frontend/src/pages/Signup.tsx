@@ -26,25 +26,19 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#070810' }}>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-5"
-          style={{ background: 'radial-gradient(circle, #a855f7, transparent)', filter: 'blur(60px)' }} />
-      </div>
-
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--bg)' }}>
       <div className="w-full max-w-sm fade-in">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 32px rgba(99,102,241,.3)' }}>
-            <span className="text-white font-bold text-xl">F</span>
+          <div style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', borderRadius: '8px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="mb-4">
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '20px', color: 'var(--accent)' }}>F</span>
           </div>
-          <h1 className="text-2xl font-bold text-text">Create account</h1>
+          <h1 className="text-2xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Create account</h1>
           <p className="text-muted text-sm mt-1">Start tracking your finances</p>
         </div>
 
         <div className="card p-6 space-y-4">
           {error && (
-            <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
+            <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.15)' }}>
               {error}
             </div>
           )}
@@ -79,7 +73,7 @@ const Signup: React.FC = () => {
 
         <p className="text-center text-muted text-sm mt-6">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold transition-colors" style={{ color: '#6366f1' }}>
+          <Link to="/login" className="font-semibold transition-colors" style={{ color: 'var(--accent)' }}>
             Sign in
           </Link>
         </p>

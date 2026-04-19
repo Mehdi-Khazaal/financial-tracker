@@ -121,7 +121,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
             {/* Flow summary */}
             {fromAccount && toAccount && amount && parseFloat(amount) > 0 && (
-              <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: '#070810', border: '1px solid #1a1f2e' }}>
+              <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
                 <div className="flex items-center justify-center gap-3 text-sm">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Bank</p>
@@ -159,7 +159,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               type="submit"
               disabled={loading || !amount || parseFloat(amount) <= 0}
               className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg, #f59e0b, #ff8e53)', color: 'white' }}>
+              style={{ backgroundColor: '#f59e0b', color: 'white' }}>
               {loading ? 'Processing…' : `Withdraw${amount ? ` · $${parseFloat(amount || '0').toFixed(2)}` : ''}`}
             </button>
           </form>

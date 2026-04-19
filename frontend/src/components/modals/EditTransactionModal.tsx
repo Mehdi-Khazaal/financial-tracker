@@ -59,7 +59,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
   };
 
   const filteredCats = categories.filter(c => c.type === type);
-  const accentColor = type === 'expense' ? '#f43f5e' : '#10b981';
+  const accentColor = type === 'expense' ? 'var(--neg)' : 'var(--pos)';
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Transaction">
@@ -67,14 +67,14 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
         <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: accentColor }} />
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Type toggle */}
-          <div className="flex p-1 rounded-xl" style={{ backgroundColor: '#070810' }}>
+          <div className="flex p-1 rounded-xl" style={{ backgroundColor: 'var(--bg)' }}>
             {(['expense', 'income'] as const).map(t => (
               <button key={t} type="button" onClick={() => setType(t)}
                 className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all"
                 style={type === t
-                  ? { backgroundColor: t === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
-                      color: t === 'expense' ? '#f43f5e' : '#10b981' }
-                  : { color: '#666e90' }}>
+                  ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
+                      color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
+                  : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
                 {t === 'expense' ? <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Expense</> : <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Income</>}
               </button>
             ))}
@@ -96,7 +96,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setCategoryId('')}
                 className="pill transition-all"
-                style={!categoryId ? { backgroundColor: '#1a1f2e', color: '#eef0f8' } : { backgroundColor: '#0d1018', color: '#666e90' }}>
+                style={!categoryId ? { backgroundColor: 'var(--line)', color: 'var(--fg)' } : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 None
               </button>
               {filteredCats.map(c => (
@@ -104,7 +104,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
                   className="pill transition-all"
                   style={categoryId === String(c.id)
                     ? { backgroundColor: c.color + '20', color: c.color, border: `1px solid ${c.color}40` }
-                    : { backgroundColor: '#0d1018', color: '#666e90' }}>
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                   {c.name}
                 </button>
               ))}

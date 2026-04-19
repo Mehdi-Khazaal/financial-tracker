@@ -91,9 +91,9 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
 
         {/* Flow summary */}
         {fromAccount && toAccount && amount && parseFloat(amount) > 0 && (
-          <div className="rounded-xl p-3 text-sm text-center" style={{ backgroundColor: '#070810', border: '1px solid #1a1f2e' }}>
+          <div className="rounded-xl p-3 text-sm text-center" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
             <span className="text-muted">{fromAccount.name}</span>
-            <span className="mx-2 font-bold" style={{ color: '#6366f1' }}>→</span>
+            <span className="mx-2 font-bold" style={{ color: 'var(--accent)' }}>→</span>
             <span className="text-muted">{toAccount.name}</span>
             <p className="text-text font-mono font-bold mt-1">${parseFloat(amount).toFixed(2)}</p>
           </div>

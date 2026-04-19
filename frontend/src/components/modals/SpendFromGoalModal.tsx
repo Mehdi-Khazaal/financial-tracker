@@ -69,7 +69,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title={`Spend from "${goal.name}"`}>
       <div className="px-5 pb-6">
-        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: '#f43f5e' }} />
+        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: 'var(--neg)' }} />
 
         {goal.allocations.length === 0 ? (
           <p className="text-muted text-sm text-center py-8">No funds allocated to this goal yet.</p>
@@ -90,10 +90,10 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                         onClick={() => setAccountId(String(alloc.account_id))}
                         className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left"
                         style={selected
-                          ? { backgroundColor: 'rgba(244,63,94,.1)', border: '1px solid rgba(244,63,94,.3)' }
-                          : { backgroundColor: '#0d1018', border: '1px solid #1a1f2e' }}>
+                          ? { backgroundColor: 'oklch(70% 0.17 25 / 0.1)', border: '1px solid oklch(70% 0.17 25 / 0.3)' }
+                          : { backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                         <span className="text-sm font-medium text-text">{alloc.account_name}</span>
-                        <span className="font-mono text-sm font-semibold" style={{ color: '#10b981' }}>
+                        <span className="font-mono text-sm font-semibold" style={{ color: 'var(--pos)' }}>
                           ${fmt(Number(alloc.amount))} available
                         </span>
                       </button>
@@ -106,7 +106,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
             {/* Single allocation info */}
             {goal.allocations.length === 1 && (
               <div className="flex items-center justify-between px-4 py-3 rounded-xl"
-                style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e' }}>
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <span className="text-sm text-muted">From</span>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-text">{goal.allocations[0].account_name}</p>
@@ -123,7 +123,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                     <p className="label">Amount spent</p>
                     {maxAmount > 0 && (
                       <button type="button" onClick={() => setAmount(String(maxAmount))}
-                        className="text-xs font-semibold" style={{ color: '#6366f1' }}>
+                        className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
                         All (${fmt(maxAmount)})
                       </button>
                     )}
@@ -165,7 +165,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                   type="submit"
                   disabled={loading || !amount || parseFloat(amount || '0') <= 0}
                   className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-                  style={{ backgroundColor: '#f43f5e', color: 'white' }}>
+                  style={{ backgroundColor: 'var(--neg)', color: 'white' }}>
                   {loading ? 'Saving…' : `Record $${parseFloat(amount || '0').toFixed(2)} spend`}
                 </button>
               </>

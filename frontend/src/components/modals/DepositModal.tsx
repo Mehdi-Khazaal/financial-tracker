@@ -70,13 +70,13 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Deposit Cash">
       <div className="px-5 pb-6">
-        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: '#10b981' }} />
+        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: 'var(--pos)' }} />
 
         {noCash || noBank ? (
           <div className="py-8 text-center space-y-2">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ backgroundColor: 'rgba(16,185,129,.1)' }}>
-              <svg viewBox="0 0 20 20" fill="#10b981" className="w-6 h-6">
+              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)' }}>
+              <svg viewBox="0 0 20 20" fill="var(--pos)" className="w-6 h-6">
                 <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
               </svg>
             </div>
@@ -119,17 +119,17 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
             {/* Flow summary */}
             {fromAccount && toAccount && amount && parseFloat(amount) > 0 && (
-              <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: '#070810', border: '1px solid #1a1f2e' }}>
+              <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
                 <div className="flex items-center justify-center gap-3 text-sm">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Cash</p>
                     <p className="font-semibold text-text">{fromAccount.name}</p>
                   </div>
                   <div className="flex flex-col items-center gap-0.5">
-                    <svg viewBox="0 0 20 20" fill="#10b981" className="w-5 h-5">
+                    <svg viewBox="0 0 20 20" fill="var(--pos)" className="w-5 h-5">
                       <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
-                    <p className="font-mono font-bold text-sm" style={{ color: '#10b981' }}>
+                    <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)' }}>
                       ${parseFloat(amount).toFixed(2)}
                     </p>
                   </div>
@@ -157,7 +157,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               type="submit"
               disabled={loading || !amount || parseFloat(amount) <= 0}
               className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg, #10b981, #1abc9c)', color: 'white' }}>
+              style={{ backgroundColor: 'var(--pos)', color: 'white' }}>
               {loading ? 'Processing…' : `Deposit${amount ? ` · $${parseFloat(amount || '0').toFixed(2)}` : ''}`}
             </button>
           </form>

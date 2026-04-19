@@ -71,20 +71,20 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const filteredCats = categories.filter(c => c.type === type);
-  const accentColor = type === 'expense' ? '#f43f5e' : '#10b981';
+  const accentColor = type === 'expense' ? 'var(--neg)' : 'var(--pos)';
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="New Recurring">
       <form onSubmit={handleSubmit} className="px-5 pb-6 space-y-4">
         {/* Type toggle */}
-        <div className="flex p-1 rounded-xl" style={{ backgroundColor: '#070810' }}>
+        <div className="flex p-1 rounded-xl" style={{ backgroundColor: 'var(--bg)' }}>
           {(['expense', 'income'] as const).map(t => (
             <button key={t} type="button" onClick={() => setType(t)}
               className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all"
               style={type === t
-                ? { backgroundColor: t === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
-                    color: t === 'expense' ? '#f43f5e' : '#10b981' }
-                : { color: '#666e90' }}>
+                ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
+                    color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
+                : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
               {t === 'expense' ? <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Expense</> : <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Income</>}
             </button>
           ))}
@@ -112,11 +112,11 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           onClick={() => setIsVariable(v => !v)}
           className="flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all"
           style={{
-            backgroundColor: isVariable ? 'rgba(245,158,11,.08)' : '#0d1018',
-            border: `1px solid ${isVariable ? 'rgba(245,158,11,.3)' : '#1a1f2e'}`,
+            backgroundColor: isVariable ? 'rgba(245,158,11,.08)' : 'var(--elev-1)',
+            border: `1px solid ${isVariable ? 'rgba(245,158,11,.3)' : 'var(--line)'}`,
           }}>
           <div className="text-left">
-            <p className="text-sm font-semibold" style={{ color: isVariable ? '#f59e0b' : '#eef0f8' }}>
+            <p className="text-sm font-semibold" style={{ color: isVariable ? '#f59e0b' : 'var(--fg)' }}>
               Variable amount
             </p>
             <p className="text-xs text-muted mt-0.5">
@@ -124,7 +124,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
             </p>
           </div>
           <div className="w-10 h-6 rounded-full transition-all relative ml-3 shrink-0"
-            style={{ backgroundColor: isVariable ? '#f59e0b' : '#1a1f2e' }}>
+            style={{ backgroundColor: isVariable ? '#f59e0b' : 'var(--line)' }}>
             <div className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
               style={{ left: isVariable ? '22px' : '4px' }} />
           </div>
@@ -138,8 +138,8 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <button key={p.value} type="button" onClick={() => setPeriod(p.value)}
                 className="pill transition-all"
                 style={period === p.value
-                  ? { backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,.3)' }
-                  : { backgroundColor: '#0d1018', color: '#666e90' }}>
+                  ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                  : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 {p.label}
               </button>
             ))}
@@ -160,7 +160,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => setCategoryId('')}
               className="pill transition-all"
-              style={!categoryId ? { backgroundColor: '#1a1f2e', color: '#eef0f8' } : { backgroundColor: '#0d1018', color: '#666e90' }}>
+              style={!categoryId ? { backgroundColor: 'var(--line)', color: 'var(--fg)' } : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
               None
             </button>
             {filteredCats.map(c => (
@@ -168,7 +168,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                 className="pill transition-all"
                 style={categoryId === String(c.id)
                   ? { backgroundColor: c.color + '20', color: c.color, border: `1px solid ${c.color}40` }
-                  : { backgroundColor: '#0d1018', color: '#666e90' }}>
+                  : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 {c.name}
               </button>
             ))}

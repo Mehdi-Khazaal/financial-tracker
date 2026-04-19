@@ -104,8 +104,8 @@ const Investments: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: 'var(--bg)' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -113,58 +113,56 @@ const Investments: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-text">Investments</h1>
+              <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Investments</h1>
               {fetchingPrices ? (
                 <p className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: '#6366f1' }} />
+                  <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: 'var(--accent)' }} />
                   Fetching live prices…
                 </p>
               ) : (
                 <button
                   onClick={() => { localStorage.removeItem('stock_prices_cache'); localStorage.removeItem('stock_prices_cache_time'); fetchPricesBackground(investments, true); }}
                   className="text-xs text-muted mt-0.5 hover:text-accent transition-colors"
-                  style={{ color: '#363d56' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#6366f1')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#363d56')}>
+                  style={{ color: 'var(--dim)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}>
                   ↻ Refresh prices
                 </button>
               )}
             </div>
             <button onClick={() => setShowAdd(true)}
               className="hidden md:block text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-              style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
+              style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
               + Investment
             </button>
           </div>
 
           {/* Hero */}
           <div className="rounded-3xl p-6 relative overflow-hidden"
-            style={{ background: 'linear-gradient(145deg, #0d1018, #121620)', border: '1px solid #1a1f2e' }}>
-            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-15 pointer-events-none"
-              style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+            style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
             <p className="label mb-1">Portfolio Value</p>
-            <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px' }}>
+            <p className="font-bold text-text mb-3" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.5rem', letterSpacing: '-1px' }}>
               {priceKnownAssets.length > 0 ? `$${fmt(totalCurrent)}` : `$${fmt(totalCost)}`}
             </p>
             <div className="flex gap-6">
               <div>
                 <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Invested</p>
-                <p className="font-mono text-sm font-semibold text-text">${fmt(totalCost)}</p>
+                <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalCost)}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Gain / Loss</p>
                 {totalGain != null ? (
-                  <p className="font-mono text-sm font-semibold" style={{ color: totalGain >= 0 ? '#10b981' : '#f43f5e' }}>
+                  <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: totalGain >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
                     {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
                   </p>
                 ) : (
-                  <p className="font-mono text-sm font-semibold text-muted">—</p>
+                  <p className="font-semibold text-sm text-muted" style={{ fontFamily: 'var(--font-mono)' }}>—</p>
                 )}
               </div>
             </div>
@@ -177,8 +175,8 @@ const Investments: React.FC = () => {
                 <button key={t} onClick={() => setFilter(t)}
                   className="pill shrink-0 transition-all capitalize"
                   style={filter === t
-                    ? { backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,.3)' }
-                    : { backgroundColor: '#0d1018', color: '#666e90' }}>
+                    ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                   {t}
                 </button>
               ))}
@@ -211,25 +209,25 @@ const Investments: React.FC = () => {
                         <div>
                           <p className="font-semibold text-sm text-text">{inv.name}</p>
                           <span className="text-[10px] px-2 py-0.5 rounded-full capitalize"
-                            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>{inv.type}</span>
+                            style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{inv.type}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {hasPx && gainPct != null ? (
-                          <span className="text-xs font-bold font-mono" style={{ color: isGain ? '#10b981' : '#f43f5e' }}>
+                          <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-mono)', color: isGain ? 'var(--pos)' : 'var(--neg)' }}>
                             {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
                           </span>
                         ) : (
-                          <span className="text-xs font-mono flex items-center gap-1" style={{ color: '#f59e0b' }}>
+                          <span className="text-xs flex items-center gap-1" style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>
                             <span className="w-1.5 h-1.5 rounded-full inline-block pulse-dot" style={{ backgroundColor: '#f59e0b' }} />
                             fetching…
                           </span>
                         )}
                         <button onClick={() => handleDelete(inv.id, inv.name)}
                           className="opacity-0 group-hover:opacity-100 text-[10px] transition-all"
-                          style={{ color: '#363d56' }}
-                          onMouseEnter={e => (e.target as HTMLElement).style.color = '#f43f5e'}
-                          onMouseLeave={e => (e.target as HTMLElement).style.color = '#363d56'}>
+                          style={{ color: 'var(--dim)' }}
+                          onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--neg)'}
+                          onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--dim)'}>
                           <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                         </button>
                       </div>
@@ -238,21 +236,21 @@ const Investments: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
-                        { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—', highlight: hasPx ? '#eef0f8' : '#666e90' },
+                        { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
                         { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
-                        { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '—', highlight: hasPx ? (isGain ? '#10b981' : '#f43f5e') : '#666e90' },
+                        { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '—', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
                       ].map(stat => (
                         <div key={stat.label}>
                           <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
-                          <p className="font-mono text-sm font-semibold" style={{ color: stat.highlight ?? '#eef0f8' }}>{stat.value}</p>
+                          <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: stat.highlight ?? 'var(--fg)' }}>{stat.value}</p>
                         </div>
                       ))}
                     </div>
 
-                    <div className="flex justify-between items-center mt-3 pt-3" style={{ borderTop: '1px solid #1a1f2e' }}>
+                    <div className="flex justify-between items-center mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
                       <p className="text-xs text-muted">Invested: ${fmt(Number(inv.total_value))}</p>
                       {hasPx && gainLoss != null ? (
-                        <p className="font-mono text-xs font-bold" style={{ color: isGain ? '#10b981' : '#f43f5e' }}>
+                        <p className="font-bold text-xs" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: isGain ? 'var(--pos)' : 'var(--neg)' }}>
                           {isGain ? '+' : '-'}${fmt(Math.abs(gainLoss))}
                         </p>
                       ) : (
@@ -270,7 +268,7 @@ const Investments: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAdd(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 32px rgba(99,102,241,.4)' }}>
+        style={{ width: '52px', height: '52px', backgroundColor: 'var(--accent)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>

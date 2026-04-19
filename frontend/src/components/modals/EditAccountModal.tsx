@@ -59,7 +59,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
         {/* Type badge */}
         <div className="flex items-center gap-2">
           <span className="text-[11px] px-2.5 py-1 rounded-full font-medium"
-            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>
+            style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>
             {ACCOUNT_TYPE_LABELS[account.type] ?? account.type}
           </span>
           <span className="text-xs text-muted">Type cannot be changed</span>

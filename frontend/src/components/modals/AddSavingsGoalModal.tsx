@@ -54,7 +54,7 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =>
         </div>
 
         <p className="text-xs text-muted">
-          After creating, use the <span className="font-semibold" style={{ color: '#6366f1' }}>Allocate</span> button to assign money from your accounts.
+          After creating, use the <span className="font-semibold" style={{ color: 'var(--accent)' }}>Allocate</span> button to assign money from your accounts.
         </p>
 
         <button type="submit" disabled={loading || !name.trim() || !targetAmount}

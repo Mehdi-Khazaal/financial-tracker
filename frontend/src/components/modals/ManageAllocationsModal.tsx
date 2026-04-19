@@ -16,8 +16,8 @@ interface Props {
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const TYPE_COLORS: Record<string, string> = {
-  checking: '#6366f1', savings: '#10b981', cash: '#f59e0b',
-  investment: '#a855f7', credit_card: '#f43f5e',
+  checking: 'var(--accent)', savings: 'var(--pos)', cash: '#f59e0b',
+  investment: '#a855f7', credit_card: 'var(--neg)',
 };
 
 const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal, allGoals, accounts }) => {
@@ -115,23 +115,23 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
       <div className="px-5 pb-6 space-y-4">
 
         {/* Goal summary */}
-        <div className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e' }}>
+        <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
           <div className="flex justify-between text-xs mb-2">
             <span className="text-muted">Allocated</span>
             <span className="font-mono font-semibold text-text">${fmt(totalAllocated)} / ${fmt(Number(goal.target_amount))}</span>
           </div>
           {/* Progress bar */}
-          <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#1a1f2e' }}>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--elev-sub)' }}>
             <div className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progress}%`,
-                backgroundColor: progress >= 100 ? '#10b981' : '#6366f1',
+                backgroundColor: progress >= 100 ? 'var(--pos)' : 'var(--accent)',
               }} />
           </div>
           <div className="flex justify-between text-xs mt-1.5">
-            <span style={{ color: progress >= 100 ? '#10b981' : '#6366f1' }}>{progress.toFixed(0)}%</span>
+            <span style={{ color: progress >= 100 ? 'var(--pos)' : 'var(--accent)' }}>{progress.toFixed(0)}%</span>
             {remaining > 0 && <span className="text-muted">${fmt(remaining)} remaining</span>}
-            {progress >= 100 && <span style={{ color: '#10b981' }}>Goal reached!</span>}
+            {progress >= 100 && <span style={{ color: 'var(--pos)' }}>Goal reached!</span>}
           </div>
         </div>
 
@@ -148,10 +148,10 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
               const inputVal = inputs[account.id] || '';
               const numVal = parseFloat(inputVal) || 0;
               const isOver = numVal > available + 0.001;
-              const color = TYPE_COLORS[account.type] ?? '#6366f1';
+              const color = TYPE_COLORS[account.type] ?? 'var(--accent)';
 
               return (
-                <div key={account.id} className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: `1px solid ${isOver ? 'rgba(244,63,94,.4)' : '#1a1f2e'}` }}>
+                <div key={account.id} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: `1px solid ${isOver ? 'oklch(70% 0.17 25 / 0.4)' : 'var(--line)'}` }}>
                   {/* Account header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -170,12 +170,12 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
                     {usedByOthers > 0 && (
                       <div>
                         <p className="text-muted mb-0.5">Other goals</p>
-                        <p className="font-mono font-semibold" style={{ color: '#f43f5e' }}>-${fmt(usedByOthers)}</p>
+                        <p className="font-mono font-semibold" style={{ color: 'var(--neg)' }}>-${fmt(usedByOthers)}</p>
                       </div>
                     )}
                     <div>
                       <p className="text-muted mb-0.5">Available</p>
-                      <p className="font-mono font-semibold" style={{ color: available > 0 ? '#10b981' : '#666e90' }}>${fmt(available)}</p>
+                      <p className="font-mono font-semibold" style={{ color: available > 0 ? 'var(--pos)' : 'var(--muted)' }}>${fmt(available)}</p>
                     </div>
                   </div>
 
@@ -192,7 +192,7 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
                         onChange={e => handleChange(account.id, e.target.value)}
                         className="input-dark pl-7 text-sm py-2"
                         placeholder="0.00"
-                        style={isOver ? { borderColor: 'rgba(244,63,94,.5)' } : {}}
+                        style={isOver ? { borderColor: 'oklch(70% 0.17 25 / 0.5)' } : {}}
                       />
                     </div>
                     {available > 0 && (
@@ -209,14 +209,14 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
                         type="button"
                         onClick={() => handleClear(account.id)}
                         className="px-3 py-2 text-xs font-semibold rounded-xl transition-all"
-                        style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+                        style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
                         Clear
                       </button>
                     )}
                   </div>
 
                   {isOver && (
-                    <p className="text-xs mt-1.5" style={{ color: '#f43f5e' }}>
+                    <p className="text-xs mt-1.5" style={{ color: 'var(--neg)' }}>
                       Exceeds available balance by ${fmt(numVal - available)}
                     </p>
                   )}

@@ -16,16 +16,16 @@ const ProgressBar: React.FC<Props> = ({
   height = 6,
 }) => {
   const pct = Math.min(100, Math.max(0, value));
-  let barColor = color ?? '#6366f1';
+  let barColor = color ?? 'var(--accent)';
   if (colorAuto && !color) {
-    if (pct < 30) barColor = '#10b981';
+    if (pct < 30) barColor = 'var(--pos)';
     else if (pct < 70) barColor = '#f59e0b';
-    else barColor = '#f43f5e';
+    else barColor = 'var(--neg)';
   }
 
   return (
     <div>
-      <div className="w-full rounded-full overflow-hidden" style={{ height, backgroundColor: '#1a1f2e' }}>
+      <div className="w-full rounded-full overflow-hidden" style={{ height, backgroundColor: 'var(--elev-sub)' }}>
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: barColor }}

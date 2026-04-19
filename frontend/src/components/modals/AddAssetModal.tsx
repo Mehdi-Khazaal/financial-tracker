@@ -92,10 +92,10 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode }) =>
               <button key={t.value} type="button" onClick={() => { setAssetType(t.value); setTicker(''); }}
                 className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all"
                 style={assetType === t.value
-                  ? { borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.08)' }
-                  : { borderColor: '#1a1f2e', backgroundColor: '#0d1018' }}>
+                  ? { borderColor: 'var(--accent)', backgroundColor: 'oklch(72% 0.17 55 / 0.08)' }
+                  : { borderColor: 'var(--line)', backgroundColor: 'var(--elev-1)' }}>
                 <span className="text-xl">{t.icon}</span>
-                <span className="text-xs font-semibold" style={{ color: assetType === t.value ? '#6366f1' : '#666e90' }}>
+                <span className="text-xs font-semibold" style={{ color: assetType === t.value ? 'var(--accent)' : 'var(--muted)' }}>
                   {t.label}
                 </span>
               </button>

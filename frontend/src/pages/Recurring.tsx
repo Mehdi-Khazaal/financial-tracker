@@ -16,8 +16,8 @@ const PERIOD_LABELS: Record<string, string> = {
 };
 
 const PERIOD_COLORS: Record<string, string> = {
-  weekly: '#a855f7', biweekly: '#6366f1', monthly: '#10b981',
-  quarterly: '#f59e0b', yearly: '#f43f5e',
+  weekly: '#a855f7', biweekly: 'var(--accent)', monthly: 'var(--pos)',
+  quarterly: '#f59e0b', yearly: 'var(--neg)',
 };
 
 const Recurring: React.FC = () => {
@@ -124,8 +124,8 @@ const Recurring: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: 'var(--bg)' }}>
+        <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -136,16 +136,16 @@ const Recurring: React.FC = () => {
     const due = isDue(item.next_date);
 
     return (
-      <div className="group transition-colors hover:bg-surface2" style={{ borderBottom: '1px solid #1a1f2e' }}>
+      <div className="group transition-colors hover:bg-surface2" style={{ borderBottom: '1px solid var(--line)' }}>
         <div className="flex items-center gap-3 px-4 py-3.5">
           {/* Color bar */}
           <div className="w-1 h-10 rounded-full shrink-0"
-            style={{ backgroundColor: cat?.color ?? (pos ? '#10b981' : '#f43f5e') }} />
+            style={{ backgroundColor: cat?.color ?? (pos ? 'var(--pos)' : 'var(--neg)') }} />
 
           {/* Icon */}
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: item.is_variable ? 'rgba(245,158,11,.1)' : (pos ? 'rgba(16,185,129,.1)' : 'rgba(244,63,94,.1)'),
-                     color: item.is_variable ? '#f59e0b' : (pos ? '#10b981' : '#f43f5e') }}>
+            style={{ backgroundColor: 'var(--elev-sub)',
+                     color: item.is_variable ? '#f59e0b' : (pos ? 'var(--pos)' : 'var(--neg)') }}>
             {item.is_variable ? (
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" />
@@ -165,12 +165,12 @@ const Recurring: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm font-medium text-text truncate">{item.description || 'Recurring'}</p>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                style={{ backgroundColor: PERIOD_COLORS[item.period] + '20', color: PERIOD_COLORS[item.period] }}>
+                style={{ backgroundColor: 'var(--elev-sub)', color: PERIOD_COLORS[item.period] }}>
                 {PERIOD_LABELS[item.period]}
               </span>
               {item.is_variable && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'rgba(245,158,11,.15)', color: '#f59e0b' }}>
+                  style={{ backgroundColor: 'var(--elev-sub)', color: '#f59e0b' }}>
                   variable
                 </span>
               )}
@@ -179,7 +179,7 @@ const Recurring: React.FC = () => {
               <span>{getAccountName(item.account_id)}</span>
               {cat && <><span>·</span><span style={{ color: cat.color }}>{cat.name}</span></>}
               <span>·</span>
-              <span style={{ color: due && item.is_active ? '#f43f5e' : '#666e90' }}>
+              <span style={{ color: due && item.is_active ? 'var(--neg)' : 'var(--muted)' }}>
                 {formatNextDate(item.next_date)}
               </span>
             </div>
@@ -188,21 +188,21 @@ const Recurring: React.FC = () => {
           {/* Amount + controls */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-right">
-              <p className="font-mono font-bold text-sm" style={{ color: item.is_variable ? '#f59e0b' : (pos ? '#10b981' : '#f43f5e') }}>
+              <p className="font-mono font-bold text-sm" style={{ color: item.is_variable ? '#f59e0b' : (pos ? 'var(--pos)' : 'var(--neg)'), fontVariantNumeric: 'tabular-nums' }}>
                 {item.is_variable ? '~' : (pos ? '+' : '-')}${fmt(Math.abs(Number(item.amount)))}
               </p>
               {item.is_variable && <p className="text-[10px] text-muted">last bill</p>}
             </div>
             <button onClick={() => handleToggle(item)}
               className="w-8 h-5 rounded-full transition-all relative shrink-0"
-              style={{ backgroundColor: item.is_active ? '#10b981' : '#1a1f2e' }}
+              style={{ backgroundColor: item.is_active ? 'var(--pos)' : 'var(--line)' }}
               title={item.is_active ? 'Pause' : 'Resume'}>
               <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
                 style={{ left: item.is_active ? '14px' : '2px' }} />
             </button>
             <button onClick={() => handleDelete(item.id)}
               className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
-              style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
             </button>
           </div>
@@ -227,7 +227,7 @@ const Recurring: React.FC = () => {
               onClick={() => handleLogBill(item)}
               disabled={loggingBill === item.id || !billInputs[item.id] || parseFloat(billInputs[item.id] ?? '0') <= 0}
               className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
-              style={{ backgroundColor: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.25)' }}>
+              style={{ backgroundColor: 'var(--elev-sub)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.25)' }}>
               {loggingBill === item.id ? '…' : 'Log bill'}
             </button>
           </div>
@@ -240,26 +240,26 @@ const Recurring: React.FC = () => {
     <>
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-text">Recurring</h1>
+              <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Recurring</h1>
               <p className="text-xs text-muted mt-0.5">Subscriptions, salary, rent</p>
             </div>
             <div className="flex gap-2">
               {dueFixed.length > 0 && (
                 <button onClick={handleProcess} disabled={processing}
                   className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #f43f5e, #ff8e53)', color: 'white' }}>
+                  style={{ backgroundColor: 'var(--neg)', color: 'white' }}>
                   {processing ? '…' : `Log ${dueFixed.length} fixed`}
                 </button>
               )}
               <button onClick={() => setShowAdd(true)}
                 className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                style={{ backgroundColor: '#121620', border: '1px solid #1a1f2e', color: '#666e90' }}>
+                style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
                 + Add
               </button>
             </div>
@@ -268,19 +268,19 @@ const Recurring: React.FC = () => {
           {/* Monthly summary */}
           {items.filter(i => i.is_active).length > 0 && (
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: '0 0 20px rgba(16,185,129,.08)' }}>
+              <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Est. Income</p>
-                <p className="font-mono font-bold text-sm" style={{ color: '#10b981' }}>+${fmt(monthlyIncome)}</p>
+                <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>+${fmt(monthlyIncome)}</p>
                 <p className="text-[10px] text-muted mt-0.5">/month</p>
               </div>
-              <div className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: '0 0 20px rgba(244,63,94,.08)' }}>
+              <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Est. Costs</p>
-                <p className="font-mono font-bold text-sm" style={{ color: '#f43f5e' }}>-${fmt(monthlyExpense)}</p>
+                <p className="font-mono font-bold text-sm" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>-${fmt(monthlyExpense)}</p>
                 <p className="text-[10px] text-muted mt-0.5">/month</p>
               </div>
-              <div className="rounded-2xl p-4" style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e', boxShadow: '0 0 20px rgba(99,102,241,.08)' }}>
+              <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Net</p>
-                <p className="font-mono font-bold text-sm" style={{ color: monthlyNet >= 0 ? '#10b981' : '#f43f5e' }}>
+                <p className="font-mono font-bold text-sm" style={{ color: monthlyNet >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
                   {monthlyNet >= 0 ? '+' : '-'}${fmt(Math.abs(monthlyNet))}
                 </p>
                 <p className="text-[10px] text-muted mt-0.5">/month</p>
@@ -304,10 +304,10 @@ const Recurring: React.FC = () => {
           {dueNow.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#f43f5e' }} />
-                <p className="label" style={{ color: '#f43f5e' }}>Due Now</p>
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--neg)' }} />
+                <p className="label" style={{ color: 'var(--neg)' }}>Due Now</p>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'rgba(244,63,94,.15)', color: '#f43f5e' }}>
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' }}>
                   {dueNow.length}
                 </span>
               </div>
@@ -317,7 +317,7 @@ const Recurring: React.FC = () => {
               {dueFixed.length > 0 && (
                 <button onClick={handleProcess} disabled={processing}
                   className="mt-2 w-full py-3 text-sm font-semibold rounded-2xl transition-all active:scale-95 disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, rgba(244,63,94,.15), rgba(255,142,83,.15))', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                   {processing ? 'Processing…' : `Log all ${dueFixed.length} fixed transactions`}
                 </button>
               )}
@@ -363,7 +363,7 @@ const Recurring: React.FC = () => {
       {/* FAB */}
       <button onClick={() => setShowAdd(true)}
         className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 8px 32px rgba(99,102,241,.4)' }}>
+        style={{ width: '52px', height: '52px', backgroundColor: 'var(--accent)' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
           <path d="M12 5v14M5 12h14" />
         </svg>
