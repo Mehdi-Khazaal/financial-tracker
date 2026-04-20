@@ -17,8 +17,8 @@ if not SECRET_KEY:
     )
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7   # 7 days
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 # ── Cookie settings ───────────────────────────────────────────────────────────
 # On Render set ENVIRONMENT=production; localhost uses lax/non-secure cookies

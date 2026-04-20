@@ -10,7 +10,7 @@ import { usePlaidLink } from 'react-plaid-link';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
-  '#6366f1', '#a855f7', '#ec4899', '#666e90', '#eef0f8',
+  '#6366f1', '#a855f7', '#ec4899', '#8a8a94', '#ededee',
 ];
 
 const Settings: React.FC = () => {
@@ -20,12 +20,10 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [catTab, setCatTab] = useState<'expense' | 'income'>('expense');
 
-  // Add form
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [adding, setAdding] = useState(false);
 
-  // Inline edit
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
@@ -72,7 +70,6 @@ const Settings: React.FC = () => {
     catch { toast.error('Failed to delete'); }
   };
 
-  // Change password
   const [pwOpen, setPwOpen] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -93,7 +90,6 @@ const Settings: React.FC = () => {
     } finally { setPwLoading(false); }
   };
 
-  // Plaid
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
   const [plaidSyncing, setPlaidSyncing] = useState(false);
@@ -118,11 +114,9 @@ const Settings: React.FC = () => {
         await plaidExchangeToken(public_token, institution_name);
         toast.success(`${institution_name || 'Bank'} connected! Syncing transactions...`);
         await loadPlaidItems();
-        // Refresh token so user can connect another bank
         plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
       } catch (e: any) {
         toast.error(e?.response?.data?.detail || 'Failed to connect bank');
-        // Reset token so user can try again
         plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
       }
     },
@@ -145,7 +139,6 @@ const Settings: React.FC = () => {
     finally { setDisconnectingId(null); }
   };
 
-  // Admin
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [resettingId, setResettingId] = useState<number | null>(null);
@@ -186,26 +179,25 @@ const Settings: React.FC = () => {
     setPushLoading(false);
   };
 
-  const shown = categories.filter(c => c.type === catTab);
+  const shown        = categories.filter(c => c.type === catTab);
   const incomeCount  = categories.filter(c => c.type === 'income').length;
   const expenseCount = categories.filter(c => c.type === 'expense').length;
 
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: '#070810' }}>
+      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-6 fade-in">
 
-          {/* Header */}
-          <h1 className="text-xl font-bold text-text">Settings</h1>
+          <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Settings</h1>
 
           {/* ── Profile ── */}
           <section className="card p-5">
             <p className="label mb-4">Profile</p>
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shrink-0"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
-                <span className="text-white">{user?.username.charAt(0).toUpperCase()}</span>
+              <div className="w-14 h-14 rounded-md flex items-center justify-center font-mono font-bold text-xl shrink-0"
+                style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--accent)' }}>
+                {user?.username.charAt(0).toUpperCase()}
               </div>
               <div>
                 <p className="font-semibold text-text">{user?.username}</p>
@@ -215,7 +207,7 @@ const Settings: React.FC = () => {
             <button
               onClick={logout}
               className="mt-4 w-full py-2.5 text-sm font-semibold rounded-xl transition-all"
-              style={{ backgroundColor: 'rgba(244,63,94,.08)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.15)' }}>
+              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.15)' }}>
               Sign out
             </button>
           </section>
@@ -225,8 +217,9 @@ const Settings: React.FC = () => {
             <button onClick={() => setPwOpen(o => !o)}
               className="w-full flex items-center justify-between">
               <p className="label">Security</p>
-              <svg className={`w-4 h-4 text-muted transition-transform ${pwOpen ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className={`w-4 h-4 transition-transform ${pwOpen ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                style={{ color: 'var(--dim)' }}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
@@ -275,7 +268,7 @@ const Settings: React.FC = () => {
                   onClick={togglePush}
                   disabled={pushLoading}
                   className="relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50"
-                  style={{ backgroundColor: pushEnabled ? '#6366f1' : '#1a1f2e' }}>
+                  style={{ backgroundColor: pushEnabled ? 'var(--accent)' : 'var(--line)' }}>
                   <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
                     style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
                 </button>
@@ -291,14 +284,14 @@ const Settings: React.FC = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: '#0d1018' }}>
+            <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: 'var(--elev-1)' }}>
               {(['expense', 'income'] as const).map(t => (
                 <button key={t} onClick={() => setCatTab(t)}
                   className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize"
                   style={catTab === t
-                    ? { backgroundColor: t === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
-                        color: t === 'expense' ? '#f43f5e' : '#10b981' }
-                    : { color: '#666e90' }}>
+                    ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
+                        color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
+                    : { color: 'var(--muted)' }}>
                   {t}
                 </button>
               ))}
@@ -331,9 +324,9 @@ const Settings: React.FC = () => {
                 </div>
                 <button type="submit" disabled={adding || !newName.trim()}
                   className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all disabled:opacity-40"
-                  style={{ backgroundColor: catTab === 'expense' ? 'rgba(244,63,94,.15)' : 'rgba(16,185,129,.15)',
-                           color: catTab === 'expense' ? '#f43f5e' : '#10b981',
-                           border: `1px solid ${catTab === 'expense' ? 'rgba(244,63,94,.25)' : 'rgba(16,185,129,.25)'}` }}>
+                  style={catTab === 'expense'
+                    ? { backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.25)' }
+                    : { backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.25)' }}>
                   {adding ? '…' : '+ Add'}
                 </button>
               </div>
@@ -343,7 +336,7 @@ const Settings: React.FC = () => {
             {loading ? (
               <div className="card py-8 text-center">
                 <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
-                  style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
               </div>
             ) : shown.length === 0 ? (
               <div className="card py-8 text-center text-muted text-sm">No {catTab} categories yet</div>
@@ -351,10 +344,10 @@ const Settings: React.FC = () => {
               <div className="card overflow-hidden">
                 {shown.map((cat, i) => (
                   <div key={cat.id}
-                    className={`px-4 py-3 group ${i < shown.length - 1 ? 'border-b border-border' : ''}`}>
+                    className="px-4 py-3 group"
+                    style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--line)' : 'none' }}>
 
                     {editId === cat.id ? (
-                      /* ── Edit mode ── */
                       <div className="space-y-3">
                         <div className="flex gap-1.5 flex-wrap">
                           {PRESET_COLORS.map(c => (
@@ -380,34 +373,33 @@ const Settings: React.FC = () => {
                           </div>
                           <button onClick={() => handleSaveEdit(cat.id)} disabled={saving || !editName.trim()}
                             className="px-3 py-2 text-xs font-semibold rounded-lg disabled:opacity-40"
-                            style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
+                            style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>
                             {saving ? '…' : 'Save'}
                           </button>
                           <button onClick={() => setEditId(null)}
                             className="px-3 py-2 text-xs font-semibold rounded-lg"
-                            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>
+                            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
                             Cancel
                           </button>
                         </div>
                       </div>
                     ) : (
-                      /* ── View mode ── */
                       <div className="flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                         <p className="text-sm text-text flex-1">{cat.name}</p>
                         {cat.is_system && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>default</span>
+                            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--dim)' }}>default</span>
                         )}
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(cat)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
-                            style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1' }}>
+                            style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                           </button>
                           <button onClick={() => handleDelete(cat.id, cat.name)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
-                            style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e' }}>
+                            style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                           </button>
                         </div>
@@ -425,7 +417,7 @@ const Settings: React.FC = () => {
               <div className="flex items-center gap-2">
                 <p className="label">Connected Banks</p>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>
+                  style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>
                   PLAID
                 </span>
               </div>
@@ -433,13 +425,13 @@ const Settings: React.FC = () => {
                 {plaidItems.length > 0 && (
                   <button onClick={handlePlaidSync} disabled={plaidSyncing}
                     className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                    style={{ backgroundColor: 'rgba(16,185,129,.1)', color: '#10b981', border: '1px solid rgba(16,185,129,.2)' }}>
+                    style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
                     {plaidSyncing ? 'Syncing…' : 'Sync Now'}
                   </button>
                 )}
                 <button onClick={() => { if (plaidLinkToken) sessionStorage.setItem('plaid_link_token', plaidLinkToken); openPlaidLink(); }} disabled={!plaidReady || !plaidLinkToken}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{ backgroundColor: 'rgba(99,102,241,.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,.2)' }}>
+                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
                   + Connect Bank
                 </button>
               </div>
@@ -448,16 +440,17 @@ const Settings: React.FC = () => {
             {plaidItems.length === 0 ? (
               <div className="card py-8 text-center">
                 <p className="text-sm text-muted">No banks connected yet.</p>
-                <p className="text-xs text-muted mt-1">Connect your Capital One or PNC account to auto-import transactions.</p>
+                <p className="text-xs text-muted mt-1">Connect your bank account to auto-import transactions.</p>
               </div>
             ) : (
               <div className="card overflow-hidden">
                 {plaidItems.map((item, i) => (
                   <div key={item.id}
-                    className={`px-4 py-3 flex items-center gap-3 ${i < plaidItems.length - 1 ? 'border-b border-border' : ''}`}>
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #10b981, #1abc9c)' }}>
-                      <span className="text-white">{(item.institution_name || 'B').charAt(0)}</span>
+                    className="px-4 py-3 flex items-center gap-3"
+                    style={{ borderBottom: i < plaidItems.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                    <div className="w-8 h-8 rounded-md flex items-center justify-center font-mono font-bold text-sm shrink-0"
+                      style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--pos)', border: '1px solid var(--line)' }}>
+                      {(item.institution_name || 'B').charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-text truncate">{item.institution_name || 'Bank'}</p>
@@ -465,7 +458,7 @@ const Settings: React.FC = () => {
                     </div>
                     <button onClick={() => handleDisconnect(item)} disabled={disconnectingId === item.id}
                       className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                      style={{ backgroundColor: 'rgba(244,63,94,.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.2)' }}>
+                      style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                       {disconnectingId === item.id ? '…' : 'Disconnect'}
                     </button>
                   </div>
@@ -480,7 +473,7 @@ const Settings: React.FC = () => {
               <div className="flex items-center gap-2 mb-3">
                 <p className="label">Admin — All Users</p>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1' }}>
+                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}>
                   ADMIN
                 </span>
               </div>
@@ -488,27 +481,28 @@ const Settings: React.FC = () => {
               {adminLoading ? (
                 <div className="card py-8 text-center">
                   <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
-                    style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+                    style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                 </div>
               ) : (
                 <div className="card overflow-hidden">
                   {adminUsers.map((u, i) => (
                     <div key={u.id}
-                      className={`px-4 py-3 flex items-center gap-3 ${i < adminUsers.length - 1 ? 'border-b border-border' : ''}`}>
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
-                        <span className="text-white">{u.username.charAt(0).toUpperCase()}</span>
+                      className="px-4 py-3 flex items-center gap-3"
+                      style={{ borderBottom: i < adminUsers.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                      <div className="w-8 h-8 rounded-md flex items-center justify-center font-mono font-bold text-sm shrink-0"
+                        style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--accent)', border: '1px solid var(--line)' }}>
+                        {u.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium text-text truncate">{u.username}</p>
                           {u.is_admin && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{ backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1' }}>admin</span>
+                              style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}>admin</span>
                           )}
                           {u.is_verified && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{ backgroundColor: 'rgba(16,185,129,.15)', color: '#10b981' }}>verified</span>
+                              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>verified</span>
                           )}
                         </div>
                         <p className="text-xs text-muted truncate">{u.email}</p>
