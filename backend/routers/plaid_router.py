@@ -201,11 +201,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         return local_acct_cache.get(name)
 
     while True:
-        body: dict = {
-            "access_token": item.access_token,
-            "count": 500,
-            "options": {"include_personal_finance_category": True},
-        }
+        body: dict = {"access_token": item.access_token, "count": 500}
         if cursor:
             body["cursor"] = cursor
         data = _plaid_post("/transactions/sync", body)
@@ -282,7 +278,9 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
                 tag="plaid-sync",
             )
     except Exception as e:
+        import traceback
         print(f"[Plaid sync error] item={plaid_item_db_id}: {e}")
+        traceback.print_exc()
     finally:
         db.close()
 
