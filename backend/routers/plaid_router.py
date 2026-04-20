@@ -224,19 +224,9 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             ).first()
             if existing:
                 continue
-            # Dedup by content (catches same tx imported from duplicate PlaidItems)
             tx_name = tx.get("merchant_name") or tx.get("name") or "Transaction"
             tx_amount = -float(tx["amount"])
             tx_date = date.fromisoformat(tx["date"])
-            content_dupe = db.query(Transaction).filter(
-                Transaction.user_id == user_id,
-                Transaction.account_id == account.id,
-                Transaction.amount == tx_amount,
-                Transaction.transaction_date == tx_date,
-                Transaction.description.like(f"[plaid:%] {tx_name}"),
-            ).first()
-            if content_dupe:
-                continue
 
             # Skip internal transfers (checking → savings etc.) to avoid double-counting
             if _is_internal_transfer(tx):
