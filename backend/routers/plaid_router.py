@@ -120,14 +120,19 @@ PLAID_CATEGORY_MAP: dict[str, str] = {
 
 def _is_internal_transfer(tx: dict) -> bool:
     """Return True if this transaction is an internal bank transfer (should be skipped)."""
-    # New format
-    pfc = tx.get("personal_finance_category") or {}
-    primary = pfc.get("primary", "")
-    if primary in ("TRANSFER_IN", "TRANSFER_OUT", "TRANSFER"):
-        return True
-    # Old format
+    # Old Plaid category format — only skip when explicitly labeled as internal
     old_cats = [c.lower() for c in (tx.get("category") or [])]
-    return any(c in old_cats for c in ("transfer", "internal account transfer", "account transfer"))
+    if any(c in old_cats for c in ("internal account transfer", "account transfer")):
+        return True
+    # New format — only skip true inter-account transfers, not ACH/payroll/payments
+    pfc = tx.get("personal_finance_category") or {}
+    detailed = (pfc.get("detailed") or "").upper()
+    return detailed in (
+        "TRANSFER_IN_ACCOUNT_TRANSFER",
+        "TRANSFER_OUT_ACCOUNT_TRANSFER",
+        "TRANSFER_IN_SAVINGS_TRANSFER",
+        "TRANSFER_OUT_SAVINGS_TRANSFER",
+    )
 
 
 def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
