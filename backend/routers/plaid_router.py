@@ -216,29 +216,40 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 continue
 
             plaid_tx_id = tx["transaction_id"]
+            # Dedup by Plaid transaction_id (primary)
             existing = db.query(Transaction).filter(
                 Transaction.user_id == user_id,
                 Transaction.description.like(f"[plaid:{plaid_tx_id}]%"),
             ).first()
             if existing:
                 continue
+            # Dedup by content (catches same tx imported from duplicate PlaidItems)
+            tx_name = tx.get("merchant_name") or tx.get("name") or "Transaction"
+            tx_amount = -float(tx["amount"])
+            tx_date = date.fromisoformat(tx["date"])
+            content_dupe = db.query(Transaction).filter(
+                Transaction.user_id == user_id,
+                Transaction.account_id == account.id,
+                Transaction.amount == tx_amount,
+                Transaction.transaction_date == tx_date,
+                Transaction.description.like(f"[plaid:%] {tx_name}"),
+            ).first()
+            if content_dupe:
+                continue
 
             # Skip internal transfers (checking → savings etc.) to avoid double-counting
             if _is_internal_transfer(tx):
                 continue
 
-            # Plaid: positive amount = money leaving account (expense), negative = income
-            amount = -float(tx["amount"])
-            name = tx.get("merchant_name") or tx.get("name") or "Transaction"
             category_id = _resolve_category(tx, user_id, db)
 
             new_tx = Transaction(
                 user_id=user_id,
                 account_id=account.id,
                 category_id=category_id,
-                amount=amount,
-                description=f"[plaid:{plaid_tx_id}] {name}",
-                transaction_date=date.fromisoformat(tx["date"]),
+                amount=tx_amount,
+                description=f"[plaid:{plaid_tx_id}] {tx_name}",
+                transaction_date=tx_date,
             )
             db.add(new_tx)
             account.balance = float(account.balance) + amount
@@ -304,10 +315,11 @@ def exchange_token(
     if db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first():
         raise HTTPException(status_code=400, detail="This bank is already connected.")
 
+    # Resolve institution name early so we can check for duplicates by name
     institution_name = body.institution_name
     if not institution_name:
         try:
-            item_data = _plaid_post("/item/get", {"access_token": access_token})
+            item_data = _plaid_post("/item/get", {"access_token": data["access_token"]})
             inst_id = item_data["item"].get("institution_id")
             if inst_id:
                 inst_data = _plaid_post("/institutions/get_by_id", {
@@ -318,6 +330,12 @@ def exchange_token(
         except Exception:
             pass
         institution_name = institution_name or "Bank"
+
+    if db.query(PlaidItem).filter(
+        PlaidItem.user_id == current_user.id,
+        PlaidItem.institution_name == institution_name,
+    ).first():
+        raise HTTPException(status_code=400, detail=f"{institution_name} is already connected.")
 
     item = PlaidItem(
         user_id=current_user.id,
@@ -378,3 +396,31 @@ def sync_all(
     for item in items:
         background.add_task(_do_sync_and_notify, item.id, current_user.id)
     return {"message": f"Syncing {len(items)} bank(s) in background."}
+
+
+@router.post("/reset")
+def reset_plaid_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete all Plaid-imported transactions and items for the current user, then re-sync fresh."""
+    # Delete all Plaid-tagged transactions
+    plaid_txs = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.description.like("[plaid:%]%"),
+    ).all()
+    deleted_count = len(plaid_txs)
+    for tx in plaid_txs:
+        db.delete(tx)
+
+    # Remove all PlaidItems (keeps the local accounts, just clears transactions + connections)
+    items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
+    for item in items:
+        try:
+            _plaid_post("/item/remove", {"access_token": item.access_token})
+        except Exception:
+            pass
+        db.delete(item)
+
+    db.commit()
+    return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}

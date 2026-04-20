@@ -5,7 +5,7 @@ import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
-import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll } from '../utils/api';
+import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
 import { usePlaidLink } from 'react-plaid-link';
 
 const PRESET_COLORS = [
@@ -93,6 +93,7 @@ const Settings: React.FC = () => {
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
   const [plaidSyncing, setPlaidSyncing] = useState(false);
+  const [plaidResetting, setPlaidResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
 
   const loadPlaidItems = useCallback(async () => {
@@ -128,6 +129,19 @@ const Settings: React.FC = () => {
     try { await plaidSyncAll(); toast.success('Sync started — you\'ll get a notification when done'); }
     catch (e: any) { toast.error(e?.response?.data?.detail || 'Sync failed'); }
     finally { setPlaidSyncing(false); }
+  };
+
+  const handlePlaidReset = async () => {
+    const ok = window.confirm('This will delete ALL Plaid-imported transactions and disconnect all banks. Your manually-added transactions are safe. Continue?');
+    if (!ok) return;
+    setPlaidResetting(true);
+    try {
+      const r = await plaidReset();
+      toast.success(r.data.message || 'Plaid data cleared');
+      setPlaidItems([]);
+      plaidCreateLinkToken().then(r2 => setPlaidLinkToken(r2.data.link_token)).catch(() => {});
+    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Reset failed'); }
+    finally { setPlaidResetting(false); }
   };
 
   const handleDisconnect = async (item: any) => {
@@ -421,7 +435,7 @@ const Settings: React.FC = () => {
                   PLAID
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {plaidItems.length > 0 && (
                   <button onClick={handlePlaidSync} disabled={plaidSyncing}
                     className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
@@ -429,6 +443,11 @@ const Settings: React.FC = () => {
                     {plaidSyncing ? 'Syncing…' : 'Sync Now'}
                   </button>
                 )}
+                <button onClick={handlePlaidReset} disabled={plaidResetting}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+                  {plaidResetting ? 'Clearing…' : 'Reset & Start Fresh'}
+                </button>
                 <button onClick={() => { if (plaidLinkToken) sessionStorage.setItem('plaid_link_token', plaidLinkToken); openPlaidLink(); }} disabled={!plaidReady || !plaidLinkToken}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>

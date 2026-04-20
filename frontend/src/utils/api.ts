@@ -135,5 +135,6 @@ export const plaidExchangeToken    = (public_token: string, institution_name?: s
 export const plaidGetItems         = () => api.get('/plaid/items');
 export const plaidDeleteItem       = (id: number) => api.delete(`/plaid/items/${id}`);
 export const plaidSyncAll          = () => api.post('/plaid/sync');
+export const plaidReset            = () => api.post('/plaid/reset');
 
 export default api;
