@@ -20,7 +20,6 @@ class AccountCreate(AccountBase):
 class AccountUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
-    balance: Optional[Decimal] = None
     credit_limit: Optional[Decimal] = None
     currency: Optional[str] = None
 

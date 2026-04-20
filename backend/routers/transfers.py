@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from decimal import Decimal
 from models.database import get_db, Transfer, Account
 from models.auth import User
 from models.schemas import TransferCreate, TransferResponse
@@ -29,8 +30,8 @@ def create_transfer(transfer: TransferCreate, db: Session = Depends(get_db), cur
     db_transfer = Transfer(**transfer.model_dump(), user_id=current_user.id)
     db.add(db_transfer)
 
-    from_account.balance = float(from_account.balance) - float(transfer.amount)
-    to_account.balance   = float(to_account.balance)   + float(transfer.amount)
+    from_account.balance = Account.balance - Decimal(str(transfer.amount))
+    to_account.balance   = Account.balance + Decimal(str(transfer.amount))
 
     db.commit()
     db.refresh(db_transfer)
@@ -64,8 +65,8 @@ def delete_transfer(transfer_id: int, db: Session = Depends(get_db), current_use
     # Reverse the balance changes
     from_account = _get_account(db, transfer.from_account_id, current_user.id)
     to_account   = _get_account(db, transfer.to_account_id,   current_user.id)
-    from_account.balance = float(from_account.balance) + float(transfer.amount)
-    to_account.balance   = float(to_account.balance)   - float(transfer.amount)
+    from_account.balance = Account.balance + Decimal(str(transfer.amount))
+    to_account.balance   = Account.balance - Decimal(str(transfer.amount))
 
     db.delete(transfer)
     db.commit()

@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
@@ -249,7 +250,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 transaction_date=tx_date,
             )
             db.add(new_tx)
-            account.balance = float(account.balance) + tx_amount
+            account.balance = Account.balance + Decimal(str(tx_amount))
             added_count += 1
 
         cursor = data.get("next_cursor", cursor)
@@ -403,13 +404,16 @@ def reset_plaid_data(
     current_user: User = Depends(get_current_user),
 ):
     """Delete all Plaid-imported transactions and items for the current user, then re-sync fresh."""
-    # Delete all Plaid-tagged transactions
+    # Delete all Plaid-tagged transactions and reverse their balance impact
     plaid_txs = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
         Transaction.description.like("[plaid:%]%"),
     ).all()
     deleted_count = len(plaid_txs)
     for tx in plaid_txs:
+        acct = db.query(Account).filter(Account.id == tx.account_id).first()
+        if acct:
+            acct.balance = Account.balance - Decimal(str(tx.amount))
         db.delete(tx)
 
     # Remove all PlaidItems (keeps the local accounts, just clears transactions + connections)

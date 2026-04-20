@@ -66,13 +66,16 @@ app = FastAPI(title="Fintrack API", version="2.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+_extra_origin = os.getenv("EXTRA_ALLOWED_ORIGIN", "")
+_allowed_origins = [o for o in [
+    "http://localhost:3000",
+    "https://financial-tracker-gamma-sable.vercel.app",
+    _extra_origin,
+] if o]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://financial-tracker-gamma-sable.vercel.app",
-        "https://financial-tracker-esjhlztp3-mehdi-khazaals-projects.vercel.app",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "Cookie"],
@@ -111,45 +114,3 @@ def root():
     return {"message": "Fintrack API v2", "docs": "/docs"}
 
 
-@app.get("/debug/accounts")
-async def debug_accounts(request: Request):
-    from jose import jwt as _jwt
-    from models.database import SessionLocal, Account
-    from utils.auth import SECRET_KEY
-    token = request.cookies.get("access_token")
-    if not token:
-        return {"error": "no token"}
-    try:
-        payload = _jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = int(payload["sub"])
-        db = SessionLocal()
-        accounts = db.query(Account).filter(Account.user_id == user_id).all()
-        result = [{"id": a.id, "name": a.name, "balance": str(a.balance)} for a in accounts]
-        db.close()
-        return {"user_id": user_id, "count": len(result), "accounts": result}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.get("/debug/whoami")
-async def whoami(request: Request):
-    from jose import jwt as _jwt
-    from models.database import SessionLocal
-    from models.auth import User as _User
-    from utils.auth import SECRET_KEY
-    token = request.cookies.get("access_token")
-    if not token:
-        return {"error": "no access_token cookie"}
-    try:
-        payload = _jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = int(payload["sub"])
-        db = SessionLocal()
-        user = db.query(_User).filter(_User.id == user_id).first()
-        db.close()
-        return {
-            "user_id": user_id,
-            "email": user.email if user else "NOT FOUND",
-            "username": user.username if user else "NOT FOUND",
-        }
-    except Exception as e:
-        return {"error": str(e)}

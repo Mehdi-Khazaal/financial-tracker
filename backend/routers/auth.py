@@ -138,6 +138,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/change-password")
 async def change_password(
     body: ChangePasswordRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -145,7 +146,9 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.hashed_password = get_password_hash(body.new_password)
     db.commit()
-    return {"message": "Password changed successfully"}
+    # Rotate tokens so any stolen session is invalidated on password change
+    access_token = set_auth_cookies(response, current_user.id)
+    return {"message": "Password changed successfully", "access_token": access_token}
 
 
 # ─── Forgot password ──────────────────────────────────────────────────────────

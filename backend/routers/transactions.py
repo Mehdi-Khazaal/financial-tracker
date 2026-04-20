@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from datetime import date
+from decimal import Decimal
 from models.database import get_db, Transaction, Account
 from models.auth import User
 from models.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
@@ -23,7 +24,7 @@ def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db), cur
     account = _get_account(db, tx.account_id, current_user.id)
     db_tx = Transaction(**tx.model_dump(), user_id=current_user.id)
     db.add(db_tx)
-    account.balance = float(account.balance) + float(tx.amount)
+    account.balance = Account.balance + Decimal(str(tx.amount))
     db.commit()
     db.refresh(db_tx)
     return db_tx
@@ -88,12 +89,12 @@ def update_transaction(transaction_id: int, update: TransactionUpdate, db: Sessi
 
     if old_account_id != new_account_id:
         old_account = _get_account(db, old_account_id, current_user.id)
-        old_account.balance = float(old_account.balance) - old_amount
+        old_account.balance = Account.balance - Decimal(str(old_amount))
         new_account = _get_account(db, new_account_id, current_user.id)
-        new_account.balance = float(new_account.balance) + new_amount
+        new_account.balance = Account.balance + Decimal(str(new_amount))
     else:
         account = _get_account(db, old_account_id, current_user.id)
-        account.balance = float(account.balance) - old_amount + new_amount
+        account.balance = Account.balance - Decimal(str(old_amount)) + Decimal(str(new_amount))
 
     for field, value in data.items():
         setattr(tx, field, value)
@@ -108,6 +109,6 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db), curre
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     account = _get_account(db, tx.account_id, current_user.id)
-    account.balance = float(account.balance) - float(tx.amount)
+    account.balance = Account.balance - Decimal(str(tx.amount))
     db.delete(tx)
     db.commit()
