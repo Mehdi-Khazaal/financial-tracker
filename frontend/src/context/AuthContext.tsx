@@ -17,10 +17,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Cookie is sent automatically — just check if the session is valid
     getMe()
       .then(res => setUser(res.data))
-      .catch(() => setUser(null))
+      .catch(err => {
+        // Only clear the session on explicit 401 — network errors / Render cold-start
+        // timeouts should not log the user out
+        if (err?.response?.status === 401) setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 

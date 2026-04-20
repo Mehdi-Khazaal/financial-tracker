@@ -128,6 +128,7 @@ const Transactions: React.FC = () => {
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -169,7 +170,12 @@ const Transactions: React.FC = () => {
     setFilterAmountMax('');
   };
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const cutoff = thirtyDaysAgo.toISOString().slice(0, 10);
+
   const filtered = transactions.filter(t => {
+    if (!showAll && !filterDateFrom && t.transaction_date < cutoff) return false;
     if (filterAccount !== 'all' && t.account_id !== parseInt(filterAccount)) return false;
     if (filterType === 'income'  && Number(t.amount) < 0) return false;
     if (filterType === 'expense' && Number(t.amount) >= 0) return false;
@@ -417,6 +423,23 @@ const Transactions: React.FC = () => {
                   </div>
                 );
               })}
+
+              {!showAll && !filterDateFrom && transactions.some(t => t.transaction_date < cutoff) && (
+                <button
+                  onClick={() => setShowAll(true)}
+                  className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
+                  style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
+                  Show all transactions
+                </button>
+              )}
+              {showAll && (
+                <button
+                  onClick={() => setShowAll(false)}
+                  className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
+                  style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
+                  Show recent only
+                </button>
+              )}
             </div>
           )}
         </div>
