@@ -248,7 +248,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 transaction_date=tx_date,
             )
             db.add(new_tx)
-            account.balance = float(account.balance) + amount
+            account.balance = float(account.balance) + tx_amount
             added_count += 1
 
         cursor = data.get("next_cursor", cursor)
