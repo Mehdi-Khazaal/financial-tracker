@@ -82,7 +82,7 @@ PLAID_PFC_MAP: dict[str, str] = {
     "PERSONAL_CARE":            "Shopping",
     "GENERAL_SERVICES":         "Subscriptions",
     "GOVERNMENT_AND_NON_PROFIT":"Other",
-    "INCOME":                   "Salary",
+    "INCOME":                   "Other Income",
     "TRANSFER_IN":              None,   # internal — skip
     "TRANSFER_OUT":             None,   # internal — skip
 }
@@ -114,7 +114,7 @@ PLAID_CATEGORY_MAP: dict[str, str] = {
     "subscription":         "Subscriptions",
     "service":              "Subscriptions",
     "payroll":              "Salary",
-    "income":               "Salary",
+    "income":               "Other Income",
 }
 
 
@@ -127,12 +127,18 @@ def _is_internal_transfer(tx: dict) -> bool:
     # New format — only skip true inter-account transfers, not ACH/payroll/payments
     pfc = tx.get("personal_finance_category") or {}
     detailed = (pfc.get("detailed") or "").upper()
-    return detailed in (
+    if detailed in (
         "TRANSFER_IN_ACCOUNT_TRANSFER",
         "TRANSFER_OUT_ACCOUNT_TRANSFER",
         "TRANSFER_IN_SAVINGS_TRANSFER",
         "TRANSFER_OUT_SAVINGS_TRANSFER",
-    )
+        "TRANSFER_IN_DEPOSIT",
+        "TRANSFER_OUT_DEPOSIT",
+    ):
+        return True
+    # Skip CD / money-market deposits by name pattern (sandbox + real)
+    name = (tx.get("name") or "").upper()
+    return "CD DEPOSIT" in name or "CD WITHDRAWAL" in name
 
 
 def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
