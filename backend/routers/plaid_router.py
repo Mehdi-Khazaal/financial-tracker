@@ -65,7 +65,29 @@ class PlaidItemResponse(BaseModel):
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-# Maps Plaid's primary category → your category names (case-insensitive match)
+# New Plaid personal_finance_category.primary values (SCREAMING_SNAKE_CASE)
+PLAID_PFC_MAP: dict[str, str] = {
+    "FOOD_AND_DRINK":           "Food & Dining",
+    "GROCERIES":                "Groceries",
+    "TRAVEL":                   "Travel",
+    "TRANSPORTATION":           "Transportation",
+    "ENTERTAINMENT":            "Entertainment",
+    "GENERAL_MERCHANDISE":      "Shopping",
+    "MEDICAL":                  "Healthcare",
+    "EDUCATION":                "Education",
+    "UTILITIES_AND_PHONE":      "Utilities",
+    "RENT_AND_UTILITIES":       "Housing & Rent",
+    "HOME_IMPROVEMENT":         "Housing & Rent",
+    "LOAN_PAYMENTS":            "Housing & Rent",
+    "PERSONAL_CARE":            "Shopping",
+    "GENERAL_SERVICES":         "Subscriptions",
+    "GOVERNMENT_AND_NON_PROFIT":"Other",
+    "INCOME":                   "Salary",
+    "TRANSFER_IN":              None,   # internal — skip
+    "TRANSFER_OUT":             None,   # internal — skip
+}
+
+# Legacy Plaid category list values (old API format, kept for fallback)
 PLAID_CATEGORY_MAP: dict[str, str] = {
     "food and drink":       "Food & Dining",
     "restaurants":          "Food & Dining",
@@ -96,17 +118,47 @@ PLAID_CATEGORY_MAP: dict[str, str] = {
 }
 
 
-def _resolve_category(plaid_categories: list, user_id: int, db: Session) -> int | None:
-    """Match Plaid category list to a local user/system category. Returns category_id or None."""
-    for plaid_cat in plaid_categories:
-        name = PLAID_CATEGORY_MAP.get(plaid_cat.lower())
-        if name:
-            cat = db.query(Category).filter(
-                Category.name == name,
-                (Category.user_id == user_id) | (Category.user_id == None),
-            ).first()
-            if cat:
-                return cat.id
+def _is_internal_transfer(tx: dict) -> bool:
+    """Return True if this transaction is an internal bank transfer (should be skipped)."""
+    # New format
+    pfc = tx.get("personal_finance_category") or {}
+    primary = pfc.get("primary", "")
+    if primary in ("TRANSFER_IN", "TRANSFER_OUT", "TRANSFER"):
+        return True
+    # Old format
+    old_cats = [c.lower() for c in (tx.get("category") or [])]
+    return any(c in old_cats for c in ("transfer", "internal account transfer", "account transfer"))
+
+
+def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
+    """Resolve a Plaid transaction to a local category ID. Checks new PFC format first."""
+    def _lookup(name: str) -> int | None:
+        if not name:
+            return None
+        cat = db.query(Category).filter(
+            Category.name == name,
+            (Category.user_id == user_id) | (Category.user_id == None),
+        ).first()
+        return cat.id if cat else None
+
+    # 1. Try personal_finance_category.primary (new Plaid format)
+    pfc = tx.get("personal_finance_category") or {}
+    primary = pfc.get("primary", "")
+    if primary:
+        mapped = PLAID_PFC_MAP.get(primary)
+        if mapped:
+            result = _lookup(mapped)
+            if result:
+                return result
+
+    # 2. Fall back to legacy category list
+    for plaid_cat in (tx.get("category") or []):
+        mapped = PLAID_CATEGORY_MAP.get(plaid_cat.lower())
+        if mapped:
+            result = _lookup(mapped)
+            if result:
+                return result
+
     return None
 
 
@@ -149,7 +201,11 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         return local_acct_cache.get(name)
 
     while True:
-        body: dict = {"access_token": item.access_token, "count": 500}
+        body: dict = {
+            "access_token": item.access_token,
+            "count": 500,
+            "options": {"include_personal_finance_category": True},
+        }
         if cursor:
             body["cursor"] = cursor
         data = _plaid_post("/transactions/sync", body)
@@ -167,11 +223,14 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             if existing:
                 continue
 
+            # Skip internal transfers (checking → savings etc.) to avoid double-counting
+            if _is_internal_transfer(tx):
+                continue
+
             # Plaid: positive amount = money leaving account (expense), negative = income
             amount = -float(tx["amount"])
             name = tx.get("merchant_name") or tx.get("name") or "Transaction"
-            plaid_cats = tx.get("category") or []
-            category_id = _resolve_category(plaid_cats, user_id, db)
+            category_id = _resolve_category(tx, user_id, db)
 
             new_tx = Transaction(
                 user_id=user_id,
@@ -226,6 +285,7 @@ def create_link_token(current_user: User = Depends(get_current_user)):
         "products": ["transactions"],
         "country_codes": ["US"],
         "language": "en",
+        "transactions": {"days_requested": 90},
     })
     return {"link_token": data["link_token"]}
 
