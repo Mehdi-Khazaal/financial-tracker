@@ -263,7 +263,7 @@ const Transactions: React.FC = () => {
       <>
         <Navigation />
         <div className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-          <div className="max-w-4xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
             <div className="skeleton h-7 w-40 rounded-xl" />
             <div className="skeleton h-10 w-full rounded-xl" />
             <div className="grid grid-cols-3 gap-3">{[0,1,2].map(i => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>
@@ -357,7 +357,7 @@ const Transactions: React.FC = () => {
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-        <div className="max-w-4xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="flex items-center justify-between pr-12 md:pr-0">
@@ -438,7 +438,7 @@ const Transactions: React.FC = () => {
               </div>
 
               {/* Desktop layout: filters left, list right */}
-              <div className="md:grid md:grid-cols-[260px_1fr] md:gap-6 md:items-start space-y-5 md:space-y-0">
+              <div className="md:grid md:grid-cols-[300px_1fr] md:gap-8 md:items-start space-y-5 md:space-y-0">
                 {/* Filters */}
                 <div className="card p-4 space-y-3 md:sticky md:top-16">
                   <div className="relative">

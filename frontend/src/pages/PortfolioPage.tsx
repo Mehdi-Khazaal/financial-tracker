@@ -167,11 +167,11 @@ const PortfolioPage: React.FC = () => {
       <>
         <Navigation />
         <div className="md:ml-60 min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
-          <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
             <div className="skeleton h-7 w-28 rounded-xl" />
             <div className="skeleton h-10 w-full rounded-xl" />
             <div className="skeleton h-36 w-full rounded-3xl" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {[0,1,2,3].map(i => <div key={i} className="skeleton h-36 rounded-2xl" />)}
             </div>
           </div>
@@ -191,7 +191,7 @@ const PortfolioPage: React.FC = () => {
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-        <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="flex items-center justify-between pr-12 md:pr-0">
@@ -303,7 +303,7 @@ const PortfolioPage: React.FC = () => {
                   <button onClick={() => setShowAddInv(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Investment</button>
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredInv.map(inv => {
                     const gainLoss = getGainLoss(inv);
                     const gainPct  = getGainLossPct(inv);
@@ -400,7 +400,7 @@ const PortfolioPage: React.FC = () => {
                   action={{ label: 'Add Asset', onClick: () => setShowAddAsset(true) }}
                 />
               ) : (
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {assets.map(asset => {
                     const meta = ASSET_META[asset.type] ?? ASSET_META.other;
                     return (

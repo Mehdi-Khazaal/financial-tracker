@@ -283,11 +283,11 @@ const AccountsPage: React.FC = () => {
       <>
         <Navigation />
         <div className="md:ml-60 min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
-          <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
+          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
             <div className="skeleton h-7 w-32 rounded-xl" />
             <div className="skeleton h-10 w-full rounded-xl" />
             <div className="skeleton h-32 w-full rounded-3xl" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {[0,1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}
             </div>
           </div>
@@ -307,7 +307,7 @@ const AccountsPage: React.FC = () => {
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-        <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="flex items-center justify-between pr-12 md:pr-0">
@@ -417,7 +417,7 @@ const AccountsPage: React.FC = () => {
                   return (
                     <div key={group}>
                       <p className="label mb-3">{group}</p>
-                      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {list.map(account => {
                           const meta = TYPE_META[account.type] ?? { iconPath: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z', iconColor: 'var(--accent)', label: account.type, group: 'Other' };
                           const isCreditCard = account.type === 'credit_card';
@@ -525,7 +525,7 @@ const AccountsPage: React.FC = () => {
                       <ProgressBar value={totalUtil} colorAuto showLabel={false} height={8} />
                     </div>
                   )}
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {ccAccounts.map(card => {
                       const owed = Math.abs(Number(card.balance));
                       const limit = Number(card.credit_limit) || 0;
@@ -635,7 +635,7 @@ const AccountsPage: React.FC = () => {
                           {activeLoans.length}
                         </span>
                       </p>
-                      <div className="grid md:grid-cols-2 gap-3">
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {activeLoans.map(l => (
                           <LoanCard key={l.id} loan={l} repayInput={repayInput[l.id] ?? ''} repaying={repaying === l.id}
                             onRepayChange={handleRepayChange} onRepayment={handleRepayment}
@@ -647,7 +647,7 @@ const AccountsPage: React.FC = () => {
                   {repaidLoans.length > 0 && (
                     <div className="space-y-3">
                       <p className="label opacity-60">Repaid</p>
-                      <div className="grid md:grid-cols-2 gap-3 opacity-60">
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 opacity-60">
                         {repaidLoans.map(l => (
                           <LoanCard key={l.id} loan={l} repayInput="" repaying={false}
                             onRepayChange={handleRepayChange} onRepayment={handleRepayment}
@@ -659,7 +659,7 @@ const AccountsPage: React.FC = () => {
                   {writtenOff.length > 0 && (
                     <div className="space-y-3">
                       <p className="label opacity-40">Written Off</p>
-                      <div className="grid md:grid-cols-2 gap-3 opacity-40">
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 opacity-40">
                         {writtenOff.map(l => (
                           <LoanCard key={l.id} loan={l} repayInput="" repaying={false}
                             onRepayChange={handleRepayChange} onRepayment={handleRepayment}
