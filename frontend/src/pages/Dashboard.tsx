@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* ── Tab bar ── */}
-          <div className="sticky top-0 z-20 py-2 -mx-4 px-4" style={{ backgroundColor: 'var(--bg)' }}>
+          <div className="sticky z-20 py-2 -mx-4 px-4" style={{ top: 'env(safe-area-inset-top, 0px)', backgroundColor: 'var(--bg)' }}>
             <div className="flex p-1 rounded-xl gap-0.5" style={{ backgroundColor: 'var(--elev-1)' }}>
               {(['overview', 'analytics'] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)}
