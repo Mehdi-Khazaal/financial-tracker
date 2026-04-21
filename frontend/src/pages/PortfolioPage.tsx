@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouteTab } from '../context/TabContext';
 import { Account, Asset, SavingsGoal } from '../types';
 import { getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
 import { getStockPrice } from '../utils/stockApi';
@@ -36,7 +37,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 const PortfolioPage: React.FC = () => {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('investments');
+  const [tab, setTab] = useRouteTab('/portfolio');
   const [loading, setLoading] = useState(true);
 
   // Investments
@@ -189,7 +190,7 @@ const PortfolioPage: React.FC = () => {
     <>
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-5xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
@@ -221,7 +222,7 @@ const PortfolioPage: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="sticky z-20 py-2 -mx-4 px-4 md:-mx-6 md:px-6" style={{ top: 'env(safe-area-inset-top, 0px)', backgroundColor: 'var(--bg)' }}>
+          <div className="hidden md:block sticky z-20 py-2 -mx-6 px-6" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
             <div className="flex p-1 rounded-xl gap-0.5" style={{ backgroundColor: 'var(--elev-1)' }}>
               {TABS.map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}

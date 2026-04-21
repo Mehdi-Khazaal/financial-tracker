@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useRouteTab } from '../context/TabContext';
 import { Link } from 'react-router-dom';
 import {
   PieChart, Pie, BarChart, Bar, LineChart, Line,
@@ -37,7 +38,7 @@ const AccountIcon: React.FC<{ type: string }> = ({ type }) => {
 };
 
 const DashboardSkeleton: React.FC = () => (
-  <div className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+  <div className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
     <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5">
       <div className="flex items-center justify-between">
         <div className="space-y-2"><div className="skeleton h-3 w-24" /><div className="skeleton h-6 w-40" /></div>
@@ -73,7 +74,7 @@ const Dashboard: React.FC = () => {
   const [categories, setCategories]           = useState<Category[]>([]);
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [loading, setLoading]                 = useState(true);
-  const [tab, setTab]                         = useState<Tab>('overview');
+  const [tab, setTab]                         = useRouteTab('/');
   const [period, setPeriod]                   = useState<Period>('This month');
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
@@ -231,7 +232,7 @@ const Dashboard: React.FC = () => {
   return (
     <>
       <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* ── Greeting ── */}
@@ -254,7 +255,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* ── Tab bar ── */}
-          <div className="sticky z-20 py-2 -mx-4 px-4" style={{ top: 'env(safe-area-inset-top, 0px)', backgroundColor: 'var(--bg)' }}>
+          <div className="hidden md:block sticky z-20 py-2 -mx-6 px-6" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
             <div className="flex p-1 rounded-xl gap-0.5" style={{ backgroundColor: 'var(--elev-1)' }}>
               {(['overview', 'analytics'] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)}

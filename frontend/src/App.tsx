@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { TabProvider } from './context/TabContext';
 import Dashboard from './pages/Dashboard';
 import AccountsPage from './pages/AccountsPage';
 import PortfolioPage from './pages/PortfolioPage';
@@ -34,6 +35,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+        <TabProvider>
         <Routes>
           <Route path="/login"           element={<Login />} />
           <Route path="/signup"          element={<Signup />} />
@@ -59,6 +61,7 @@ function App() {
           <Route path="/savings"     element={<Navigate to="/portfolio"    replace />} />
           <Route path="/analytics"   element={<Navigate to="/"            replace />} />
         </Routes>
+        </TabProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

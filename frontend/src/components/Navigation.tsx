@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import TopBar from './TopBar';
+import { TabContext } from '../context/TabContext';
 
 const navItems = [
   {
@@ -29,13 +30,25 @@ const navItems = [
   },
 ];
 
+/* Sub-tabs shown in the context bar per route */
+const ROUTE_TABS: Record<string, { label: string; value: string }[]> = {
+  '/':             [{ label: 'Overview', value: 'overview' }, { label: 'Analytics', value: 'analytics' }],
+  '/accounts':     [{ label: 'Wallet', value: 'wallet' }, { label: 'Cards', value: 'cards' }, { label: 'Loans', value: 'loans' }],
+  '/transactions': [{ label: 'Transactions', value: 'transactions' }, { label: 'Recurring', value: 'recurring' }],
+  '/portfolio':    [{ label: 'Investments', value: 'investments' }, { label: 'Assets', value: 'assets' }, { label: 'Savings', value: 'savings' }],
+};
+
 const COLLAPSE_KEY = 'nav_collapsed';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
+  const { tabs, setRouteTab } = useContext(TabContext);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
   const isActive = (item: typeof navItems[0]) => item.matchPaths.includes(location.pathname);
+
+  const routeTabs = ROUTE_TABS[location.pathname] ?? [];
+  const activeTab = tabs[location.pathname] ?? '';
 
   useEffect(() => {
     document.body.classList.toggle('nav-collapsed', collapsed);
@@ -64,7 +77,6 @@ const Navigation: React.FC = () => {
           width: collapsed ? '64px' : '240px',
           backgroundColor: 'var(--bg)',
           borderRight: '1px solid var(--line)',
-          /* Respect safe areas on iPads in landscape and any future notch hardware */
           paddingTop: 'env(safe-area-inset-top, 0px)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
@@ -134,10 +146,40 @@ const Navigation: React.FC = () => {
         )}
       </aside>
 
+      {/* ── Mobile context tab bar (above bottom nav) ────────────────── */}
+      {routeTabs.length > 0 && (
+        <div
+          className="md:hidden fixed inset-x-0 z-40 px-3 py-1.5"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
+            backgroundColor: 'rgba(10,10,11,.97)',
+            borderTop: '1px solid var(--line)',
+            backdropFilter: 'blur(28px)',
+            WebkitBackdropFilter: 'blur(28px)',
+          }}>
+          <div className="flex gap-1"
+            style={{
+              paddingLeft: 'env(safe-area-inset-left, 0px)',
+              paddingRight: 'env(safe-area-inset-right, 0px)',
+            }}>
+            {routeTabs.map(t => (
+              <button
+                key={t.value}
+                onClick={() => setRouteTab(location.pathname, t.value)}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
+                style={activeTab === t.value
+                  ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)' }
+                  : { color: 'var(--muted)' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
         style={{ backgroundColor: 'rgba(10,10,11,.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
-        {/* h-16 is the tap-target row; landscape side insets pad the items away from the rounded corners */}
         <div className="flex items-center justify-around h-16"
           style={{
             paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
