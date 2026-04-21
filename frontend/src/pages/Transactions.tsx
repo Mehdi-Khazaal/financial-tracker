@@ -368,12 +368,12 @@ const Transactions: React.FC = () => {
               {tab === 'transactions' && (
                 <>
                   <button onClick={() => { setTxType('income'); setShowTx(true); }}
-                    className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
                     style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
                     + Income
                   </button>
                   <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-                    className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
                     style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                     + Expense
                   </button>
@@ -625,16 +625,6 @@ const Transactions: React.FC = () => {
 
         </div>
       </main>
-
-      {/* FAB */}
-      <button
-        onClick={() => tab === 'recurring' ? setShowAddRecurring(true) : (() => { setTxType('expense'); setShowTx(true); })()}
-        className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', backgroundColor: tab === 'recurring' ? 'var(--accent)' : 'var(--neg)' }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />

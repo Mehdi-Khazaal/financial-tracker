@@ -677,16 +677,6 @@ const AccountsPage: React.FC = () => {
         </div>
       </main>
 
-      {/* FAB */}
-      <button
-        onClick={() => tab === 'loans' ? setShowAddLoan(true) : setShowAdd(true)}
-        className="fixed bottom-24 md:bottom-8 right-5 rounded-full shadow-2xl flex items-center justify-center transition-transform active:scale-90 hover:scale-105 z-30"
-        style={{ width: '52px', height: '52px', backgroundColor: tab === 'loans' ? '#f59e0b' : 'var(--accent)' }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="w-6 h-6">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
-
       <AddAccountModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} />
       <EditAccountModal isOpen={!!editAccount} onClose={() => setEditAccount(null)} onSuccess={load} account={editAccount} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
