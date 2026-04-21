@@ -3,17 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import Dashboard from './pages/Dashboard';
-import Wallet from './pages/Wallet';
-import Cards from './pages/Cards';
+import AccountsPage from './pages/AccountsPage';
+import PortfolioPage from './pages/PortfolioPage';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Transactions from './pages/Transactions';
-import Investments from './pages/Investments';
-import Assets from './pages/Assets';
-import Savings from './pages/Savings';
-import Analytics from './pages/Analytics';
-import Recurring from './pages/Recurring';
-import Loans from './pages/Loans';
 import Settings from './pages/Settings';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -47,19 +41,23 @@ function App() {
           <Route path="/reset-password"  element={<ResetPassword />} />
           <Route path="/verify-email"    element={<VerifyEmail />} />
           <Route path="/oauth-callback"  element={<OAuthCallback />} />
-          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
-          <Route path="/cards" element={<PrivateRoute><Cards /></PrivateRoute>} />
+
+          {/* Main routes */}
+          <Route path="/"             element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/accounts"     element={<PrivateRoute><AccountsPage /></PrivateRoute>} />
           <Route path="/transactions" element={<PrivateRoute><Transactions /></PrivateRoute>} />
-          <Route path="/investments" element={<PrivateRoute><Investments /></PrivateRoute>} />
-          <Route path="/assets" element={<PrivateRoute><Assets /></PrivateRoute>} />
-          <Route path="/savings" element={<PrivateRoute><Savings /></PrivateRoute>} />
-          <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
-          <Route path="/recurring" element={<PrivateRoute><Recurring /></PrivateRoute>} />
-          <Route path="/loans" element={<PrivateRoute><Loans /></PrivateRoute>} />
-          <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-          {/* Legacy redirect */}
-          <Route path="/accounts" element={<Navigate to="/wallet" replace />} />
+          <Route path="/portfolio"    element={<PrivateRoute><PortfolioPage /></PrivateRoute>} />
+          <Route path="/settings"     element={<PrivateRoute><Settings /></PrivateRoute>} />
+
+          {/* Legacy redirects */}
+          <Route path="/wallet"      element={<Navigate to="/accounts"     replace />} />
+          <Route path="/cards"       element={<Navigate to="/accounts"     replace />} />
+          <Route path="/loans"       element={<Navigate to="/accounts"     replace />} />
+          <Route path="/recurring"   element={<Navigate to="/transactions" replace />} />
+          <Route path="/investments" element={<Navigate to="/portfolio"    replace />} />
+          <Route path="/assets"      element={<Navigate to="/portfolio"    replace />} />
+          <Route path="/savings"     element={<Navigate to="/portfolio"    replace />} />
+          <Route path="/analytics"   element={<Navigate to="/"            replace />} />
         </Routes>
         </ToastProvider>
       </AuthProvider>
