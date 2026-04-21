@@ -125,7 +125,7 @@ const Settings: React.FC = () => {
       const sessionId = (metadata as any)?.link_session_id;
       if (sessionId && (eventName === 'ERROR' || eventName === 'EXIT')) {
         navigator.clipboard.writeText(sessionId).catch(() => {});
-        toast(`Session ID copied: ${sessionId}`, { duration: 8000 });
+        toast.success(`Session ID copied: ${sessionId}`);
       }
     },
     onExit: () => {},
