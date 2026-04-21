@@ -121,6 +121,13 @@ const Settings: React.FC = () => {
         plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
       }
     },
+    onEvent: (eventName, metadata) => {
+      const sessionId = (metadata as any)?.link_session_id;
+      if (sessionId && (eventName === 'ERROR' || eventName === 'EXIT')) {
+        navigator.clipboard.writeText(sessionId).catch(() => {});
+        toast(`Session ID copied: ${sessionId}`, { duration: 8000 });
+      }
+    },
     onExit: () => {},
   });
 
