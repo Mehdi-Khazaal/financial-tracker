@@ -60,7 +60,15 @@ const Navigation: React.FC = () => {
       {/* ── Desktop sidebar ─────────────────────────────────────────── */}
       <aside
         className="nav-sidebar hidden md:flex flex-col fixed inset-y-0 left-0 z-40 transition-all duration-300"
-        style={{ width: collapsed ? '64px' : '240px', backgroundColor: 'var(--bg)', borderRight: '1px solid var(--line)' }}>
+        style={{
+          width: collapsed ? '64px' : '240px',
+          backgroundColor: 'var(--bg)',
+          borderRight: '1px solid var(--line)',
+          /* Respect safe areas on iPads in landscape and any future notch hardware */
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+        }}>
 
         {/* Logo + collapse */}
         <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -129,7 +137,12 @@ const Navigation: React.FC = () => {
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
         style={{ backgroundColor: 'rgba(10,10,11,.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
-        <div className="flex items-center justify-around h-16 px-1">
+        {/* h-16 is the tap-target row; landscape side insets pad the items away from the rounded corners */}
+        <div className="flex items-center justify-around h-16"
+          style={{
+            paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
+          }}>
           {navItems.map(item => {
             const active = isActive(item);
             return (

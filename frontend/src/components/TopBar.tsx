@@ -18,7 +18,7 @@ const TopBar: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div ref={ref} className="fixed top-4 right-4 z-50">
+    <div ref={ref} className="fixed z-50" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)', right: 'calc(env(safe-area-inset-right, 0px) + 1rem)' }}>
       <button
         onClick={() => setOpen(o => !o)}
         className="w-9 h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm shadow-lg transition-all hover:scale-105 active:scale-95"

@@ -242,11 +242,28 @@ body {
 /* ── Safe area (iPhone notch / Dynamic Island) ─────────────────────────────── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+.safe-left   { padding-left:   env(safe-area-inset-left,  0px); }
+.safe-right  { padding-right:  env(safe-area-inset-right, 0px); }
 
-/* Push all page content below the Dynamic Island on mobile */
+/*
+  Push mobile page content:
+  • Down  — below the Dynamic Island / status bar (portrait & landscape)
+  • Sides — away from the rounded corners / notch in landscape
+  Fixed elements (TopBar, nav bars) handle their own insets via inline styles.
+*/
 @media (max-width: 767px) {
-  body { padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    padding-top:   env(safe-area-inset-top,   0px);
+    padding-left:  env(safe-area-inset-left,  0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
 }
+
+/*
+  Mobile bottom-nav height is h-16 (64px) + safe-area-inset-bottom.
+  pb-28 (112px) covers up to ~48px of home-indicator, which handles
+  all current iPhone models. The extra breathing room is intentional.
+*/
 
 /* ── Select dark styling ────────────────────────────────────────────────────── */
 select.input-dark option {
