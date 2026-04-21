@@ -434,48 +434,46 @@ const AccountsPage: React.FC = () => {
 
                           return (
                             <div key={account.id} className="card card-hover p-4 group transition-all">
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                              {/* Top row: icon + name + action buttons */}
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
                                     style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
-                                    <svg viewBox="0 0 20 20" fill={meta.iconColor} className="w-5 h-5">
+                                    <svg viewBox="0 0 20 20" fill={meta.iconColor} className="w-4.5 h-4.5 w-[18px] h-[18px]">
                                       <path d={meta.iconPath} />
                                     </svg>
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-sm text-text truncate">{account.name}</p>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-sm text-text leading-snug">{account.name}</p>
                                     <p className="text-xs text-muted">{meta.label}</p>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  {sparkData.length >= 2 && (
-                                    <div className="hidden lg:block">
-                                      <Sparkline data={sparkData} color={sparkColor} />
-                                    </div>
-                                  )}
-                                  <div className="text-right">
-                                    <p className="font-bold text-base" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: Number(account.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
-                                      {Number(account.balance) < 0 ? '-' : ''}${fmt(Number(account.balance))}
-                                    </p>
-                                    {sparkData.length >= 2 && balanceChange !== 0 && (
-                                      <p className="text-[10px]" style={{ fontFamily: 'var(--font-mono)', color: isCreditCard ? (balanceChange <= 0 ? 'var(--pos)' : 'var(--neg)') : (balanceChange >= 0 ? 'var(--pos)' : 'var(--neg)') }}>
-                                        {balanceChange >= 0 ? '+' : ''}{fmt(balanceChange)} <span className="text-muted">6mo</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => setEditAccount(account)}
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                                      style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
-                                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
-                                    </button>
-                                    <button onClick={() => handleDeleteAccount(account.id, account.name)}
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                                      style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-                                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                                    </button>
-                                  </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                                  <button onClick={() => setEditAccount(account)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                                    style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                                  </button>
+                                  <button onClick={() => handleDeleteAccount(account.id, account.name)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                                    style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
+                                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                  </button>
                                 </div>
+                              </div>
+                              {/* Bottom row: balance + sparkline */}
+                              <div className="flex items-end justify-between">
+                                <div>
+                                  <p className="font-bold text-lg" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: Number(account.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
+                                    {Number(account.balance) < 0 ? '-' : ''}${fmt(Number(account.balance))}
+                                  </p>
+                                  {sparkData.length >= 2 && balanceChange !== 0 && (
+                                    <p className="text-[10px] mt-0.5" style={{ fontFamily: 'var(--font-mono)', color: isCreditCard ? (balanceChange <= 0 ? 'var(--pos)' : 'var(--neg)') : (balanceChange >= 0 ? 'var(--pos)' : 'var(--neg)') }}>
+                                      {balanceChange >= 0 ? '+' : ''}{fmt(balanceChange)} <span className="text-muted">6mo</span>
+                                    </p>
+                                  )}
+                                </div>
+                                {sparkData.length >= 2 && <Sparkline data={sparkData} color={sparkColor} />}
                               </div>
                               {isCreditCard && limit > 0 && (
                                 <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
