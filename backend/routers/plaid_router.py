@@ -1,8 +1,10 @@
 import os
+import re
 import hmac
 import hashlib
 import json
 import requests
+import anthropic as _anthropic
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -187,6 +189,100 @@ def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
     return None
 
 
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+
+def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str, dict]:
+    """
+    Categorize a batch of Plaid transactions that couldn't be matched via PFC mapping.
+    Returns dict: plaid_tx_id → {"is_transfer": bool, "category_id": int | None}
+    Falls back to empty dict on any error so the sync never fails.
+    """
+    if not ANTHROPIC_API_KEY or not txs:
+        return {}
+
+    all_cats = db.query(Category).filter(
+        (Category.user_id == user_id) | (Category.user_id.is_(None))
+    ).all()
+    expense_cats = [c.name for c in all_cats if c.type == "expense"]
+    income_cats  = [c.name for c in all_cats if c.type == "income"]
+
+    tx_items = [
+        {
+            "id":     tx["transaction_id"],
+            "name":   tx.get("merchant_name") or tx.get("name") or "",
+            "amount": tx["amount"],  # Plaid: positive = money left account
+        }
+        for tx in txs
+    ]
+
+    prompt = (
+        f"Categorize these bank transactions for a personal finance app.\n\n"
+        f"Expense categories: {expense_cats}\n"
+        f"Income categories: {income_cats}\n\n"
+        f"Transactions:\n{json.dumps(tx_items)}\n\n"
+        "Return ONLY a JSON array — one object per transaction in the same order:\n"
+        '[{"id":"...","is_transfer":false,"category":"Food & Dining","type":"expense"}, ...]\n\n'
+        "Rules:\n"
+        "- is_transfer=true for: transfers between own accounts, credit card payments, loan repayments\n"
+        "- Use an existing category name when it fits; invent a short clean name only when nothing fits (e.g. 'Pet Care', 'Gym')\n"
+        "- type is 'expense' or 'income'\n"
+        "- Positive Plaid amount = money left the account (expense); negative = money came in (income)"
+    )
+
+    try:
+        client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
+        results: list[dict] = json.loads(raw)
+    except Exception as e:
+        print(f"[AI categorize error] {e}")
+        return {}
+
+    output: dict[str, dict] = {}
+    for item in results:
+        tx_id = item.get("id")
+        if not tx_id:
+            continue
+
+        if item.get("is_transfer"):
+            output[tx_id] = {"is_transfer": True, "category_id": None}
+            continue
+
+        cat_name: str | None = item.get("category")
+        cat_type: str = item.get("type", "expense")
+        cat_id: int | None = None
+
+        if cat_name:
+            existing = db.query(Category).filter(
+                Category.name == cat_name,
+                (Category.user_id == user_id) | (Category.user_id.is_(None)),
+            ).first()
+            if existing:
+                cat_id = existing.id
+            else:
+                new_cat = Category(
+                    user_id=user_id,
+                    name=cat_name,
+                    type=cat_type,
+                    color="#5b8fff",
+                    is_system=False,
+                )
+                db.add(new_cat)
+                db.flush()
+                cat_id = new_cat.id
+
+        output[tx_id] = {"is_transfer": False, "category_id": cat_id}
+
+    return output
+
+
 PLAID_TO_ACCOUNT_TYPE = {
     "checking":    "checking",
     "savings":     "savings",
@@ -229,6 +325,10 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             local_acct_cache[name] = acct  # type: ignore[assignment]
         return local_acct_cache.get(name)
 
+    # Pass 1: collect all transactions to process, resolve PFC categories where possible
+    pending: list[tuple] = []  # (tx_dict, account, plaid_tx_id, tx_name, tx_amount, tx_date, category_id)
+    needs_ai: list[dict] = []
+
     while True:
         body: dict = {"access_token": item.access_token, "count": 500}
         if cursor:
@@ -242,39 +342,55 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
             plaid_tx_id = tx["transaction_id"]
 
-            # Skip internal transfers (checking → savings etc.) to avoid double-counting
             if _is_internal_transfer(tx):
                 continue
 
-            # Dedup by plaid_tx_id column (DB unique constraint is the final safety net)
+            # Dedup by plaid_tx_id (DB unique constraint is the final safety net)
             if db.query(Transaction).filter(Transaction.plaid_tx_id == plaid_tx_id).first():
                 continue
 
-            tx_name = tx.get("merchant_name") or tx.get("name") or "Transaction"
-            tx_amount = -float(tx["amount"])
-            tx_date = date.fromisoformat(tx["date"])
+            tx_name     = tx.get("merchant_name") or tx.get("name") or "Transaction"
+            tx_amount   = -float(tx["amount"])
+            tx_date     = date.fromisoformat(tx["date"])
             category_id = _resolve_category(tx, user_id, db)
 
-            try:
-                db.add(Transaction(
-                    user_id=user_id,
-                    account_id=account.id,
-                    category_id=category_id,
-                    amount=tx_amount,
-                    description=tx_name,
-                    plaid_tx_id=plaid_tx_id,
-                    transaction_date=tx_date,
-                ))
-                db.flush()
-                added_count += 1
-            except Exception:
-                db.rollback()
+            pending.append((tx, account, plaid_tx_id, tx_name, tx_amount, tx_date, category_id))
+            if category_id is None:
+                needs_ai.append(tx)
 
         cursor = data.get("next_cursor", cursor)
         item.cursor = cursor
 
         if not data.get("has_more", False):
             break
+
+    # Pass 2: AI categorization for transactions the PFC map couldn't resolve, in batches of 50
+    ai_results: dict[str, dict] = {}
+    for i in range(0, len(needs_ai), 50):
+        ai_results.update(_ai_categorize_batch(needs_ai[i:i + 50], user_id, db))
+
+    # Pass 3: insert transactions with final categories
+    for (tx, account, plaid_tx_id, tx_name, tx_amount, tx_date, category_id) in pending:
+        if category_id is None:
+            ai = ai_results.get(plaid_tx_id, {})
+            if ai.get("is_transfer"):
+                continue  # AI identified a transfer the PFC check missed
+            category_id = ai.get("category_id")
+
+        try:
+            db.add(Transaction(
+                user_id=user_id,
+                account_id=account.id,
+                category_id=category_id,
+                amount=tx_amount,
+                description=tx_name,
+                plaid_tx_id=plaid_tx_id,
+                transaction_date=tx_date,
+            ))
+            db.flush()
+            added_count += 1
+        except Exception:
+            db.rollback()
 
     # Overwrite local balances with Plaid's actual current balance — single source of truth
     for name, (balance, subtype) in plaid_acct_balances.items():
