@@ -48,6 +48,8 @@ def _run_migrations():
                 cursor TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )""",
+            "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_tx_id VARCHAR(200)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_plaid_tx_id ON transactions (plaid_tx_id) WHERE plaid_tx_id IS NOT NULL",
         ]
         for sql in migrations:
             try:

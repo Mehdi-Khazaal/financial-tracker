@@ -66,6 +66,7 @@ class Transaction(Base):
     category_id      = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     amount           = Column(Numeric(15, 2), nullable=False)
     description      = Column(Text)
+    plaid_tx_id      = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
     created_at       = Column(DateTime, default=datetime.utcnow)
 

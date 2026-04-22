@@ -236,33 +236,34 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 continue
 
             plaid_tx_id = tx["transaction_id"]
-            # Dedup by Plaid transaction_id (primary)
-            existing = db.query(Transaction).filter(
-                Transaction.user_id == user_id,
-                Transaction.description.like(f"[plaid:{plaid_tx_id}]%"),
-            ).first()
-            if existing:
-                continue
-            tx_name = tx.get("merchant_name") or tx.get("name") or "Transaction"
-            tx_amount = -float(tx["amount"])
-            tx_date = date.fromisoformat(tx["date"])
 
             # Skip internal transfers (checking → savings etc.) to avoid double-counting
             if _is_internal_transfer(tx):
                 continue
 
+            # Dedup by plaid_tx_id column (DB unique constraint is the final safety net)
+            if db.query(Transaction).filter(Transaction.plaid_tx_id == plaid_tx_id).first():
+                continue
+
+            tx_name = tx.get("merchant_name") or tx.get("name") or "Transaction"
+            tx_amount = -float(tx["amount"])
+            tx_date = date.fromisoformat(tx["date"])
             category_id = _resolve_category(tx, user_id, db)
 
-            new_tx = Transaction(
-                user_id=user_id,
-                account_id=account.id,
-                category_id=category_id,
-                amount=tx_amount,
-                description=f"[plaid:{plaid_tx_id}] {tx_name}",
-                transaction_date=tx_date,
-            )
-            db.add(new_tx)
-            added_count += 1
+            try:
+                db.add(Transaction(
+                    user_id=user_id,
+                    account_id=account.id,
+                    category_id=category_id,
+                    amount=tx_amount,
+                    description=tx_name,
+                    plaid_tx_id=plaid_tx_id,
+                    transaction_date=tx_date,
+                ))
+                db.flush()
+                added_count += 1
+            except Exception:
+                db.rollback()
 
         cursor = data.get("next_cursor", cursor)
         item.cursor = cursor
@@ -432,7 +433,7 @@ def reset_plaid_data(
     # Delete all Plaid-tagged transactions and reverse their balance impact
     plaid_txs = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
-        Transaction.description.like("[plaid:%]%"),
+        Transaction.plaid_tx_id.isnot(None),
     ).all()
     deleted_count = len(plaid_txs)
     for tx in plaid_txs:
