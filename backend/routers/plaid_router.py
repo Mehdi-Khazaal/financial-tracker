@@ -146,8 +146,13 @@ def _is_internal_transfer(tx: dict) -> bool:
     name = (tx.get("name") or "").upper()
     if "CD DEPOSIT" in name or "CD WITHDRAWAL" in name:
         return True
-    # Credit card payment patterns (e.g. "CAPITAL ONE MOBILE PYMT", "ONLINE PAYMENT THANK YOU")
-    return "CAPITAL ONE MOBILE PYMT" in name
+    # PNC online transfers between own accounts (e.g. "ONLINE TRANSFER TO XXXXX2253")
+    if "ONLINE TRANSFER" in name:
+        return True
+    # Credit card payment patterns — mobile ("CAPITAL ONE MOBILE PYMT") and ACH ("CAPITAL ONE ACH WEB CAPITAL PMT")
+    if "CAPITAL ONE MOBILE PYMT" in name or "CAPITAL PMT" in name:
+        return True
+    return False
 
 
 def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
