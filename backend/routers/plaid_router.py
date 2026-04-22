@@ -1,9 +1,12 @@
 import os
+import hmac
+import hashlib
+import json
 import requests
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -125,7 +128,7 @@ def _is_internal_transfer(tx: dict) -> bool:
     old_cats = [c.lower() for c in (tx.get("category") or [])]
     if any(c in old_cats for c in ("internal account transfer", "account transfer")):
         return True
-    # New format — only skip true inter-account transfers, not ACH/payroll/payments
+    # New format — skip inter-account transfers and credit card payments (both sides)
     pfc = tx.get("personal_finance_category") or {}
     detailed = (pfc.get("detailed") or "").upper()
     if detailed in (
@@ -135,11 +138,16 @@ def _is_internal_transfer(tx: dict) -> bool:
         "TRANSFER_OUT_SAVINGS_TRANSFER",
         "TRANSFER_IN_DEPOSIT",
         "TRANSFER_OUT_DEPOSIT",
+        "TRANSFER_IN_CARD_PAYMENT",
+        "TRANSFER_OUT_CARD_PAYMENT",
     ):
         return True
-    # Skip CD / money-market deposits by name pattern (sandbox + real)
+    # Name-pattern fallback for banks using old Plaid format
     name = (tx.get("name") or "").upper()
-    return "CD DEPOSIT" in name or "CD WITHDRAWAL" in name
+    if "CD DEPOSIT" in name or "CD WITHDRAWAL" in name:
+        return True
+    # Credit card payment patterns (e.g. "CAPITAL ONE MOBILE PYMT", "ONLINE PAYMENT THANK YOU")
+    return "CAPITAL ONE MOBILE PYMT" in name
 
 
 def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
@@ -190,12 +198,16 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     added_count = 0
     cursor = item.cursor or ""
 
-    # Fetch all Plaid accounts once — map plaid_account_id → local Account
+    # Fetch all Plaid accounts once — map plaid_account_id → (name, current_balance, subtype)
     accounts_data = _plaid_post("/accounts/get", {"access_token": item.access_token})
     plaid_acct_map: dict[str, str] = {}
+    plaid_acct_balances: dict[str, tuple[float, str]] = {}
     for acct in accounts_data.get("accounts", []):
         name = acct.get("official_name") or acct.get("name") or "Unknown"
         plaid_acct_map[acct["account_id"]] = name
+        balance = float(acct["balances"].get("current") or 0)
+        subtype = (acct.get("subtype") or "other").lower()
+        plaid_acct_balances[name] = (balance, subtype)
 
     # Cache local accounts by name to avoid repeated DB queries
     local_acct_cache: dict[str, Account] = {}
@@ -250,7 +262,6 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 transaction_date=tx_date,
             )
             db.add(new_tx)
-            account.balance = Account.balance + Decimal(str(tx_amount))
             added_count += 1
 
         cursor = data.get("next_cursor", cursor)
@@ -258,6 +269,14 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
         if not data.get("has_more", False):
             break
+
+    # Overwrite local balances with Plaid's actual current balance — single source of truth
+    for name, (balance, subtype) in plaid_acct_balances.items():
+        local_acct = local_acct_cache.get(name) or db.query(Account).filter(
+            Account.user_id == user_id, Account.name == name
+        ).first()
+        if local_acct:
+            local_acct.balance = Decimal(str(-abs(balance) if subtype in ("credit card", "credit") else balance))
 
     db.commit()
     return added_count
@@ -288,16 +307,22 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
+PLAID_WEBHOOK_URL = os.getenv("PLAID_WEBHOOK_URL", "")
+
+
 @router.post("/link-token")
 def create_link_token(current_user: User = Depends(get_current_user)):
-    data = _plaid_post("/link/token/create", {
+    body: dict = {
         "user": {"client_user_id": str(current_user.id)},
         "client_name": "Financial Tracker",
         "products": ["transactions"],
         "country_codes": ["US"],
         "language": "en",
         "transactions": {"days_requested": 90},
-    })
+    }
+    if PLAID_WEBHOOK_URL:
+        body["webhook"] = PLAID_WEBHOOK_URL
+    data = _plaid_post("/link/token/create", body)
     return {"link_token": data["link_token"]}
 
 
@@ -427,3 +452,38 @@ def reset_plaid_data(
 
     db.commit()
     return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}
+
+
+PLAID_WEBHOOK_SECRET = os.getenv("PLAID_WEBHOOK_SECRET", "")
+
+
+def _verify_plaid_webhook(body: bytes, headers: dict) -> bool:
+    """Verify Plaid webhook signature. Skip verification if secret not configured."""
+    if not PLAID_WEBHOOK_SECRET:
+        return True
+    sig = headers.get("plaid-verification") or headers.get("Plaid-Verification") or ""
+    expected = hmac.new(PLAID_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
+
+
+@router.post("/webhook")
+async def plaid_webhook(request: Request, background: BackgroundTasks):
+    body = await request.body()
+    if not _verify_plaid_webhook(body, dict(request.headers)):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    payload = json.loads(body)
+    webhook_type = payload.get("webhook_type", "")
+    webhook_code = payload.get("webhook_code", "")
+    item_id      = payload.get("item_id", "")
+
+    if webhook_type == "TRANSACTIONS" and webhook_code in ("SYNC_UPDATES_AVAILABLE", "DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"):
+        db = SessionLocal()
+        try:
+            item = db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first()
+            if item:
+                background.add_task(_do_sync_and_notify, item.id, item.user_id)
+        finally:
+            db.close()
+
+    return {"status": "ok"}
