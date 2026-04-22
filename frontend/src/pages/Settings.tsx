@@ -5,7 +5,7 @@ import Navigation from '../components/Navigation';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
-import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
+import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidRecategorize, plaidReset } from '../utils/api';
 import { usePlaidLink } from 'react-plaid-link';
 
 const PRESET_COLORS = [
@@ -93,6 +93,7 @@ const Settings: React.FC = () => {
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
   const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
   const [plaidSyncing, setPlaidSyncing] = useState(false);
+  const [plaidRecategorizing, setPlaidRecategorizing] = useState(false);
   const [plaidResetting, setPlaidResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
 
@@ -136,6 +137,16 @@ const Settings: React.FC = () => {
     try { await plaidSyncAll(); toast.success('Sync started — you\'ll get a notification when done'); }
     catch (e: any) { toast.error(e?.response?.data?.detail || 'Sync failed'); }
     finally { setPlaidSyncing(false); }
+  }
+
+  const handlePlaidRecategorize = async () => {
+    setPlaidRecategorizing(true);
+    try {
+      const r = await plaidRecategorize();
+      toast.success(r.data.message || 'Re-categorization complete');
+    }
+    catch (e: any) { toast.error(e?.response?.data?.detail || 'Re-categorization failed'); }
+    finally { setPlaidRecategorizing(false); }
   };
 
   const handlePlaidReset = async () => {
@@ -444,11 +455,18 @@ const Settings: React.FC = () => {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {plaidItems.length > 0 && (
-                  <button onClick={handlePlaidSync} disabled={plaidSyncing}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                    style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-                    {plaidSyncing ? 'Syncing…' : 'Sync Now'}
-                  </button>
+                  <>
+                    <button onClick={handlePlaidSync} disabled={plaidSyncing}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                      style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
+                      {plaidSyncing ? 'Syncing…' : 'Sync Now'}
+                    </button>
+                    <button onClick={handlePlaidRecategorize} disabled={plaidRecategorizing}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                      style={{ backgroundColor: 'oklch(72% 0.17 280 / 0.1)', color: 'oklch(72% 0.17 280)', border: '1px solid oklch(72% 0.17 280 / 0.2)' }}>
+                      {plaidRecategorizing ? 'Re-categorizing…' : 'Re-categorize All'}
+                    </button>
+                  </>
                 )}
                 <button onClick={handlePlaidReset} disabled={plaidResetting}
                   className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"

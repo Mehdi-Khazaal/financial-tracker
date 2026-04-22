@@ -423,6 +423,54 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     return added_count
 
 
+def _recategorize_existing(user_id: int, db: Session, only_null: bool = True) -> int:
+    """
+    Re-run AI categorization on already-imported Plaid transactions.
+    only_null=True  → only transactions with no category (safe, used on every sync)
+    only_null=False → all Plaid transactions (user-triggered full fix)
+    Returns count of transactions updated.
+    """
+    q = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.plaid_tx_id.isnot(None),
+    )
+    if only_null:
+        q = q.filter(Transaction.category_id.is_(None))
+
+    txs = q.all()
+    if not txs:
+        return 0
+
+    # Build fake Plaid-format dicts so _ai_categorize_batch can process them
+    fake_plaid_txs = [
+        {
+            "transaction_id": tx.plaid_tx_id,
+            "merchant_name":  tx.description,
+            "name":           tx.description,
+            "amount":         -float(tx.amount),  # un-negate back to Plaid's convention
+            "personal_finance_category": {},
+        }
+        for tx in txs
+    ]
+
+    ai_results: dict[str, dict] = {}
+    for i in range(0, len(fake_plaid_txs), 50):
+        ai_results.update(_ai_categorize_batch(fake_plaid_txs[i:i + 50], user_id, db))
+
+    updated = 0
+    tx_by_plaid_id = {tx.plaid_tx_id: tx for tx in txs}
+    for plaid_tx_id, ai in ai_results.items():
+        tx = tx_by_plaid_id.get(plaid_tx_id)
+        if not tx:
+            continue
+        cat_id = ai.get("category_id")
+        if cat_id and tx.category_id != cat_id:
+            tx.category_id = cat_id
+            updated += 1
+
+    return updated
+
+
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
     """Background task — creates its own DB session so it outlives the request."""
     db = SessionLocal()
@@ -431,6 +479,9 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
         if not item:
             return
         count = _sync_item(db, item, user_id)
+        # Fix any existing transactions that came in before AI was set up
+        _recategorize_existing(user_id, db, only_null=True)
+        db.commit()
         if count > 0:
             send_push_to_user(
                 db, user_id,
@@ -562,6 +613,17 @@ def sync_all(
     for item in items:
         background.add_task(_do_sync_and_notify, item.id, current_user.id)
     return {"message": f"Syncing {len(items)} bank(s) in background."}
+
+
+@router.post("/recategorize")
+def recategorize_all(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Re-run AI categorization on all existing Plaid transactions."""
+    updated = _recategorize_existing(current_user.id, db, only_null=False)
+    db.commit()
+    return {"message": f"Re-categorized {updated} transaction{'s' if updated != 1 else ''}."}
 
 
 @router.post("/reset")
