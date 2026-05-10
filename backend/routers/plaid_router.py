@@ -99,8 +99,8 @@ PLAID_PFC_MAP: dict[str, str] = {
     "GENERAL_SERVICES":         "Subscriptions",
     "GOVERNMENT_AND_NON_PROFIT":"Other",
     "INCOME":                   "Other Income",
-    "TRANSFER_IN":              None,   # internal — skip
-    "TRANSFER_OUT":             None,   # internal — skip
+    "TRANSFER_IN":              None,
+    "TRANSFER_OUT":             None,
 }
 
 # Legacy Plaid category list values (old API format, kept for fallback)
@@ -132,39 +132,6 @@ PLAID_CATEGORY_MAP: dict[str, str] = {
     "payroll":              "Salary",
     "income":               "Other Income",
 }
-
-
-def _is_internal_transfer(tx: dict) -> bool:
-    """Return True if this transaction is an internal bank transfer (should be skipped)."""
-    # Old Plaid category format — only skip when explicitly labeled as internal
-    old_cats = [c.lower() for c in (tx.get("category") or [])]
-    if any(c in old_cats for c in ("internal account transfer", "account transfer")):
-        return True
-    # New format — skip inter-account transfers and credit card payments (both sides)
-    pfc = tx.get("personal_finance_category") or {}
-    detailed = (pfc.get("detailed") or "").upper()
-    if detailed in (
-        "TRANSFER_IN_ACCOUNT_TRANSFER",
-        "TRANSFER_OUT_ACCOUNT_TRANSFER",
-        "TRANSFER_IN_SAVINGS_TRANSFER",
-        "TRANSFER_OUT_SAVINGS_TRANSFER",
-        "TRANSFER_IN_DEPOSIT",
-        "TRANSFER_OUT_DEPOSIT",
-        "TRANSFER_IN_CARD_PAYMENT",
-        "TRANSFER_OUT_CARD_PAYMENT",
-    ):
-        return True
-    # Name-pattern fallback for banks using old Plaid format
-    name = (tx.get("name") or "").upper()
-    if "CD DEPOSIT" in name or "CD WITHDRAWAL" in name:
-        return True
-    # PNC online transfers between own accounts (e.g. "ONLINE TRANSFER TO XXXXX2253")
-    if "ONLINE TRANSFER" in name:
-        return True
-    # Credit card payment patterns — mobile ("CAPITAL ONE MOBILE PYMT") and ACH ("CAPITAL ONE ACH WEB CAPITAL PMT")
-    if "CAPITAL ONE MOBILE PYMT" in name or "CAPITAL PMT" in name:
-        return True
-    return False
 
 
 def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
@@ -214,7 +181,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str, dict]:
     """
     AI-categorize a batch of Plaid transactions.
-    Returns dict: plaid_tx_id → {"is_transfer": bool, "category_id": int | None}
+    Returns dict: plaid_tx_id → {"category_id": int | None}
     Falls back to empty dict on any error so the sync never fails.
     """
     if not ANTHROPIC_API_KEY or not txs:
@@ -244,9 +211,8 @@ def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str
         f"Transactions (each has: id, merchant name, amount, plaid category hint):\n"
         f"{json.dumps(tx_items)}\n\n"
         "Return ONLY a JSON array — one object per transaction in the same order:\n"
-        '[{"id":"...","is_transfer":false,"category":"Gas","type":"expense"}, ...]\n\n'
+        '[{"id":"...","category":"Gas","type":"expense"}, ...]\n\n'
         "Rules:\n"
-        "- is_transfer=true for: bank-to-bank transfers, credit card payments, loan repayments between own accounts\n"
         "- Trust the merchant name over the plaid hint for precision (e.g. Shell/BP/Exxon → Gas, Planet Fitness/climbing gym/yoga → the fitness/health category)\n"
         "- Always prefer an existing category name; only create a new short clean name (e.g. 'Pet Care', 'Gym & Fitness') when none of the existing ones fit\n"
         "- type is 'expense' or 'income'\n"
@@ -274,10 +240,6 @@ def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str
         if not tx_id:
             continue
 
-        if item.get("is_transfer"):
-            output[tx_id] = {"is_transfer": True, "category_id": None}
-            continue
-
         cat_name: str | None = item.get("category")
         cat_type: str = item.get("type", "expense")
         cat_id: int | None = None
@@ -301,7 +263,7 @@ def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str
                 db.flush()
                 cat_id = new_cat.id
 
-        output[tx_id] = {"is_transfer": False, "category_id": cat_id}
+        output[tx_id] = {"category_id": cat_id}
 
     return output
 
@@ -348,7 +310,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             local_acct_cache[name] = acct  # type: ignore[assignment]
         return local_acct_cache.get(name)
 
-    # Pass 1: collect all transactions that pass transfer/dedup filters
+    # Pass 1: collect all new transactions (dedup only — no transfer filtering)
     pending: list[tuple] = []  # (tx_dict, account, plaid_tx_id, tx_name, tx_amount, tx_date)
 
     while True:
@@ -363,9 +325,6 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 continue
 
             plaid_tx_id = tx["transaction_id"]
-
-            if _is_internal_transfer(tx):
-                continue
 
             # Dedup by plaid_tx_id (DB unique constraint is the final safety net)
             if db.query(Transaction).filter(Transaction.plaid_tx_id == plaid_tx_id).first():
@@ -392,8 +351,6 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     # Pass 3: insert transactions with AI-assigned categories
     for (tx, account, plaid_tx_id, tx_name, tx_amount, tx_date) in pending:
         ai = ai_results.get(plaid_tx_id, {})
-        if ai.get("is_transfer"):
-            continue  # AI caught a transfer the rule-based check missed
         category_id = ai.get("category_id")
 
         try:
