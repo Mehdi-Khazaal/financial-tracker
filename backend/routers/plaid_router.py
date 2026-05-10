@@ -199,7 +199,7 @@ def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str
         pfc_hint = pfc.get("detailed") or pfc.get("primary") or ""
         tx_items.append({
             "id":     tx["transaction_id"],
-            "name":   tx.get("merchant_name") or tx.get("name") or "",
+            "name":   tx.get("name") or tx.get("merchant_name") or "",
             "amount": tx["amount"],  # Plaid: positive = money left account
             "hint":   pfc_hint,
         })
@@ -330,7 +330,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             if db.query(Transaction).filter(Transaction.plaid_tx_id == plaid_tx_id).first():
                 continue
 
-            tx_name   = tx.get("merchant_name") or tx.get("name") or "Transaction"
+            tx_name   = tx.get("name") or tx.get("merchant_name") or "Transaction"
             tx_amount = -float(tx["amount"])
             tx_date   = date.fromisoformat(tx["date"])
 
@@ -581,6 +581,28 @@ def recategorize_all(
     updated = _recategorize_existing(current_user.id, db, only_null=False)
     db.commit()
     return {"message": f"Re-categorized {updated} transaction{'s' if updated != 1 else ''}."}
+
+
+@router.post("/replay")
+def replay_all_transactions(
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Reset Plaid cursors so the next sync replays ALL historical transactions.
+    Transactions already in the DB are protected by the dedup check — no duplicates.
+    Use this to recover transactions that were previously filtered out.
+    """
+    items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
+    if not items:
+        raise HTTPException(status_code=404, detail="No connected banks.")
+    for item in items:
+        item.cursor = None
+    db.commit()
+    for item in items:
+        background.add_task(_do_sync_and_notify, item.id, current_user.id)
+    return {"message": f"Cursor reset for {len(items)} bank(s). Full transaction replay running in background."}
 
 
 @router.post("/reset")
