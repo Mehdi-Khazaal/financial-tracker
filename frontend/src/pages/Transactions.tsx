@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { localDateStr } from '../utils/date';
 import { Transaction, Account, Category, RecurringTransaction } from '../types';
 import {
   getTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription,
   getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring,
+  updateTransaction,
 } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
@@ -17,117 +18,120 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
 type Tab = 'transactions' | 'recurring';
 
-const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const SWIPE_THRESHOLD = 80;
-const SWIPE_MAX = 100;
+const fmt = (n: number) =>
+  Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const PERIOD_LABELS: Record<string, string> = { weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' };
-const PERIOD_COLORS: Record<string, string> = { weekly: '#a855f7', biweekly: 'var(--accent)', monthly: 'var(--pos)', quarterly: '#f59e0b', yearly: 'var(--neg)' };
+const PERIOD_LABELS: Record<string, string> = {
+  weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly',
+};
+const PERIOD_COLORS: Record<string, string> = {
+  weekly: '#a855f7', biweekly: 'var(--accent)', monthly: 'var(--pos)', quarterly: '#f59e0b', yearly: 'var(--neg)',
+};
 
-interface SwipeRowProps {
-  tx: Transaction; isLast: boolean; cat: Category | undefined;
-  getAccountName: (id: number) => string;
-  onEdit: (tx: Transaction) => void;
-  onDelete: (id: number) => void;
+const formatMonth = (ym: string) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+};
+
+// ── Transaction Card ──────────────────────────────────────────────────────────
+interface TxCardProps {
+  tx: Transaction;
+  accounts: Account[];
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  onDelete: () => void;
 }
 
-const SwipeRow: React.FC<SwipeRowProps> = ({ tx, isLast, cat, getAccountName, onEdit, onDelete }) => {
-  const [offset, setOffset] = useState(0);
-  const startX = useRef(0);
-  const isDragging = useRef(false);
+const TxCard: React.FC<TxCardProps> = ({
+  tx, accounts, isDragging, onDragStart, onDragEnd, onClick, onDelete,
+}) => {
   const pos = Number(tx.amount) >= 0;
-
-  const handleTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; isDragging.current = true; };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging.current) return;
-    const dx = startX.current - e.touches[0].clientX;
-    if (dx < 0) { setOffset(0); return; }
-    setOffset(Math.min(dx, SWIPE_MAX));
-  };
-  const handleTouchEnd = () => { isDragging.current = false; setOffset(offset >= SWIPE_THRESHOLD ? SWIPE_MAX : 0); };
-  const handleClick = () => { if (offset > 10) { setOffset(0); return; } onEdit(tx); };
+  const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
+  const shortDate = new Date(tx.transaction_date + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+  });
 
   return (
-    <div className={`swipe-row ${!isLast ? 'border-b border-border' : ''}`}
-      onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-      <div className="swipe-delete-bg">
-        <button onClick={e => { e.stopPropagation(); onDelete(tx.id); setOffset(0); }} className="flex flex-col items-center gap-1">
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          Delete
-        </button>
-      </div>
-      <div
-        className="swipe-row-content flex items-center gap-3 px-4 py-3 hover:bg-surface2 transition-colors cursor-pointer"
-        style={{ transform: `translateX(-${offset}px)`, backgroundColor: 'var(--elev-1)' }}
-        onClick={handleClick}>
-        <div className="w-1.5 h-10 rounded-full shrink-0" style={{ backgroundColor: cat?.color ?? (pos ? 'var(--pos)' : 'var(--neg)') }} />
-        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ backgroundColor: pos ? 'oklch(78% 0.16 150 / 0.1)' : 'oklch(70% 0.17 25 / 0.1)', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-            {pos
-              ? <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              : <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            }
-          </svg>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-text truncate">{cleanDescription(tx.description)}</p>
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <span>{getAccountName(tx.account_id)}</span>
-            {cat && <><span>·</span><span>{cat.name}</span></>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-            {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
-          </p>
-          <button onClick={e => { e.stopPropagation(); onDelete(tx.id); }}
-            className="hidden md:flex opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full items-center justify-center transition-all"
-            style={{ color: 'var(--dim)' }}
-            onMouseEnter={e => { (e.currentTarget).style.color = 'var(--neg)'; (e.currentTarget).style.backgroundColor = 'oklch(70% 0.17 25 / 0.1)'; }}
-            onMouseLeave={e => { (e.currentTarget).style.color = 'var(--dim)'; (e.currentTarget).style.backgroundColor = 'transparent'; }}>
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className="rounded-xl p-2.5 cursor-grab active:cursor-grabbing group relative select-none"
+      style={{
+        backgroundColor: 'var(--elev-1)',
+        border: '1px solid var(--line)',
+        opacity: isDragging ? 0.3 : 1,
+        transition: 'opacity 0.1s, box-shadow 0.15s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      }}
+    >
+      {/* Delete button */}
+      <button
+        onClick={e => { e.stopPropagation(); onDelete(); }}
+        className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10"
+        style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.2)', color: 'var(--neg)' }}
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-2.5 h-2.5">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {/* Description */}
+      <p className="text-xs font-medium leading-tight pr-5 truncate" style={{ color: 'var(--fg)' }}>
+        {cleanDescription(tx.description)}
+      </p>
+
+      {/* Account · Date | Amount */}
+      <div className="flex items-center justify-between mt-1 gap-1">
+        <p className="text-[10px] truncate flex-1" style={{ color: 'var(--muted)' }}>
+          {accountName} · {shortDate}
+        </p>
+        <p
+          className="text-xs font-bold shrink-0"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontVariantNumeric: 'tabular-nums',
+            color: pos ? 'var(--pos)' : 'var(--neg)',
+          }}
+        >
+          {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
+        </p>
       </div>
     </div>
   );
 };
 
+// ── Main Component ─────────────────────────────────────────────────────────────
 const Transactions: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/transactions');
 
-  // Transaction state
+  // Core data
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showTx, setShowTx] = useState(false);
-  const [txType, setTxType] = useState<'income' | 'expense'>('expense');
+  const [accounts, setAccounts]         = useState<Account[]>([]);
+  const [categories, setCategories]     = useState<Category[]>([]);
+  const [loading, setLoading]           = useState(true);
+
+  // Modal state
+  const [showTx, setShowTx]           = useState(false);
+  const [txType, setTxType]           = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
-  const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
-  const [filterAccount, setFilterAccount] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterAmountMin, setFilterAmountMin] = useState('');
-  const [filterAmountMax, setFilterAmountMax] = useState('');
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [editTx, setEditTx]           = useState<Transaction | null>(null);
 
   // Recurring state
-  const [items, setItems] = useState<RecurringTransaction[]>([]);
+  const [items, setItems]                   = useState<RecurringTransaction[]>([]);
   const [showAddRecurring, setShowAddRecurring] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [billInputs, setBillInputs] = useState<Record<number, string>>({});
-  const [loggingBill, setLoggingBill] = useState<number | null>(null);
+  const [processing, setProcessing]         = useState(false);
+  const [billInputs, setBillInputs]         = useState<Record<number, string>>({});
+  const [loggingBill, setLoggingBill]       = useState<number | null>(null);
+
+  // Board state
+  const [selectedMonth, setSelectedMonth]   = useState('');
+  const [draggingTxId, setDraggingTxId]     = useState<number | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<number | 'uncategorized' | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -145,6 +149,39 @@ const Transactions: React.FC = () => {
   useEffect(() => { load(); }, [load]);
   const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
+  // ── Month derivations ────────────────────────────────────────────────────────
+  const availableMonths = useMemo(() => {
+    const s = new Set(transactions.map(t => t.transaction_date.slice(0, 7)));
+    return Array.from(s).sort().reverse();
+  }, [transactions]);
+
+  useEffect(() => {
+    if (availableMonths.length > 0 && !selectedMonth) {
+      const current = new Date().toISOString().slice(0, 7);
+      setSelectedMonth(availableMonths.includes(current) ? current : availableMonths[0]);
+    }
+  }, [availableMonths, selectedMonth]);
+
+  const monthTransactions = useMemo(() =>
+    transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth)),
+    [transactions, selectedMonth],
+  );
+
+  const uncategorized = useMemo(() =>
+    monthTransactions.filter(t => !t.category_id),
+    [monthTransactions],
+  );
+
+  // Expenses first, then income; alphabetical within each type
+  const sortedCategories = useMemo(() =>
+    [...categories].sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'expense' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    }),
+    [categories],
+  );
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
     const ok = await toast.confirm('Delete this transaction?', { danger: true });
     if (!ok) return;
@@ -152,6 +189,36 @@ const Transactions: React.FC = () => {
     catch { toast.error('Failed to delete transaction'); }
   };
 
+  const handleCategorize = async (txId: number, categoryId: number | null) => {
+    setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: categoryId } : t));
+    try {
+      await updateTransaction(txId, { category_id: categoryId });
+    } catch {
+      load();
+      toast.error('Failed to update category');
+    }
+  };
+
+  // ── Drag helpers ──────────────────────────────────────────────────────────────
+  const handleDragOver = (target: number | 'uncategorized') => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverTarget(target);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTarget(null);
+  };
+
+  const handleDrop = (categoryId: number | null) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const txId = parseInt(e.dataTransfer.getData('txId'));
+    if (txId) handleCategorize(txId, categoryId);
+    setDragOverTarget(null);
+    setDraggingTxId(null);
+  };
+
+  // ── Recurring helpers ─────────────────────────────────────────────────────────
   const handleDeleteRecurring = async (id: number) => {
     const ok = await toast.confirm('Delete this recurring transaction?', { danger: true });
     if (!ok) return;
@@ -189,53 +256,9 @@ const Transactions: React.FC = () => {
     finally { setLoggingBill(null); }
   };
 
-  const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
   const getCategory    = (id: number | null) => categories.find(c => c.id === id);
+  const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
 
-  const activeFilterCount = [filterCategory !== 'all', filterDateFrom !== '', filterDateTo !== '', filterAmountMin !== '', filterAmountMax !== ''].filter(Boolean).length;
-
-  const clearMoreFilters = () => { setFilterCategory('all'); setFilterDateFrom(''); setFilterDateTo(''); setFilterAmountMin(''); setFilterAmountMax(''); };
-
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const cutoff = thirtyDaysAgo.toISOString().slice(0, 10);
-
-  const filtered = transactions.filter(t => {
-    if (!showAll && !filterDateFrom && t.transaction_date < cutoff) return false;
-    if (filterAccount !== 'all' && t.account_id !== parseInt(filterAccount)) return false;
-    if (filterType === 'income' && Number(t.amount) < 0) return false;
-    if (filterType === 'expense' && Number(t.amount) >= 0) return false;
-    if (filterCategory !== 'all' && t.category_id !== parseInt(filterCategory)) return false;
-    if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
-    if (filterDateTo && t.transaction_date > filterDateTo) return false;
-    if (filterAmountMin && Math.abs(Number(t.amount)) < parseFloat(filterAmountMin)) return false;
-    if (filterAmountMax && Math.abs(Number(t.amount)) > parseFloat(filterAmountMax)) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const descMatch = cleanDescription(t.description).toLowerCase().includes(q);
-      const cat = categories.find(c => c.id === t.category_id);
-      if (!descMatch && !cat?.name.toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
-
-  const grouped: Record<string, Transaction[]> = {};
-  filtered.forEach(tx => { const k = tx.transaction_date; if (!grouped[k]) grouped[k] = []; grouped[k].push(tx); });
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-
-  const formatDate = (d: string) => {
-    const today = localDateStr();
-    const yesterday = localDateStr(new Date(Date.now() - 86400000));
-    if (d === today) return 'Today';
-    if (d === yesterday) return 'Yesterday';
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
-
-  const totalIncome   = filtered.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
-  const totalExpenses = filtered.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-  const net = totalIncome - totalExpenses;
-
-  // Recurring derived
   const today = localDateStr();
   const dueNow   = items.filter(i => i.is_active && i.next_date <= today);
   const dueFixed = dueNow.filter(i => !i.is_variable);
@@ -243,10 +266,12 @@ const Transactions: React.FC = () => {
   const upcoming = items.filter(i => i.is_active && i.next_date > today);
   const inactive = items.filter(i => !i.is_active);
 
-  const PERIOD_MULTIPLIERS: Record<string, number> = { weekly: 4.33, biweekly: 2.17, monthly: 1, quarterly: 0.33, yearly: 0.083 };
-  const monthlyNet     = items.filter(i => i.is_active).reduce((s, i) => s + Number(i.amount) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
+  const PERIOD_MULTIPLIERS: Record<string, number> = {
+    weekly: 4.33, biweekly: 2.17, monthly: 1, quarterly: 0.33, yearly: 0.083,
+  };
   const monthlyIncome  = items.filter(i => i.is_active && Number(i.amount) > 0).reduce((s, i) => s + Number(i.amount) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
   const monthlyExpense = items.filter(i => i.is_active && Number(i.amount) < 0).reduce((s, i) => s + Math.abs(Number(i.amount)) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
+  const monthlyNet     = monthlyIncome - monthlyExpense;
 
   const formatNextDate = (d: string) => {
     const todayStr = localDateStr();
@@ -258,27 +283,7 @@ const Transactions: React.FC = () => {
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  if (loading) {
-    return (
-      <>
-        <Navigation />
-        <div className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
-            <div className="skeleton h-7 w-40 rounded-xl" />
-            <div className="skeleton h-10 w-full rounded-xl" />
-            <div className="grid grid-cols-3 gap-3">{[0,1,2].map(i => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>
-            <div className="skeleton h-28 rounded-2xl" />
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  const TABS: { id: Tab; label: string }[] = [
-    { id: 'transactions', label: 'Transactions' },
-    { id: 'recurring', label: 'Recurring' },
-  ];
-
+  // ── Recurring Item (nested so it shares state in scope) ─────────────────────
   const RecurringItem: React.FC<{ item: RecurringTransaction }> = ({ item }) => {
     const pos = Number(item.amount) > 0;
     const cat = getCategory(item.category_id);
@@ -327,7 +332,9 @@ const Transactions: React.FC = () => {
             <button onClick={() => handleDeleteRecurring(item.id)}
               className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
               style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
             </button>
           </div>
         </div>
@@ -352,203 +359,338 @@ const Transactions: React.FC = () => {
     );
   };
 
+  // ── Loading skeleton ──────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <>
+        <Navigation />
+        <div className="md:ml-60 h-screen flex flex-col" style={{ backgroundColor: 'var(--bg)' }}>
+          <div className="p-5 space-y-4">
+            <div className="skeleton h-8 w-48 rounded-xl" />
+            <div className="skeleton h-6 w-full rounded-xl" />
+            <div className="flex gap-3">
+              {[0, 1, 2, 3].map(i => <div key={i} className="skeleton h-full w-48 rounded-2xl" style={{ minHeight: 120 }} />)}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'transactions', label: 'Board' },
+    { id: 'recurring', label: 'Recurring' },
+  ];
+
   return (
     <>
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
-          {/* Header */}
-          <div className="flex items-center justify-between pr-12 md:pr-0">
-            <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>
-              {tab === 'transactions' ? 'Transactions' : 'Recurring'}
-            </h1>
-            <div className="flex gap-2">
-              {tab === 'transactions' && (
-                <>
-                  <button onClick={() => { setTxType('income'); setShowTx(true); }}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-                    + Income
-                  </button>
-                  <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                    + Expense
-                  </button>
-                  <button onClick={() => setShowTransfer(true)}
-                    className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
-                    Transfer
-                  </button>
-                </>
-              )}
-              {tab === 'recurring' && dueFixed.length > 0 && (
-                <button onClick={handleProcess} disabled={processing}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--neg)', color: 'white' }}>
-                  {processing ? '…' : `Log ${dueFixed.length} fixed`}
-                </button>
-              )}
-              {tab === 'recurring' && (
-                <button onClick={() => setShowAddRecurring(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
-                  + Add
-                </button>
-              )}
-            </div>
+      <main
+        className="md:ml-60 flex flex-col overflow-hidden"
+        style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
+      >
+        {/* ── Header ── */}
+        <div
+          className="shrink-0 flex items-center gap-3 px-4 md:px-5 py-3 border-b"
+          style={{ borderColor: 'var(--line)' }}
+        >
+          {/* Tab switcher */}
+          <div className="flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
+                style={tab === t.id
+                  ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+                  : { color: 'var(--muted)' }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Tabs */}
-          <div className="hidden md:block sticky z-20 py-2 -mx-6 px-6" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
-            <div className="flex p-1 rounded-xl gap-0.5" style={{ backgroundColor: 'var(--elev-1)' }}>
-              {TABS.map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all"
-                  style={tab === t.id
-                    ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-                    : { color: 'var(--muted)' }}>
-                  {t.label}
+          {/* Month selector — board only */}
+          {tab === 'transactions' && (
+            <div
+              className="flex-1 flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {availableMonths.length === 0 ? (
+                <p className="text-xs text-muted self-center">No transactions yet</p>
+              ) : availableMonths.map(m => (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMonth(m)}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+                  style={selectedMonth === m
+                    ? { backgroundColor: 'var(--accent)', color: 'white' }
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}
+                >
+                  {formatMonth(m)}
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* ── TRANSACTIONS TAB ── */}
-          {tab === 'transactions' && (
-            <>
-              {/* Summary */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                  <p className="label mb-1">Income</p>
-                  <p className="font-bold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--pos)' }}>+${fmt(totalIncome)}</p>
-                </div>
-                <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                  <p className="label mb-1">Expenses</p>
-                  <p className="font-bold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--neg)' }}>-${fmt(totalExpenses)}</p>
-                </div>
-                <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                  <p className="label mb-1">Net</p>
-                  <p className="font-bold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: net >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
-                    {net >= 0 ? '+' : '-'}${fmt(Math.abs(net))}
-                  </p>
-                </div>
-              </div>
-
-              {/* Desktop layout: filters left, list right */}
-              <div className="md:grid md:grid-cols-[300px_1fr] md:gap-8 md:items-start space-y-5 md:space-y-0">
-                {/* Filters */}
-                <div className="card p-4 space-y-3 md:sticky md:top-16">
-                  <div className="relative">
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--muted)' }}>
-                      <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                    </svg>
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                      placeholder="Search transactions…" className="input-dark pl-9 text-sm" />
-                    {search && (
-                      <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors text-lg leading-none">×</button>
-                    )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {(['all', 'income', 'expense'] as const).map(t => (
-                      <button key={t} onClick={() => setFilterType(t)}
-                        className="pill transition-all"
-                        style={filterType === t
-                          ? { backgroundColor: t === 'income' ? 'oklch(78% 0.16 150 / 0.15)' : t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'var(--line)', color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)' }
-                          : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
-                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)} className="input-dark text-sm">
-                    <option value="all">All Accounts</option>
-                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                  <button onClick={() => setShowMoreFilters(p => !p)}
-                    className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
-                    style={{ color: activeFilterCount > 0 ? 'var(--accent)' : 'var(--muted)' }}>
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                      <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                    </svg>
-                    {showMoreFilters ? 'Hide filters' : `More filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
-                  </button>
-                  {showMoreFilters && (
-                    <div className="space-y-3 pt-1 border-t" style={{ borderColor: 'var(--line)' }}>
-                      <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="input-dark text-sm">
-                        <option value="all">All Categories</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div><p className="label mb-1">From</p><input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="input-dark text-sm" /></div>
-                        <div><p className="label mb-1">To</p><input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="input-dark text-sm" /></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div><p className="label mb-1">Min $</p><input type="number" min="0" value={filterAmountMin} onChange={e => setFilterAmountMin(e.target.value)} placeholder="0" className="input-dark text-sm" /></div>
-                        <div><p className="label mb-1">Max $</p><input type="number" min="0" value={filterAmountMax} onChange={e => setFilterAmountMax(e.target.value)} placeholder="∞" className="input-dark text-sm" /></div>
-                      </div>
-                      {activeFilterCount > 0 && (
-                        <button onClick={clearMoreFilters} className="text-xs font-semibold" style={{ color: 'var(--neg)' }}>Clear filters</button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Transaction list */}
-                <div className="space-y-4">
-                  {sortedDates.length === 0 ? (
-                    <div className="card py-12 text-center">
-                      <p className="text-muted text-sm">No transactions found</p>
-                      <button onClick={() => { setTxType('expense'); setShowTx(true); }} className="mt-3 text-xs font-semibold" style={{ color: 'var(--accent)' }}>Add one →</button>
-                    </div>
-                  ) : (
-                    <>
-                      {sortedDates.map(date => {
-                        const dayTxs = grouped[date];
-                        const dayNet = dayTxs.reduce((s, t) => s + Number(t.amount), 0);
-                        return (
-                          <div key={date}>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="label">{formatDate(date)}</p>
-                              <p className="font-semibold text-xs" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: dayNet >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
-                                {dayNet >= 0 ? '+' : '-'}${fmt(Math.abs(dayNet))}
-                              </p>
-                            </div>
-                            <div className="card overflow-hidden group">
-                              {dayTxs.map((tx, i) => (
-                                <SwipeRow key={tx.id} tx={tx} isLast={i === dayTxs.length - 1}
-                                  cat={getCategory(tx.category_id)} getAccountName={getAccountName}
-                                  onEdit={setEditTx} onDelete={handleDelete} />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {!showAll && !filterDateFrom && transactions.some(t => t.transaction_date < cutoff) && (
-                        <button onClick={() => setShowAll(true)}
-                          className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
-                          style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
-                          Show all transactions
-                        </button>
-                      )}
-                      {showAll && (
-                        <button onClick={() => setShowAll(false)}
-                          className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
-                          style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
-                          Show recent only
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </>
           )}
 
-          {/* ── RECURRING TAB ── */}
-          {tab === 'recurring' && (
-            <>
+          {/* Action buttons */}
+          <div className="flex gap-2 ml-auto shrink-0">
+            {tab === 'transactions' && (
+              <>
+                <button
+                  onClick={() => { setTxType('income'); setShowTx(true); }}
+                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}
+                >
+                  + Income
+                </button>
+                <button
+                  onClick={() => { setTxType('expense'); setShowTx(true); }}
+                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
+                >
+                  + Expense
+                </button>
+                <button
+                  onClick={() => setShowTransfer(true)}
+                  className="hidden md:flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}
+                >
+                  Transfer
+                </button>
+              </>
+            )}
+            {tab === 'recurring' && dueFixed.length > 0 && (
+              <button
+                onClick={handleProcess}
+                disabled={processing}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all active:scale-95 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--neg)', color: 'white' }}
+              >
+                {processing ? '…' : `Log ${dueFixed.length} fixed`}
+              </button>
+            )}
+            {tab === 'recurring' && (
+              <button
+                onClick={() => setShowAddRecurring(true)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}
+              >
+                + Add
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Board Tab ── */}
+        {tab === 'transactions' && (
+          availableMonths.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <p className="font-semibold text-text mb-1">No transactions yet</p>
+                <p className="text-sm text-muted mb-5">Add your first transaction to get started</p>
+                <button
+                  onClick={() => { setTxType('expense'); setShowTx(true); }}
+                  className="btn-gradient px-6 py-2.5 text-sm"
+                >
+                  Add First Transaction
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex overflow-hidden">
+
+              {/* ── Left: Uncategorized queue ── */}
+              <div
+                className="w-56 shrink-0 flex flex-col border-r overflow-hidden transition-colors"
+                style={{
+                  borderColor: 'var(--line)',
+                  backgroundColor: dragOverTarget === 'uncategorized'
+                    ? 'oklch(70% 0.17 25 / 0.06)'
+                    : 'transparent',
+                }}
+                onDragOver={handleDragOver('uncategorized')}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop(null)}
+              >
+                {/* Queue header */}
+                <div className="px-3 pt-3 pb-2.5 border-b shrink-0" style={{ borderColor: 'var(--line)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--dim)' }}>
+                    Uncategorized
+                  </p>
+                  <p
+                    className="text-2xl font-bold"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      color: uncategorized.length > 0 ? 'var(--neg)' : 'var(--pos)',
+                    }}
+                  >
+                    {uncategorized.length}
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                    {uncategorized.length === 0
+                      ? 'All categorized!'
+                      : `of ${monthTransactions.length} this month`}
+                  </p>
+                </div>
+
+                {/* Queue list */}
+                <div
+                  className="flex-1 overflow-y-auto p-2 space-y-2"
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {uncategorized.length === 0 ? (
+                    <div className="py-10 text-center space-y-1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--pos)' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--pos)' }}>All done!</p>
+                      <p className="text-[10px]" style={{ color: 'var(--muted)' }}>Every transaction is categorized</p>
+                    </div>
+                  ) : uncategorized.map(tx => (
+                    <TxCard
+                      key={tx.id}
+                      tx={tx}
+                      accounts={accounts}
+                      isDragging={draggingTxId === tx.id}
+                      onDragStart={e => {
+                        e.dataTransfer.setData('txId', String(tx.id));
+                        e.dataTransfer.effectAllowed = 'move';
+                        setDraggingTxId(tx.id);
+                      }}
+                      onDragEnd={() => { setDraggingTxId(null); setDragOverTarget(null); }}
+                      onClick={() => setEditTx(tx)}
+                      onDelete={() => handleDelete(tx.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Right: Category columns ── */}
+              <div className="flex-1 overflow-x-auto overflow-y-hidden">
+                <div className="flex h-full" style={{ minWidth: 'max-content' }}>
+                  {sortedCategories.map(cat => {
+                    const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
+                    const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                    const isDragOver = dragOverTarget === cat.id;
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className="w-48 flex flex-col border-r h-full transition-colors"
+                        style={{
+                          borderColor: 'var(--line)',
+                          backgroundColor: isDragOver ? (cat.color + '18') : 'transparent',
+                        }}
+                        onDragOver={handleDragOver(cat.id)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop(cat.id)}
+                      >
+                        {/* Column header */}
+                        <div
+                          className="px-3 pt-3 pb-2.5 border-b shrink-0"
+                          style={{ borderColor: 'var(--line)' }}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--fg)' }}>
+                              {cat.name}
+                            </p>
+                          </div>
+                          <p
+                            className="text-base font-bold"
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              color: cat.color,
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            ${fmt(total)}
+                          </p>
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                            {catTxs.length} transaction{catTxs.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+
+                        {/* Transactions */}
+                        <div
+                          className="flex-1 overflow-y-auto p-2 space-y-1.5"
+                          style={{ scrollbarWidth: 'thin' }}
+                        >
+                          {catTxs.map(tx => (
+                            <TxCard
+                              key={tx.id}
+                              tx={tx}
+                              accounts={accounts}
+                              isDragging={draggingTxId === tx.id}
+                              onDragStart={e => {
+                                e.dataTransfer.setData('txId', String(tx.id));
+                                e.dataTransfer.effectAllowed = 'move';
+                                setDraggingTxId(tx.id);
+                              }}
+                              onDragEnd={() => { setDraggingTxId(null); setDragOverTarget(null); }}
+                              onClick={() => setEditTx(tx)}
+                              onDelete={() => handleDelete(tx.id)}
+                            />
+                          ))}
+
+                          {/* Drop zone indicator */}
+                          {isDragOver && (
+                            <div
+                              className="border-2 border-dashed rounded-xl py-6 flex items-center justify-center"
+                              style={{ borderColor: cat.color + '80' }}
+                            >
+                              <p className="text-[10px] font-semibold" style={{ color: cat.color }}>
+                                Drop here
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Empty column placeholder (not during drag) */}
+                          {!isDragOver && catTxs.length === 0 && (
+                            <div
+                              className="rounded-xl py-6 flex items-center justify-center"
+                              style={{ border: '1px dashed var(--line)' }}
+                            >
+                              <p className="text-[10px]" style={{ color: 'var(--dim)' }}>Empty</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* No categories fallback */}
+                  {sortedCategories.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-muted mb-1">No categories yet</p>
+                        <p className="text-xs text-muted">Add categories in Settings first</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )
+        )}
+
+        {/* ── Recurring Tab ── */}
+        {tab === 'recurring' && (
+          <div className="flex-1 overflow-y-auto pb-20 md:pb-10">
+            <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5 fade-in">
+
+              {/* Header */}
+              <div className="flex items-center justify-between pr-12 md:pr-0">
+                <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>
+                  Recurring
+                </h1>
+              </div>
+
+              {/* Monthly summary */}
               {items.filter(i => i.is_active).length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
@@ -576,7 +718,9 @@ const Transactions: React.FC = () => {
                   <p className="text-4xl mb-3">🔄</p>
                   <p className="font-semibold text-text mb-1">No recurring transactions</p>
                   <p className="text-sm text-muted mb-5">Track rent, salary, subscriptions and more</p>
-                  <button onClick={() => setShowAddRecurring(true)} className="btn-gradient px-6 py-2.5 text-sm">Add First Recurring</button>
+                  <button onClick={() => setShowAddRecurring(true)} className="btn-gradient px-6 py-2.5 text-sm">
+                    Add First Recurring
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -620,10 +764,11 @@ const Transactions: React.FC = () => {
                   )}
                 </div>
               )}
-            </>
-          )}
 
-        </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />

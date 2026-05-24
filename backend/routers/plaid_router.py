@@ -1,10 +1,8 @@
 import os
-import re
 import hmac
 import hashlib
 import json
 import requests
-import anthropic as _anthropic
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -175,98 +173,6 @@ def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
     return None
 
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-
-
-def _ai_categorize_batch(txs: list[dict], user_id: int, db: Session) -> dict[str, dict]:
-    """
-    AI-categorize a batch of Plaid transactions.
-    Returns dict: plaid_tx_id → {"category_id": int | None}
-    Falls back to empty dict on any error so the sync never fails.
-    """
-    if not ANTHROPIC_API_KEY or not txs:
-        return {}
-
-    all_cats = db.query(Category).filter(
-        (Category.user_id == user_id) | (Category.user_id.is_(None))
-    ).all()
-    expense_cats = [c.name for c in all_cats if c.type == "expense"]
-    income_cats  = [c.name for c in all_cats if c.type == "income"]
-
-    tx_items = []
-    for tx in txs:
-        pfc = tx.get("personal_finance_category") or {}
-        pfc_hint = pfc.get("detailed") or pfc.get("primary") or ""
-        tx_items.append({
-            "id":     tx["transaction_id"],
-            "name":   tx.get("name") or tx.get("merchant_name") or "",
-            "amount": tx["amount"],  # Plaid: positive = money left account
-            "hint":   pfc_hint,
-        })
-
-    prompt = (
-        f"Categorize these bank transactions for a personal finance app.\n\n"
-        f"Expense categories: {expense_cats}\n"
-        f"Income categories: {income_cats}\n\n"
-        f"Transactions (each has: id, merchant name, amount, plaid category hint):\n"
-        f"{json.dumps(tx_items)}\n\n"
-        "Return ONLY a JSON array — one object per transaction in the same order:\n"
-        '[{"id":"...","category":"Gas","type":"expense"}, ...]\n\n'
-        "Rules:\n"
-        "- Trust the merchant name over the plaid hint for precision (e.g. Shell/BP/Exxon → Gas, Planet Fitness/climbing gym/yoga → the fitness/health category)\n"
-        "- Always prefer an existing category name; only create a new short clean name (e.g. 'Pet Care', 'Gym & Fitness') when none of the existing ones fit\n"
-        "- type is 'expense' or 'income'\n"
-        "- Positive Plaid amount = money left the account (expense); negative = money came in (income)"
-    )
-
-    try:
-        client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = msg.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
-        results: list[dict] = json.loads(raw)
-    except Exception as e:
-        print(f"[AI categorize error] {e}")
-        return {}
-
-    output: dict[str, dict] = {}
-    for item in results:
-        tx_id = item.get("id")
-        if not tx_id:
-            continue
-
-        cat_name: str | None = item.get("category")
-        cat_type: str = item.get("type", "expense")
-        cat_id: int | None = None
-
-        if cat_name:
-            existing = db.query(Category).filter(
-                Category.name == cat_name,
-                (Category.user_id == user_id) | (Category.user_id.is_(None)),
-            ).first()
-            if existing:
-                cat_id = existing.id
-            else:
-                new_cat = Category(
-                    user_id=user_id,
-                    name=cat_name,
-                    type=cat_type,
-                    color="#5b8fff",
-                    is_system=False,
-                )
-                db.add(new_cat)
-                db.flush()
-                cat_id = new_cat.id
-
-        output[tx_id] = {"category_id": cat_id}
-
-    return output
-
 
 PLAID_TO_ACCOUNT_TYPE = {
     "checking":    "checking",
@@ -342,16 +248,9 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         if not data.get("has_more", False):
             break
 
-    # Pass 2: AI categorizes ALL transactions in batches of 50
-    ai_results: dict[str, dict] = {}
-    all_txs = [tx for (tx, *_) in pending]
-    for i in range(0, len(all_txs), 50):
-        ai_results.update(_ai_categorize_batch(all_txs[i:i + 50], user_id, db))
-
-    # Pass 3: insert transactions with AI-assigned categories
+    # Pass 2: insert transactions with Plaid-resolved categories
     for (tx, account, plaid_tx_id, tx_name, tx_amount, tx_date) in pending:
-        ai = ai_results.get(plaid_tx_id, {})
-        category_id = ai.get("category_id")
+        category_id = _resolve_category(tx, user_id, db)
 
         try:
             db.add(Transaction(
@@ -380,53 +279,6 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     return added_count
 
 
-def _recategorize_existing(user_id: int, db: Session, only_null: bool = True) -> int:
-    """
-    Re-run AI categorization on already-imported Plaid transactions.
-    only_null=True  → only transactions with no category (safe, used on every sync)
-    only_null=False → all Plaid transactions (user-triggered full fix)
-    Returns count of transactions updated.
-    """
-    q = db.query(Transaction).filter(
-        Transaction.user_id == user_id,
-        Transaction.plaid_tx_id.isnot(None),
-    )
-    if only_null:
-        q = q.filter(Transaction.category_id.is_(None))
-
-    txs = q.all()
-    if not txs:
-        return 0
-
-    # Build fake Plaid-format dicts so _ai_categorize_batch can process them
-    fake_plaid_txs = [
-        {
-            "transaction_id": tx.plaid_tx_id,
-            "merchant_name":  tx.description,
-            "name":           tx.description,
-            "amount":         -float(tx.amount),  # un-negate back to Plaid's convention
-            "personal_finance_category": {},
-        }
-        for tx in txs
-    ]
-
-    ai_results: dict[str, dict] = {}
-    for i in range(0, len(fake_plaid_txs), 50):
-        ai_results.update(_ai_categorize_batch(fake_plaid_txs[i:i + 50], user_id, db))
-
-    updated = 0
-    tx_by_plaid_id = {tx.plaid_tx_id: tx for tx in txs}
-    for plaid_tx_id, ai in ai_results.items():
-        tx = tx_by_plaid_id.get(plaid_tx_id)
-        if not tx:
-            continue
-        cat_id = ai.get("category_id")
-        if cat_id and tx.category_id != cat_id:
-            tx.category_id = cat_id
-            updated += 1
-
-    return updated
-
 
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
     """Background task — creates its own DB session so it outlives the request."""
@@ -436,8 +288,6 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
         if not item:
             return
         count = _sync_item(db, item, user_id)
-        # Fix any existing transactions that came in before AI was set up
-        _recategorize_existing(user_id, db, only_null=True)
         db.commit()
         if count > 0:
             send_push_to_user(
@@ -571,16 +421,6 @@ def sync_all(
         background.add_task(_do_sync_and_notify, item.id, current_user.id)
     return {"message": f"Syncing {len(items)} bank(s) in background."}
 
-
-@router.post("/recategorize")
-def recategorize_all(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Re-run AI categorization on all existing Plaid transactions."""
-    updated = _recategorize_existing(current_user.id, db, only_null=False)
-    db.commit()
-    return {"message": f"Re-categorized {updated} transaction{'s' if updated != 1 else ''}."}
 
 
 @router.post("/replay")
