@@ -56,32 +56,31 @@ const TxCard: React.FC<TxCardProps> = ({
   const amountStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(tx.amount)))}`;
 
   if (compact) {
-    // ── Compact single-line card for inside category columns ──
+    // ── Compact 2-line card for inside category columns ──
     return (
       <div
         draggable
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        className="rounded-lg px-2 py-1 cursor-grab active:cursor-grabbing group relative select-none flex items-center gap-1.5"
+        className="rounded-xl px-2.5 py-2 cursor-grab active:cursor-grabbing group relative select-none"
         style={{
-          backgroundColor: 'var(--elev-1)',
+          backgroundColor: 'var(--bg)',
           border: '1px solid var(--line)',
           opacity: isDragging ? 0.3 : 1,
           transition: 'opacity 0.1s',
-          minHeight: 26,
         }}
       >
-        <p className="text-[10px] font-medium truncate flex-1" style={{ color: 'var(--fg)' }}>
-          {cleanDescription(tx.description)}
-        </p>
-        <p
-          className="text-[10px] font-bold shrink-0"
-          style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}
-        >
-          {amountStr}
-        </p>
-        {/* compact delete */}
+        <div className="flex items-start justify-between gap-1">
+          <p className="text-[10px] font-semibold leading-tight truncate flex-1" style={{ color: 'var(--fg)' }}>
+            {cleanDescription(tx.description)}
+          </p>
+          <p className="text-[10px] font-bold shrink-0 ml-1"
+            style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
+            {amountStr}
+          </p>
+        </div>
+        <p className="text-[9px] mt-0.5" style={{ color: 'var(--muted)' }}>{shortDate}</p>
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
           className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10"
@@ -206,16 +205,21 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
-  // Sort categories by tx count this month (most → least), then expense before income
+  // Sort categories by total spend this month ascending (lowest first), empty at end
   const sortedCategories = useMemo(() => {
-    const countMap = new Map(
-      categories.map(c => [c.id, monthTransactions.filter(t => t.category_id === c.id).length]),
+    const totalMap = new Map(
+      categories.map(c => [
+        c.id,
+        monthTransactions.filter(t => t.category_id === c.id).reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
+      ]),
     );
     return [...categories].sort((a, b) => {
-      const diff = (countMap.get(b.id) ?? 0) - (countMap.get(a.id) ?? 0);
-      if (diff !== 0) return diff;
-      if (a.type !== b.type) return a.type === 'expense' ? -1 : 1;
-      return a.name.localeCompare(b.name);
+      const ta = totalMap.get(a.id) ?? 0;
+      const tb = totalMap.get(b.id) ?? 0;
+      if (ta === 0 && tb === 0) return a.name.localeCompare(b.name);
+      if (ta === 0) return 1;
+      if (tb === 0) return -1;
+      return ta - tb; // ascending: lowest cost first
     });
   }, [categories, monthTransactions]);
 
@@ -261,10 +265,6 @@ const Transactions: React.FC = () => {
     if (txId) handleCategorize(txId, categoryId);
     setDragOverTarget(null);
     setDraggingTxId(null);
-  };
-
-  const scrollCats = (dir: 'left' | 'right') => {
-    catScrollRef.current?.scrollBy({ left: dir === 'right' ? 480 : -480, behavior: 'smooth' });
   };
 
   // ── Recurring helpers ─────────────────────────────────────────────────────────
@@ -451,7 +451,7 @@ const Transactions: React.FC = () => {
         style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
       >
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="shrink-0 flex items-center gap-2 md:gap-3 px-4 md:px-5 py-2.5 pr-14 md:pr-5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher */}
           <div className="flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
@@ -512,7 +512,7 @@ const Transactions: React.FC = () => {
                   + Expense
                 </button>
                 <button onClick={() => setShowTransfer(true)}
-                  className="hidden md:block text-xs font-semibold px-3 py-1.5 rounded-full"
+                  className="hidden lg:block text-xs font-semibold px-3 py-1.5 rounded-full"
                   style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
                   Transfer
                 </button>
@@ -590,25 +590,11 @@ const Transactions: React.FC = () => {
               </div>
 
               {/* ── Right: 2-row category grid ── */}
-              <div className="flex-1 flex items-stretch overflow-hidden">
-
-                {/* Left scroll button */}
-                <button
-                  onClick={() => scrollCats('left')}
-                  className="shrink-0 w-7 flex items-center justify-center transition-colors z-10"
-                  style={{ backgroundColor: 'var(--elev-1)', borderRight: '1px solid var(--line)', color: 'var(--muted)' }}
-                >
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
-
-                {/* Scrollable grid */}
-                <div
-                  ref={catScrollRef}
-                  className="flex-1 overflow-x-auto overflow-y-hidden"
-                  style={{ scrollbarWidth: 'thin' }}
-                >
+              <div
+                ref={catScrollRef}
+                className="flex-1 overflow-x-auto overflow-y-hidden"
+                style={{ scrollbarWidth: 'thin' }}
+              >
                   {sortedCategories.length === 0 ? (
                     <div className="h-full flex items-center justify-center px-12">
                       <div className="text-center">
@@ -623,18 +609,19 @@ const Transactions: React.FC = () => {
                         display: 'grid',
                         gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                         gridAutoFlow: 'column',
-                        gridAutoColumns: '170px',
+                        gridAutoColumns: '180px',
                         height: '100%',
                         minWidth: 'max-content',
+                        gap: '8px',
+                        padding: '10px',
                       }}
                     >
-                      {visibleCategories.map((cat, idx) => {
-                        const catTxs     = monthTransactions.filter(t => t.category_id === cat.id);
-                        const total      = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-                        const isDragOver = dragOverTarget === cat.id;
-                        const isTopRow   = idx % 2 === 0;
-                        const isExpanded = !!expandedCats[cat.id];
-                        const shownTxs   = isExpanded ? catTxs : catTxs.slice(0, MAX_TX_SHOWN);
+                      {visibleCategories.map((cat) => {
+                        const catTxs      = monthTransactions.filter(t => t.category_id === cat.id);
+                        const total       = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                        const isDragOver  = dragOverTarget === cat.id;
+                        const isExpanded  = !!expandedCats[cat.id];
+                        const shownTxs    = isExpanded ? catTxs : catTxs.slice(0, MAX_TX_SHOWN);
                         const hiddenCount = catTxs.length - shownTxs.length;
 
                         return (
@@ -642,17 +629,20 @@ const Transactions: React.FC = () => {
                             key={cat.id}
                             className="flex flex-col overflow-hidden"
                             style={{
-                              borderRight: '1px solid var(--line)',
-                              borderBottom: isTopRow ? '1px solid var(--line)' : 'none',
-                              backgroundColor: isDragOver ? (cat.color + '18') : 'transparent',
-                              transition: 'background-color 0.15s',
+                              borderRadius: '16px',
+                              backgroundColor: isDragOver ? (cat.color + '18') : 'var(--elev-1)',
+                              border: isDragOver
+                                ? `1px solid ${cat.color}60`
+                                : '1px solid var(--line)',
+                              transition: 'background-color 0.15s, border-color 0.15s',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                             }}
                             onDragOver={handleDragOver(cat.id)}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop(cat.id)}
                           >
                             {/* Column header */}
-                            <div className="px-2.5 pt-2 pb-1.5 border-b shrink-0" style={{ borderColor: 'var(--line)' }}>
+                            <div className="px-3 pt-2.5 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
                               <div className="flex items-center gap-1.5 mb-1">
                                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                                 <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--fg)' }}>{cat.name}</p>
@@ -669,7 +659,7 @@ const Transactions: React.FC = () => {
                             </div>
 
                             {/* Compact transaction list */}
-                            <div className="flex-1 overflow-y-auto p-1.5 space-y-1" style={{ scrollbarWidth: 'none' }}>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-1.5" style={{ scrollbarWidth: 'none' }}>
                               {shownTxs.map(tx => (
                                 <TxCard key={tx.id} tx={tx} accounts={accounts} compact
                                   isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
@@ -680,7 +670,7 @@ const Transactions: React.FC = () => {
                                 <button
                                   onClick={() => setExpandedCats(p => ({ ...p, [cat.id]: true }))}
                                   className="w-full py-1 text-[9px] font-semibold rounded-lg transition-colors"
-                                  style={{ color: cat.color, backgroundColor: cat.color + '10' }}
+                                  style={{ color: cat.color, backgroundColor: cat.color + '12' }}
                                 >
                                   +{hiddenCount} more
                                 </button>
@@ -696,13 +686,13 @@ const Transactions: React.FC = () => {
                               )}
 
                               {isDragOver && (
-                                <div className="border-2 border-dashed rounded-lg py-3 flex items-center justify-center"
-                                  style={{ borderColor: cat.color + '80' }}>
+                                <div className="border-2 border-dashed rounded-xl py-3 flex items-center justify-center"
+                                  style={{ borderColor: cat.color + '70' }}>
                                   <p className="text-[9px] font-semibold" style={{ color: cat.color }}>Drop here</p>
                                 </div>
                               )}
                               {!isDragOver && catTxs.length === 0 && (
-                                <div className="rounded-lg py-3 flex items-center justify-center"
+                                <div className="rounded-xl py-3 flex items-center justify-center"
                                   style={{ border: '1px dashed var(--line)' }}>
                                   <p className="text-[9px]" style={{ color: 'var(--dim)' }}>Empty</p>
                                 </div>
@@ -713,18 +703,6 @@ const Transactions: React.FC = () => {
                       })}
                     </div>
                   )}
-                </div>
-
-                {/* Right scroll button */}
-                <button
-                  onClick={() => scrollCats('right')}
-                  className="shrink-0 w-7 flex items-center justify-center transition-colors z-10"
-                  style={{ backgroundColor: 'var(--elev-1)', borderLeft: '1px solid var(--line)', color: 'var(--muted)' }}
-                >
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
               </div>
 
             </div>
