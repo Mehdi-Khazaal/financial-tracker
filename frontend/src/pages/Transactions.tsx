@@ -161,6 +161,7 @@ const Transactions: React.FC = () => {
   const [dragOverTarget, setDragOverTarget] = useState<number | 'uncategorized' | null>(null);
   const [expandedCats, setExpandedCats]     = useState<Record<number, boolean>>({});
   const [hideEmpty, setHideEmpty]           = useState(true);
+  const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
   const MAX_TX_SHOWN = 4;
 
   // ref for the scrollable category grid
@@ -451,7 +452,7 @@ const Transactions: React.FC = () => {
         style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
       >
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center gap-2 md:gap-3 px-4 md:px-5 py-2.5 pr-14 md:pr-5 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="shrink-0 flex items-center gap-2 md:gap-3 px-4 md:px-5 py-2.5 pr-14 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher */}
           <div className="flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
@@ -548,7 +549,9 @@ const Transactions: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex overflow-hidden">
+            <>
+            {/* ── Desktop board (md+) ── */}
+            <div className="hidden md:flex flex-1 overflow-hidden">
 
               {/* ── Left: Uncategorized queue ── */}
               <div
@@ -607,10 +610,10 @@ const Transactions: React.FC = () => {
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
+                        gridTemplateRows: 'repeat(2, 200px)',
                         gridAutoFlow: 'column',
                         gridAutoColumns: '180px',
-                        height: '100%',
+                        height: 'fit-content',
                         minWidth: 'max-content',
                         gap: '8px',
                         padding: '10px',
@@ -706,6 +709,100 @@ const Transactions: React.FC = () => {
               </div>
 
             </div>
+
+            {/* ── Mobile board (< md) — tap-to-categorize ── */}
+            <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+
+              {/* View toggle */}
+              <div className="flex gap-1.5 px-3 py-2 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
+                <button
+                  onClick={() => setMobileView('queue')}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={mobileView === 'queue'
+                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+                    : { color: 'var(--muted)' }}>
+                  Uncategorized{uncategorized.length > 0 ? ` (${uncategorized.length})` : ''}
+                </button>
+                <button
+                  onClick={() => setMobileView('categories')}
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                  style={mobileView === 'categories'
+                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+                    : { color: 'var(--muted)' }}>
+                  By Category
+                </button>
+              </div>
+
+              {/* Uncategorized queue */}
+              {mobileView === 'queue' && (
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 pb-32">
+                  {uncategorized.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                        className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--pos)' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="font-semibold" style={{ color: 'var(--pos)' }}>All categorized!</p>
+                      <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
+                    </div>
+                  ) : uncategorized.map(tx => (
+                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false}
+                      onDragStart={() => {}} onDragEnd={() => {}}
+                      onClick={() => setEditTx(tx)} onDelete={() => handleDelete(tx.id)} />
+                  ))}
+                </div>
+              )}
+
+              {/* By-category list */}
+              {mobileView === 'categories' && (
+                <div className="flex-1 overflow-y-auto p-3 pb-32 space-y-3">
+                  {visibleCategories.map(cat => {
+                    const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
+                    const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                    return (
+                      <div key={cat.id} className="rounded-2xl overflow-hidden"
+                        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                        {/* Category header */}
+                        <div className="flex items-center gap-2.5 px-4 py-3"
+                          style={{ borderBottom: catTxs.length > 0 ? '1px solid var(--line)' : 'none' }}>
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                          <p className="flex-1 text-sm font-semibold" style={{ color: 'var(--fg)' }}>{cat.name}</p>
+                          <p className="text-xs mr-2" style={{ color: 'var(--dim)' }}>{catTxs.length} tx</p>
+                          <p className="font-mono font-bold text-sm"
+                            style={{ color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
+                            ${fmt(total)}
+                          </p>
+                        </div>
+                        {/* Transactions */}
+                        {catTxs.map((tx, i) => {
+                          const pos = Number(tx.amount) >= 0;
+                          const shortDate = new Date(tx.transaction_date + 'T00:00:00')
+                            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          return (
+                            <div key={tx.id}
+                              onClick={() => setEditTx(tx)}
+                              className="flex items-center gap-3 px-4 py-3 cursor-pointer active:opacity-60 transition-opacity"
+                              style={{ borderBottom: i < catTxs.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
+                                  {cleanDescription(tx.description)}
+                                </p>
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{shortDate}</p>
+                              </div>
+                              <p className="font-mono font-bold text-sm shrink-0"
+                                style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                                {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            </>
           )
         )}
 
