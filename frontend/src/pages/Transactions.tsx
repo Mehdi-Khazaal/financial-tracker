@@ -8,6 +8,7 @@ import {
   updateTransaction,
 } from '../utils/api';
 import Navigation from '../components/Navigation';
+import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
@@ -133,6 +134,102 @@ const TxCard: React.FC<TxCardProps> = ({
   );
 };
 
+// ── Category detail modal ─────────────────────────────────────────────────────
+interface CatDetailProps {
+  cat: Category | null;
+  allTransactions: Transaction[];
+  accounts: Account[];
+  onClose: () => void;
+  onEditTx: (tx: Transaction) => void;
+}
+const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, accounts, onClose, onEditTx }) => {
+  const catTxs = cat
+    ? [...allTransactions]
+        .filter(t => t.category_id === cat.id)
+        .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+    : [];
+  const spent = catTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const income = catTxs.filter(t => Number(t.amount) >= 0).reduce((s, t) => s + Number(t.amount), 0);
+
+  return (
+    <BottomSheet isOpen={!!cat} onClose={onClose}>
+      {cat && (
+        <>
+          {/* Modal header */}
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--line)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${cat.color}15`, border: `1px solid ${cat.color}25` }}>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+              </div>
+              <div>
+                <h2 className="font-bold text-[15px]" style={{ color: 'var(--fg)' }}>{cat.name}</h2>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--dim)' }}>
+                  {catTxs.length} transaction{catTxs.length !== 1 ? 's' : ''}
+                  {spent > 0 && <> · <span style={{ color: 'var(--neg)' }}>-${fmt(spent)}</span></>}
+                  {income > 0 && <> · <span style={{ color: 'var(--pos)' }}>+${fmt(income)}</span></>}
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Transaction list */}
+          {catTxs.length === 0 ? (
+            <div className="py-14 text-center">
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>No transactions in this category yet</p>
+            </div>
+          ) : (
+            <div className="pb-6">
+              {catTxs.map((tx, i) => {
+                const pos = Number(tx.amount) >= 0;
+                const accName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
+                const dateStr = new Date(tx.transaction_date + 'T00:00:00').toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                });
+                return (
+                  <div key={tx.id}
+                    onClick={() => { onClose(); onEditTx(tx); }}
+                    className="flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors"
+                    style={{ borderBottom: i < catTxs.length - 1 ? '1px solid var(--line)' : 'none' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
+                        {cleanDescription(tx.description)}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                        {accName} · {dateStr}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className="font-mono font-bold text-sm"
+                        style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                        {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
+                      </p>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"
+                        className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--dim)' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </BottomSheet>
+  );
+};
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 const Transactions: React.FC = () => {
   const toast = useToast();
@@ -157,7 +254,7 @@ const Transactions: React.FC = () => {
   const [selectedMonth, setSelectedMonth]   = useState('');
   const [draggingTxId, setDraggingTxId]     = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<number | 'uncategorized' | null>(null);
-  const [expandedCats, setExpandedCats]     = useState<Record<number, boolean>>({});
+  const [detailCat, setDetailCat]           = useState<Category | null>(null);
   const [hideEmpty, setHideEmpty]           = useState(true);
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
   const MAX_TX_SHOWN = 4;
@@ -450,7 +547,7 @@ const Transactions: React.FC = () => {
         style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
       >
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center gap-2 md:gap-3 px-4 md:px-5 py-2.5 pr-14 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="shrink-0 flex items-center gap-2 md:gap-3 pl-4 md:pl-5 pr-16 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher */}
           <div className="flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
@@ -576,9 +673,8 @@ const Transactions: React.FC = () => {
 
                 {/* Inbox list — is also the drag-to-uncategorize drop zone */}
                 <div
-                  className="flex-1 overflow-y-auto"
+                  className="hide-scrollbar flex-1 overflow-y-auto"
                   style={{
-                    scrollbarWidth: 'thin',
                     backgroundColor: dragOverTarget === 'uncategorized' ? 'oklch(70% 0.17 25 / 0.04)' : 'transparent',
                     transition: 'background-color 0.15s',
                   }}
@@ -612,8 +708,7 @@ const Transactions: React.FC = () => {
               {/* ── Category grid ── */}
               <div
                 ref={catScrollRef}
-                className="flex-1 overflow-x-auto overflow-y-hidden"
-                style={{ scrollbarWidth: 'thin' }}
+                className="hide-scrollbar flex-1 overflow-x-auto overflow-y-hidden"
               >
                 {sortedCategories.length === 0 ? (
                   <div className="h-full flex items-center justify-center">
@@ -639,8 +734,7 @@ const Transactions: React.FC = () => {
                       const catTxs      = monthTransactions.filter(t => t.category_id === cat.id);
                       const total       = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
                       const isDragOver  = dragOverTarget === cat.id;
-                      const isExpanded  = !!expandedCats[cat.id];
-                      const shownTxs    = isExpanded ? catTxs : catTxs.slice(0, MAX_TX_SHOWN);
+                      const shownTxs    = catTxs.slice(0, MAX_TX_SHOWN);
                       const hiddenCount = catTxs.length - shownTxs.length;
 
                       return (
@@ -650,21 +744,29 @@ const Transactions: React.FC = () => {
                           style={{
                             borderRadius: '12px',
                             backgroundColor: isDragOver ? `${cat.color}10` : 'var(--elev-1)',
-                            border: `1px solid ${isDragOver ? cat.color + '40' : 'var(--line)'}`,
-                            borderLeft: `3px solid ${cat.color}`,
+                            border: `1px solid ${isDragOver ? cat.color + '35' : 'var(--line)'}`,
                             transition: 'background-color 0.12s, border-color 0.12s',
                           }}
                           onDragOver={handleDragOver(cat.id)}
                           onDragLeave={handleDragLeave}
                           onDrop={handleDrop(cat.id)}
                         >
-                          {/* Column header */}
-                          <div className="px-3 py-2.5 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
+                          {/* Column header — click to open full detail modal */}
+                          <div
+                            className="px-3 py-2.5 shrink-0 cursor-pointer transition-colors"
+                            style={{ borderBottom: '1px solid var(--line)' }}
+                            onClick={() => setDetailCat(cat)}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
                             <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <p className="text-[10px] font-semibold uppercase tracking-wide truncate"
-                                style={{ color: 'var(--muted)', letterSpacing: '0.04em' }}>
-                                {cat.name}
-                              </p>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                                <p className="text-[10px] font-semibold truncate"
+                                  style={{ color: 'var(--muted)' }}>
+                                  {cat.name}
+                                </p>
+                              </div>
                               <p className="text-[9px] shrink-0" style={{ color: 'var(--dim)' }}>
                                 {catTxs.length}
                               </p>
@@ -676,32 +778,22 @@ const Transactions: React.FC = () => {
                           </div>
 
                           {/* Transaction rows */}
-                          <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                          <div className="hide-scrollbar flex-1 overflow-y-auto">
                             {shownTxs.map(tx => (
                               <TxCard key={tx.id} tx={tx} accounts={accounts} compact
                                 isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                             ))}
 
-                            {hiddenCount > 0 && !isExpanded && (
+                            {/* More transactions → opens detail modal */}
+                            {hiddenCount > 0 && (
                               <button
-                                onClick={() => setExpandedCats(p => ({ ...p, [cat.id]: true }))}
+                                onClick={() => setDetailCat(cat)}
                                 className="w-full py-1.5 text-[9px] font-semibold transition-colors"
                                 style={{ color: cat.color, borderTop: '1px solid var(--line)' }}
                                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
                                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                               >
                                 +{hiddenCount} more
-                              </button>
-                            )}
-                            {isExpanded && catTxs.length > MAX_TX_SHOWN && (
-                              <button
-                                onClick={() => setExpandedCats(p => ({ ...p, [cat.id]: false }))}
-                                className="w-full py-1.5 text-[9px] font-semibold transition-colors"
-                                style={{ color: 'var(--dim)', borderTop: '1px solid var(--line)' }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                              >
-                                Show less
                               </button>
                             )}
 
@@ -752,7 +844,7 @@ const Transactions: React.FC = () => {
 
               {/* Uncategorized queue */}
               {mobileView === 'queue' && (
-                <div className="flex-1 overflow-y-auto p-3 space-y-2 pb-32">
+                <div className="hide-scrollbar flex-1 overflow-y-auto p-3 space-y-2 pb-32">
                   {uncategorized.length === 0 ? (
                     <div className="py-16 text-center">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
@@ -772,16 +864,21 @@ const Transactions: React.FC = () => {
 
               {/* By-category list */}
               {mobileView === 'categories' && (
-                <div className="flex-1 overflow-y-auto p-3 pb-32 space-y-3">
+                <div className="hide-scrollbar flex-1 overflow-y-auto p-3 pb-32 space-y-3">
                   {visibleCategories.map(cat => {
                     const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
                     const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                    const shown  = catTxs.slice(0, MAX_TX_SHOWN);
+                    const hidden = catTxs.length - shown.length;
                     return (
                       <div key={cat.id} className="rounded-2xl overflow-hidden"
                         style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                        {/* Category header */}
-                        <div className="flex items-center gap-2.5 px-4 py-3"
-                          style={{ borderBottom: catTxs.length > 0 ? '1px solid var(--line)' : 'none' }}>
+                        {/* Category header — taps open detail modal */}
+                        <div
+                          className="flex items-center gap-2.5 px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
+                          style={{ borderBottom: catTxs.length > 0 ? '1px solid var(--line)' : 'none' }}
+                          onClick={() => setDetailCat(cat)}
+                        >
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                           <p className="flex-1 text-sm font-semibold" style={{ color: 'var(--fg)' }}>{cat.name}</p>
                           <p className="text-xs mr-2" style={{ color: 'var(--dim)' }}>{catTxs.length} tx</p>
@@ -790,8 +887,8 @@ const Transactions: React.FC = () => {
                             ${fmt(total)}
                           </p>
                         </div>
-                        {/* Transactions */}
-                        {catTxs.map((tx, i) => {
+                        {/* Preview: first MAX_TX_SHOWN transactions */}
+                        {shown.map((tx, i) => {
                           const pos = Number(tx.amount) >= 0;
                           const shortDate = new Date(tx.transaction_date + 'T00:00:00')
                             .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -799,7 +896,7 @@ const Transactions: React.FC = () => {
                             <div key={tx.id}
                               onClick={() => setEditTx(tx)}
                               className="flex items-center gap-3 px-4 py-3 cursor-pointer active:opacity-60 transition-opacity"
-                              style={{ borderBottom: i < catTxs.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                              style={{ borderBottom: (i < shown.length - 1 || hidden > 0) ? '1px solid var(--line)' : 'none' }}>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
                                   {cleanDescription(tx.description)}
@@ -813,6 +910,15 @@ const Transactions: React.FC = () => {
                             </div>
                           );
                         })}
+                        {hidden > 0 && (
+                          <button
+                            onClick={() => setDetailCat(cat)}
+                            className="w-full py-2.5 text-xs font-semibold transition-colors active:opacity-70"
+                            style={{ color: cat.color, backgroundColor: `${cat.color}08` }}
+                          >
+                            +{hidden} more transactions
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -910,6 +1016,13 @@ const Transactions: React.FC = () => {
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
       <AddRecurringModal isOpen={showAddRecurring} onClose={() => setShowAddRecurring(false)} onSuccess={load} />
+      <CategoryDetailModal
+        cat={detailCat}
+        allTransactions={transactions}
+        accounts={accounts}
+        onClose={() => setDetailCat(null)}
+        onEditTx={tx => setEditTx(tx)}
+      />
     </>
   );
 };

@@ -23,6 +23,10 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
 
+/* Utility: completely hidden scrollbar (still scrollable) */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
 /* ── CSS variables ─────────────────────────────────────────────────────────── */
 :root {
   /* Surface */
