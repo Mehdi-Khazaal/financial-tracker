@@ -719,7 +719,7 @@ const Transactions: React.FC = () => {
                 <div className="shrink-0" style={{ width: '240px', borderRight: '1px solid var(--line)' }} />
                 <div
                   ref={topScrollRef}
-                  className="app-scrollbar flex-1 overflow-x-auto overflow-y-hidden"
+                  className="app-scrollbar flex-1 overflow-x-scroll overflow-y-hidden"
                   style={{ height: '6px' }}
                   onScroll={handleTopScroll}
                 >
@@ -789,11 +789,14 @@ const Transactions: React.FC = () => {
               </div>
 
               {/* ── Category grid ── */}
-              <div
-                ref={catScrollRef}
-                className="hide-scrollbar flex-1 overflow-x-auto overflow-y-hidden"
-                onScroll={handleCatScroll}
-              >
+              {/* Outer div clips the native scrollbar that would appear at the bottom */}
+              <div className="flex-1 overflow-hidden">
+                <div
+                  ref={catScrollRef}
+                  className="overflow-y-hidden"
+                  style={{ overflowX: 'scroll', height: 'calc(100% + 20px)' }}
+                  onScroll={handleCatScroll}
+                >
                 {sortedCategories.length === 0 ? (
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
@@ -808,7 +811,7 @@ const Transactions: React.FC = () => {
                       gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                       gridAutoFlow: 'column',
                       gridAutoColumns: '220px',
-                      height: '100%',
+                      height: 'calc(100% - 20px)',
                       minWidth: 'max-content',
                       gap: '8px',
                       padding: '10px 12px',
@@ -900,6 +903,7 @@ const Transactions: React.FC = () => {
                   </div>
                 )}
               </div>
+              </div> {/* /outer clip */}
 
             </div>
 
