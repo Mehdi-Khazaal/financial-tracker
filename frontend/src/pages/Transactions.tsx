@@ -78,10 +78,19 @@ const TxCard: React.FC<TxCardProps> = ({
           </p>
           <p className="text-[9px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
         </div>
-        <p className="text-[11px] font-bold shrink-0"
-          style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-          {amountStr}
-        </p>
+        <div className="flex flex-col items-end shrink-0">
+          <p className="text-[11px] font-bold"
+            style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
+            {amountStr}
+          </p>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: 'var(--neg)' }}
+          >
+            del
+          </button>
+        </div>
       </div>
     );
   }
@@ -141,14 +150,35 @@ interface CatDetailProps {
   accounts: Account[];
   onClose: () => void;
   onEditTx: (tx: Transaction) => void;
+  defaultMonth?: string;
 }
-const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, accounts, onClose, onEditTx }) => {
-  const catTxs = cat
-    ? [...allTransactions]
-        .filter(t => t.category_id === cat.id)
-        .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, accounts, onClose, onEditTx, defaultMonth }) => {
+  const [localMonth, setLocalMonth] = useState(defaultMonth ?? '');
+
+  // Reset to the board's selected month each time a (new) category is opened
+  useEffect(() => {
+    if (cat) setLocalMonth(defaultMonth ?? '');
+  }, [cat?.id, defaultMonth]);
+
+  // All transactions for this category (all time)
+  const allCatTxs = cat
+    ? allTransactions.filter(t => t.category_id === cat.id)
     : [];
-  const spent = catTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+
+  // Months that have at least one transaction in this category, newest first
+  const catMonths = Array.from(
+    new Set(allCatTxs.map(t => t.transaction_date.slice(0, 7)))
+  ).sort().reverse();
+
+  // Active month: honour the local pick if valid, otherwise fall back to most recent
+  const effectiveMonth = catMonths.includes(localMonth) ? localMonth : (catMonths[0] ?? '');
+
+  // Displayed list: filtered by month, sorted newest first
+  const catTxs = allCatTxs
+    .filter(t => !effectiveMonth || t.transaction_date.startsWith(effectiveMonth))
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
+
+  const spent  = catTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
   const income = catTxs.filter(t => Number(t.amount) >= 0).reduce((s, t) => s + Number(t.amount), 0);
 
   return (
@@ -180,10 +210,31 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
             </button>
           </div>
 
+          {/* Month pills */}
+          {catMonths.length > 0 && (
+            <div
+              className="flex gap-1.5 px-5 py-3 overflow-x-auto hide-scrollbar shrink-0"
+              style={{ borderBottom: '1px solid var(--line)' }}
+            >
+              {catMonths.map(m => (
+                <button
+                  key={m}
+                  onClick={() => setLocalMonth(m)}
+                  className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                  style={effectiveMonth === m
+                    ? { backgroundColor: cat.color, color: 'white' }
+                    : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
+                >
+                  {formatMonth(m)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Transaction list */}
           {catTxs.length === 0 ? (
             <div className="py-14 text-center">
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>No transactions in this category yet</p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>No transactions this month</p>
             </div>
           ) : (
             <div className="pb-6">
@@ -495,7 +546,9 @@ const Transactions: React.FC = () => {
     onDragStart: (e: React.DragEvent) => {
       e.dataTransfer.setData('txId', String(tx.id));
       e.dataTransfer.effectAllowed = 'move';
-      setDraggingTxId(tx.id);
+      // Defer so React's re-render (which changes visibleCategories)
+      // doesn't fire mid-dragstart and cancel the gesture in some browsers.
+      setTimeout(() => setDraggingTxId(tx.id), 0);
     },
     onDragEnd: () => { setDraggingTxId(null); setDragOverTarget(null); },
     onClick: () => setEditTx(tx),
@@ -1010,6 +1063,7 @@ const Transactions: React.FC = () => {
         accounts={accounts}
         onClose={() => setDetailCat(null)}
         onEditTx={tx => setEditTx(tx)}
+        defaultMonth={selectedMonth}
       />
     </>
   );
