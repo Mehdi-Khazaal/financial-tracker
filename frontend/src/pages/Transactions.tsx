@@ -727,7 +727,7 @@ const Transactions: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <>
             {/* ── Desktop board (md+) ── */}
             <div className="hidden md:flex flex-1 overflow-hidden">
 
@@ -822,7 +822,7 @@ const Transactions: React.FC = () => {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateRows: 'repeat(2, auto)',
+                      gridTemplateRows: 'repeat(3, auto)',
                       gridAutoFlow: 'column',
                       gridAutoColumns: '220px',
                       alignItems: 'start',
@@ -966,7 +966,8 @@ const Transactions: React.FC = () => {
 
               {/* By-category list */}
               {mobileView === 'categories' && (
-                <div className="app-scrollbar flex-1 overflow-y-auto p-3 pb-32 space-y-3">
+                <div className="app-scrollbar flex-1 overflow-y-auto p-3 pb-32">
+                  <div className="grid grid-cols-2 gap-2.5">
                   {visibleCategories.map(cat => {
                     const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
                     const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
@@ -977,17 +978,19 @@ const Transactions: React.FC = () => {
                         style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                         {/* Category header — taps open detail modal */}
                         <div
-                          className="flex items-center gap-2.5 px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
+                          className="px-3 py-2.5 cursor-pointer active:opacity-70 transition-opacity"
                           style={{ borderBottom: catTxs.length > 0 ? '1px solid var(--line)' : 'none' }}
                           onClick={() => setDetailCat(cat)}
                         >
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                          <p className="flex-1 text-sm font-semibold" style={{ color: 'var(--fg)' }}>{cat.name}</p>
-                          <p className="text-xs mr-2" style={{ color: 'var(--dim)' }}>{catTxs.length} tx</p>
-                          <p className="font-mono font-bold text-sm"
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--muted)' }}>{cat.name}</p>
+                          </div>
+                          <p className="font-mono font-bold text-base leading-tight"
                             style={{ color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
                             ${fmt(total)}
                           </p>
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>{catTxs.length} transactions</p>
                         </div>
                         {/* Preview: first MAX_TX_SHOWN transactions */}
                         {shown.map((tx, i) => {
@@ -997,15 +1000,15 @@ const Transactions: React.FC = () => {
                           return (
                             <div key={tx.id}
                               onClick={() => setEditTx(tx)}
-                              className="flex items-center gap-3 px-4 py-3 cursor-pointer active:opacity-60 transition-opacity"
+                              className="flex items-center gap-2 px-3 py-2 cursor-pointer active:opacity-60 transition-opacity"
                               style={{ borderBottom: (i < shown.length - 1 || hidden > 0) ? '1px solid var(--line)' : 'none' }}>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>
+                                <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>
                                   {cleanDescription(tx.description)}
                                 </p>
-                                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{shortDate}</p>
+                                <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>{shortDate}</p>
                               </div>
-                              <p className="font-mono font-bold text-sm shrink-0"
+                              <p className="font-mono font-bold text-xs shrink-0"
                                 style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
                                 {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                               </p>
@@ -1024,42 +1027,12 @@ const Transactions: React.FC = () => {
                       </div>
                     );
                   })}
+                  </div> {/* /grid */}
                 </div>
               )}
             </div>
 
-            {/* ── Monthly summary strip (desktop only) ── */}
-            <div className="hidden md:flex shrink-0 items-center gap-8 px-6 py-2.5"
-              style={{ borderTop: '1px solid var(--line)', backgroundColor: 'var(--bg)' }}>
-              <div>
-                <p className="label mb-0.5">Spent</p>
-                <p className="font-mono font-bold text-sm" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-                  -${fmt(boardSpent)}
-                </p>
-              </div>
-              <div>
-                <p className="label mb-0.5">Income</p>
-                <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
-                  +${fmt(boardIncome)}
-                </p>
-              </div>
-              <div>
-                <p className="label mb-0.5">Net</p>
-                <p className="font-mono font-bold text-sm"
-                  style={{ color: boardNet >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-                  {boardNet >= 0 ? '+' : '-'}${fmt(Math.abs(boardNet))}
-                </p>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={uncategorized.length > 0
-                    ? { backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)' }
-                    : { backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)' }}>
-                  {uncategorized.length === 0 ? 'All categorized ✓' : `${uncategorized.length} uncategorized`}
-                </span>
-              </div>
-            </div>
-            </div>
+            </>
           )
         )}
 
