@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
-import { updateTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
+import { updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
 import { useToast } from '../../context/ToastContext';
 
@@ -60,6 +60,16 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
       });
       onSuccess(); onClose();
     } catch { toast.error('Failed to update transaction'); }
+    finally { setLoading(false); }
+  };
+
+  const handleDeleteTx = async () => {
+    if (!transaction) return;
+    const ok = await toast.confirm('Delete this transaction?', { danger: true });
+    if (!ok) return;
+    setLoading(true);
+    try { await deleteTransaction(transaction.id); onSuccess(); onClose(); toast.success('Transaction deleted'); }
+    catch { toast.error('Failed to delete transaction'); }
     finally { setLoading(false); }
   };
 
@@ -123,13 +133,22 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
             ))}
           </div>
 
-          {/* Edit button */}
-          <button
-            onClick={() => setMode('edit')}
-            className="w-full mt-4 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
-            style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
-            Edit Transaction
-          </button>
+          {/* Action buttons */}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleDeleteTx}
+              disabled={loading}
+              className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
+              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+              {loading ? '…' : 'Delete'}
+            </button>
+            <button
+              onClick={() => setMode('edit')}
+              className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
+              style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
+              Edit
+            </button>
+          </div>
         </div>
       </BottomSheet>
     );

@@ -84,13 +84,15 @@ const TxCard: React.FC<TxCardProps> = ({
             style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
             {amountStr}
           </p>
-          <button
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ color: 'var(--neg)' }}
-          >
-            del
-          </button>
+          {!noDrag && (
+            <button
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+              className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ color: 'var(--neg)' }}
+            >
+              del
+            </button>
+          )}
         </div>
       </div>
     );
@@ -132,13 +134,15 @@ const TxCard: React.FC<TxCardProps> = ({
           style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
           {amountStr}
         </p>
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(); }}
-          className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ color: 'var(--neg)' }}
-        >
-          delete
-        </button>
+        {!noDrag && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: 'var(--neg)' }}
+          >
+            delete
+          </button>
+        )}
       </div>
     </div>
   );
