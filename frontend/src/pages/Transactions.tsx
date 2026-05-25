@@ -40,6 +40,7 @@ interface TxCardProps {
   accounts: Account[];
   isDragging: boolean;
   compact?: boolean;
+  noDrag?: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -47,7 +48,7 @@ interface TxCardProps {
 }
 
 const TxCard: React.FC<TxCardProps> = ({
-  tx, accounts, isDragging, compact = false, onDragStart, onDragEnd, onClick, onDelete,
+  tx, accounts, isDragging, compact = false, noDrag = false, onDragStart, onDragEnd, onClick, onDelete,
 }) => {
   const pos = Number(tx.amount) >= 0;
   const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
@@ -60,11 +61,11 @@ const TxCard: React.FC<TxCardProps> = ({
     // ── Compact row inside a category column ──
     return (
       <div
-        draggable
+        draggable={!noDrag}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        className="group flex items-center gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors"
+        className={`group flex items-center gap-2 px-3 py-2.5 select-none transition-colors ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
         style={{
           borderBottom: '1px solid var(--line)',
           opacity: isDragging ? 0.25 : 1,
@@ -98,11 +99,11 @@ const TxCard: React.FC<TxCardProps> = ({
   // ── Full row for the uncategorized inbox ──
   return (
     <div
-      draggable
+      draggable={!noDrag}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className="group flex items-start gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors"
+      className={`group flex items-start gap-2 px-3 py-2.5 select-none transition-colors ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
       style={{
         borderBottom: '1px solid var(--line)',
         opacity: isDragging ? 0.25 : 1,
@@ -308,7 +309,6 @@ const Transactions: React.FC = () => {
   const [detailCat, setDetailCat]           = useState<Category | null>(null);
   const [hideEmpty, setHideEmpty]           = useState(true);
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
-  const [swipedTxId, setSwipedTxId]         = useState<number | null>(null);
   const [categorizeTx, setCategorizeTx]     = useState<Transaction | null>(null);
   const MAX_TX_SHOWN = 3;
 
@@ -493,64 +493,6 @@ const Transactions: React.FC = () => {
     if (days === 1) return 'Tomorrow';
     if (days <= 7) return `In ${days} days`;
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  // ── Swipeable row (mobile swipe-to-delete) ───────────────────────────────────
-  const SwipeRow: React.FC<{
-    txId: number; onDelete: () => void; children: React.ReactNode;
-  }> = ({ txId, onDelete, children }) => {
-    const isOpen = swipedTxId === txId;
-    const DELETE_W = 76;
-    const startX = useRef(0);
-    const startY = useRef(0);
-    const [live, setLive] = useState(0);
-
-    const base = isOpen ? -DELETE_W : 0;
-    const clamped = Math.min(isOpen ? DELETE_W : 0, Math.max(isOpen ? 0 : -DELETE_W, live));
-    const visual = base + clamped;
-
-    return (
-      <div className="relative overflow-hidden rounded-2xl">
-        <div className="absolute inset-y-0 right-0 flex flex-col items-center justify-center rounded-r-2xl"
-          style={{ width: DELETE_W, backgroundColor: 'var(--neg)', zIndex: 0 }}>
-          <button
-            onPointerDown={e => e.stopPropagation()}
-            onClick={() => { onDelete(); setSwipedTxId(null); }}
-            className="flex flex-col items-center gap-1 w-full h-full justify-center active:opacity-75 transition-opacity">
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5" style={{ color: 'white' }}>
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <span className="text-[9px] font-bold" style={{ color: 'white' }}>Delete</span>
-          </button>
-        </div>
-        <div
-          onTouchStart={e => {
-            startX.current = e.touches[0].clientX;
-            startY.current = e.touches[0].clientY;
-          }}
-          onTouchMove={e => {
-            const dx = e.touches[0].clientX - startX.current;
-            const dy = e.touches[0].clientY - startY.current;
-            if (Math.abs(dy) > Math.abs(dx) + 8) return;
-            setLive(dx);
-          }}
-          onTouchEnd={() => {
-            const snap = base + clamped;
-            if (!isOpen && snap < -(DELETE_W * 0.4)) setSwipedTxId(txId);
-            else if (isOpen && snap > -(DELETE_W * 0.5)) setSwipedTxId(null);
-            setLive(0);
-          }}
-          style={{
-            transform: `translateX(${visual}px)`,
-            transition: live === 0 ? 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
-            position: 'relative', zIndex: 1,
-            backgroundColor: 'var(--bg)',
-          }}
-        >
-          {children}
-        </div>
-      </div>
-    );
   };
 
   // ── Recurring Item ─────────────────────────────────────────────────────────────
@@ -1000,12 +942,10 @@ const Transactions: React.FC = () => {
                       <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
                     </div>
                   ) : uncategorized.map(tx => (
-                    <SwipeRow key={tx.id} txId={tx.id} onDelete={() => handleDelete(tx.id)}>
-                      <TxCard tx={tx} accounts={accounts} isDragging={false}
-                        onDragStart={() => {}} onDragEnd={() => {}}
-                        onClick={() => { setSwipedTxId(null); setCategorizeTx(tx); }}
-                        onDelete={() => handleDelete(tx.id)} />
-                    </SwipeRow>
+                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag
+                      onDragStart={() => {}} onDragEnd={() => {}}
+                      onClick={() => setCategorizeTx(tx)}
+                      onDelete={() => handleDelete(tx.id)} />
                   ))}
                 </div>
               )}
@@ -1194,12 +1134,20 @@ const Transactions: React.FC = () => {
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={() => { setCategorizeTx(null); setEditTx(categorizeTx); }}
-                  className="w-full mt-3 mb-1 py-3 text-sm font-medium rounded-xl"
-                  style={{ color: 'var(--muted)', backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
-                  Edit full details →
-                </button>
+                <div className="flex gap-2 mt-3 mb-1">
+                  <button
+                    onClick={() => { const t = categorizeTx; setCategorizeTx(null); handleDelete(t.id); }}
+                    className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all active:scale-95"
+                    style={{ color: 'var(--neg)', backgroundColor: 'oklch(70% 0.17 25 / 0.1)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => { setCategorizeTx(null); setEditTx(categorizeTx); }}
+                    className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all active:scale-95"
+                    style={{ color: 'var(--muted)', backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
+                    Edit details
+                  </button>
+                </div>
               </div>
             </div>
           </BottomSheet>
