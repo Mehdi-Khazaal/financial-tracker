@@ -712,22 +712,6 @@ const Transactions: React.FC = () => {
             </div>
           ) : (
             <>
-            {/* ── Top horizontal scroll track (desktop only, mirrors category grid) ── */}
-            {sortedCategories.length > 0 && (
-              <div className="hidden md:flex shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
-                {/* Spacer width = inbox width = sidebar width → perfect vertical alignment */}
-                <div className="shrink-0" style={{ width: '240px', borderRight: '1px solid var(--line)' }} />
-                <div
-                  ref={topScrollRef}
-                  className="app-scrollbar flex-1 overflow-x-scroll overflow-y-hidden"
-                  style={{ height: '6px' }}
-                  onScroll={handleTopScroll}
-                >
-                  <div style={{ width: catContentWidth, height: '1px' }} />
-                </div>
-              </div>
-            )}
-
             {/* ── Desktop board (md+) ── */}
             <div className="hidden md:flex flex-1 overflow-hidden">
 
@@ -788,9 +772,23 @@ const Transactions: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Category grid ── */}
-              {/* Outer div clips the native scrollbar that would appear at the bottom */}
-              <div className="flex-1 overflow-hidden">
+              {/* ── Category area: top scrollbar + grid ── */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+
+                {/* Scrollbar track — sits above the grid, aligned to category columns only */}
+                {sortedCategories.length > 0 && (
+                  <div
+                    ref={topScrollRef}
+                    className="app-scrollbar shrink-0 overflow-x-scroll overflow-y-hidden"
+                    style={{ height: '10px', borderBottom: '1px solid var(--line)' }}
+                    onScroll={handleTopScroll}
+                  >
+                    <div style={{ width: catContentWidth, height: '1px' }} />
+                  </div>
+                )}
+
+                {/* Grid clip wrapper */}
+                <div className="flex-1 overflow-hidden">
                 <div
                   ref={catScrollRef}
                   className="overflow-y-hidden"
@@ -823,6 +821,26 @@ const Transactions: React.FC = () => {
                       const isDragOver  = dragOverTarget === cat.id;
                       const shownTxs    = catTxs.slice(0, MAX_TX_SHOWN);
                       const hiddenCount = catTxs.length - shownTxs.length;
+
+                      // Sparkline data
+                      const [sy, sm] = selectedMonth ? selectedMonth.split('-').map(Number) : [0, 0];
+                      const daysInMonth = sy && sm ? new Date(sy, sm, 0).getDate() : 30;
+                      const dailyTotals = Array(daysInMonth).fill(0) as number[];
+                      catTxs.forEach(t => {
+                        const d = parseInt(t.transaction_date.slice(8, 10)) - 1;
+                        if (d >= 0 && d < daysInMonth) dailyTotals[d] += Math.abs(Number(t.amount));
+                      });
+                      const maxDay = Math.max(...dailyTotals, 0.01);
+                      const prevSm = sm <= 1 ? 12 : sm - 1;
+                      const prevSy = sm <= 1 ? sy - 1 : sy;
+                      const prevYM = `${prevSy}-${String(prevSm).padStart(2, '0')}`;
+                      const prevTotal = transactions
+                        .filter(t => t.category_id === cat.id && t.transaction_date.startsWith(prevYM))
+                        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                      const pctChange = prevTotal > 0 ? Math.round((total - prevTotal) / prevTotal * 100) : null;
+                      const prevMonthShort = sm > 0
+                        ? new Date(prevSy, prevSm - 1).toLocaleDateString('en-US', { month: 'short' })
+                        : '';
 
                       return (
                         <div
@@ -897,13 +915,48 @@ const Transactions: React.FC = () => {
                               </div>
                             )}
                           </div>
+
+                          {/* ── Sparkline footer ── */}
+                          {catTxs.length > 0 && !isDragOver && (
+                            <div className="shrink-0 px-2 pt-1.5 pb-2"
+                              style={{ borderTop: '1px solid var(--line)' }}>
+                              <svg
+                                viewBox={`0 0 ${daysInMonth * 5} 18`}
+                                preserveAspectRatio="none"
+                                style={{ width: '100%', height: '14px', display: 'block' }}
+                              >
+                                {dailyTotals.map((v, i) => {
+                                  const barH = v > 0 ? Math.max(2, Math.round((v / maxDay) * 16)) : 0;
+                                  return (
+                                    <rect
+                                      key={i}
+                                      x={i * 5}
+                                      y={18 - Math.max(barH, 1)}
+                                      width={4}
+                                      height={Math.max(barH, 1)}
+                                      rx={1}
+                                      fill={cat.color}
+                                      opacity={v > 0 ? 0.65 : 0.12}
+                                    />
+                                  );
+                                })}
+                              </svg>
+                              {pctChange !== null && (
+                                <p className="text-[8px] font-semibold leading-none text-right mt-1"
+                                  style={{ color: cat.color, opacity: 0.7 }}>
+                                  {pctChange > 0 ? '↑' : pctChange < 0 ? '↓' : '='}{Math.abs(pctChange)}% vs {prevMonthShort}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
-              </div> {/* /outer clip */}
+              </div> {/* /grid clip */}
+              </div> {/* /category area */}
 
             </div>
 

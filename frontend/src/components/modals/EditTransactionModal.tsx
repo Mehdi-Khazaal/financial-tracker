@@ -12,8 +12,12 @@ interface Props {
   transaction: Transaction | null;
 }
 
+const fmt = (n: number) =>
+  Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
   const toast = useToast();
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -26,6 +30,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
 
   useEffect(() => {
     if (isOpen && transaction) {
+      setMode('view');
       const isIncome = Number(transaction.amount) > 0;
       setType(isIncome ? 'income' : 'expense');
       setAmount(Math.abs(Number(transaction.amount)).toString());
@@ -60,6 +65,75 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
 
   const filteredCats = categories.filter(c => c.type === type);
   const accentColor = type === 'expense' ? 'var(--neg)' : 'var(--pos)';
+
+  // ── View mode (no keyboard on open) ──────────────────────────────────────────
+  if (mode === 'view' && transaction) {
+    const pos = Number(transaction.amount) >= 0;
+    const accName = accounts.find(a => a.id === transaction.account_id)?.name ?? '—';
+    const cat = categories.find(c => c.id === transaction.category_id);
+    const dateStr = new Date(transaction.transaction_date + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+    });
+    const amtStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(transaction.amount)))}`;
+
+    const rows = [
+      { label: 'Date',     value: dateStr,                         color: undefined      },
+      { label: 'Account',  value: accName,                         color: undefined      },
+      { label: 'Category', value: cat?.name ?? 'Uncategorized',    color: cat?.color     },
+      { label: 'Type',     value: pos ? 'Income' : 'Expense',      color: pos ? 'var(--pos)' : 'var(--neg)' },
+    ];
+
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose}>
+        <div className="px-5 pb-8 pt-1">
+          {/* Close */}
+          <div className="flex justify-end pt-2">
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Amount + description */}
+          <div className="text-center pt-3 pb-6">
+            <p className="text-4xl font-bold tracking-tight"
+              style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
+              {amtStr}
+            </p>
+            <p className="text-sm font-medium mt-2 truncate px-4" style={{ color: 'var(--fg)' }}>
+              {cleanDescription(transaction.description)}
+            </p>
+          </div>
+
+          {/* Detail rows */}
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--line)', backgroundColor: 'var(--elev-sub)' }}>
+            {rows.map((row, i) => (
+              <div key={row.label}
+                className="flex items-center justify-between px-4 py-3"
+                style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--dim)' }}>{row.label}</p>
+                <div className="flex items-center gap-1.5">
+                  {row.color && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />}
+                  <p className="text-sm font-medium" style={{ color: row.color ?? 'var(--fg)' }}>{row.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Edit button */}
+          <button
+            onClick={() => setMode('edit')}
+            className="w-full mt-4 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
+            style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
+            Edit Transaction
+          </button>
+        </div>
+      </BottomSheet>
+    );
+  }
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Transaction">
