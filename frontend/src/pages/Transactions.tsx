@@ -310,8 +310,10 @@ const Transactions: React.FC = () => {
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
   const MAX_TX_SHOWN = 4;
 
-  // ref for the scrollable category grid
+  // refs for the scrollable category grid and the mirrored top scrollbar
   const catScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncing    = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -369,6 +371,30 @@ const Transactions: React.FC = () => {
   );
 
   const hiddenEmptyCount = sortedCategories.length - visibleCategories.length;
+
+  // Width of the top scroll mirror — matches the CSS grid maths:
+  // gridAutoColumns: 220px, gap: 8px, padding: 12px each side → 228*cols + 16
+  const numGridCols     = Math.max(1, Math.ceil(visibleCategories.length / 2));
+  const catContentWidth = 228 * numGridCols + 16;
+
+  // Keep top scrollbar ↔ category grid in perfect sync
+  const handleTopScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncing.current) return;
+    if (catScrollRef.current) {
+      isSyncing.current = true;
+      catScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      requestAnimationFrame(() => { isSyncing.current = false; });
+    }
+  }, []);
+
+  const handleCatScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncing.current) return;
+    if (topScrollRef.current) {
+      isSyncing.current = true;
+      topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      requestAnimationFrame(() => { isSyncing.current = false; });
+    }
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
@@ -686,13 +712,29 @@ const Transactions: React.FC = () => {
             </div>
           ) : (
             <>
+            {/* ── Top horizontal scroll track (desktop only, mirrors category grid) ── */}
+            {sortedCategories.length > 0 && (
+              <div className="hidden md:flex shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
+                {/* Spacer width = inbox width = sidebar width → perfect vertical alignment */}
+                <div className="shrink-0" style={{ width: '240px', borderRight: '1px solid var(--line)' }} />
+                <div
+                  ref={topScrollRef}
+                  className="app-scrollbar flex-1 overflow-x-auto overflow-y-hidden"
+                  style={{ height: '6px' }}
+                  onScroll={handleTopScroll}
+                >
+                  <div style={{ width: catContentWidth, height: '1px' }} />
+                </div>
+              </div>
+            )}
+
             {/* ── Desktop board (md+) ── */}
             <div className="hidden md:flex flex-1 overflow-hidden">
 
               {/* ── Inbox: uncategorized queue ── */}
               <div
                 className="flex flex-col shrink-0 overflow-hidden"
-                style={{ width: '220px', borderRight: '1px solid var(--line)' }}
+                style={{ width: '240px', borderRight: '1px solid var(--line)' }}
               >
                 {/* Inbox header */}
                 <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -750,6 +792,7 @@ const Transactions: React.FC = () => {
               <div
                 ref={catScrollRef}
                 className="hide-scrollbar flex-1 overflow-x-auto overflow-y-hidden"
+                onScroll={handleCatScroll}
               >
                 {sortedCategories.length === 0 ? (
                   <div className="h-full flex items-center justify-center">
