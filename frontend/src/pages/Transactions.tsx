@@ -360,16 +360,6 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
-  const boardSpent  = useMemo(() =>
-    monthTransactions.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
-    [monthTransactions],
-  );
-  const boardIncome = useMemo(() =>
-    monthTransactions.filter(t => Number(t.amount) >= 0).reduce((s, t) => s + Number(t.amount), 0),
-    [monthTransactions],
-  );
-  const boardNet    = boardIncome - boardSpent;
-
   // Sort categories alphabetically A → Z
   const sortedCategories = useMemo(() =>
     [...categories].sort((a, b) => a.name.localeCompare(b.name)),
