@@ -301,23 +301,11 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
-  // Sort categories by total spend this month ascending (lowest first), empty at end
-  const sortedCategories = useMemo(() => {
-    const totalMap = new Map(
-      categories.map(c => [
-        c.id,
-        monthTransactions.filter(t => t.category_id === c.id).reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
-      ]),
-    );
-    return [...categories].sort((a, b) => {
-      const ta = totalMap.get(a.id) ?? 0;
-      const tb = totalMap.get(b.id) ?? 0;
-      if (ta === 0 && tb === 0) return a.name.localeCompare(b.name);
-      if (ta === 0) return 1;
-      if (tb === 0) return -1;
-      return ta - tb; // ascending: lowest cost first
-    });
-  }, [categories, monthTransactions]);
+  // Sort categories alphabetically A → Z
+  const sortedCategories = useMemo(() =>
+    [...categories].sort((a, b) => a.name.localeCompare(b.name)),
+    [categories],
+  );
 
   // When dragging, show all categories so user can drop into any; otherwise hide empty if toggle is on
   const visibleCategories = useMemo(() =>
