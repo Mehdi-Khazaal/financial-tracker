@@ -360,6 +360,16 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
+  const boardSpent  = useMemo(() =>
+    monthTransactions.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
+    [monthTransactions],
+  );
+  const boardIncome = useMemo(() =>
+    monthTransactions.filter(t => Number(t.amount) >= 0).reduce((s, t) => s + Number(t.amount), 0),
+    [monthTransactions],
+  );
+  const boardNet    = boardIncome - boardSpent;
+
   // Sort categories alphabetically A → Z
   const sortedCategories = useMemo(() =>
     [...categories].sort((a, b) => a.name.localeCompare(b.name)),
@@ -717,7 +727,7 @@ const Transactions: React.FC = () => {
               </div>
             </div>
           ) : (
-            <>
+            <div className="flex-1 flex flex-col overflow-hidden">
             {/* ── Desktop board (md+) ── */}
             <div className="hidden md:flex flex-1 overflow-hidden">
 
@@ -1017,7 +1027,39 @@ const Transactions: React.FC = () => {
                 </div>
               )}
             </div>
-            </>
+
+            {/* ── Monthly summary strip (desktop only) ── */}
+            <div className="hidden md:flex shrink-0 items-center gap-8 px-6 py-2.5"
+              style={{ borderTop: '1px solid var(--line)', backgroundColor: 'var(--bg)' }}>
+              <div>
+                <p className="label mb-0.5">Spent</p>
+                <p className="font-mono font-bold text-sm" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                  -${fmt(boardSpent)}
+                </p>
+              </div>
+              <div>
+                <p className="label mb-0.5">Income</p>
+                <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
+                  +${fmt(boardIncome)}
+                </p>
+              </div>
+              <div>
+                <p className="label mb-0.5">Net</p>
+                <p className="font-mono font-bold text-sm"
+                  style={{ color: boardNet >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                  {boardNet >= 0 ? '+' : '-'}${fmt(Math.abs(boardNet))}
+                </p>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={uncategorized.length > 0
+                    ? { backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)' }
+                    : { backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)' }}>
+                  {uncategorized.length === 0 ? 'All categorized ✓' : `${uncategorized.length} uncategorized`}
+                </span>
+              </div>
+            </div>
+            </div>
           )
         )}
 
