@@ -64,7 +64,7 @@ const TxCard: React.FC<TxCardProps> = ({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        className="group flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-colors"
+        className="group flex items-center gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors"
         style={{
           borderBottom: '1px solid var(--line)',
           opacity: isDragging ? 0.25 : 1,
@@ -73,12 +73,12 @@ const TxCard: React.FC<TxCardProps> = ({
         onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
+          <p className="text-[11px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
             {cleanDescription(tx.description)}
           </p>
-          <p className="text-[8px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
+          <p className="text-[9px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
         </div>
-        <p className="text-[10px] font-bold shrink-0"
+        <p className="text-[11px] font-bold shrink-0"
           style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
           {amountStr}
         </p>
@@ -639,7 +639,7 @@ const Transactions: React.FC = () => {
               {/* ── Inbox: uncategorized queue ── */}
               <div
                 className="flex flex-col shrink-0 overflow-hidden"
-                style={{ width: '192px', borderRight: '1px solid var(--line)' }}
+                style={{ width: '220px', borderRight: '1px solid var(--line)' }}
               >
                 {/* Inbox header */}
                 <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
@@ -661,7 +661,7 @@ const Transactions: React.FC = () => {
 
                 {/* Inbox list — is also the drag-to-uncategorize drop zone */}
                 <div
-                  className="hide-scrollbar flex-1 overflow-y-auto"
+                  className="app-scrollbar flex-1 overflow-y-auto"
                   style={{
                     backgroundColor: dragOverTarget === 'uncategorized' ? 'oklch(70% 0.17 25 / 0.04)' : 'transparent',
                     transition: 'background-color 0.15s',
@@ -711,7 +711,7 @@ const Transactions: React.FC = () => {
                       display: 'grid',
                       gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                       gridAutoFlow: 'column',
-                      gridAutoColumns: '192px',
+                      gridAutoColumns: '220px',
                       height: '100%',
                       minWidth: 'max-content',
                       gap: '8px',
@@ -750,7 +750,7 @@ const Transactions: React.FC = () => {
                             <div className="flex items-center justify-between gap-1 mb-0.5">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                                <p className="text-[10px] font-semibold truncate"
+                                <p className="text-[11px] font-semibold truncate"
                                   style={{ color: 'var(--muted)' }}>
                                   {cat.name}
                                 </p>
@@ -766,7 +766,7 @@ const Transactions: React.FC = () => {
                           </div>
 
                           {/* Transaction rows */}
-                          <div className="hide-scrollbar flex-1 overflow-y-auto">
+                          <div className="app-scrollbar flex-1 overflow-y-auto">
                             {shownTxs.map(tx => (
                               <TxCard key={tx.id} tx={tx} accounts={accounts} compact
                                 isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
@@ -832,7 +832,7 @@ const Transactions: React.FC = () => {
 
               {/* Uncategorized queue */}
               {mobileView === 'queue' && (
-                <div className="hide-scrollbar flex-1 overflow-y-auto p-3 space-y-2 pb-32">
+                <div className="app-scrollbar flex-1 overflow-y-auto p-3 space-y-2 pb-32">
                   {uncategorized.length === 0 ? (
                     <div className="py-16 text-center">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
@@ -852,7 +852,7 @@ const Transactions: React.FC = () => {
 
               {/* By-category list */}
               {mobileView === 'categories' && (
-                <div className="hide-scrollbar flex-1 overflow-y-auto p-3 pb-32 space-y-3">
+                <div className="app-scrollbar flex-1 overflow-y-auto p-3 pb-32 space-y-3">
                   {visibleCategories.map(cat => {
                     const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
                     const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
