@@ -158,7 +158,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
   // Reset to the board's selected month each time a (new) category is opened
   useEffect(() => {
     if (cat) setLocalMonth(defaultMonth ?? '');
-  }, [cat?.id, defaultMonth]);
+  }, [cat, defaultMonth]);
 
   // All transactions for this category (all time)
   const allCatTxs = cat
