@@ -544,6 +544,7 @@ const Transactions: React.FC = () => {
             transform: `translateX(${visual}px)`,
             transition: live === 0 ? 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
             position: 'relative', zIndex: 1,
+            backgroundColor: 'var(--bg)',
           }}
         >
           {children}
