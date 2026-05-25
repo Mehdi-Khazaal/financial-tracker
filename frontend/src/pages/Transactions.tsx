@@ -160,6 +160,9 @@ const Transactions: React.FC = () => {
   const [selectedMonth, setSelectedMonth]   = useState('');
   const [draggingTxId, setDraggingTxId]     = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<number | 'uncategorized' | null>(null);
+  const [expandedCats, setExpandedCats]     = useState<Record<number, boolean>>({});
+  const [hideEmpty, setHideEmpty]           = useState(true);
+  const MAX_TX_SHOWN = 4;
 
   // ref for the scrollable category grid
   const catScrollRef = useRef<HTMLDivElement>(null);
@@ -215,6 +218,18 @@ const Transactions: React.FC = () => {
       return a.name.localeCompare(b.name);
     });
   }, [categories, monthTransactions]);
+
+  // When dragging, show all categories so user can drop into any; otherwise hide empty if toggle is on
+  const visibleCategories = useMemo(() =>
+    sortedCategories.filter(cat => {
+      if (draggingTxId !== null) return true;          // reveal all targets while dragging
+      if (!hideEmpty) return true;
+      return monthTransactions.some(t => t.category_id === cat.id);
+    }),
+    [sortedCategories, hideEmpty, draggingTxId, monthTransactions],
+  );
+
+  const hiddenEmptyCount = sortedCategories.length - visibleCategories.length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
@@ -468,6 +483,20 @@ const Transactions: React.FC = () => {
             </div>
           )}
 
+          {/* Hide-empty toggle — only on board tab */}
+          {tab === 'transactions' && (
+            <button
+              onClick={() => setHideEmpty(h => !h)}
+              className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
+              style={hideEmpty
+                ? { backgroundColor: 'var(--elev-1)', color: 'var(--dim)', border: '1px solid var(--line)' }
+                : { backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}
+              title={hideEmpty ? `${hiddenEmptyCount} empty categories hidden` : 'Hide empty categories'}
+            >
+              {hideEmpty ? `+${hiddenEmptyCount} empty` : 'Hide empty'}
+            </button>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-2 ml-auto shrink-0">
             {tab === 'transactions' && (
@@ -599,11 +628,14 @@ const Transactions: React.FC = () => {
                         minWidth: 'max-content',
                       }}
                     >
-                      {sortedCategories.map((cat, idx) => {
+                      {visibleCategories.map((cat, idx) => {
                         const catTxs     = monthTransactions.filter(t => t.category_id === cat.id);
                         const total      = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
                         const isDragOver = dragOverTarget === cat.id;
-                        const isTopRow   = idx % 2 === 0; // grid-auto-flow: column → even = row 0
+                        const isTopRow   = idx % 2 === 0;
+                        const isExpanded = !!expandedCats[cat.id];
+                        const shownTxs   = isExpanded ? catTxs : catTxs.slice(0, MAX_TX_SHOWN);
+                        const hiddenCount = catTxs.length - shownTxs.length;
 
                         return (
                           <div
@@ -638,10 +670,31 @@ const Transactions: React.FC = () => {
 
                             {/* Compact transaction list */}
                             <div className="flex-1 overflow-y-auto p-1.5 space-y-1" style={{ scrollbarWidth: 'none' }}>
-                              {catTxs.map(tx => (
+                              {shownTxs.map(tx => (
                                 <TxCard key={tx.id} tx={tx} accounts={accounts} compact
                                   isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                               ))}
+
+                              {/* Show more / less */}
+                              {hiddenCount > 0 && (
+                                <button
+                                  onClick={() => setExpandedCats(p => ({ ...p, [cat.id]: true }))}
+                                  className="w-full py-1 text-[9px] font-semibold rounded-lg transition-colors"
+                                  style={{ color: cat.color, backgroundColor: cat.color + '10' }}
+                                >
+                                  +{hiddenCount} more
+                                </button>
+                              )}
+                              {isExpanded && catTxs.length > MAX_TX_SHOWN && (
+                                <button
+                                  onClick={() => setExpandedCats(p => ({ ...p, [cat.id]: false }))}
+                                  className="w-full py-1 text-[9px] font-semibold rounded-lg transition-colors"
+                                  style={{ color: 'var(--dim)', backgroundColor: 'var(--elev-sub)' }}
+                                >
+                                  Show less
+                                </button>
+                              )}
+
                               {isDragOver && (
                                 <div className="border-2 border-dashed rounded-lg py-3 flex items-center justify-center"
                                   style={{ borderColor: cat.color + '80' }}>
