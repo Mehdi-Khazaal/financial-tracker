@@ -308,7 +308,9 @@ const Transactions: React.FC = () => {
   const [detailCat, setDetailCat]           = useState<Category | null>(null);
   const [hideEmpty, setHideEmpty]           = useState(true);
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
-  const MAX_TX_SHOWN = 4;
+  const [swipedTxId, setSwipedTxId]         = useState<number | null>(null);
+  const [categorizeTx, setCategorizeTx]     = useState<Transaction | null>(null);
+  const MAX_TX_SHOWN = 3;
 
   // refs for the scrollable category grid and the mirrored top scrollbar
   const catScrollRef = useRef<HTMLDivElement>(null);
@@ -491,6 +493,63 @@ const Transactions: React.FC = () => {
     if (days === 1) return 'Tomorrow';
     if (days <= 7) return `In ${days} days`;
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // ── Swipeable row (mobile swipe-to-delete) ───────────────────────────────────
+  const SwipeRow: React.FC<{
+    txId: number; onDelete: () => void; children: React.ReactNode;
+  }> = ({ txId, onDelete, children }) => {
+    const isOpen = swipedTxId === txId;
+    const DELETE_W = 76;
+    const startX = useRef(0);
+    const startY = useRef(0);
+    const [live, setLive] = useState(0);
+
+    const base = isOpen ? -DELETE_W : 0;
+    const clamped = Math.min(isOpen ? DELETE_W : 0, Math.max(isOpen ? 0 : -DELETE_W, live));
+    const visual = base + clamped;
+
+    return (
+      <div className="relative overflow-hidden rounded-2xl">
+        <div className="absolute inset-y-0 right-0 flex flex-col items-center justify-center rounded-r-2xl"
+          style={{ width: DELETE_W, backgroundColor: 'var(--neg)', zIndex: 0 }}>
+          <button
+            onPointerDown={e => e.stopPropagation()}
+            onClick={() => { onDelete(); setSwipedTxId(null); }}
+            className="flex flex-col items-center gap-1 w-full h-full justify-center active:opacity-75 transition-opacity">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5" style={{ color: 'white' }}>
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[9px] font-bold" style={{ color: 'white' }}>Delete</span>
+          </button>
+        </div>
+        <div
+          onTouchStart={e => {
+            startX.current = e.touches[0].clientX;
+            startY.current = e.touches[0].clientY;
+          }}
+          onTouchMove={e => {
+            const dx = e.touches[0].clientX - startX.current;
+            const dy = e.touches[0].clientY - startY.current;
+            if (Math.abs(dy) > Math.abs(dx) + 8) return;
+            setLive(dx);
+          }}
+          onTouchEnd={() => {
+            const snap = base + clamped;
+            if (!isOpen && snap < -(DELETE_W * 0.4)) setSwipedTxId(txId);
+            else if (isOpen && snap > -(DELETE_W * 0.5)) setSwipedTxId(null);
+            setLive(0);
+          }}
+          style={{
+            transform: `translateX(${visual}px)`,
+            transition: live === 0 ? 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none',
+            position: 'relative', zIndex: 1,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    );
   };
 
   // ── Recurring Item ─────────────────────────────────────────────────────────────
@@ -806,13 +865,13 @@ const Transactions: React.FC = () => {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
+                      gridTemplateRows: 'repeat(2, auto)',
                       gridAutoFlow: 'column',
                       gridAutoColumns: '220px',
-                      height: 'calc(100% - 20px)',
+                      alignItems: 'start',
                       minWidth: 'max-content',
                       gap: '8px',
-                      padding: '10px 12px',
+                      padding: '10px 12px 30px',
                     }}
                   >
                     {visibleCategories.map(cat => {
@@ -821,26 +880,6 @@ const Transactions: React.FC = () => {
                       const isDragOver  = dragOverTarget === cat.id;
                       const shownTxs    = catTxs.slice(0, MAX_TX_SHOWN);
                       const hiddenCount = catTxs.length - shownTxs.length;
-
-                      // Sparkline data
-                      const [sy, sm] = selectedMonth ? selectedMonth.split('-').map(Number) : [0, 0];
-                      const daysInMonth = sy && sm ? new Date(sy, sm, 0).getDate() : 30;
-                      const dailyTotals = Array(daysInMonth).fill(0) as number[];
-                      catTxs.forEach(t => {
-                        const d = parseInt(t.transaction_date.slice(8, 10)) - 1;
-                        if (d >= 0 && d < daysInMonth) dailyTotals[d] += Math.abs(Number(t.amount));
-                      });
-                      const maxDay = Math.max(...dailyTotals, 0.01);
-                      const prevSm = sm <= 1 ? 12 : sm - 1;
-                      const prevSy = sm <= 1 ? sy - 1 : sy;
-                      const prevYM = `${prevSy}-${String(prevSm).padStart(2, '0')}`;
-                      const prevTotal = transactions
-                        .filter(t => t.category_id === cat.id && t.transaction_date.startsWith(prevYM))
-                        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-                      const pctChange = prevTotal > 0 ? Math.round((total - prevTotal) / prevTotal * 100) : null;
-                      const prevMonthShort = sm > 0
-                        ? new Date(prevSy, prevSm - 1).toLocaleDateString('en-US', { month: 'short' })
-                        : '';
 
                       return (
                         <div
@@ -858,7 +897,7 @@ const Transactions: React.FC = () => {
                         >
                           {/* Column header — click to open full detail modal */}
                           <div
-                            className="px-3 py-2.5 shrink-0 cursor-pointer transition-colors"
+                            className="px-3 py-2.5 cursor-pointer transition-colors"
                             style={{ borderBottom: '1px solid var(--line)' }}
                             onClick={() => setDetailCat(cat)}
                             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
@@ -867,14 +906,11 @@ const Transactions: React.FC = () => {
                             <div className="flex items-center justify-between gap-1 mb-0.5">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                                <p className="text-[11px] font-semibold truncate"
-                                  style={{ color: 'var(--muted)' }}>
+                                <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--muted)' }}>
                                   {cat.name}
                                 </p>
                               </div>
-                              <p className="text-[9px] shrink-0" style={{ color: 'var(--dim)' }}>
-                                {catTxs.length}
-                              </p>
+                              <p className="text-[9px] shrink-0" style={{ color: 'var(--dim)' }}>{catTxs.length}</p>
                             </div>
                             <p className="text-[15px] font-bold leading-tight"
                               style={{ fontFamily: 'var(--font-mono)', color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
@@ -882,73 +918,40 @@ const Transactions: React.FC = () => {
                             </p>
                           </div>
 
-                          {/* Transaction rows */}
-                          <div className="app-scrollbar flex-1 overflow-y-auto">
+                          {/* Transaction rows — natural height, no scroll */}
+                          <div>
                             {shownTxs.map(tx => (
                               <TxCard key={tx.id} tx={tx} accounts={accounts} compact
                                 isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                             ))}
-
-                            {/* More transactions → opens detail modal */}
-                            {hiddenCount > 0 && (
-                              <button
-                                onClick={() => setDetailCat(cat)}
-                                className="w-full py-1.5 text-[9px] font-semibold transition-colors"
-                                style={{ color: cat.color, borderTop: '1px solid var(--line)' }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
-                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                              >
-                                +{hiddenCount} more
-                              </button>
-                            )}
-
-                            {isDragOver && (
-                              <div className="mx-2 my-2 border border-dashed rounded-lg py-3 text-center"
-                                style={{ borderColor: `${cat.color}50` }}>
-                                <p className="text-[9px] font-semibold" style={{ color: cat.color }}>Drop here</p>
-                              </div>
-                            )}
-                            {!isDragOver && catTxs.length === 0 && (
-                              <div className="mx-2 my-2 border border-dashed rounded-lg py-3 text-center"
+                            {catTxs.length === 0 && !isDragOver && (
+                              <div className="mx-2 my-2.5 border border-dashed rounded-lg py-3 text-center"
                                 style={{ borderColor: 'var(--line)' }}>
                                 <p className="text-[9px]" style={{ color: 'var(--dim)' }}>Drop to categorize</p>
                               </div>
                             )}
+                            {isDragOver && (
+                              <div className="mx-2 my-2 border border-dashed rounded-lg py-2.5 text-center"
+                                style={{ borderColor: `${cat.color}50` }}>
+                                <p className="text-[9px] font-semibold" style={{ color: cat.color }}>Drop here</p>
+                              </div>
+                            )}
                           </div>
 
-                          {/* ── Sparkline footer ── */}
-                          {catTxs.length > 0 && !isDragOver && (
-                            <div className="shrink-0 px-2 pt-1.5 pb-2"
-                              style={{ borderTop: '1px solid var(--line)' }}>
-                              <svg
-                                viewBox={`0 0 ${daysInMonth * 5} 18`}
-                                preserveAspectRatio="none"
-                                style={{ width: '100%', height: '14px', display: 'block' }}
-                              >
-                                {dailyTotals.map((v, i) => {
-                                  const barH = v > 0 ? Math.max(2, Math.round((v / maxDay) * 16)) : 0;
-                                  return (
-                                    <rect
-                                      key={i}
-                                      x={i * 5}
-                                      y={18 - Math.max(barH, 1)}
-                                      width={4}
-                                      height={Math.max(barH, 1)}
-                                      rx={1}
-                                      fill={cat.color}
-                                      opacity={v > 0 ? 0.65 : 0.12}
-                                    />
-                                  );
-                                })}
-                              </svg>
-                              {pctChange !== null && (
-                                <p className="text-[8px] font-semibold leading-none text-right mt-1"
-                                  style={{ color: cat.color, opacity: 0.7 }}>
-                                  {pctChange > 0 ? '↑' : pctChange < 0 ? '↓' : '='}{Math.abs(pctChange)}% vs {prevMonthShort}
-                                </p>
-                              )}
-                            </div>
-                          )}
+                          {/* Footer: "view more" or color accent */}
+                          {hiddenCount > 0 ? (
+                            <button
+                              onClick={() => setDetailCat(cat)}
+                              className="w-full py-2 text-[9px] font-semibold transition-colors"
+                              style={{ color: cat.color, borderTop: `1px solid ${cat.color}20`, backgroundColor: `${cat.color}06` }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}12`)}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${cat.color}06`)}
+                            >
+                              +{hiddenCount} more →
+                            </button>
+                          ) : catTxs.length > 0 ? (
+                            <div style={{ height: '3px', backgroundColor: cat.color, opacity: 0.3 }} />
+                          ) : null}
                         </div>
                       );
                     })}
@@ -996,9 +999,12 @@ const Transactions: React.FC = () => {
                       <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
                     </div>
                   ) : uncategorized.map(tx => (
-                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false}
-                      onDragStart={() => {}} onDragEnd={() => {}}
-                      onClick={() => setEditTx(tx)} onDelete={() => handleDelete(tx.id)} />
+                    <SwipeRow key={tx.id} txId={tx.id} onDelete={() => handleDelete(tx.id)}>
+                      <TxCard tx={tx} accounts={accounts} isDragging={false}
+                        onDragStart={() => {}} onDragEnd={() => {}}
+                        onClick={() => { setSwipedTxId(null); setCategorizeTx(tx); }}
+                        onDelete={() => handleDelete(tx.id)} />
+                    </SwipeRow>
                   ))}
                 </div>
               )}
@@ -1152,6 +1158,52 @@ const Transactions: React.FC = () => {
         )}
 
       </main>
+
+      {/* ── Categorize picker (mobile) ── */}
+      {categorizeTx && (() => {
+        const pos = Number(categorizeTx.amount) >= 0;
+        return (
+          <BottomSheet isOpen={!!categorizeTx} onClose={() => setCategorizeTx(null)}>
+            <div>
+              {/* Transaction summary */}
+              <div className="px-5 pt-5 pb-4 text-center" style={{ borderBottom: '1px solid var(--line)' }}>
+                <p className="text-3xl font-bold"
+                  style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
+                  {pos ? '+' : '-'}${fmt(Math.abs(Number(categorizeTx.amount)))}
+                </p>
+                <p className="text-sm font-medium mt-1.5 truncate" style={{ color: 'var(--muted)' }}>
+                  {cleanDescription(categorizeTx.description)}
+                </p>
+              </div>
+
+              {/* Category grid */}
+              <div className="px-4 pt-4 pb-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--dim)' }}>
+                  Assign category
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {sortedCategories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={async () => { await handleCategorize(categorizeTx.id, cat.id); setCategorizeTx(null); }}
+                      className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-left transition-all active:scale-[0.97]"
+                      style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}28` }}>
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                      <p className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</p>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => { setCategorizeTx(null); setEditTx(categorizeTx); }}
+                  className="w-full mt-3 mb-1 py-3 text-sm font-medium rounded-xl"
+                  style={{ color: 'var(--muted)', backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
+                  Edit full details →
+                </button>
+              </div>
+            </div>
+          </BottomSheet>
+        );
+      })()}
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
