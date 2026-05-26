@@ -104,7 +104,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
               )}
             </div>
             <button onClick={() => onDelete(loan)}
-              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center transition-all mt-0.5"
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center transition-all mt-0.5"
               style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -317,7 +317,7 @@ const AccountsPage: React.FC = () => {
                 <>
                   <div className="relative">
                     <button onClick={() => setShowFundsMenu(v => !v)}
-                      className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
                       style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', border: '1px solid oklch(78% 0.16 150 / 0.2)', color: 'var(--pos)' }}>
                       Funds
                     </button>
@@ -339,7 +339,7 @@ const AccountsPage: React.FC = () => {
                     )}
                   </div>
                   <button onClick={() => setShowTransfer(true)}
-                    className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
                     style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', border: '1px solid oklch(72% 0.17 55 / 0.2)', color: 'var(--accent)' }}>
                     Transfer
                   </button>
@@ -448,7 +448,7 @@ const AccountsPage: React.FC = () => {
                                     <p className="text-xs text-muted">{meta.label}</p>
                                   </div>
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                                   <button onClick={() => setEditAccount(account)}
                                     className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
                                     style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>

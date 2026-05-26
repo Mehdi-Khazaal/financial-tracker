@@ -160,7 +160,7 @@ const Analytics: React.FC = () => {
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-12 md:pr-0">
             <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Analytics</h1>
           </div>
 

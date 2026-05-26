@@ -412,7 +412,7 @@ const Settings: React.FC = () => {
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                             style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--dim)' }}>default</span>
                         )}
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(cat)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
                             style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>

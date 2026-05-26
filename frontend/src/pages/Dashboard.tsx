@@ -9,6 +9,8 @@ import { Account, Transaction, SavingsGoal, Category, MonthSnapshot } from '../t
 import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory, cleanDescription } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
+import PullToRefresh from '../components/PullToRefresh';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import AddAccountModal from '../components/modals/AddAccountModal';
@@ -84,8 +86,6 @@ const Dashboard: React.FC = () => {
   const [showWithdraw, setShowWithdraw]       = useState(false);
   const [showDeposit, setShowDeposit]         = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
-
   const loadAll = async () => {
     try {
       const [aRes, tRes, gRes, catRes, nwRes] = await Promise.all([
@@ -99,6 +99,10 @@ const Dashboard: React.FC = () => {
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
+
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(loadAll);
+
+  useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const now = new Date();
@@ -233,6 +237,7 @@ const Dashboard: React.FC = () => {
   return (
     <>
       <Navigation />
+      <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 md:space-y-6 fade-in">
 

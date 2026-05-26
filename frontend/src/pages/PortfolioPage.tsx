@@ -330,7 +330,7 @@ const PortfolioPage: React.FC = () => {
                               <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>fetching…</span>
                             )}
                             <button onClick={() => handleDeleteInv(inv.id, inv.name)}
-                              className="opacity-0 group-hover:opacity-100 transition-all"
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                               style={{ color: 'var(--dim)' }}
                               onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--neg)'}
                               onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--dim)'}>
@@ -420,7 +420,7 @@ const PortfolioPage: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <p className="font-mono font-bold text-lg text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(Number(asset.total_value))}</p>
                             <button onClick={() => handleDeleteAsset(asset.id, asset.name)}
-                              className="opacity-0 group-hover:opacity-100 transition-all"
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
                               style={{ color: 'var(--dim)' }}
                               onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--neg)'}
                               onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--dim)'}>
@@ -546,7 +546,7 @@ const PortfolioPage: React.FC = () => {
                                   <button onClick={() => setSpendGoal(goal)} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>Spend</button>
                                 )}
                                 <button onClick={() => setEditGoal(goal)} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>Allocate</button>
-                                <button onClick={() => handleDeleteGoal(goal.id, goal.name)} className="opacity-0 group-hover:opacity-100 transition-all" style={{ color: 'var(--dim)' }}
+                                <button onClick={() => handleDeleteGoal(goal.id, goal.name)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all" style={{ color: 'var(--dim)' }}
                                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--neg)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}>
                                   <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                                 </button>
