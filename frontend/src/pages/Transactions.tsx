@@ -41,6 +41,7 @@ interface TxCardProps {
   isDragging: boolean;
   compact?: boolean;
   noDrag?: boolean;
+  mobileCard?: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -48,7 +49,7 @@ interface TxCardProps {
 }
 
 const TxCard: React.FC<TxCardProps> = ({
-  tx, accounts, isDragging, compact = false, noDrag = false, onDragStart, onDragEnd, onClick, onDelete,
+  tx, accounts, isDragging, compact = false, noDrag = false, mobileCard = false, onDragStart, onDragEnd, onClick, onDelete,
 }) => {
   const pos = Number(tx.amount) >= 0;
   const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
@@ -105,32 +106,59 @@ const TxCard: React.FC<TxCardProps> = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`group flex items-start gap-2 px-3 py-2.5 select-none transition-colors ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
-      style={{
+      className={`group flex items-start gap-2.5 select-none transition-colors ${mobileCard ? 'px-4 py-4 rounded-2xl' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
+      style={mobileCard ? {
+        borderRadius: 16,
+        backgroundColor: 'var(--elev-1)',
+        border: '1px solid var(--line)',
+        opacity: isDragging ? 0.25 : 1,
+      } : {
         borderBottom: '1px solid var(--line)',
         opacity: isDragging ? 0.25 : 1,
       }}
       onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+      onMouseLeave={e => (e.currentTarget.style.backgroundColor = mobileCard ? 'var(--elev-1)' : 'transparent')}
     >
-      {/* Drag handle */}
-      <div className="mt-[3px] shrink-0 opacity-0 group-hover:opacity-30 transition-opacity" style={{ color: 'var(--muted)' }}>
-        <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
-          <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-          <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-          <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-        </svg>
-      </div>
+      {/* Drag handle — hidden on mobile card */}
+      {!mobileCard && (
+        <div className="mt-[3px] shrink-0 opacity-0 group-hover:opacity-30 transition-opacity" style={{ color: 'var(--muted)' }}>
+          <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
+            <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+            <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
+            <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
+          </svg>
+        </div>
+      )}
+
+      {/* Color accent dot — mobile card only */}
+      {mobileCard && (
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+          style={{ backgroundColor: pos ? 'oklch(78% 0.16 150 / 0.12)' : 'oklch(70% 0.17 25 / 0.1)' }}>
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"
+            style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
+            {pos
+              ? <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              : <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            }
+          </svg>
+        </div>
+      )}
+
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-medium leading-snug truncate" style={{ color: 'var(--fg)' }}>
+        <p className={`${mobileCard ? 'text-sm' : 'text-[11px]'} font-semibold leading-snug truncate`} style={{ color: 'var(--fg)' }}>
           {cleanDescription(tx.description)}
         </p>
-        <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--dim)' }}>
+        <p className={`${mobileCard ? 'text-xs' : 'text-[9px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
           {accountName} · {shortDate}
         </p>
+        {mobileCard && (
+          <p className="text-[10px] mt-1.5 font-medium" style={{ color: 'var(--accent)' }}>
+            Tap to categorize →
+          </p>
+        )}
       </div>
       <div className="shrink-0 flex flex-col items-end">
-        <p className="text-[11px] font-bold"
+        <p className={`${mobileCard ? 'text-base' : 'text-[11px]'} font-bold`}
           style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
           {amountStr}
         </p>
@@ -917,11 +945,17 @@ const Transactions: React.FC = () => {
               <div className="flex gap-1.5 px-3 py-2 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
                 <button
                   onClick={() => setMobileView('queue')}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                  className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
                   style={mobileView === 'queue'
                     ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
                     : { color: 'var(--muted)' }}>
-                  Uncategorized{uncategorized.length > 0 ? ` (${uncategorized.length})` : ''}
+                  Uncategorized
+                  {uncategorized.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                      style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' }}>
+                      {uncategorized.length}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setMobileView('categories')}
@@ -946,7 +980,7 @@ const Transactions: React.FC = () => {
                       <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
                     </div>
                   ) : uncategorized.map(tx => (
-                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag
+                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag mobileCard
                       onDragStart={() => {}} onDragEnd={() => {}}
                       onClick={() => setCategorizeTx(tx)}
                       onDelete={() => handleDelete(tx.id)} />

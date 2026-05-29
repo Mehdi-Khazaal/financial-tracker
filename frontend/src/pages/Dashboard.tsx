@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { Account, Transaction, SavingsGoal, Category, MonthSnapshot } from '../types';
-import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory, cleanDescription } from '../utils/api';
+import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
 import PullToRefresh from '../components/PullToRefresh';
@@ -32,7 +32,7 @@ const AccountIcon: React.FC<{ type: string }> = ({ type }) => {
   const color = ACCOUNT_ICON_COLORS[type] ?? 'var(--accent)';
   const initials = type.replace('_', ' ').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
   return (
-    <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 font-mono text-[10px] font-bold"
+    <div className="w-8 h-8 md:w-9 md:h-9 rounded-md flex items-center justify-center shrink-0 font-mono text-[9px] md:text-[10px] font-bold"
       style={{ backgroundColor: 'var(--elev-sub)', color }}>
       {initials}
     </div>
@@ -109,7 +109,6 @@ const Dashboard: React.FC = () => {
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const nonCCAccounts  = accounts.filter(a => a.type !== 'credit_card');
-  const ccAccounts     = accounts.filter(a => a.type === 'credit_card');
   const accountsTotal  = accounts.filter(a => a.type !== 'investment').reduce((s, a) => s + Number(a.balance), 0);
   const netWorth       = accountsTotal;
   const spendable      = nonCCAccounts
@@ -132,8 +131,6 @@ const Dashboard: React.FC = () => {
     const progress = Math.min((current / Number(g.target_amount)) * 100, 100);
     return { ...g, current, progress };
   });
-
-  const recent = transactions.slice(0, 15);
 
   // ── Analytics derived ────────────────────────────────────────────────────────
   const filterByPeriod = (txs: Transaction[]) => {
@@ -354,137 +351,50 @@ const Dashboard: React.FC = () => {
               {/* ── Two-column grid (desktop) ── */}
               <div className="grid md:grid-cols-[3fr_2fr] gap-6 items-start">
 
-                {/* LEFT: Accounts + Recent Transactions */}
-                <div className="space-y-6">
-
-                  {/* Accounts */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="label">Accounts</p>
-                      <Link to="/accounts" className="text-xs font-medium transition-colors" style={{ color: 'var(--accent)' }}>View all →</Link>
-                    </div>
-                    {accounts.length === 0 ? (
-                      <button onClick={() => setShowAddAccount(true)}
-                        className="w-full rounded-lg py-10 text-center text-sm transition-all"
-                        style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px dashed var(--line)' }}>
-                        + Add your first account
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                        {accounts.slice(0, 6).map(a => (
-                          <div key={a.id} className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
-                            <div className="flex items-center gap-2 mb-3">
-                              <AccountIcon type={a.type} />
-                              <p className="label truncate">{a.type.replace('_', ' ')}</p>
-                            </div>
-                            <p className="text-xs truncate mb-1" style={{ color: 'var(--muted)' }}>{a.name}</p>
-                            <p className="font-mono tabular-nums text-lg font-medium" style={{ color: Number(a.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
-                              {Number(a.balance) < 0 ? '−' : ''}${fmt(Number(a.balance))}
-                            </p>
-                            {a.type === 'credit_card' && a.credit_limit && (
-                              <p className="text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>Limit ${fmt(Number(a.credit_limit))}</p>
-                            )}
+                {/* LEFT: Accounts */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="label">Accounts</p>
+                    <Link to="/accounts" className="text-xs font-medium transition-colors" style={{ color: 'var(--accent)' }}>View all →</Link>
+                  </div>
+                  {accounts.length === 0 ? (
+                    <button onClick={() => setShowAddAccount(true)}
+                      className="w-full rounded-lg py-10 text-center text-sm transition-all"
+                      style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px dashed var(--line)' }}>
+                      + Add your first account
+                    </button>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 md:gap-3">
+                      {accounts.slice(0, 6).map(a => (
+                        <div key={a.id} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
+                          <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                            <AccountIcon type={a.type} />
+                            <p className="label truncate text-[10px] md:text-xs">{a.type.replace('_', ' ')}</p>
                           </div>
-                        ))}
-                        {accounts.length > 6 && (
-                          <Link to="/accounts"
-                            className="rounded-lg p-4 flex items-center justify-center text-sm transition-colors"
-                            style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}
-                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
-                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}>
-                            +{accounts.length - 6} more
-                          </Link>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recent Transactions */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="label">Recent</p>
-                      <Link to="/transactions" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>View all →</Link>
-                    </div>
-                    {recent.length === 0 ? (
-                      <div className="rounded-lg py-10 text-center" style={{ backgroundColor: 'var(--elev-1)' }}>
-                        <p className="text-sm" style={{ color: 'var(--muted)' }}>No transactions yet</p>
-                        <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-                          className="mt-3 text-xs font-medium" style={{ color: 'var(--accent)' }}>
-                          Add one →
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--elev-1)' }}>
-                        {recent.map((tx, i) => {
-                          const pos  = Number(tx.amount) >= 0;
-                          const desc = cleanDescription(tx.description);
-                          const initials = desc.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase() || '??';
-                          return (
-                            <div key={tx.id}
-                              className="flex items-center gap-3 px-4 py-3 transition-colors"
-                              style={{
-                                borderBottom: i !== recent.length - 1 ? '1px solid var(--line)' : 'none',
-                              }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                              <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0 font-mono text-[10px] font-bold"
-                                style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
-                                {initials.slice(0, 2)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{desc}</p>
-                                <p className="text-xs" style={{ color: 'var(--muted)' }}>{tx.transaction_date}</p>
-                              </div>
-                              <p className="font-mono tabular-nums text-sm shrink-0 font-medium" style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-                                {pos ? '+' : '−'}${fmt(Math.abs(Number(tx.amount)))}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* RIGHT: Credit Cards + Savings Goals */}
-                <div className="space-y-6">
-
-                  {/* Credit Cards */}
-                  {ccAccounts.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="label">Credit Cards</p>
-                        <Link to="/accounts" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Manage →</Link>
-                      </div>
-                      <div className="space-y-3">
-                        {ccAccounts.map(card => {
-                          const owed  = Math.abs(Number(card.balance));
-                          const limit = Number(card.credit_limit) || 0;
-                          const used  = limit > 0 ? (owed / limit) * 100 : 0;
-                          return (
-                            <div key={card.id} className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
-                              <div className="flex items-center justify-between mb-3">
-                                <div>
-                                  <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>{card.name}</p>
-                                  {limit > 0 && <p className="label mt-0.5">Limit ${fmt(limit)}</p>}
-                                </div>
-                                <p className="font-mono tabular-nums text-lg font-medium" style={{ color: 'var(--neg)' }}>${fmt(owed)}</p>
-                              </div>
-                              {limit > 0 && (
-                                <>
-                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--elev-sub)' }}>
-                                    <div className="h-full rounded-full transition-all"
-                                      style={{ width: `${Math.min(used, 100)}%`, backgroundColor: used > 70 ? 'var(--neg)' : used > 30 ? '#f59e0b' : 'var(--pos)' }} />
-                                  </div>
-                                  <p className="text-[10px] mt-1.5 text-right" style={{ color: 'var(--dim)' }}>{used.toFixed(0)}% used</p>
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                          <p className="text-xs truncate mb-0.5 md:mb-1" style={{ color: 'var(--muted)' }}>{a.name}</p>
+                          <p className="font-mono tabular-nums text-base md:text-lg font-medium leading-tight" style={{ color: Number(a.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
+                            {Number(a.balance) < 0 ? '−' : ''}${fmt(Number(a.balance))}
+                          </p>
+                          {a.type === 'credit_card' && a.credit_limit && (
+                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>Limit ${fmt(Number(a.credit_limit))}</p>
+                          )}
+                        </div>
+                      ))}
+                      {accounts.length > 6 && (
+                        <Link to="/accounts"
+                          className="rounded-lg p-3 md:p-4 flex items-center justify-center text-sm transition-colors"
+                          style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}>
+                          +{accounts.length - 6} more
+                        </Link>
+                      )}
                     </div>
                   )}
+                </div>
+
+                {/* RIGHT: Savings Goals */}
+                <div className="space-y-6">
 
                   {/* Savings Goals */}
                   {activeGoals.length > 0 && (
@@ -515,11 +425,11 @@ const Dashboard: React.FC = () => {
                   )}
 
                   {/* Empty right column hint */}
-                  {ccAccounts.length === 0 && activeGoals.length === 0 && (
+                  {activeGoals.length === 0 && (
                     <div className="rounded-lg py-10 text-center hidden md:flex flex-col items-center justify-center gap-2"
                       style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}>
-                      <p className="text-sm" style={{ color: 'var(--muted)' }}>No cards or goals yet</p>
-                      <Link to="/accounts" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Add a card →</Link>
+                      <p className="text-sm" style={{ color: 'var(--muted)' }}>No savings goals yet</p>
+                      <Link to="/portfolio" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Add a goal →</Link>
                     </div>
                   )}
                 </div>
