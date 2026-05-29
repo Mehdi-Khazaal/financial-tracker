@@ -11,38 +11,48 @@ interface Props {
   account: Account | null;
 }
 
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  checking: 'Checking', savings: 'Savings', credit_card: 'Credit Card',
-  cash: 'Cash', investment: 'Brokerage',
-};
+const ACCOUNT_TYPES = [
+  { value: 'checking',    label: 'Checking' },
+  { value: 'savings',     label: 'Savings' },
+  { value: 'cash',        label: 'Cash' },
+  { value: 'credit_card', label: 'Credit Card' },
+  { value: 'investment',  label: 'Investment' },
+] as const;
+
+type AccountType = typeof ACCOUNT_TYPES[number]['value'];
 
 const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account }) => {
   const toast = useToast();
-  const [name, setName] = useState('');
-  const [balance, setBalance] = useState('');
+  const [name, setName]               = useState('');
+  const [balance, setBalance]         = useState('');
   const [creditLimit, setCreditLimit] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [type, setType]               = useState<AccountType>('checking');
+  const [loading, setLoading]         = useState(false);
 
   useEffect(() => {
     if (isOpen && account) {
       setName(account.name);
       setBalance(Math.abs(Number(account.balance)).toString());
       setCreditLimit(account.credit_limit ? String(account.credit_limit) : '');
+      setType((account.type as AccountType) ?? 'checking');
     }
   }, [isOpen, account]);
+
+  const isCC = type === 'credit_card';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!account) return;
     setLoading(true);
     try {
-      const updates: any = { name: name.trim() };
-      // For credit cards, balance is always negative (owed)
-      if (account.type === 'credit_card') {
+      const updates: any = { name: name.trim(), type };
+      if (isCC) {
         updates.balance = -Math.abs(parseFloat(balance) || 0);
         if (creditLimit) updates.credit_limit = parseFloat(creditLimit);
+        else updates.credit_limit = null;
       } else {
         updates.balance = parseFloat(balance) || 0;
+        updates.credit_limit = null;
       }
       await updateAccount(account.id, updates);
       onSuccess(); onClose();
@@ -51,18 +61,34 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
   };
 
   if (!account) return null;
-  const isCC = account.type === 'credit_card';
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Edit Account">
       <form onSubmit={handleSubmit} className="px-5 pb-6 space-y-4">
-        {/* Type badge */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] px-2.5 py-1 rounded-full font-medium"
-            style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>
-            {ACCOUNT_TYPE_LABELS[account.type] ?? account.type}
-          </span>
-          <span className="text-xs text-muted">Type cannot be changed</span>
+
+        {/* Account Type */}
+        <div>
+          <p className="label mb-2">Account Type</p>
+          <div className="grid grid-cols-3 gap-2">
+            {ACCOUNT_TYPES.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setType(t.value)}
+                className="py-2.5 rounded-xl text-xs font-semibold transition-all"
+                style={type === t.value
+                  ? { backgroundColor: 'var(--accent)', color: 'white', opacity: 1 }
+                  : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {type !== account.type && (
+            <p className="text-[11px] mt-2" style={{ color: '#f59e0b' }}>
+              ⚠ Changing type affects how this account is counted (e.g. spendable balance)
+            </p>
+          )}
         </div>
 
         {/* Name */}
@@ -74,7 +100,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
 
         {/* Balance */}
         <div>
-          <p className="label mb-2">{isCC ? 'Current Balance Owed' : 'Balance'}</p>
+          <p className="label mb-2">{isCC ? 'Balance Owed' : 'Balance'}</p>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono font-bold text-muted">$</span>
             <input type="number" step="0.01" min="0" value={balance}

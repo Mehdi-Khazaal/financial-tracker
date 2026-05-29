@@ -118,7 +118,6 @@ const Dashboard: React.FC = () => {
   const monthTx        = transactions.filter(t => t.transaction_date.startsWith(thisMonth));
   const monthIncome    = monthTx.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
   const monthExpenses  = monthTx.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-  const savingsRate    = monthIncome > 0 ? ((monthIncome - monthExpenses) / monthIncome) * 100 : 0;
 
   const lastMonthDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonth      = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -288,10 +287,6 @@ const Dashboard: React.FC = () => {
                     </p>
                     <div className="flex flex-wrap gap-6 md:gap-10 mt-5 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
                       <div>
-                        <p className="label mb-1">Accounts</p>
-                        <p className="font-mono tabular-nums text-sm font-medium" style={{ color: 'var(--fg)' }}>${fmt(accountsTotal)}</p>
-                      </div>
-                      <div>
                         <p className="label mb-1">Spendable</p>
                         <p className="font-mono tabular-nums text-sm font-medium" style={{ color: 'var(--pos)' }}>${fmt(spendable)}</p>
                       </div>
@@ -308,11 +303,10 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {/* Right: month stats — horizontal on mobile, vertical stack on desktop */}
-                  <div className="grid grid-cols-3 md:grid-cols-1 gap-3 mt-5 md:mt-0 md:min-w-[160px]">
+                  <div className="grid grid-cols-2 md:grid-cols-1 gap-3 mt-5 md:mt-0 md:min-w-[140px]">
                     {[
-                      { label: 'Income',   value: `+$${fmt(monthIncome)}`,     color: 'var(--pos)' },
-                      { label: 'Expenses', value: `-$${fmt(monthExpenses)}`,    color: 'var(--neg)' },
-                      { label: 'Saved',    value: `${savingsRate.toFixed(0)}%`, color: savingsRate >= 0 ? 'var(--pos)' : 'var(--neg)' },
+                      { label: 'Income',   value: `+$${fmt(monthIncome)}`,   color: 'var(--pos)' },
+                      { label: 'Expenses', value: `-$${fmt(monthExpenses)}`, color: 'var(--neg)' },
                     ].map(s => (
                       <div key={s.label} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-sub)' }}>
                         <p className="label mb-1.5">{s.label}</p>
