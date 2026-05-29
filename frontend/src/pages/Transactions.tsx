@@ -339,7 +339,6 @@ const Transactions: React.FC = () => {
   const [draggingTxId, setDraggingTxId]     = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<number | 'uncategorized' | null>(null);
   const [detailCat, setDetailCat]           = useState<Category | null>(null);
-  const [hideEmpty, setHideEmpty]           = useState(true);
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
   const [categorizeTx, setCategorizeTx]     = useState<Transaction | null>(null);
   const MAX_TX_SHOWN = 3;
@@ -394,17 +393,7 @@ const Transactions: React.FC = () => {
     [categories],
   );
 
-  // When dragging, show all categories so user can drop into any; otherwise hide empty if toggle is on
-  const visibleCategories = useMemo(() =>
-    sortedCategories.filter(cat => {
-      if (draggingTxId !== null) return true;          // reveal all targets while dragging
-      if (!hideEmpty) return true;
-      return monthTransactions.some(t => t.category_id === cat.id);
-    }),
-    [sortedCategories, hideEmpty, draggingTxId, monthTransactions],
-  );
-
-  const hiddenEmptyCount = sortedCategories.length - visibleCategories.length;
+  const visibleCategories = sortedCategories;
 
   // Width of the top scroll mirror — matches the CSS grid maths:
   // gridAutoColumns: 220px, gap: 8px, padding: 12px each side → 228*cols + 16
@@ -650,8 +639,8 @@ const Transactions: React.FC = () => {
         {/* ── Header ── */}
         <div className="shrink-0 flex items-center gap-2 md:gap-3 pl-4 md:pl-5 pr-16 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
-          {/* Tab switcher */}
-          <div className="flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+          {/* Tab switcher — desktop only; mobile uses the context tab bar in Navigation */}
+          <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
@@ -680,19 +669,6 @@ const Transactions: React.FC = () => {
             </div>
           )}
 
-          {/* Hide-empty toggle — only on board tab */}
-          {tab === 'transactions' && (
-            <button
-              onClick={() => setHideEmpty(h => !h)}
-              className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
-              style={hideEmpty
-                ? { backgroundColor: 'var(--elev-1)', color: 'var(--dim)', border: '1px solid var(--line)' }
-                : { backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}
-              title={hideEmpty ? `${hiddenEmptyCount} empty categories hidden` : 'Hide empty categories'}
-            >
-              {hideEmpty ? `+${hiddenEmptyCount} empty` : 'Hide empty'}
-            </button>
-          )}
 
           {/* Action buttons */}
           <div className="flex gap-2 ml-auto shrink-0">
