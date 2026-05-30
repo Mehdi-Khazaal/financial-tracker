@@ -341,12 +341,16 @@ const Transactions: React.FC = () => {
   const [detailCat, setDetailCat]           = useState<Category | null>(null);
   const [mobileView, setMobileView]         = useState<'queue' | 'categories'>('queue');
   const [categorizeTx, setCategorizeTx]     = useState<Transaction | null>(null);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showAddMenu, setShowAddMenu]         = useState(false);
   const MAX_TX_SHOWN = 3;
 
   // refs for the scrollable category grid and the mirrored top scrollbar
-  const catScrollRef = useRef<HTMLDivElement>(null);
-  const topScrollRef = useRef<HTMLDivElement>(null);
-  const isSyncing    = useRef(false);
+  const catScrollRef    = useRef<HTMLDivElement>(null);
+  const topScrollRef    = useRef<HTMLDivElement>(null);
+  const isSyncing       = useRef(false);
+  const monthPickerRef  = useRef<HTMLDivElement>(null);
+  const addMenuRef      = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -376,6 +380,16 @@ const Transactions: React.FC = () => {
       setSelectedMonth(availableMonths.includes(current) ? current : availableMonths[0]);
     }
   }, [availableMonths, selectedMonth]);
+
+  useEffect(() => {
+    if (!showMonthPicker && !showAddMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) setShowMonthPicker(false);
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMonthPicker, showAddMenu]);
 
   const monthTransactions = useMemo(() =>
     transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth)),
@@ -652,60 +666,143 @@ const Transactions: React.FC = () => {
             ))}
           </div>
 
-          {/* Month pills */}
+          {/* Month dropdown */}
           {tab === 'transactions' && (
-            <div className="flex-1 flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-              {availableMonths.length === 0
-                ? <p className="text-xs text-muted self-center">No transactions yet</p>
-                : availableMonths.map(m => (
-                  <button key={m} onClick={() => setSelectedMonth(m)}
-                    className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all"
-                    style={selectedMonth === m
-                      ? { backgroundColor: 'var(--accent)', color: 'white' }
-                      : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
-                    {formatMonth(m)}
-                  </button>
-                ))}
+            <div ref={monthPickerRef} className="relative">
+              <button
+                onClick={() => setShowMonthPicker(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M13.25 3v2.25M3 8.25h14M5.25 3.75h9.5A2.25 2.25 0 0117 6v10.5A2.25 2.25 0 0114.75 18.75H5.25A2.25 2.25 0 013 16.5V6A2.25 2.25 0 015.25 3.75z" />
+                </svg>
+                <span>{selectedMonth ? formatMonth(selectedMonth) : 'Month'}</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0" style={{ color: 'var(--dim)', transform: showMonthPicker ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              {showMonthPicker && availableMonths.length > 0 && (
+                <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                  {availableMonths.map(m => (
+                    <button key={m}
+                      onClick={() => { setSelectedMonth(m); setShowMonthPicker(false); }}
+                      className="w-full text-left flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors"
+                      style={m === selectedMonth
+                        ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
+                        : { color: 'var(--fg)' }}
+                      onMouseEnter={e => { if (m !== selectedMonth) e.currentTarget.style.backgroundColor = 'var(--elev-sub)'; }}
+                      onMouseLeave={e => { if (m !== selectedMonth) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {formatMonth(m)}
+                      {m === selectedMonth && (
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
+          {/* Spacer */}
+          <div className="flex-1" />
 
-          {/* Action buttons */}
-          <div className="flex gap-2 ml-auto shrink-0">
-            {tab === 'transactions' && (
-              <>
-                <button onClick={() => { setTxType('income'); setShowTx(true); }}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-                  + Income
-                </button>
-                <button onClick={() => { setTxType('expense'); setShowTx(true); }}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                  + Expense
-                </button>
-                <button onClick={() => setShowTransfer(true)}
-                  className="hidden lg:block text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
-                  Transfer
-                </button>
-              </>
-            )}
-            {tab === 'recurring' && dueFixed.length > 0 && (
-              <button onClick={handleProcess} disabled={processing}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full disabled:opacity-50"
-                style={{ backgroundColor: 'var(--neg)', color: 'white' }}>
-                {processing ? '…' : `Log ${dueFixed.length} fixed`}
+          {/* Add dropdown (transactions tab) */}
+          {tab === 'transactions' && (
+            <div ref={addMenuRef} className="relative shrink-0">
+              <button
+                onClick={() => setShowAddMenu(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                <span>Add</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0" style={{ color: 'var(--dim)', transform: showAddMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
               </button>
-            )}
-            {tab === 'recurring' && (
+
+              {showAddMenu && (
+                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 160, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                  {[
+                    {
+                      label: 'Income', hint: 'Money in',
+                      bg: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)',
+                      icon: <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />,
+                      action: () => { setTxType('income'); setShowTx(true); setShowAddMenu(false); },
+                    },
+                    {
+                      label: 'Expense', hint: 'Money out',
+                      bg: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)',
+                      icon: <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />,
+                      action: () => { setTxType('expense'); setShowTx(true); setShowAddMenu(false); },
+                    },
+                  ].map(item => (
+                    <button key={item.label} onClick={item.action}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: item.bg }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>{item.label}</p>
+                        <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>{item.hint}</p>
+                      </div>
+                    </button>
+                  ))}
+                  <div className="mx-3.5 my-1" style={{ height: 1, backgroundColor: 'var(--line)' }} />
+                  <button
+                    onClick={() => { setShowTransfer(true); setShowAddMenu(false); }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.15)' }}>
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }}>
+                        <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>Transfer</p>
+                      <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>Between accounts</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recurring tab actions */}
+          {tab === 'recurring' && (
+            <div className="flex gap-2 ml-auto shrink-0">
+              {dueFixed.length > 0 && (
+                <button onClick={handleProcess} disabled={processing}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl disabled:opacity-50 transition-all"
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+                  {processing ? '…' : `Log ${dueFixed.length} fixed`}
+                </button>
+              )}
               <button onClick={() => setShowAddRecurring(true)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
                 + Add
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ── Board Tab ── */}
