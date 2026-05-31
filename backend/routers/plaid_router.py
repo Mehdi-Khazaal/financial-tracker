@@ -2,25 +2,29 @@ import os
 import hmac
 import hashlib
 import json
+import traceback
 import requests
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from models.database import get_db, Base, Transaction, Account, SessionLocal, Category
+from models.database import get_db, Base, Transaction, Account, SessionLocal
 from models.auth import User
 from utils.auth import get_current_user
 from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
 
-PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID", "")
-PLAID_SECRET    = os.getenv("PLAID_SECRET", "")
-PLAID_ENV       = os.getenv("PLAID_ENV", "sandbox").lower()
+PLAID_CLIENT_ID      = os.getenv("PLAID_CLIENT_ID", "")
+PLAID_SECRET         = os.getenv("PLAID_SECRET", "")
+PLAID_ENV            = os.getenv("PLAID_ENV", "sandbox").lower()
+PLAID_WEBHOOK_URL    = os.getenv("PLAID_WEBHOOK_URL", "")
+PLAID_WEBHOOK_SECRET = os.getenv("PLAID_WEBHOOK_SECRET", "")
 
 _BASE_URLS = {
     "sandbox":     "https://sandbox.plaid.com",
@@ -28,17 +32,15 @@ _BASE_URLS = {
     "production":  "https://production.plaid.com",
 }
 
-
-def _plaid_post(path: str, body: dict) -> dict:
-    url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + path
-    body = {**body, "client_id": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
-    resp = requests.post(url, json=body, timeout=30)
-    if not resp.ok:
-        raise HTTPException(status_code=502, detail=f"Plaid error: {resp.text}")
-    data = resp.json()
-    if data.get("error_code"):
-        raise HTTPException(status_code=502, detail=f"Plaid API error: {data.get('error_message', data['error_code'])}")
-    return data
+PLAID_TO_ACCOUNT_TYPE = {
+    "checking":    "checking",
+    "savings":     "savings",
+    "credit card": "credit_card",
+    "credit":      "credit_card",
+    "loan":        "investment",
+    "mortgage":    "investment",
+    "other":       "checking",
+}
 
 
 # ─── DB Model ─────────────────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ class ExchangeTokenRequest(BaseModel):
     public_token: str
     institution_name: Optional[str] = None
 
+
 class PlaidItemResponse(BaseModel):
     id: int
     institution_name: Optional[str]
@@ -68,227 +71,117 @@ class PlaidItemResponse(BaseModel):
         from_attributes = True
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-# Plaid personal_finance_category.detailed — checked first for precise matches
-PLAID_PFC_DETAILED_MAP: dict[str, str] = {
-    "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS": "Health & Fitness",
-    "PERSONAL_CARE_HAIR_AND_BEAUTY":          "Personal Care",
-    "PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING": "Personal Care",
-    "PERSONAL_CARE_MASSAGE_AND_SPA":          "Personal Care",
-    "ENTERTAINMENT_SPORTING_EVENTS":          "Entertainment",
-    "ENTERTAINMENT_RECREATION":               "Health & Fitness",
-}
-
-# Plaid personal_finance_category.primary values (SCREAMING_SNAKE_CASE)
-PLAID_PFC_MAP: dict[str, str] = {
-    "FOOD_AND_DRINK":           "Food & Dining",
-    "GROCERIES":                "Groceries",
-    "TRAVEL":                   "Travel",
-    "TRANSPORTATION":           "Transportation",
-    "ENTERTAINMENT":            "Entertainment",
-    "GENERAL_MERCHANDISE":      "Shopping",
-    "MEDICAL":                  "Healthcare",
-    "EDUCATION":                "Education",
-    "UTILITIES_AND_PHONE":      "Utilities",
-    "RENT_AND_UTILITIES":       "Housing & Rent",
-    "HOME_IMPROVEMENT":         "Housing & Rent",
-    "LOAN_PAYMENTS":            "Housing & Rent",
-    "PERSONAL_CARE":            "Personal Care",
-    "GENERAL_SERVICES":         "Subscriptions",
-    "GOVERNMENT_AND_NON_PROFIT":"Other",
-    "INCOME":                   "Other Income",
-    "TRANSFER_IN":              None,
-    "TRANSFER_OUT":             None,
-}
-
-# Legacy Plaid category list values (old API format, kept for fallback)
-PLAID_CATEGORY_MAP: dict[str, str] = {
-    "food and drink":       "Food & Dining",
-    "restaurants":          "Food & Dining",
-    "groceries":            "Groceries",
-    "supermarkets":         "Groceries",
-    "travel":               "Travel",
-    "airlines":             "Travel",
-    "hotels":               "Travel",
-    "transportation":       "Transportation",
-    "taxi":                 "Transportation",
-    "ride share":           "Transportation",
-    "gas stations":         "Transportation",
-    "entertainment":        "Entertainment",
-    "recreation":           "Entertainment",
-    "shops":                "Shopping",
-    "shopping":             "Shopping",
-    "healthcare":           "Healthcare",
-    "medical":              "Healthcare",
-    "pharmacy":             "Healthcare",
-    "education":            "Education",
-    "utilities":            "Utilities",
-    "rent":                 "Housing & Rent",
-    "housing":              "Housing & Rent",
-    "subscription":         "Subscriptions",
-    "service":              "Subscriptions",
-    "payroll":              "Salary",
-    "income":               "Other Income",
-}
+# ─── Plaid API helper ─────────────────────────────────────────────────────────
+def _plaid_post(path: str, body: dict) -> dict:
+    url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + path
+    body = {**body, "client_id": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
+    resp = requests.post(url, json=body, timeout=30)
+    if not resp.ok:
+        raise HTTPException(status_code=502, detail=f"Plaid error: {resp.text}")
+    data = resp.json()
+    if data.get("error_code"):
+        raise HTTPException(status_code=502, detail=f"Plaid API error: {data.get('error_message', data['error_code'])}")
+    return data
 
 
-def _resolve_category(tx: dict, user_id: int, db: Session) -> int | None:
-    """Resolve a Plaid transaction to a local category ID. Checks new PFC format first."""
-    def _lookup(name: str) -> int | None:
-        if not name:
-            return None
-        cat = db.query(Category).filter(
-            Category.name == name,
-            (Category.user_id == user_id) | (Category.user_id == None),
-        ).first()
-        return cat.id if cat else None
-
-    # 1. Try personal_finance_category.detailed first (most precise)
-    pfc = tx.get("personal_finance_category") or {}
-    detailed = (pfc.get("detailed") or "").upper()
-    if detailed:
-        mapped = PLAID_PFC_DETAILED_MAP.get(detailed)
-        if mapped:
-            result = _lookup(mapped)
-            if result:
-                return result
-
-    # 2. Try personal_finance_category.primary (new Plaid format)
-    primary = pfc.get("primary", "")
-    if primary:
-        mapped = PLAID_PFC_MAP.get(primary)
-        if mapped:
-            result = _lookup(mapped)
-            if result:
-                return result
-
-    # 2. Fall back to legacy category list
-    for plaid_cat in (tx.get("category") or []):
-        mapped = PLAID_CATEGORY_MAP.get(plaid_cat.lower())
-        if mapped:
-            result = _lookup(mapped)
-            if result:
-                return result
-
-    return None
-
-
-
-PLAID_TO_ACCOUNT_TYPE = {
-    "checking":    "checking",
-    "savings":     "savings",
-    "credit card": "credit_card",
-    "credit":      "credit_card",
-    "loan":        "investment",
-    "mortgage":    "investment",
-    "other":       "checking",
-}
-
-
+# ─── Sync logic ───────────────────────────────────────────────────────────────
 def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
-    """Sync transactions for one Plaid item. Returns count of new transactions added."""
+    """Sync one Plaid item. Returns number of new transactions added."""
     added_count = 0
     cursor = item.cursor or ""
 
-    # Fetch all Plaid accounts once — map plaid_account_id → (name, current_balance, subtype)
+    # Fetch accounts — update local balances and build plaid_account_id → Account map
     accounts_data = _plaid_post("/accounts/get", {"access_token": item.access_token})
-    plaid_acct_map: dict[str, str] = {}
-    plaid_acct_balances: dict[str, tuple[float, str]] = {}
+    local_acct_cache: dict[str, Optional[Account]] = {}
+
     for acct in accounts_data.get("accounts", []):
-        name = acct.get("official_name") or acct.get("name") or "Unknown"
-        plaid_acct_map[acct["account_id"]] = name
-        balance = float(acct["balances"].get("current") or 0)
+        plaid_acct_id = acct["account_id"]
+        acct_name = acct.get("official_name") or acct.get("name") or "Unknown"
         subtype = (acct.get("subtype") or "other").lower()
-        plaid_acct_balances[name] = (balance, subtype)
+        balance = float(acct["balances"].get("current") or 0)
+        if subtype in ("credit card", "credit"):
+            balance = -abs(balance)
 
-    # Cache local accounts by name to avoid repeated DB queries
-    local_acct_cache: dict[str, Account] = {}
-
-    def _get_local_account(plaid_account_id: str) -> Optional[Account]:
-        name = plaid_acct_map.get(plaid_account_id)
-        if not name:
-            return None
-        if name not in local_acct_cache:
-            acct = db.query(Account).filter(
+        # Match by plaid_account_id; fall back to name for pre-existing accounts
+        local_acct = db.query(Account).filter(
+            Account.user_id == user_id,
+            Account.plaid_account_id == plaid_acct_id,
+        ).first()
+        if not local_acct:
+            local_acct = db.query(Account).filter(
                 Account.user_id == user_id,
-                Account.name == name,
+                Account.name == acct_name,
+                Account.plaid_account_id == None,
             ).first()
-            local_acct_cache[name] = acct  # type: ignore[assignment]
-        return local_acct_cache.get(name)
+            if local_acct:
+                local_acct.plaid_account_id = plaid_acct_id
 
-    # Pass 1: collect all new transactions (dedup only — no transfer filtering)
-    pending: list[tuple] = []  # (tx_dict, account, plaid_tx_id, tx_name, tx_amount, tx_date)
+        if local_acct:
+            local_acct.balance = Decimal(str(balance))
+            local_acct_cache[plaid_acct_id] = local_acct
+        else:
+            local_acct_cache[plaid_acct_id] = None
 
+    db.flush()
+
+    # Page through /transactions/sync, committing after each page
     while True:
         body: dict = {"access_token": item.access_token, "count": 500}
         if cursor:
             body["cursor"] = cursor
         data = _plaid_post("/transactions/sync", body)
 
+        # Added — bulk insert; ON CONFLICT DO NOTHING is atomic, no race condition possible
+        rows_to_add = []
         for tx in data.get("added", []):
-            account = _get_local_account(tx["account_id"])
-            if not account:
+            local_acct = local_acct_cache.get(tx["account_id"])
+            if not local_acct:
                 continue
+            rows_to_add.append({
+                "user_id":          user_id,
+                "account_id":       local_acct.id,
+                "category_id":      None,
+                "amount":           -float(tx["amount"]),  # Plaid positive = debit; we store debits as negative
+                "description":      tx.get("merchant_name") or tx.get("name") or "Transaction",
+                "plaid_tx_id":      tx["transaction_id"],
+                "transaction_date": date.fromisoformat(tx["date"]),
+            })
+        if rows_to_add:
+            result = db.execute(pg_insert(Transaction).values(rows_to_add).on_conflict_do_nothing())
+            added_count += result.rowcount
 
-            plaid_tx_id = tx["transaction_id"]
+        # Modified — update amount/description/date if Plaid revised a pending transaction
+        for tx in data.get("modified", []):
+            existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
+            if existing:
+                existing.amount           = Decimal(str(-float(tx["amount"])))
+                existing.description      = tx.get("merchant_name") or tx.get("name") or existing.description
+                existing.transaction_date = date.fromisoformat(tx["date"])
 
-            # Dedup by plaid_tx_id (DB unique constraint is the final safety net)
-            if db.query(Transaction).filter(Transaction.plaid_tx_id == plaid_tx_id).first():
-                continue
-
-            tx_name   = tx.get("name") or tx.get("merchant_name") or "Transaction"
-            tx_amount = -float(tx["amount"])
-            tx_date   = date.fromisoformat(tx["date"])
-
-            pending.append((tx, account, plaid_tx_id, tx_name, tx_amount, tx_date))
+        # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
+        for tx in data.get("removed", []):
+            existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
+            if existing:
+                db.delete(existing)
 
         cursor = data.get("next_cursor", cursor)
         item.cursor = cursor
+        db.commit()  # Commit per page — cursor is saved even if a later page fails
 
         if not data.get("has_more", False):
             break
 
-    # Pass 2: insert transactions with Plaid-resolved categories
-    for (tx, account, plaid_tx_id, tx_name, tx_amount, tx_date) in pending:
-        category_id = _resolve_category(tx, user_id, db)
-
-        try:
-            db.add(Transaction(
-                user_id=user_id,
-                account_id=account.id,
-                category_id=category_id,
-                amount=tx_amount,
-                description=tx_name,
-                plaid_tx_id=plaid_tx_id,
-                transaction_date=tx_date,
-            ))
-            db.flush()
-            added_count += 1
-        except Exception:
-            db.rollback()
-
-    # Overwrite local balances with Plaid's actual current balance — single source of truth
-    for name, (balance, subtype) in plaid_acct_balances.items():
-        local_acct = local_acct_cache.get(name) or db.query(Account).filter(
-            Account.user_id == user_id, Account.name == name
-        ).first()
-        if local_acct:
-            local_acct.balance = Decimal(str(-abs(balance) if subtype in ("credit card", "credit") else balance))
-
-    db.commit()
     return added_count
 
 
-
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
-    """Background task — creates its own DB session so it outlives the request."""
+    """Background task — owns its own DB session so it outlives the request."""
     db = SessionLocal()
     try:
         item = db.query(PlaidItem).filter(PlaidItem.id == plaid_item_db_id).first()
         if not item:
             return
         count = _sync_item(db, item, user_id)
-        db.commit()
         if count > 0:
             send_push_to_user(
                 db, user_id,
@@ -298,7 +191,6 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
                 tag="plaid-sync",
             )
     except Exception as e:
-        import traceback
         print(f"[Plaid sync error] item={plaid_item_db_id}: {e}")
         traceback.print_exc()
     finally:
@@ -306,18 +198,15 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
-PLAID_WEBHOOK_URL = os.getenv("PLAID_WEBHOOK_URL", "")
-
-
 @router.post("/link-token")
 def create_link_token(current_user: User = Depends(get_current_user)):
     body: dict = {
-        "user": {"client_user_id": str(current_user.id)},
-        "client_name": "Financial Tracker",
-        "products": ["transactions"],
+        "user":          {"client_user_id": str(current_user.id)},
+        "client_name":   "Financial Tracker",
+        "products":      ["transactions"],
         "country_codes": ["US"],
-        "language": "en",
-        "transactions": {"days_requested": 90},
+        "language":      "en",
+        "transactions":  {"days_requested": 90},
     }
     if PLAID_WEBHOOK_URL:
         body["webhook"] = PLAID_WEBHOOK_URL
@@ -332,23 +221,22 @@ def exchange_token(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    data = _plaid_post("/item/public_token/exchange", {"public_token": body.public_token})
+    data         = _plaid_post("/item/public_token/exchange", {"public_token": body.public_token})
     access_token = data["access_token"]
     item_id      = data["item_id"]
 
     if db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first():
         raise HTTPException(status_code=400, detail="This bank is already connected.")
 
-    # Resolve institution name early so we can check for duplicates by name
     institution_name = body.institution_name
     if not institution_name:
         try:
-            item_data = _plaid_post("/item/get", {"access_token": data["access_token"]})
+            item_data = _plaid_post("/item/get", {"access_token": access_token})
             inst_id = item_data["item"].get("institution_id")
             if inst_id:
                 inst_data = _plaid_post("/institutions/get_by_id", {
                     "institution_id": inst_id,
-                    "country_codes": ["US"],
+                    "country_codes":  ["US"],
                 })
                 institution_name = inst_data["institution"]["name"]
         except Exception:
@@ -371,20 +259,41 @@ def exchange_token(
     db.commit()
     db.refresh(item)
 
-    # Create local accounts matching Plaid accounts
+    # Create a local account for each Plaid account, keyed by plaid_account_id
     acct_data = _plaid_post("/accounts/get", {"access_token": access_token})
     for acct in acct_data.get("accounts", []):
-        acct_name = acct.get("official_name") or acct.get("name") or institution_name
-        acct_type = PLAID_TO_ACCOUNT_TYPE.get((acct.get("subtype") or "other").lower(), "checking")
-        balance = float(acct["balances"].get("current") or 0)
+        plaid_acct_id = acct["account_id"]
+        acct_name     = acct.get("official_name") or acct.get("name") or institution_name
+        acct_type     = PLAID_TO_ACCOUNT_TYPE.get((acct.get("subtype") or "other").lower(), "checking")
+        balance       = float(acct["balances"].get("current") or 0)
         if acct_type == "credit_card":
             balance = -abs(balance)
 
-        if not db.query(Account).filter(Account.user_id == current_user.id, Account.name == acct_name).first():
-            db.add(Account(user_id=current_user.id, name=acct_name, type=acct_type, balance=balance, currency="USD"))
+        existing = (
+            db.query(Account).filter(
+                Account.user_id == current_user.id,
+                Account.plaid_account_id == plaid_acct_id,
+            ).first()
+            or db.query(Account).filter(
+                Account.user_id == current_user.id,
+                Account.name == acct_name,
+            ).first()
+        )
+
+        if existing:
+            existing.plaid_account_id = plaid_acct_id
+            existing.balance = Decimal(str(balance))
+        else:
+            db.add(Account(
+                user_id=current_user.id,
+                name=acct_name,
+                type=acct_type,
+                balance=balance,
+                currency="USD",
+                plaid_account_id=plaid_acct_id,
+            ))
 
     db.commit()
-
     background.add_task(_do_sync_and_notify, item.id, current_user.id)
     return {"message": f"{institution_name} connected successfully.", "item_id": item_id}
 
@@ -422,18 +331,13 @@ def sync_all(
     return {"message": f"Syncing {len(items)} bank(s) in background."}
 
 
-
 @router.post("/replay")
 def replay_all_transactions(
     background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Reset Plaid cursors so the next sync replays ALL historical transactions.
-    Transactions already in the DB are protected by the dedup check — no duplicates.
-    Use this to recover transactions that were previously filtered out.
-    """
+    """Reset cursors so the next sync replays all historical transactions. Dedup prevents re-imports."""
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
     if not items:
         raise HTTPException(status_code=404, detail="No connected banks.")
@@ -442,7 +346,7 @@ def replay_all_transactions(
     db.commit()
     for item in items:
         background.add_task(_do_sync_and_notify, item.id, current_user.id)
-    return {"message": f"Cursor reset for {len(items)} bank(s). Full transaction replay running in background."}
+    return {"message": f"Cursor reset for {len(items)} bank(s). Full replay running in background."}
 
 
 @router.post("/reset")
@@ -450,20 +354,15 @@ def reset_plaid_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete all Plaid-imported transactions and items for the current user, then re-sync fresh."""
-    # Delete all Plaid-tagged transactions and reverse their balance impact
+    """Delete all Plaid-imported transactions and bank connections for the current user."""
     plaid_txs = db.query(Transaction).filter(
         Transaction.user_id == current_user.id,
         Transaction.plaid_tx_id.isnot(None),
     ).all()
     deleted_count = len(plaid_txs)
     for tx in plaid_txs:
-        acct = db.query(Account).filter(Account.id == tx.account_id).first()
-        if acct:
-            acct.balance = Account.balance - Decimal(str(tx.amount))
         db.delete(tx)
 
-    # Remove all PlaidItems (keeps the local accounts, just clears transactions + connections)
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
     for item in items:
         try:
@@ -476,14 +375,11 @@ def reset_plaid_data(
     return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}
 
 
-PLAID_WEBHOOK_SECRET = os.getenv("PLAID_WEBHOOK_SECRET", "")
-
-
+# ─── Webhook ──────────────────────────────────────────────────────────────────
 def _verify_plaid_webhook(body: bytes, headers: dict) -> bool:
-    """Verify Plaid webhook signature. Skip verification if secret not configured."""
     if not PLAID_WEBHOOK_SECRET:
         return True
-    sig = headers.get("plaid-verification") or headers.get("Plaid-Verification") or ""
+    sig      = headers.get("plaid-verification") or headers.get("Plaid-Verification") or ""
     expected = hmac.new(PLAID_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(sig, expected)
 
@@ -494,12 +390,14 @@ async def plaid_webhook(request: Request, background: BackgroundTasks):
     if not _verify_plaid_webhook(body, dict(request.headers)):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-    payload = json.loads(body)
+    payload      = json.loads(body)
     webhook_type = payload.get("webhook_type", "")
     webhook_code = payload.get("webhook_code", "")
     item_id      = payload.get("item_id", "")
 
-    if webhook_type == "TRANSACTIONS" and webhook_code in ("SYNC_UPDATES_AVAILABLE", "DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"):
+    if webhook_type == "TRANSACTIONS" and webhook_code in (
+        "SYNC_UPDATES_AVAILABLE", "DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"
+    ):
         db = SessionLocal()
         try:
             item = db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first()

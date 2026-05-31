@@ -25,15 +25,16 @@ def get_db():
 class Account(Base):
     __tablename__ = "accounts"
 
-    id           = Column(Integer, primary_key=True, index=True)
-    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    name         = Column(String(100), nullable=False)
-    type         = Column(String(50), nullable=False)   # checking|savings|credit_card|cash|investment
-    balance      = Column(Numeric(15, 2), nullable=False, default=0)
-    credit_limit = Column(Numeric(15, 2), nullable=True)   # credit cards only
-    currency     = Column(String(3), default="USD")
-    created_at   = Column(DateTime, default=datetime.utcnow)
-    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id               = Column(Integer, primary_key=True, index=True)
+    user_id          = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name             = Column(String(100), nullable=False)
+    type             = Column(String(50), nullable=False)   # checking|savings|credit_card|cash|investment
+    balance          = Column(Numeric(15, 2), nullable=False, default=0)
+    credit_limit     = Column(Numeric(15, 2), nullable=True)   # credit cards only
+    currency         = Column(String(3), default="USD")
+    plaid_account_id = Column(String(200), nullable=True, unique=True)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     transactions      = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
     outgoing_transfers = relationship("Transfer", foreign_keys="Transfer.from_account_id", back_populates="from_account", cascade="all, delete-orphan")

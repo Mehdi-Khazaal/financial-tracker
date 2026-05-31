@@ -50,6 +50,8 @@ def _run_migrations():
             )""",
             "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_tx_id VARCHAR(200)",
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_plaid_tx_id ON transactions (plaid_tx_id) WHERE plaid_tx_id IS NOT NULL",
+            "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plaid_account_id VARCHAR(200)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_plaid_account_id ON accounts (plaid_account_id) WHERE plaid_account_id IS NOT NULL",
         ]
         for sql in migrations:
             try:
