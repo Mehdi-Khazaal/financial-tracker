@@ -71,14 +71,14 @@ const TxCard: React.FC<TxCardProps> = ({
           borderBottom: '1px solid var(--line)',
           opacity: isDragging ? 0.25 : 1,
         }}
-        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
         onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
+          <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
             {cleanDescription(tx.description)}
           </p>
-          <p className="text-[9px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
+          <p className="text-[10px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
         </div>
         <div className="flex flex-col items-end shrink-0">
           <p className="text-[11px] font-bold"
@@ -410,9 +410,10 @@ const Transactions: React.FC = () => {
   const visibleCategories = sortedCategories;
 
   // Width of the top scroll mirror — matches the CSS grid maths:
-  // gridAutoColumns: 220px, gap: 8px, padding: 12px each side → 228*cols + 16
-  const numGridCols     = Math.max(1, Math.ceil(visibleCategories.length / 2));
-  const catContentWidth = 228 * numGridCols + 16;
+  // gridAutoColumns: 240px, gap: 8px, padding: 12px each side → 248*cols + 16
+  // 3 rows → ceil(cats/3) columns
+  const numGridCols     = Math.max(1, Math.ceil(visibleCategories.length / 3));
+  const catContentWidth = 248 * numGridCols + 16;
 
   // Keep top scrollbar ↔ category grid in perfect sync
   const handleTopScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -830,7 +831,12 @@ const Transactions: React.FC = () => {
                 {/* Inbox header */}
                 <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--dim)' }}>Inbox</p>
+                    <div className="flex items-center gap-1.5">
+                      {uncategorized.length > 0 && (
+                        <div className="w-1.5 h-1.5 rounded-full pulse-dot shrink-0" style={{ backgroundColor: 'var(--neg)' }} />
+                      )}
+                      <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--dim)' }}>Inbox</p>
+                    </div>
                     <span
                       className="text-[11px] font-bold px-2 py-0.5 rounded-full leading-none"
                       style={uncategorized.length > 0
@@ -843,6 +849,17 @@ const Transactions: React.FC = () => {
                   <p className="text-[10px]" style={{ color: uncategorized.length === 0 ? 'var(--pos)' : 'var(--dim)' }}>
                     {uncategorized.length === 0 ? 'All categorized ✓' : `of ${monthTransactions.length} this month`}
                   </p>
+                  {monthTransactions.length > 0 && (
+                    <div className="mt-2 rounded-full overflow-hidden" style={{ height: '2px', backgroundColor: 'var(--line)' }}>
+                      <div style={{
+                        height: '100%',
+                        borderRadius: 9999,
+                        width: `${Math.round(((monthTransactions.length - uncategorized.length) / monthTransactions.length) * 100)}%`,
+                        backgroundColor: uncategorized.length === 0 ? 'var(--pos)' : 'var(--accent)',
+                        transition: 'width 0.5s ease',
+                      }} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Inbox list — is also the drag-to-uncategorize drop zone */}
@@ -915,7 +932,7 @@ const Transactions: React.FC = () => {
                       display: 'grid',
                       gridTemplateRows: 'repeat(3, auto)',
                       gridAutoFlow: 'column',
-                      gridAutoColumns: '220px',
+                      gridAutoColumns: '240px',
                       alignItems: 'start',
                       minWidth: 'max-content',
                       gap: '8px',
@@ -935,32 +952,39 @@ const Transactions: React.FC = () => {
                           className="flex flex-col overflow-hidden"
                           style={{
                             borderRadius: '12px',
-                            backgroundColor: isDragOver ? `${cat.color}10` : 'var(--elev-1)',
-                            border: `1px solid ${isDragOver ? cat.color + '35' : 'var(--line)'}`,
+                            backgroundColor: isDragOver ? `${cat.color}14` : `${cat.color}07`,
+                            border: `1px solid ${isDragOver ? cat.color + '50' : cat.color + '28'}`,
                             transition: 'background-color 0.12s, border-color 0.12s',
                           }}
                           onDragOver={handleDragOver(cat.id)}
                           onDragLeave={handleDragLeave}
                           onDrop={handleDrop(cat.id)}
                         >
+                          {/* Color accent strip */}
+                          <div style={{ height: '2px', backgroundColor: cat.color, opacity: isDragOver ? 1 : 0.7 }} />
+
                           {/* Column header — click to open full detail modal */}
                           <div
                             className="px-3 py-2.5 cursor-pointer transition-colors"
-                            style={{ borderBottom: '1px solid var(--line)' }}
+                            style={{ borderBottom: `1px solid ${cat.color}20` }}
                             onClick={() => setDetailCat(cat)}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
                             onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                           >
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <div className="flex items-center justify-between gap-1 mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                                <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--muted)' }}>
+                                <p className="text-[12px] font-semibold truncate" style={{ color: 'var(--fg)' }}>
                                   {cat.name}
                                 </p>
                               </div>
-                              <p className="text-[9px] shrink-0" style={{ color: 'var(--dim)' }}>{catTxs.length}</p>
+                              {catTxs.length > 0 && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0"
+                                  style={{ backgroundColor: `${cat.color}22`, color: cat.color }}>
+                                  {catTxs.length}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[15px] font-bold leading-tight"
+                            <p className="text-[16px] font-bold leading-tight"
                               style={{ fontFamily: 'var(--font-mono)', color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
                               ${fmt(total)}
                             </p>
@@ -973,15 +997,15 @@ const Transactions: React.FC = () => {
                                 isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                             ))}
                             {catTxs.length === 0 && !isDragOver && (
-                              <div className="mx-2 my-2.5 border border-dashed rounded-lg py-3 text-center"
-                                style={{ borderColor: 'var(--line)' }}>
-                                <p className="text-[9px]" style={{ color: 'var(--dim)' }}>Drop to categorize</p>
+                              <div className="mx-2.5 my-3 border border-dashed rounded-xl py-4 text-center"
+                                style={{ borderColor: `${cat.color}30` }}>
+                                <p className="text-[10px] font-medium" style={{ color: `${cat.color}` , opacity: 0.5 }}>Drop to categorize</p>
                               </div>
                             )}
                             {isDragOver && (
-                              <div className="mx-2 my-2 border border-dashed rounded-lg py-2.5 text-center"
-                                style={{ borderColor: `${cat.color}50` }}>
-                                <p className="text-[9px] font-semibold" style={{ color: cat.color }}>Drop here</p>
+                              <div className="mx-2.5 my-2 rounded-xl py-4 text-center"
+                                style={{ border: `2px dashed ${cat.color}80`, backgroundColor: `${cat.color}0a` }}>
+                                <p className="text-[10px] font-bold" style={{ color: cat.color }}>Drop here</p>
                               </div>
                             )}
                           </div>
@@ -990,15 +1014,15 @@ const Transactions: React.FC = () => {
                           {hiddenCount > 0 ? (
                             <button
                               onClick={() => setDetailCat(cat)}
-                              className="w-full py-2 text-[9px] font-semibold transition-colors"
-                              style={{ color: cat.color, borderTop: `1px solid ${cat.color}20`, backgroundColor: `${cat.color}06` }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}12`)}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${cat.color}06`)}
+                              className="w-full py-2.5 text-[10px] font-semibold transition-colors"
+                              style={{ color: cat.color, borderTop: `1px solid ${cat.color}25`, backgroundColor: `${cat.color}08` }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}14`)}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${cat.color}08`)}
                             >
                               +{hiddenCount} more →
                             </button>
                           ) : catTxs.length > 0 ? (
-                            <div style={{ height: '3px', backgroundColor: cat.color, opacity: 0.3 }} />
+                            <div style={{ height: '2px', backgroundColor: cat.color, opacity: 0.25 }} />
                           ) : null}
                         </div>
                       );
