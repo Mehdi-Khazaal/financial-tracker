@@ -5,8 +5,8 @@ import {
   PieChart, Pie, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { Account, Transaction, SavingsGoal, Category, MonthSnapshot } from '../types';
-import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory } from '../utils/api';
+import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset } from '../types';
+import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory, getAssets } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/Navigation';
 import PullToRefresh from '../components/PullToRefresh';
@@ -58,7 +58,7 @@ const DashboardSkeleton: React.FC = () => (
   </div>
 );
 
-const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time'] as const;
+const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time', 'Custom'] as const;
 type Period = typeof PERIODS[number];
 
 const pct = (curr: number, prev: number) => {
@@ -76,9 +76,14 @@ const Dashboard: React.FC = () => {
   const [savingsGoals, setSavingsGoals]       = useState<SavingsGoal[]>([]);
   const [categories, setCategories]           = useState<Category[]>([]);
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
+  const [assetsList, setAssetsList]           = useState<Asset[]>([]);
   const [loading, setLoading]                 = useState(true);
   const [tab, setTab]                         = useRouteTab('/');
   const [period, setPeriod]                   = useState<Period>('This month');
+  const [customMonth, setCustomMonth]         = useState<string>(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
@@ -88,14 +93,15 @@ const Dashboard: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [aRes, tRes, gRes, catRes, nwRes] = await Promise.all([
-        getAccounts(), getTransactions(), getSavingsGoals(), getCategories(), getNetWorthHistory(12),
+      const [aRes, tRes, gRes, catRes, nwRes, assetsRes] = await Promise.all([
+        getAccounts(), getTransactions(), getSavingsGoals(), getCategories(), getNetWorthHistory(12), getAssets(),
       ]);
       setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
       setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
       setSavingsGoals(Array.isArray(gRes.data) ? gRes.data : []);
       setCategories(Array.isArray(catRes.data) ? catRes.data : []);
       setNetWorthSnapshots(Array.isArray(nwRes.data) ? nwRes.data : []);
+      setAssetsList(Array.isArray(assetsRes.data) ? assetsRes.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
@@ -114,12 +120,12 @@ const Dashboard: React.FC = () => {
   const spendable      = nonCCAccounts
     .filter(a => a.type === 'checking' || a.type === 'cash')
     .reduce((s, a) => s + Number(a.balance), 0);
-  const totalAssets    = accounts
-    .filter(a => ['checking', 'savings', 'cash'].includes(a.type))
-    .reduce((s, a) => s + Number(a.balance), 0);
-  const totalInvestments = accounts
-    .filter(a => a.type === 'investment')
-    .reduce((s, a) => s + Number(a.balance), 0);
+  const totalAssets      = assetsList
+    .filter(a => a.asset_class === 'physical')
+    .reduce((s, a) => s + Number(a.total_value), 0);
+  const totalInvestments = assetsList
+    .filter(a => a.asset_class === 'investment')
+    .reduce((s, a) => s + Number(a.total_value), 0);
 
   const monthTx        = transactions.filter(t => t.transaction_date.startsWith(thisMonth));
   const monthIncome    = monthTx.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
@@ -147,6 +153,8 @@ const Dashboard: React.FC = () => {
       from = new Date(n.getFullYear(), n.getMonth() - 2, 1);
     } else if (period === 'Last 6 months') {
       from = new Date(n.getFullYear(), n.getMonth() - 5, 1);
+    } else if (period === 'Custom') {
+      return txs.filter(t => t.transaction_date.startsWith(customMonth));
     } else {
       return txs;
     }
@@ -444,16 +452,34 @@ const Dashboard: React.FC = () => {
             <div className="space-y-6">
 
               {/* Period selector */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {PERIODS.map(p => (
-                  <button key={p} onClick={() => setPeriod(p)}
-                    className="pill shrink-0 transition-all"
-                    style={period === p
-                      ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
-                      : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
-                    {p}
-                  </button>
-                ))}
+              <div className="space-y-2">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {PERIODS.map(p => (
+                    <button key={p} onClick={() => setPeriod(p)}
+                      className="pill shrink-0 transition-all"
+                      style={period === p
+                        ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                        : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
+                      {p === 'Custom' && period === 'Custom'
+                        ? new Date(customMonth + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                        : p}
+                    </button>
+                  ))}
+                </div>
+                {period === 'Custom' && (
+                  <input
+                    type="month"
+                    value={customMonth}
+                    onChange={e => setCustomMonth(e.target.value)}
+                    className="rounded-lg px-3 py-2 text-sm font-mono transition-all outline-none"
+                    style={{
+                      backgroundColor: 'var(--elev-1)',
+                      border: '1px solid oklch(72% 0.17 55 / 0.3)',
+                      color: 'var(--fg)',
+                      colorScheme: 'dark',
+                    }}
+                  />
+                )}
               </div>
 
               {/* Stats row — 4 across on desktop */}
