@@ -114,6 +114,12 @@ const Dashboard: React.FC = () => {
   const spendable      = nonCCAccounts
     .filter(a => a.type === 'checking' || a.type === 'cash')
     .reduce((s, a) => s + Number(a.balance), 0);
+  const totalAssets    = accounts
+    .filter(a => ['checking', 'savings', 'cash'].includes(a.type))
+    .reduce((s, a) => s + Number(a.balance), 0);
+  const totalInvestments = accounts
+    .filter(a => a.type === 'investment')
+    .reduce((s, a) => s + Number(a.balance), 0);
 
   const monthTx        = transactions.filter(t => t.transaction_date.startsWith(thisMonth));
   const monthIncome    = monthTx.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
@@ -302,11 +308,13 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right: month stats — horizontal on mobile, vertical stack on desktop */}
-                  <div className="grid grid-cols-2 md:grid-cols-1 gap-3 mt-5 md:mt-0 md:min-w-[140px]">
+                  {/* Right: month stats + assets/investments — 2×2 grid */}
+                  <div className="grid grid-cols-2 gap-3 mt-5 md:mt-0 md:min-w-[280px]">
                     {[
-                      { label: 'Income',   value: `+$${fmt(monthIncome)}`,   color: 'var(--pos)' },
-                      { label: 'Expenses', value: `-$${fmt(monthExpenses)}`, color: 'var(--neg)' },
+                      { label: 'Income',      value: `+$${fmt(monthIncome)}`,      color: 'var(--pos)' },
+                      { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,    color: 'var(--neg)' },
+                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,       color: 'var(--fg)' },
+                      { label: 'Investments', value: `$${fmt(totalInvestments)}`,  color: '#a855f7' },
                     ].map(s => (
                       <div key={s.label} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-sub)' }}>
                         <p className="label mb-1.5">{s.label}</p>

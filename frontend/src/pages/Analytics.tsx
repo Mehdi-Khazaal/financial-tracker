@@ -9,7 +9,7 @@ import Navigation from '../components/Navigation';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time'] as const;
+const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time', 'Custom'] as const;
 type Period = typeof PERIODS[number];
 
 const pct = (curr: number, prev: number) => {
@@ -25,6 +25,10 @@ const Analytics: React.FC = () => {
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('This month');
+  const [customMonth, setCustomMonth] = useState<string>(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   useEffect(() => { loadData(); }, []);
 
@@ -50,6 +54,8 @@ const Analytics: React.FC = () => {
       from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     } else if (period === 'Last 6 months') {
       from = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    } else if (period === 'Custom') {
+      return txs.filter(t => t.transaction_date.startsWith(customMonth));
     } else {
       return txs;
     }
@@ -165,16 +171,34 @@ const Analytics: React.FC = () => {
           </div>
 
           {/* Period selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {PERIODS.map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className="pill shrink-0 transition-all"
-                style={period === p
-                  ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
-                  : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
-                {p}
-              </button>
-            ))}
+          <div className="space-y-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {PERIODS.map(p => (
+                <button key={p} onClick={() => setPeriod(p)}
+                  className="pill shrink-0 transition-all"
+                  style={period === p
+                    ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
+                  {p === 'Custom' && period === 'Custom'
+                    ? new Date(customMonth + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                    : p}
+                </button>
+              ))}
+            </div>
+            {period === 'Custom' && (
+              <input
+                type="month"
+                value={customMonth}
+                onChange={e => setCustomMonth(e.target.value)}
+                className="rounded-lg px-3 py-2 text-sm font-mono transition-all outline-none"
+                style={{
+                  backgroundColor: 'var(--elev-1)',
+                  border: '1px solid oklch(72% 0.17 55 / 0.3)',
+                  color: 'var(--fg)',
+                  colorScheme: 'dark',
+                }}
+              />
+            )}
           </div>
 
           {/* Net Worth Hero */}
