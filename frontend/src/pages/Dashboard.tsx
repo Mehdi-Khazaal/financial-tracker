@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Link } from 'react-router-dom';
 import {
-  PieChart, Pie, BarChart, Bar, LineChart, Line, AreaChart, Area,
+  PieChart, Pie, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset } from '../types';
