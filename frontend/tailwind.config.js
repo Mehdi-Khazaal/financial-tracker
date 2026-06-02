@@ -4,9 +4,10 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans:  ['Geist', 'system-ui', 'sans-serif'],
-        serif: ['Fraunces', 'Georgia', 'serif'],
-        mono:  ['"JetBrains Mono"', 'monospace'],
+        sans:    ['Geist', 'system-ui', 'sans-serif'],
+        serif:   ['"DM Serif Display"', 'Georgia', 'serif'],
+        mono:    ['"DM Mono"', 'monospace'],
+        display: ['"DM Serif Display"', 'Georgia', 'serif'],
       },
       colors: {
         // Ledger design tokens

@@ -5,6 +5,7 @@ import { getLoans, updateLoan, deleteLoan } from '../utils/api';
 import Navigation from '../components/Navigation';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import EmptyState from '../components/EmptyState';
+import ProgressBar from '../components/ProgressBar';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -113,9 +114,7 @@ const LoanCard: React.FC<LoanCardProps> = ({
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>Repaid ${fmt(Number(loan.amount_repaid))}</span>
               <span>{progress.toFixed(0)}%</span>
             </div>
-            <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--line)' }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: 'var(--pos)' }} />
-            </div>
+            <ProgressBar value={progress} colorAuto={false} color="var(--pos)" height={6} />
           </div>
         )}
       </div>

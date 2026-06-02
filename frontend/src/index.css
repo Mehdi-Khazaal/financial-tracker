@@ -7,108 +7,138 @@
 
 body {
   font-family: 'Geist', system-ui, sans-serif;
-  background-color: #0a0a0b;
-  color: #ededee;
+  background-color: #0A0A0B;
+  color: #F1F1F3;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
   letter-spacing: -0.005em;
 }
 
-/* numbers and amounts */
-.font-mono { font-family: 'JetBrains Mono', monospace !important; }
+/* Display — large monetary values (DM Serif Display) */
+.font-display { font-family: 'DM Serif Display', Georgia, serif !important; }
+
+/* Mono — UI labels, amounts, dates (DM Mono) */
+.font-mono { font-family: 'DM Mono', monospace !important; }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
 
-/* Utility: completely hidden scrollbar (still scrollable) */
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* Utility: thin scrollbar matching app dark theme */
-.app-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
+.app-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.07) transparent; }
 .app-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
 .app-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.app-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-.app-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+.app-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+.app-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
 /* ── CSS variables ─────────────────────────────────────────────────────────── */
 :root {
-  /* Surface */
-  --bg:          #0a0a0b;
+  /* Surface — warm near-black */
+  --bg:          #0A0A0B;
   --elev-1:      #111113;
-  --elev-sub:    #0d0d0f;
+  --elev-sub:    #0D0D0F;
 
   /* Text */
-  --fg:          #ededee;
-  --muted:       #8a8a94;
-  --dim:         #55555d;
+  --fg:          #F1F1F3;
+  --muted:       #6B7280;
+  --dim:         #4B5563;
 
-  /* Lines */
-  --line:        rgba(255,255,255,0.08);
-  --line-strong: rgba(255,255,255,0.14);
+  /* Lines / borders — solid structural lines */
+  --line:        #1E1E22;
+  --line-strong: #2A2A30;
 
   /* Semantic */
-  --accent:      oklch(72% 0.17 55);
-  --pos:         oklch(78% 0.16 150);
-  --neg:         oklch(70% 0.17 25);
+  --accent:      #F97316;
+  --accent-dim:  rgba(249, 115, 22, 0.12);
+  --accent-glow: rgba(249, 115, 22, 0.25);
+  --pos:         #22C55E;
+  --pos-dim:     rgba(34, 197, 94, 0.12);
+  --neg:         #EF4444;
+  --neg-dim:     rgba(239, 68, 68, 0.12);
 
   /* Type */
-  --font-sans:   'Geist', system-ui, sans-serif;
-  --font-serif:  'Fraunces', Georgia, serif;
-  --font-mono:   'JetBrains Mono', monospace;
+  --font-sans:    'Geist', system-ui, sans-serif;
+  --font-serif:   'DM Serif Display', Georgia, serif;
+  --font-mono:    'DM Mono', monospace;
+  --font-display: 'DM Serif Display', Georgia, serif;
 
   /* Radii */
   --radius-sm:   8px;
   --radius-md:   10px;
   --radius-lg:   14px;
 
-  /* Legacy aliases — keeps un-refactored pages working */
+  /* Fixed 8-color category palette */
+  --cat-1: #F97316;
+  --cat-2: #22C55E;
+  --cat-3: #3B82F6;
+  --cat-4: #A855F7;
+  --cat-5: #EF4444;
+  --cat-6: #F59E0B;
+  --cat-7: #06B6D4;
+  --cat-8: #EC4899;
+
+  /* Legacy aliases */
   --surface:     var(--elev-1);
   --surface2:    var(--elev-sub);
   --border:      var(--line);
   --border2:     var(--line-strong);
   --text:        var(--fg);
-  --gradient:    linear-gradient(135deg, var(--accent) 0%, oklch(72% 0.17 80) 100%);
+  --gradient:    linear-gradient(135deg, #F97316 0%, #EA580C 100%);
   --nav-width:   240px;
 }
 
 /* ── Components ────────────────────────────────────────────────────────────── */
 @layer components {
-  /* Card — borderless, elevation via background */
+
+  /* Card — structural border, dark surface */
   .card {
     background: var(--elev-1);
     border-radius: var(--radius-md);
+    border: 1px solid var(--line);
   }
 
   .card-hover {
-    @apply transition-all duration-200 cursor-pointer;
+    @apply transition-all duration-150 cursor-pointer;
   }
   .card-hover:hover {
-    background: var(--elev-sub);
-    transform: translateY(-1px);
+    border-color: var(--line-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
   }
-  .card-hover:active { transform: scale(.985); }
+  .card-hover:active { transform: scale(.985) translateY(0); }
+
+  /* Monetary value display — DM Serif Display */
+  .value-display {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--fg);
+  }
 
   /* Buttons */
   .btn-gradient {
     @apply font-semibold text-white rounded-xl px-5 py-3 text-sm transition-all active:scale-95;
     background: var(--accent);
+    box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
   }
-  .btn-gradient:hover { opacity: .9; }
+  .btn-gradient:hover { opacity: .92; box-shadow: 0 4px 18px rgba(249, 115, 22, 0.4); }
 
   .btn-ghost {
-    @apply font-semibold text-muted rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
+    @apply font-semibold rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
     background: var(--elev-1);
     border: 1px solid var(--line);
+    color: var(--muted);
   }
   .btn-ghost:hover { color: var(--fg); border-color: var(--line-strong); }
 
   .btn-danger {
     @apply font-semibold rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
-    background: rgba(0,0,0,0);
+    background: transparent;
     border: 1px solid var(--neg);
     color: var(--neg);
   }
@@ -120,34 +150,42 @@ body {
     border: 1px solid var(--line);
     color: var(--fg);
     font-size: 16px;
+    font-family: var(--font-sans);
   }
   .input-dark::placeholder { color: var(--dim); }
   .input-dark:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px oklch(72% 0.17 55 / 0.12);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
   }
 
   /* Pills / Badges */
   .pill {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+    font-family: var(--font-mono);
+    letter-spacing: 0.01em;
   }
-  .pill-accent { @apply pill; background: oklch(72% 0.17 55 / 0.12); color: var(--accent); }
-  .pill-green  { @apply pill; background: oklch(78% 0.16 150 / 0.12); color: var(--pos); }
-  .pill-red    { @apply pill; background: oklch(70% 0.17 25 / 0.12); color: var(--neg); }
-  .pill-orange { @apply pill bg-orange/10 text-orange; }
-  .pill-purple { @apply pill bg-purple/10 text-purple; }
+  .pill-accent { @apply pill; background: rgba(249, 115, 22, 0.12); color: var(--accent); }
+  .pill-green  { @apply pill; background: rgba(34,  197, 94,  0.12); color: var(--pos); }
+  .pill-red    { @apply pill; background: rgba(239, 68,  68,  0.12); color: var(--neg); }
+  .pill-orange { @apply pill; background: rgba(249, 115, 22, 0.12); color: var(--accent); }
+  .pill-purple { @apply pill; background: rgba(168, 85,  247, 0.12); color: #a855f7; }
   .pill-muted  { @apply pill; background: var(--elev-sub); color: var(--muted); }
 
   /* Stat value */
-  .stat-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+  .stat-value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+  }
 
-  /* Section label / eyebrow */
+  /* Section label / eyebrow — DM Mono spaced uppercase */
   .label, .eyebrow {
     font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.14em;
+    font-size: 10px;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     color: var(--muted);
+    font-weight: 500;
   }
 
   /* Skeleton loader */
@@ -159,28 +197,54 @@ body {
   }
 
   /* Swipe row */
-  .swipe-row {
+  .swipe-row { position: relative; overflow: hidden; touch-action: pan-y; }
+  .swipe-row-content { transition: transform 0.2s cubic-bezier(.32,1,.4,1); will-change: transform; }
+  .swipe-delete-bg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 20px;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--neg);
+    font-size: 10px; font-weight: 700;
+    font-family: var(--font-mono);
+    letter-spacing: .08em; text-transform: uppercase;
+    border-radius: inherit;
+  }
+
+  /* ── Sidebar nav items ───────────────────────────────────────────────────── */
+  .nav-item {
+    color: var(--muted);
+    transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .nav-item:hover {
+    background-color: rgba(255,255,255,0.04) !important;
+    color: var(--fg) !important;
+  }
+  .nav-item-active {
+    background-color: rgba(249, 115, 22, 0.08) !important;
+    color: var(--fg) !important;
+    /* 2px orange left accent via inset box-shadow — no layout shift */
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  /* ── Hero card shimmer ───────────────────────────────────────────────────── */
+  .hero-card {
     position: relative;
     overflow: hidden;
-    touch-action: pan-y;
   }
-  .swipe-row-content {
-    transition: transform 0.2s cubic-bezier(.32,1,.4,1);
-    will-change: transform;
-  }
-  .swipe-delete-bg {
+  .hero-card::after {
+    content: '';
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-right: 20px;
-    background: oklch(70% 0.17 25 / 0.15);
-    color: var(--neg);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-transform: uppercase;
+    background: linear-gradient(
+      108deg,
+      transparent 30%,
+      rgba(249, 115, 22, 0.035) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    animation: hero-shimmer 5s ease-in-out infinite;
+    pointer-events: none;
     border-radius: inherit;
   }
 }
@@ -217,64 +281,47 @@ body {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+@keyframes hero-shimmer {
+  0%   { background-position: 200% 0; }
+  50%  { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
 
 .slide-up    { animation: slideUp .3s cubic-bezier(.32,1,.4,1) both; }
 .slide-down  { animation: slideDown .25s cubic-bezier(.4,0,1,1) both; }
-.fade-in     { animation: fadeIn .22s ease both; }
+.fade-in     { animation: fadeIn .25s ease both; }
 .scale-in    { animation: scaleIn .22s cubic-bezier(.32,1,.4,1) both; }
 .pulse-dot   { animation: pulse-glow 1.8s ease-in-out infinite; }
 .spin-slow   { animation: spin-slow .9s linear infinite; }
 
-/* ── Sidebar-aware main content ─────────────────────────────────────────────── */
+/* ── Sidebar-aware layout ───────────────────────────────────────────────────── */
 .md\:ml-60 {
   transition: margin-left 0.3s cubic-bezier(.4,0,.2,1);
 }
 
 /* ── Collapsible nav ────────────────────────────────────────────────────────── */
-.nav-collapsed .nav-sidebar {
-  width: 64px !important;
-}
-.nav-collapsed .nav-label {
-  display: none !important;
-}
-.nav-collapsed .nav-logo-text {
-  display: none !important;
-}
-.nav-collapsed .nav-user-info {
-  display: none !important;
-}
-.nav-collapsed .nav-dot {
-  display: none !important;
-}
-.nav-collapsed .md\:ml-60 {
-  margin-left: 64px !important;
-}
+.nav-collapsed .nav-sidebar   { width: 64px !important; }
+.nav-collapsed .nav-label     { opacity: 0; width: 0; overflow: hidden; }
+.nav-collapsed .nav-logo-text { display: none !important; }
+.nav-collapsed .nav-user-info { display: none !important; }
+.nav-collapsed .nav-dot       { display: none !important; }
+.nav-collapsed .md\:ml-60     { margin-left: 64px !important; }
 
-/* ── Safe area (iPhone notch / Dynamic Island) ─────────────────────────────── */
+/* ── Safe area ─────────────────────────────────────────────────────────────── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
 .safe-left   { padding-left:   env(safe-area-inset-left,  0px); }
 .safe-right  { padding-right:  env(safe-area-inset-right, 0px); }
 
-/*
-  Push mobile page content:
-  • Down  — below the Dynamic Island / status bar (portrait & landscape)
-  • Sides — away from the rounded corners / notch in landscape
-  Fixed elements (TopBar, nav bars) handle their own insets via inline styles.
-*/
 @media (max-width: 767px) {
   body {
     padding-top:   env(safe-area-inset-top,   0px);
     padding-left:  env(safe-area-inset-left,  0px);
     padding-right: env(safe-area-inset-right, 0px);
   }
+  /* Slightly more card padding on mobile */
+  .card { padding: 1px; }
 }
-
-/*
-  Mobile bottom-nav height is h-16 (64px) + safe-area-inset-bottom.
-  pb-28 (112px) covers up to ~48px of home-indicator, which handles
-  all current iPhone models. The extra breathing room is intentional.
-*/
 
 /* ── Select dark styling ────────────────────────────────────────────────────── */
 select.input-dark option {

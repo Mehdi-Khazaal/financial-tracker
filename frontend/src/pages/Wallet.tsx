@@ -252,9 +252,7 @@ const Wallet: React.FC = () => {
                           <div className="flex items-center gap-3 shrink-0">
                             {/* Sparkline */}
                             {sparkData.length >= 2 && (
-                              <div className="hidden sm:block">
-                                <Sparkline data={sparkData} color={sparkColor} />
-                              </div>
+                              <Sparkline data={sparkData} color={sparkColor} />
                             )}
                             <div className="text-right">
                               <p className="font-bold text-base"

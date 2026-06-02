@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Link } from 'react-router-dom';
 import {
-  PieChart, Pie, BarChart, Bar, LineChart, Line,
+  PieChart, Pie, BarChart, Bar, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset } from '../types';
@@ -19,6 +19,7 @@ import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatMonth = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
 
 const ACCOUNT_ICON_COLORS: Record<string, string> = {
   checking:    'var(--accent)',
@@ -30,11 +31,10 @@ const ACCOUNT_ICON_COLORS: Record<string, string> = {
 
 const AccountIcon: React.FC<{ type: string }> = ({ type }) => {
   const color = ACCOUNT_ICON_COLORS[type] ?? 'var(--accent)';
-  const initials = type.replace('_', ' ').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
   return (
-    <div className="w-8 h-8 md:w-9 md:h-9 rounded-md flex items-center justify-center shrink-0 font-mono text-[9px] md:text-[10px] font-bold"
-      style={{ backgroundColor: 'var(--elev-sub)', color }}>
-      {initials}
+    <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center shrink-0"
+      style={{ backgroundColor: `${color}18`, border: `1px solid ${color}35` }}>
+      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}90` }} />
     </div>
   );
 };
@@ -84,6 +84,9 @@ const Dashboard: React.FC = () => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const monthPickerRef = useRef<HTMLDivElement>(null);
+  const [countedNW, setCountedNW]             = useState(0);
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
@@ -144,6 +147,32 @@ const Dashboard: React.FC = () => {
   });
 
   // ── Analytics derived ────────────────────────────────────────────────────────
+  const availableMonths = useMemo(() => {
+    const s = new Set(transactions.map(t => t.transaction_date.slice(0, 7)));
+    return Array.from(s).sort().reverse();
+  }, [transactions]);
+
+  useEffect(() => {
+    if (!showMonthPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) setShowMonthPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMonthPicker]);
+
+  useEffect(() => {
+    if (!netWorth) return;
+    const dur = 1100;
+    const s = performance.now();
+    const run = (t: number) => {
+      const p = Math.min((t - s) / dur, 1);
+      setCountedNW(netWorth * (1 - Math.pow(1 - p, 4)));
+      if (p < 1) requestAnimationFrame(run);
+    };
+    requestAnimationFrame(run);
+  }, [netWorth]);
+
   const filterByPeriod = (txs: Transaction[]) => {
     const n = new Date();
     let from: Date;
@@ -289,24 +318,23 @@ const Dashboard: React.FC = () => {
           {tab === 'overview' && (
             <>
               {/* ── Hero: Net Worth + Month Stats ── */}
-              <div className="rounded-xl p-6 md:p-8" style={{ backgroundColor: 'var(--elev-1)' }}>
+              <div className="hero-card rounded-xl p-6 md:p-8" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <div className="flex flex-col md:flex-row md:items-start md:gap-12">
 
                   {/* Left: net worth number */}
                   <div className="flex-1 min-w-0">
                     <p className="label mb-3">Net Worth</p>
-                    <p className="font-mono font-medium tabular-nums"
-                      style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', letterSpacing: '-0.03em', color: 'var(--fg)' }}>
-                      ${fmt(netWorth)}
+                    <p className="value-display" style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)' }}>
+                      ${fmt(countedNW)}
                     </p>
-                    <div className="flex flex-wrap gap-6 md:gap-10 mt-5 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
+                    <div className="flex flex-wrap gap-8 md:gap-12 mt-5 pt-5" style={{ borderTop: '1px solid var(--line)' }}>
                       <div>
-                        <p className="label mb-1">Spendable</p>
+                        <p className="label mb-1.5">Spendable</p>
                         <p className="font-mono tabular-nums text-sm font-medium" style={{ color: 'var(--pos)' }}>${fmt(spendable)}</p>
                       </div>
                       {expenseDiff !== null && (
                         <div>
-                          <p className="label mb-1">vs Last Month</p>
+                          <p className="label mb-1.5">vs Last Month</p>
                           <p className="font-mono tabular-nums text-sm font-medium"
                             style={{ color: expenseDiff > 0 ? 'var(--neg)' : 'var(--pos)' }}>
                             {expenseDiff > 0 ? '+' : '−'}${fmt(Math.abs(expenseDiff))} spending
@@ -316,15 +344,16 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right: month stats + assets/investments — 2×2 grid */}
-                  <div className="grid grid-cols-2 gap-3 mt-5 md:mt-0 md:min-w-[280px]">
+                  {/* Right: 2×2 stat grid with colored left-border accents */}
+                  <div className="grid grid-cols-2 gap-2.5 mt-5 md:mt-0 md:min-w-[280px]">
                     {[
-                      { label: 'Income',      value: `+$${fmt(monthIncome)}`,      color: 'var(--pos)' },
-                      { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,    color: 'var(--neg)' },
-                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,       color: 'var(--fg)' },
-                      { label: 'Investments', value: `$${fmt(totalInvestments)}`,  color: '#a855f7' },
+                      { label: 'Income',      value: `+$${fmt(monthIncome)}`,     color: 'var(--pos)',  border: '#22C55E' },
+                      { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,   color: 'var(--neg)',  border: '#EF4444' },
+                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,      color: 'var(--fg)',   border: 'rgba(241,241,243,0.3)' },
+                      { label: 'Investments', value: `$${fmt(totalInvestments)}`, color: '#a855f7',     border: '#a855f7' },
                     ].map(s => (
-                      <div key={s.label} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-sub)' }}>
+                      <div key={s.label} className="rounded-lg"
+                        style={{ backgroundColor: 'var(--elev-sub)', borderLeft: `2px solid ${s.border}`, padding: '10px 12px 10px 10px' }}>
                         <p className="label mb-1.5">{s.label}</p>
                         <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: s.color }}>{s.value}</p>
                       </div>
@@ -348,10 +377,20 @@ const Dashboard: React.FC = () => {
                     icon: <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /> },
                 ].map(({ label, action, icon }) => (
                   <button key={label} onClick={action}
-                    className="flex items-center justify-center gap-2 py-3 rounded-md text-sm font-medium transition-all active:scale-95"
+                    className="flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium transition-all duration-150 active:scale-95"
                     style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}
-                    onMouseEnter={e => { (e.currentTarget.style.color = 'var(--fg)'); (e.currentTarget.style.borderColor = 'var(--line-strong)'); }}
-                    onMouseLeave={e => { (e.currentTarget.style.color = 'var(--muted)'); (e.currentTarget.style.borderColor = 'var(--line)'); }}>
+                    onMouseEnter={e => {
+                      e.currentTarget.style.color = 'var(--fg)';
+                      e.currentTarget.style.borderColor = 'var(--line-strong)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.color = 'var(--muted)';
+                      e.currentTarget.style.borderColor = 'var(--line)';
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}>
                     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">{icon}</svg>
                     {label}
                   </button>
@@ -467,30 +506,59 @@ const Dashboard: React.FC = () => {
                   ))}
                 </div>
                 {period === 'Custom' && (
-                  <input
-                    type="month"
-                    value={customMonth}
-                    onChange={e => setCustomMonth(e.target.value)}
-                    className="rounded-lg px-3 py-2 text-sm font-mono transition-all outline-none"
-                    style={{
-                      backgroundColor: 'var(--elev-1)',
-                      border: '1px solid oklch(72% 0.17 55 / 0.3)',
-                      color: 'var(--fg)',
-                      colorScheme: 'dark',
-                    }}
-                  />
+                  <div ref={monthPickerRef} className="relative inline-block">
+                    <button
+                      onClick={() => setShowMonthPicker(v => !v)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                      style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M13.25 3v2.25M3 8.25h14M5.25 3.75h9.5A2.25 2.25 0 0117 6v10.5A2.25 2.25 0 0114.75 18.75H5.25A2.25 2.25 0 013 16.5V6A2.25 2.25 0 015.25 3.75z" />
+                      </svg>
+                      <span>{formatMonth(customMonth)}</span>
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 shrink-0" style={{ color: 'var(--dim)', transform: showMonthPicker ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    {showMonthPicker && availableMonths.length > 0 && (
+                      <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                        {availableMonths.map(m => (
+                          <button key={m}
+                            onClick={() => { setCustomMonth(m); setShowMonthPicker(false); }}
+                            className="w-full text-left flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors"
+                            style={m === customMonth
+                              ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
+                              : { color: 'var(--fg)' }}
+                            onMouseEnter={e => { if (m !== customMonth) e.currentTarget.style.backgroundColor = 'var(--elev-sub)'; }}
+                            onMouseLeave={e => { if (m !== customMonth) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            {formatMonth(m)}
+                            {m === customMonth && (
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
               {/* Stats row — 4 across on desktop */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: 'Net Worth',    value: `$${fmt(netWorth)}`,                color: 'var(--fg)' },
-                  { label: 'Income',       value: `+$${fmt(totalIncome)}`,            color: 'var(--pos)' },
-                  { label: 'Expenses',     value: `-$${fmt(totalExpenses)}`,          color: 'var(--neg)' },
-                  { label: 'Savings Rate', value: `${aSavingsRate.toFixed(1)}%`,      color: aSavingsRate >= 20 ? 'var(--pos)' : aSavingsRate >= 0 ? '#f59e0b' : 'var(--neg)' },
+                  { label: 'Net Worth',    value: `$${fmt(netWorth)}`,           color: 'var(--fg)',  topBorder: 'rgba(241,241,243,0.25)' },
+                  { label: 'Income',       value: `+$${fmt(totalIncome)}`,       color: 'var(--pos)', topBorder: '#22C55E' },
+                  { label: 'Expenses',     value: `-$${fmt(totalExpenses)}`,     color: 'var(--neg)', topBorder: '#EF4444' },
+                  { label: 'Savings Rate', value: `${aSavingsRate.toFixed(1)}%`, color: aSavingsRate >= 20 ? 'var(--pos)' : aSavingsRate >= 0 ? '#f59e0b' : 'var(--neg)', topBorder: '#f59e0b' },
                 ].map(s => (
-                  <div key={s.label} className="rounded-xl p-4 md:p-5" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                  <div key={s.label} className="rounded-xl p-4 md:p-5"
+                    style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', borderTop: `2px solid ${s.topBorder}` }}>
                     <p className="label mb-2">{s.label}</p>
                     <p className="font-mono font-bold text-sm md:text-base" style={{ color: s.color, fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
                   </div>
@@ -528,18 +596,25 @@ const Dashboard: React.FC = () => {
                   <p className="font-semibold text-sm mb-4" style={{ color: 'var(--fg)' }}>Spending by Category</p>
                   {spendingByCategory.length > 0 ? (
                     <div className="flex gap-4 items-center">
-                      <ResponsiveContainer width={150} height={150}>
-                        <PieChart>
-                          <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={42} outerRadius={66}
-                            dataKey="value" paddingAngle={3}>
-                            {spendingByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 12, color: 'var(--fg)' }}
-                            formatter={(v: any) => `$${fmt(Number(v))}`}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <div className="relative shrink-0" style={{ width: 150, height: 150 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={42} outerRadius={66}
+                              dataKey="value" paddingAngle={3}>
+                              {spendingByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 12, color: 'var(--fg)' }}
+                              formatter={(v: any) => `$${fmt(Number(v))}`}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 1 }}>top</p>
+                          <p style={{ fontSize: '9px', fontWeight: 500, color: 'var(--fg)', textAlign: 'center', lineHeight: 1.2, maxWidth: 52 }}>{spendingByCategory[0].name.slice(0, 10)}</p>
+                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, color: spendingByCategory[0].color, fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>${fmt(spendingByCategory[0].value)}</p>
+                        </div>
+                      </div>
                       <div className="flex-1 space-y-2 min-w-0">
                         {spendingByCategory.slice(0, 7).map((cat, i) => (
                           <div key={i} className="flex items-center gap-2">
@@ -577,20 +652,21 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                   <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={netWorthTrend}>
+                    <AreaChart data={netWorthTrend}>
                       <defs>
-                        <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.15} />
-                          <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                        <linearGradient id="nwGradDash" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor="#F97316" stopOpacity={0.22} />
+                          <stop offset="100%" stopColor="#F97316" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 9, fill: 'var(--dim)' }} axisLine={false} tickLine={false} />
                       <YAxis hide />
                       <Tooltip {...tooltipStyle} formatter={(v: any) => [`$${fmt(Number(v))}`, 'Net Worth']} />
-                      <Line type="monotone" dataKey="Value" stroke="var(--accent)" strokeWidth={2.5}
-                        dot={false} activeDot={{ r: 5, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2 }} />
-                    </LineChart>
+                      <Area type="monotone" dataKey="Value" stroke="#F97316" strokeWidth={2}
+                        fill="url(#nwGradDash)" dot={false}
+                        activeDot={{ r: 4, fill: '#F97316', stroke: 'var(--bg)', strokeWidth: 2 }} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}

@@ -244,7 +244,7 @@ const PortfolioPage: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="label mb-1">Portfolio Value</p>
-                    <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.5rem', letterSpacing: '-1px' }}>
+                    <p className="value-display" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                       {priceKnown.length > 0 ? `$${fmt(totalCurrent)}` : `$${fmt(totalCost)}`}
                     </p>
                   </div>

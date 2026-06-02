@@ -84,9 +84,9 @@ const Navigation: React.FC = () => {
 
         {/* Logo + collapse */}
         <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
-          <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
-            style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-            <span className="font-mono font-bold text-xs" style={{ color: 'var(--accent)' }}>F</span>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg, #F97316 0%, #C2410C 100%)', boxShadow: '0 2px 10px rgba(249,115,22,0.35)' }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '17px', color: '#fff', lineHeight: 1, fontStyle: 'italic' }}>F</span>
           </div>
           {!collapsed && (
             <>
@@ -113,18 +113,15 @@ const Navigation: React.FC = () => {
             return (
               <Link key={item.path} to={item.path}
                 title={collapsed ? item.label : undefined}
-                className={`flex items-center gap-3 py-2.5 rounded-md text-sm transition-colors ${collapsed ? 'justify-center px-0' : 'px-3'}`}
-                style={{
-                  backgroundColor: active ? 'var(--elev-1)' : 'transparent',
-                  color: active ? 'var(--fg)' : 'var(--muted)',
-                }}>
-                <span className="shrink-0" style={{ color: active ? 'var(--accent)' : 'inherit' }}>
-                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4">
-                    <path d={item.icon} />
-                  </svg>
-                </span>
-                {!collapsed && <span className="flex-1 whitespace-nowrap">{item.label}</span>}
-                {!collapsed && active && <span className="nav-dot ml-auto w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: 'var(--accent)' }} />}
+                className={`nav-item flex items-center gap-3 py-2.5 rounded-md text-sm ${active ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
+                  className="w-[18px] h-[18px] shrink-0 transition-colors"
+                  style={{ color: active ? 'var(--accent)' : 'inherit' }}>
+                  <path d={item.icon} />
+                </svg>
+                {!collapsed && (
+                  <span className="nav-label flex-1 whitespace-nowrap text-sm font-medium transition-all">{item.label}</span>
+                )}
               </Link>
             );
           })}
@@ -179,7 +176,7 @@ const Navigation: React.FC = () => {
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
-        style={{ backgroundColor: 'rgba(10,10,11,.95)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)' }}>
+        style={{ backgroundColor: 'rgba(10,10,11,0.92)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)' }}>
         <div className="flex items-center justify-around h-16"
           style={{
             paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
@@ -189,12 +186,16 @@ const Navigation: React.FC = () => {
             const active = isActive(item);
             return (
               <Link key={item.path} to={item.path}
-                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors"
-                style={{ color: active ? 'var(--accent)' : 'var(--dim)' }}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
+                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all"
+                style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 transition-all"
+                  style={{
+                    transform: active ? 'scale(1.1)' : 'scale(1)',
+                    filter: active ? 'drop-shadow(0 0 4px rgba(249,115,22,0.5))' : 'none',
+                  }}>
                   <path d={item.icon} />
                 </svg>
-                <span className="text-[9px] font-semibold leading-none">{item.label}</span>
+                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase">{item.label}</span>
               </Link>
             );
           })}

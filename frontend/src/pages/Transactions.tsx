@@ -78,7 +78,7 @@ const TxCard: React.FC<TxCardProps> = ({
           <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
             {cleanDescription(tx.description)}
           </p>
-          <p className="text-[10px] mt-0.5 leading-none" style={{ color: 'var(--dim)' }}>{shortDate}</p>
+          <p className="text-[11px] mt-0.5 leading-none" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>{shortDate}</p>
         </div>
         <div className="flex flex-col items-end shrink-0">
           <p className="text-[11px] font-bold"
@@ -960,13 +960,14 @@ const Transactions: React.FC = () => {
                           onDragLeave={handleDragLeave}
                           onDrop={handleDrop(cat.id)}
                         >
-                          {/* Color accent strip */}
-                          <div style={{ height: '2px', backgroundColor: cat.color, opacity: isDragOver ? 1 : 0.7 }} />
-
                           {/* Column header — click to open full detail modal */}
                           <div
-                            className="px-3 py-2.5 cursor-pointer transition-colors"
-                            style={{ borderBottom: `1px solid ${cat.color}20` }}
+                            className="cursor-pointer transition-colors"
+                            style={{
+                              borderBottom: `1px solid ${cat.color}20`,
+                              borderLeft: `3px solid ${cat.color}`,
+                              padding: '10px 12px 10px 10px',
+                            }}
                             onClick={() => setDetailCat(cat)}
                             onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
                             onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
