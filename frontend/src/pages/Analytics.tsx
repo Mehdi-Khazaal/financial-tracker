@@ -157,6 +157,74 @@ const Analytics: React.FC = () => {
     },
   ];
 
+  // ── Spending Insights: previous-period comparison ────────────────────────────
+  const prevFiltered = (() => {
+    const now = new Date();
+    if (period === 'This month') {
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const to   = new Date(now.getFullYear(), now.getMonth(), 1);
+      return transactions.filter(t => { const d = new Date(t.transaction_date + 'T00:00:00'); return d >= from && d < to; });
+    } else if (period === 'Last 3 months') {
+      const currFrom = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      const prevFrom = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      return transactions.filter(t => { const d = new Date(t.transaction_date + 'T00:00:00'); return d >= prevFrom && d < currFrom; });
+    } else if (period === 'Last 6 months') {
+      const currFrom = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const prevFrom = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      return transactions.filter(t => { const d = new Date(t.transaction_date + 'T00:00:00'); return d >= prevFrom && d < currFrom; });
+    } else if (period === 'Custom') {
+      const [y, m] = customMonth.split('-').map(Number);
+      const from = new Date(y, m - 2, 1);
+      const to   = new Date(y, m - 1, 1);
+      return transactions.filter(t => { const d = new Date(t.transaction_date + 'T00:00:00'); return d >= from && d < to; });
+    }
+    return [];
+  })();
+
+  const prevPeriodLabel = (() => {
+    const now = new Date();
+    if (period === 'This month')   return new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (period === 'Last 3 months') return 'previous 3 months';
+    if (period === 'Last 6 months') return 'previous 6 months';
+    if (period === 'Custom') {
+      const [y, m] = customMonth.split('-').map(Number);
+      return new Date(y, m - 2, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return '';
+  })();
+
+  const getCatSpend = (txs: Transaction[]) => {
+    const map: Record<number, number> = {};
+    txs.filter(t => Number(t.amount) < 0).forEach(t => {
+      if (t.category_id) map[t.category_id] = (map[t.category_id] ?? 0) + Math.abs(Number(t.amount));
+    });
+    return map;
+  };
+  const currCatMap = getCatSpend(filtered);
+  const prevCatMap = getCatSpend(prevFiltered);
+
+  const categoryInsights = categories
+    .filter(c => c.type === 'expense')
+    .map(c => ({
+      id: c.id, name: c.name, color: c.color,
+      curr: currCatMap[c.id] ?? 0,
+      prev: prevCatMap[c.id] ?? 0,
+      delta: (currCatMap[c.id] ?? 0) - (prevCatMap[c.id] ?? 0),
+      pctChange: (prevCatMap[c.id] ?? 0) > 0
+        ? (((currCatMap[c.id] ?? 0) - (prevCatMap[c.id] ?? 0)) / (prevCatMap[c.id] ?? 0)) * 100
+        : null,
+    }))
+    .filter(c => c.curr > 0 || c.prev > 0)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  const prevIncome    = prevFiltered.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+  const prevExpenses  = prevFiltered.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const prevNet       = prevIncome - prevExpenses;
+  const prevSavRate   = prevIncome > 0 ? (prevNet / prevIncome) * 100 : null;
+  const savRateChange = prevSavRate !== null ? savingsRate - prevSavRate : null;
+  const topMover      = categoryInsights[0] ?? null;
+  const hasInsights   = period !== 'All time' && (categoryInsights.length > 0 || prevFiltered.length > 0);
+
   const tooltipStyle = {
     contentStyle: {
       backgroundColor: 'var(--elev-sub)',
@@ -434,6 +502,131 @@ const Analytics: React.FC = () => {
               <p className="text-muted text-sm text-center py-8">No expense data for this period</p>
             )}
           </div>
+
+          {/* ── Spending Insights ── */}
+          {hasInsights && (
+            <div className="card p-5">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Spending Insights</p>
+                  <p className="text-xs mt-0.5" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>vs. {prevPeriodLabel}</p>
+                </div>
+                {savRateChange !== null && (
+                  <div className="text-right">
+                    <p className="label mb-0.5">Savings Rate</p>
+                    <p className="font-mono font-bold text-sm" style={{ fontVariantNumeric: 'tabular-nums', color: savRateChange >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                      {savRateChange >= 0 ? '+' : ''}{savRateChange.toFixed(1)}pp
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Hero mover */}
+              {topMover && topMover.delta !== 0 && (
+                <div className="rounded-xl p-4 mb-4" style={{
+                  backgroundColor: 'var(--bg)',
+                  border: `1px solid ${topMover.delta > 0 ? 'rgba(239,68,68,0.18)' : 'rgba(34,197,94,0.18)'}`,
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: topMover.color }} />
+                    <p className="label">{topMover.delta > 0 ? 'Biggest increase' : 'Biggest drop'}</p>
+                  </div>
+                  <div className="flex items-end justify-between gap-3">
+                    <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{topMover.name}</p>
+                    <div className="text-right shrink-0">
+                      <p className="font-mono font-bold" style={{
+                        fontSize: 'clamp(1.1rem, 3vw, 1.4rem)',
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1,
+                        color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
+                      }}>
+                        {topMover.delta > 0 ? '+' : '−'}${fmt(Math.abs(topMover.delta))}
+                      </p>
+                      {topMover.pctChange !== null && (
+                        <p className="text-xs mt-0.5" style={{
+                          fontFamily: 'var(--font-mono)',
+                          color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
+                        }}>
+                          {topMover.delta > 0 ? '▲' : '▼'} {Math.abs(topMover.pctChange).toFixed(1)}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Category rows */}
+              {categoryInsights.length > 0 ? (
+                <div className="space-y-3">
+                  {categoryInsights.slice(0, 7).map(cat => {
+                    const isUp   = cat.delta > 0;
+                    const isNew  = cat.prev === 0 && cat.curr > 0;
+                    const isGone = cat.curr === 0 && cat.prev > 0;
+                    const unchanged = cat.delta === 0;
+                    return (
+                      <div key={cat.id} className="flex items-center gap-3">
+                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <p className="text-sm flex-1 truncate" style={{ color: isGone ? 'var(--dim)' : 'var(--fg)' }}>
+                          {cat.name}
+                        </p>
+                        {/* Progress bar */}
+                        <div className="w-16 h-1 rounded-full overflow-hidden shrink-0" style={{ backgroundColor: 'var(--line)' }}>
+                          <div style={{
+                            height: '100%',
+                            borderRadius: 999,
+                            width: `${totalExpenses > 0 ? Math.min((cat.curr / totalExpenses) * 100, 100) : 0}%`,
+                            backgroundColor: cat.color,
+                            opacity: isGone ? 0.3 : 1,
+                          }} />
+                        </div>
+                        <div className="text-right shrink-0" style={{ minWidth: '84px' }}>
+                          <p className="font-mono text-xs font-semibold" style={{ color: isGone ? 'var(--dim)' : 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                            ${fmt(cat.curr)}
+                          </p>
+                          <p className="text-[10px]" style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontVariantNumeric: 'tabular-nums',
+                            color: isNew ? 'var(--accent)' : isGone ? 'var(--dim)' : unchanged ? 'var(--dim)' : isUp ? 'var(--neg)' : 'var(--pos)',
+                          }}>
+                            {isNew ? 'new' : isGone ? 'none' : unchanged ? '—' : `${isUp ? '▲' : '▼'} $${fmt(Math.abs(cat.delta))}`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-center py-4" style={{ color: 'var(--muted)' }}>No previous data to compare</p>
+              )}
+
+              {/* Summary footer */}
+              {categoryInsights.length > 0 && (
+                <div className="flex gap-5 mt-5 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
+                  <div>
+                    <p className="label mb-0.5">Increased</p>
+                    <p className="font-mono text-sm font-semibold" style={{ color: 'var(--neg)' }}>
+                      {categoryInsights.filter(c => c.delta > 0).length} <span style={{ color: 'var(--dim)', fontWeight: 400 }}>categories</span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="label mb-0.5">Decreased</p>
+                    <p className="font-mono text-sm font-semibold" style={{ color: 'var(--pos)' }}>
+                      {categoryInsights.filter(c => c.delta < 0).length} <span style={{ color: 'var(--dim)', fontWeight: 400 }}>categories</span>
+                    </p>
+                  </div>
+                  {categoryInsights.filter(c => c.prev === 0 && c.curr > 0).length > 0 && (
+                    <div>
+                      <p className="label mb-0.5">New</p>
+                      <p className="font-mono text-sm font-semibold" style={{ color: 'var(--accent)' }}>
+                        {categoryInsights.filter(c => c.prev === 0 && c.curr > 0).length} <span style={{ color: 'var(--dim)', fontWeight: 400 }}>categories</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Transactions count */}
           <div className="card p-4 flex items-center justify-between">

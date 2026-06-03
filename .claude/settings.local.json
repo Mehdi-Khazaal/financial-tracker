@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//tmp/**)",
-      "Bash(sed -n '/<style>/,/<\\\\/style>/p' index.html)"
+      "Bash(sed -n '/<style>/,/<\\\\/style>/p' index.html)",
+      "Bash(npx tsc *)"
     ]
   }
 }
