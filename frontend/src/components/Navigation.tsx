@@ -165,8 +165,8 @@ const Navigation: React.FC = () => {
                 onClick={() => setRouteTab(location.pathname, t.value)}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
                 style={activeTab === t.value
-                  ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)' }
-                  : { color: 'var(--muted)' }}>
+                  ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', fontFamily: 'var(--font-mono)' }
+                  : { color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
                 {t.label}
               </button>
             ))}

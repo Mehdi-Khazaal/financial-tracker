@@ -319,8 +319,6 @@ body {
     padding-left:  env(safe-area-inset-left,  0px);
     padding-right: env(safe-area-inset-right, 0px);
   }
-  /* Slightly more card padding on mobile */
-  .card { padding: 1px; }
 }
 
 /* ── Select dark styling ────────────────────────────────────────────────────── */

@@ -374,7 +374,7 @@ const PortfolioPage: React.FC = () => {
             <>
               <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Asset Value</p>
-                <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
+                <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                   ${fmt(totalAssetValue)}
                 </p>
                 {Object.keys(byType).length > 0 && (
@@ -452,7 +452,7 @@ const PortfolioPage: React.FC = () => {
             <>
               <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Balance</p>
-                <p className="font-mono font-bold text-text mb-3" style={{ fontSize: '2.5rem', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
+                <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                   ${fmt(totalBalance)}
                 </p>
                 <div className="flex gap-6 flex-wrap">
