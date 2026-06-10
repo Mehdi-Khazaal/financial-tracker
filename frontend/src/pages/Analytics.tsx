@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
-  PieChart, Pie, BarChart, Bar, LineChart, Line, AreaChart, Area,
+  PieChart, Pie, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { getTransactions, getAccounts, getCategories, getNetWorthHistory } from '../utils/api';
@@ -32,6 +32,7 @@ const Analytics: React.FC = () => {
   });
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const monthPickerRef = useRef<HTMLDivElement>(null);
+  const [pieHovered, setPieHovered] = useState<{ name: string; value: number; color: string } | null>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -464,16 +465,25 @@ const Analytics: React.FC = () => {
               <>
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                   <div className="relative shrink-0" style={{ width: 160, height: 160 }}>
+                    {pieHovered && (
+                      <div className="absolute pointer-events-none" style={{
+                        top: 6, left: '50%', transform: 'translateX(-50%)',
+                        backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)',
+                        borderRadius: 8, padding: '3px 8px', whiteSpace: 'nowrap', zIndex: 20,
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: pieHovered.color }}>{pieHovered.name}</span>
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg)', fontVariantNumeric: 'tabular-nums', marginLeft: 5 }}>${fmt(pieHovered.value)}</span>
+                      </div>
+                    )}
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
-                          dataKey="value" paddingAngle={3}>
+                          dataKey="value" paddingAngle={3}
+                          onMouseEnter={(data: any) => setPieHovered({ name: data.name, value: data.value, color: data.color })}
+                          onMouseLeave={() => setPieHovered(null)}
+                        >
                           {spendingByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
                         </Pie>
-                        <Tooltip
-                          contentStyle={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 12, color: 'var(--fg)' }}
-                          formatter={(v: any) => `$${fmt(Number(v))}`}
-                        />
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">

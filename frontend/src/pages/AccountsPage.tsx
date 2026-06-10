@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Account, Loan, MonthSnapshot, Transaction } from '../types';
 import {
@@ -7,6 +7,7 @@ import {
   getTransactions, cleanDescription,
 } from '../utils/api';
 import { localDateStr } from '../utils/date';
+import { downloadCSV, printPDF } from '../utils/export';
 import Navigation from '../components/Navigation';
 import PullToRefresh from '../components/PullToRefresh';
 import ProgressBar from '../components/ProgressBar';
@@ -194,6 +195,8 @@ const AccountsPage: React.FC = () => {
   const [showAddLoan, setShowAddLoan] = useState(false);
   const [repayInput, setRepayInput] = useState<Record<number, string>>({});
   const [repaying, setRepaying] = useState<number | null>(null);
+  const [showLoanExport, setShowLoanExport] = useState(false);
+  const loanExportRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -278,6 +281,23 @@ const AccountsPage: React.FC = () => {
   const totalLent    = loans.reduce((s, l) => s + Number(l.amount), 0);
   const totalRecovered = loans.reduce((s, l) => s + Number(l.amount_repaid), 0);
 
+  const exportLoans = (format: 'csv' | 'pdf') => {
+    const headers = ['Borrower', 'Amount', 'Repaid', 'Outstanding', 'Note', 'Loan Date', 'Due Date', 'Status'];
+    const rows = loans.map(l => [
+      l.borrower_name,
+      `$${fmt(Number(l.amount))}`,
+      `$${fmt(Number(l.amount_repaid))}`,
+      `$${fmt(Number(l.amount) - Number(l.amount_repaid))}`,
+      l.note ?? '',
+      l.loan_date,
+      l.due_date ?? '—',
+      l.status,
+    ]);
+    if (format === 'csv') downloadCSV(`loans-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    else printPDF('Loans', headers, rows);
+    setShowLoanExport(false);
+  };
+
   if (loading) {
     return (
       <>
@@ -358,11 +378,47 @@ const AccountsPage: React.FC = () => {
                 </button>
               )}
               {tab === 'loans' && (
-                <button onClick={() => setShowAddLoan(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: '#f59e0b' }}>
-                  + Loan
-                </button>
+                <>
+                  {loans.length > 0 && (
+                    <div ref={loanExportRef} className="relative">
+                      <button onClick={() => setShowLoanExport(v => !v)}
+                        className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
+                        style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Export
+                      </button>
+                      {showLoanExport && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowLoanExport(false)} />
+                          <div className="absolute right-0 top-9 z-20 rounded-xl overflow-hidden shadow-2xl"
+                            style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: 110 }}>
+                            <button onClick={() => exportLoans('csv')}
+                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
+                              style={{ color: 'var(--pos)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              CSV
+                            </button>
+                            <button onClick={() => exportLoans('pdf')}
+                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
+                              style={{ color: 'var(--neg)', borderTop: '1px solid var(--line)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              PDF
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => setShowAddLoan(true)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: '#f59e0b' }}>
+                    + Loan
+                  </button>
+                </>
               )}
             </div>
           </div>

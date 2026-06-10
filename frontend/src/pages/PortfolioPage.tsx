@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Account, Asset, SavingsGoal } from '../types';
 import { getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
@@ -8,6 +8,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import ProgressBar from '../components/ProgressBar';
 import EmptyState from '../components/EmptyState';
 import { useToast } from '../context/ToastContext';
+import { downloadCSV, printPDF } from '../utils/export';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import AddAssetModal from '../components/modals/AddAssetModal';
 import AddSavingsGoalModal from '../components/modals/AddSavingsGoalModal';
@@ -46,6 +47,7 @@ const PortfolioPage: React.FC = () => {
   const [fetchingPrices, setFetchingPrices] = useState(false);
   const [invFilter, setInvFilter] = useState('all');
   const [showAddInv, setShowAddInv] = useState(false);
+  const [showInvExport, setShowInvExport] = useState(false);
 
   // Assets
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -162,6 +164,28 @@ const PortfolioPage: React.FC = () => {
     return Math.ceil((new Date(deadline + 'T00:00:00').getTime() - Date.now()) / 86400000);
   };
 
+  const exportInvestments = (format: 'csv' | 'pdf') => {
+    const headers = ['Name', 'Type', 'Quantity', 'Cost Basis', 'Current Value', 'Gain/Loss', 'Currency', 'Purchase Date'];
+    const rows = investments.map(a => {
+      const live = getLivePrice(a);
+      const currVal = live != null ? getCurrentValue(a) : Number(a.total_value);
+      const gl = live != null ? currVal - Number(a.total_value) : null;
+      return [
+        a.name,
+        a.type,
+        a.quantity != null ? String(a.quantity) : '—',
+        `$${fmt(Number(a.total_value))}`,
+        `$${fmt(currVal)}`,
+        gl != null ? `${gl >= 0 ? '+' : ''}$${fmt(gl)}` : '—',
+        a.currency,
+        a.purchase_date ?? '—',
+      ];
+    });
+    if (format === 'csv') downloadCSV(`investments-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    else printPDF('Investments', headers, rows);
+    setShowInvExport(false);
+  };
+
   if (loading) {
     return (
       <>
@@ -198,11 +222,47 @@ const PortfolioPage: React.FC = () => {
             <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Portfolio</h1>
             <div className="flex gap-2">
               {tab === 'investments' && (
-                <button onClick={() => setShowAddInv(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
-                  + Investment
-                </button>
+                <>
+                  {investments.length > 0 && (
+                    <div className="relative">
+                      <button onClick={() => setShowInvExport(v => !v)}
+                        className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
+                        style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        Export
+                      </button>
+                      {showInvExport && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowInvExport(false)} />
+                          <div className="absolute right-0 top-9 z-20 rounded-xl overflow-hidden shadow-2xl"
+                            style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: 110 }}>
+                            <button onClick={() => exportInvestments('csv')}
+                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
+                              style={{ color: 'var(--pos)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              CSV
+                            </button>
+                            <button onClick={() => exportInvestments('pdf')}
+                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
+                              style={{ color: 'var(--neg)', borderTop: '1px solid var(--line)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              PDF
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => setShowAddInv(true)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                    + Investment
+                  </button>
+                </>
               )}
               {tab === 'assets' && (
                 <button onClick={() => setShowAddAsset(true)}

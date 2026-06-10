@@ -7,6 +7,7 @@ import {
   getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring,
   updateTransaction,
 } from '../utils/api';
+import { downloadCSV, printPDF } from '../utils/export';
 import Navigation from '../components/Navigation';
 import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
@@ -17,7 +18,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 
-type Tab = 'transactions' | 'recurring';
+type Tab = 'transactions' | 'list' | 'recurring';
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -343,6 +344,17 @@ const Transactions: React.FC = () => {
   const [categorizeTx, setCategorizeTx]     = useState<Transaction | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showAddMenu, setShowAddMenu]         = useState(false);
+  const [showExportMenu, setShowExportMenu]   = useState(false);
+
+  // List tab filters
+  const [listDateFrom, setListDateFrom]       = useState('');
+  const [listDateTo, setListDateTo]           = useState('');
+  const [listAccount, setListAccount]         = useState('');
+  const [listCategory, setListCategory]       = useState('');
+  const [listType, setListType]               = useState<'all' | 'income' | 'expense'>('all');
+  const [listAmountMin, setListAmountMin]     = useState('');
+  const [listAmountMax, setListAmountMax]     = useState('');
+
   const MAX_TX_SHOWN = 3;
 
   // refs for the scrollable category grid and the mirrored top scrollbar
@@ -351,6 +363,7 @@ const Transactions: React.FC = () => {
   const isSyncing       = useRef(false);
   const monthPickerRef  = useRef<HTMLDivElement>(null);
   const addMenuRef      = useRef<HTMLDivElement>(null);
+  const exportMenuRef   = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -382,14 +395,15 @@ const Transactions: React.FC = () => {
   }, [availableMonths, selectedMonth]);
 
   useEffect(() => {
-    if (!showMonthPicker && !showAddMenu) return;
+    if (!showMonthPicker && !showAddMenu && !showExportMenu) return;
     const handler = (e: MouseEvent) => {
       if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) setShowMonthPicker(false);
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false);
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showMonthPicker, showAddMenu]);
+  }, [showMonthPicker, showAddMenu, showExportMenu]);
 
   const monthTransactions = useMemo(() =>
     transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth)),
@@ -399,6 +413,24 @@ const Transactions: React.FC = () => {
   const uncategorized = useMemo(() =>
     monthTransactions.filter(t => !t.category_id),
     [monthTransactions],
+  );
+
+  const filteredList = useMemo(() =>
+    transactions.filter(t => {
+      if (listDateFrom && t.transaction_date < listDateFrom) return false;
+      if (listDateTo   && t.transaction_date > listDateTo)   return false;
+      if (listAccount  && t.account_id !== parseInt(listAccount)) return false;
+      if (listCategory) {
+        if (listCategory === 'none') { if (t.category_id !== null) return false; }
+        else if (t.category_id !== parseInt(listCategory)) return false;
+      }
+      if (listType === 'income'  && Number(t.amount) <= 0) return false;
+      if (listType === 'expense' && Number(t.amount) >= 0) return false;
+      if (listAmountMin && Math.abs(Number(t.amount)) < parseFloat(listAmountMin)) return false;
+      if (listAmountMax && Math.abs(Number(t.amount)) > parseFloat(listAmountMax)) return false;
+      return true;
+    }).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date)),
+    [transactions, listDateFrom, listDateTo, listAccount, listCategory, listType, listAmountMin, listAmountMax],
   );
 
   // Sort categories alphabetically A → Z
@@ -464,6 +496,25 @@ const Transactions: React.FC = () => {
     if (txId) handleCategorize(txId, categoryId);
     setDragOverTarget(null);
     setDraggingTxId(null);
+  };
+
+  const exportCurrentView = (format: 'csv' | 'pdf') => {
+    const txs = tab === 'list' ? filteredList : monthTransactions;
+    const title = tab === 'list'
+      ? `Transactions${listDateFrom || listDateTo ? ` (${listDateFrom}${listDateFrom && listDateTo ? ' – ' : ''}${listDateTo})` : ' — All'}`
+      : `Transactions — ${formatMonth(selectedMonth)}`;
+    const headers = ['Date', 'Description', 'Account', 'Category', 'Amount', 'Type'];
+    const rows = txs.map(t => [
+      t.transaction_date,
+      cleanDescription(t.description),
+      accounts.find(a => a.id === t.account_id)?.name ?? '',
+      categories.find(c => c.id === t.category_id)?.name ?? 'Uncategorized',
+      Number(t.amount).toFixed(2),
+      Number(t.amount) >= 0 ? 'Income' : 'Expense',
+    ]);
+    if (format === 'csv') downloadCSV(`transactions-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    else printPDF(title, headers, rows);
+    setShowExportMenu(false);
   };
 
   // ── Recurring helpers ─────────────────────────────────────────────────────────
@@ -639,6 +690,7 @@ const Transactions: React.FC = () => {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'transactions', label: 'Board' },
+    { id: 'list',         label: 'List' },
     { id: 'recurring',    label: 'Recurring' },
   ];
 
@@ -715,8 +767,58 @@ const Transactions: React.FC = () => {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Add dropdown (transactions tab) */}
-          {tab === 'transactions' && (
+          {/* Export dropdown */}
+          {(tab === 'transactions' || tab === 'list') && (
+            <div ref={exportMenuRef} className="relative shrink-0">
+              <button
+                onClick={() => setShowExportMenu(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+              >
+                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                <span>Export</span>
+              </button>
+              {showExportMenu && (
+                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 148, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                  {[
+                    {
+                      label: 'CSV', hint: 'Spreadsheet', color: 'var(--pos)',
+                      icon: <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />,
+                      action: () => exportCurrentView('csv'),
+                    },
+                    {
+                      label: 'PDF', hint: 'Print / Save', color: 'var(--neg)',
+                      icon: <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />,
+                      action: () => exportCurrentView('pdf'),
+                    },
+                  ].map(item => (
+                    <button key={item.label} onClick={item.action}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: item.color === 'var(--pos)' ? 'oklch(78% 0.16 150 / 0.15)' : 'oklch(70% 0.17 25 / 0.15)' }}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>{item.label}</p>
+                        <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>{item.hint}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Add dropdown (transactions / list tab) */}
+          {(tab === 'transactions' || tab === 'list') && (
             <div ref={addMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowAddMenu(v => !v)}
@@ -1156,6 +1258,122 @@ const Transactions: React.FC = () => {
 
             </>
           )
+        )}
+
+        {/* ── List Tab ── */}
+        {tab === 'list' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+
+            {/* Filter bar */}
+            <div className="shrink-0 overflow-x-auto hide-scrollbar px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--line)' }}>
+              {/* Type toggle */}
+              <div className="flex p-0.5 rounded-lg shrink-0" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                {(['all', 'income', 'expense'] as const).map(t => (
+                  <button key={t} onClick={() => setListType(t)}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-md capitalize transition-all"
+                    style={listType === t
+                      ? {
+                          backgroundColor: t === 'income' ? 'oklch(78% 0.16 150 / 0.2)' : t === 'expense' ? 'oklch(70% 0.17 25 / 0.2)' : 'var(--bg)',
+                          color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                        }
+                      : { color: 'var(--muted)' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {/* Date range */}
+              <input type="date" value={listDateFrom} onChange={e => setListDateFrom(e.target.value)}
+                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: listDateFrom ? 'var(--fg)' : 'var(--dim)', outline: 'none', minWidth: 110 }} />
+              <span className="text-[10px] shrink-0" style={{ color: 'var(--dim)' }}>→</span>
+              <input type="date" value={listDateTo} onChange={e => setListDateTo(e.target.value)}
+                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: listDateTo ? 'var(--fg)' : 'var(--dim)', outline: 'none', minWidth: 110 }} />
+
+              {/* Account */}
+              <select value={listAccount} onChange={e => setListAccount(e.target.value)}
+                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
+                <option value="">All accounts</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+
+              {/* Category */}
+              <select value={listCategory} onChange={e => setListCategory(e.target.value)}
+                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
+                <option value="">All categories</option>
+                <option value="none">Uncategorized</option>
+                {sortedCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+
+              {/* Amount range */}
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-[10px]" style={{ color: 'var(--dim)' }}>$</span>
+                <input type="number" min="0" step="0.01" value={listAmountMin}
+                  onChange={e => setListAmountMin(e.target.value)}
+                  placeholder="Min"
+                  className="text-[11px] px-2 py-1 rounded-lg"
+                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none', width: 64 }} />
+                <span className="text-[10px]" style={{ color: 'var(--dim)' }}>–</span>
+                <input type="number" min="0" step="0.01" value={listAmountMax}
+                  onChange={e => setListAmountMax(e.target.value)}
+                  placeholder="Max"
+                  className="text-[11px] px-2 py-1 rounded-lg"
+                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none', width: 64 }} />
+              </div>
+
+              {/* Clear filters */}
+              {(listDateFrom || listDateTo || listAccount || listCategory || listType !== 'all' || listAmountMin || listAmountMax) && (
+                <button
+                  onClick={() => { setListDateFrom(''); setListDateTo(''); setListAccount(''); setListCategory(''); setListType('all'); setListAmountMin(''); setListAmountMax(''); }}
+                  className="shrink-0 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
+                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Summary strip */}
+            {filteredList.length > 0 && (
+              <div className="shrink-0 flex items-center gap-4 px-4 py-2 text-[11px]"
+                style={{ borderBottom: '1px solid var(--line)', backgroundColor: 'var(--elev-1)' }}>
+                <span style={{ color: 'var(--muted)' }}>{filteredList.length} transaction{filteredList.length !== 1 ? 's' : ''}</span>
+                {filteredList.some(t => Number(t.amount) > 0) && (
+                  <span className="font-mono font-semibold" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
+                    +${fmt(filteredList.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0))}
+                  </span>
+                )}
+                {filteredList.some(t => Number(t.amount) < 0) && (
+                  <span className="font-mono font-semibold" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                    −${fmt(filteredList.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0))}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Transaction list */}
+            <div className="flex-1 overflow-y-auto app-scrollbar pb-24 md:pb-4">
+              {filteredList.length === 0 ? (
+                <div className="py-16 text-center">
+                  <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>No transactions match</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>
+                    {transactions.length === 0 ? 'Add your first transaction to get started' : 'Try adjusting your filters'}
+                  </p>
+                </div>
+              ) : (
+                filteredList.map(tx => (
+                  <TxCard key={tx.id} tx={tx} accounts={accounts}
+                    isDragging={false} noDrag
+                    onDragStart={() => {}} onDragEnd={() => {}}
+                    onClick={() => setEditTx(tx)}
+                    onDelete={() => handleDelete(tx.id)} />
+                ))
+              )}
+            </div>
+          </div>
         )}
 
         {/* ── Recurring Tab ── */}

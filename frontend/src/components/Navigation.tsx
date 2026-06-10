@@ -34,7 +34,7 @@ const navItems = [
 const ROUTE_TABS: Record<string, { label: string; value: string }[]> = {
   '/':             [{ label: 'Overview', value: 'overview' }, { label: 'Analytics', value: 'analytics' }],
   '/accounts':     [{ label: 'Wallet', value: 'wallet' }, { label: 'Cards', value: 'cards' }, { label: 'Loans', value: 'loans' }],
-  '/transactions': [{ label: 'Transactions', value: 'transactions' }, { label: 'Recurring', value: 'recurring' }],
+  '/transactions': [{ label: 'Board', value: 'transactions' }, { label: 'List', value: 'list' }, { label: 'Recurring', value: 'recurring' }],
   '/portfolio':    [{ label: 'Investments', value: 'investments' }, { label: 'Assets', value: 'assets' }, { label: 'Savings', value: 'savings' }],
 };
 
