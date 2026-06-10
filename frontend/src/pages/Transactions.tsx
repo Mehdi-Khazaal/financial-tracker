@@ -345,15 +345,20 @@ const Transactions: React.FC = () => {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showAddMenu, setShowAddMenu]         = useState(false);
   const [showExportMenu, setShowExportMenu]   = useState(false);
+  const [showFilters, setShowFilters]         = useState(false);
 
-  // List tab filters
-  const [listDateFrom, setListDateFrom]       = useState('');
-  const [listDateTo, setListDateTo]           = useState('');
-  const [listAccount, setListAccount]         = useState('');
-  const [listCategory, setListCategory]       = useState('');
-  const [listType, setListType]               = useState<'all' | 'income' | 'expense'>('all');
-  const [listAmountMin, setListAmountMin]     = useState('');
-  const [listAmountMax, setListAmountMax]     = useState('');
+  // List tab — pending (form inputs) + applied (what filteredList uses)
+  const [pendingDateFrom, setPendingDateFrom] = useState('');
+  const [pendingDateTo, setPendingDateTo]     = useState('');
+  const [pendingAccount, setPendingAccount]   = useState('');
+  const [pendingCategory, setPendingCategory] = useState('');
+  const [pendingType, setPendingType]         = useState<'all' | 'income' | 'expense'>('all');
+  const [pendingAmountMin, setPendingAmountMin] = useState('');
+  const [pendingAmountMax, setPendingAmountMax] = useState('');
+  const [appliedFilters, setAppliedFilters]   = useState({
+    dateFrom: '', dateTo: '', account: '', category: '',
+    type: 'all' as 'all' | 'income' | 'expense', amountMin: '', amountMax: '',
+  });
 
   const MAX_TX_SHOWN = 3;
 
@@ -415,23 +420,23 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
-  const filteredList = useMemo(() =>
-    transactions.filter(t => {
-      if (listDateFrom && t.transaction_date < listDateFrom) return false;
-      if (listDateTo   && t.transaction_date > listDateTo)   return false;
-      if (listAccount  && t.account_id !== parseInt(listAccount)) return false;
-      if (listCategory) {
-        if (listCategory === 'none') { if (t.category_id !== null) return false; }
-        else if (t.category_id !== parseInt(listCategory)) return false;
+  const filteredList = useMemo(() => {
+    const f = appliedFilters;
+    return transactions.filter(t => {
+      if (f.dateFrom  && t.transaction_date < f.dateFrom) return false;
+      if (f.dateTo    && t.transaction_date > f.dateTo)   return false;
+      if (f.account   && t.account_id !== parseInt(f.account)) return false;
+      if (f.category) {
+        if (f.category === 'none') { if (t.category_id !== null) return false; }
+        else if (t.category_id !== parseInt(f.category)) return false;
       }
-      if (listType === 'income'  && Number(t.amount) <= 0) return false;
-      if (listType === 'expense' && Number(t.amount) >= 0) return false;
-      if (listAmountMin && Math.abs(Number(t.amount)) < parseFloat(listAmountMin)) return false;
-      if (listAmountMax && Math.abs(Number(t.amount)) > parseFloat(listAmountMax)) return false;
+      if (f.type === 'income'  && Number(t.amount) <= 0) return false;
+      if (f.type === 'expense' && Number(t.amount) >= 0) return false;
+      if (f.amountMin && Math.abs(Number(t.amount)) < parseFloat(f.amountMin)) return false;
+      if (f.amountMax && Math.abs(Number(t.amount)) > parseFloat(f.amountMax)) return false;
       return true;
-    }).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date)),
-    [transactions, listDateFrom, listDateTo, listAccount, listCategory, listType, listAmountMin, listAmountMax],
-  );
+    }).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
+  }, [transactions, appliedFilters]);
 
   // Sort categories alphabetically A → Z
   const sortedCategories = useMemo(() =>
@@ -500,8 +505,9 @@ const Transactions: React.FC = () => {
 
   const exportCurrentView = (format: 'csv' | 'pdf') => {
     const txs = tab === 'list' ? filteredList : monthTransactions;
+    const { dateFrom, dateTo } = appliedFilters;
     const title = tab === 'list'
-      ? `Transactions${listDateFrom || listDateTo ? ` (${listDateFrom}${listDateFrom && listDateTo ? ' – ' : ''}${listDateTo})` : ' — All'}`
+      ? `Transactions${dateFrom || dateTo ? ` (${dateFrom}${dateFrom && dateTo ? ' – ' : ''}${dateTo})` : ' — All'}`
       : `Transactions — ${formatMonth(selectedMonth)}`;
     const headers = ['Date', 'Description', 'Account', 'Category', 'Amount', 'Type'];
     const rows = txs.map(t => [
@@ -515,6 +521,28 @@ const Transactions: React.FC = () => {
     if (format === 'csv') downloadCSV(`transactions-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
     else printPDF(title, headers, rows);
     setShowExportMenu(false);
+  };
+
+  const hasActiveFilters =
+    appliedFilters.dateFrom !== '' || appliedFilters.dateTo !== '' ||
+    appliedFilters.account !== '' || appliedFilters.category !== '' ||
+    appliedFilters.type !== 'all' || appliedFilters.amountMin !== '' || appliedFilters.amountMax !== '';
+
+  const activeFilterCount = [
+    appliedFilters.dateFrom, appliedFilters.dateTo, appliedFilters.account,
+    appliedFilters.category, appliedFilters.amountMin, appliedFilters.amountMax,
+  ].filter(Boolean).length + (appliedFilters.type !== 'all' ? 1 : 0);
+
+  const applyFilters = () => setAppliedFilters({
+    dateFrom: pendingDateFrom, dateTo: pendingDateTo,
+    account: pendingAccount, category: pendingCategory,
+    type: pendingType, amountMin: pendingAmountMin, amountMax: pendingAmountMax,
+  });
+
+  const clearFilters = () => {
+    setPendingDateFrom(''); setPendingDateTo(''); setPendingAccount('');
+    setPendingCategory(''); setPendingType('all'); setPendingAmountMin(''); setPendingAmountMax('');
+    setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '' });
   };
 
   // ── Recurring helpers ─────────────────────────────────────────────────────────
@@ -739,7 +767,7 @@ const Transactions: React.FC = () => {
               </button>
 
               {showMonthPicker && availableMonths.length > 0 && (
-                <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
                   style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
                   {availableMonths.map(m => (
                     <button key={m}
@@ -764,6 +792,30 @@ const Transactions: React.FC = () => {
             </div>
           )}
 
+          {/* Filters button (list tab) */}
+          {tab === 'list' && (
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+              style={{
+                backgroundColor: showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.15)' : 'var(--elev-1)',
+                color: showFilters || hasActiveFilters ? 'var(--accent)' : 'var(--fg)',
+                border: `1px solid ${showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.3)' : 'var(--line)'}`,
+              }}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+              </svg>
+              <span>Filters</span>
+              {hasActiveFilters && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                  style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Spacer */}
           <div className="flex-1" />
 
@@ -783,7 +835,7 @@ const Transactions: React.FC = () => {
                 <span>Export</span>
               </button>
               {showExportMenu && (
-                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
                   style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 148, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
                   {[
                     {
@@ -837,7 +889,7 @@ const Transactions: React.FC = () => {
               </button>
 
               {showAddMenu && (
-                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-50"
+                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
                   style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 160, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
                   {[
                     {
@@ -1264,77 +1316,105 @@ const Transactions: React.FC = () => {
         {tab === 'list' && (
           <div className="flex-1 flex flex-col overflow-hidden">
 
-            {/* Filter bar */}
-            <div className="shrink-0 overflow-x-auto hide-scrollbar px-3 py-2 flex items-center gap-2" style={{ borderBottom: '1px solid var(--line)' }}>
-              {/* Type toggle */}
-              <div className="flex p-0.5 rounded-lg shrink-0" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                {(['all', 'income', 'expense'] as const).map(t => (
-                  <button key={t} onClick={() => setListType(t)}
-                    className="px-2.5 py-1 text-[11px] font-semibold rounded-md capitalize transition-all"
-                    style={listType === t
-                      ? {
-                          backgroundColor: t === 'income' ? 'oklch(78% 0.16 150 / 0.2)' : t === 'expense' ? 'oklch(70% 0.17 25 / 0.2)' : 'var(--bg)',
-                          color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                        }
-                      : { color: 'var(--muted)' }}>
-                    {t}
+            {/* Collapsible filter panel */}
+            {showFilters && (
+              <div className="shrink-0 p-3 space-y-3" style={{ borderBottom: '1px solid var(--line)', backgroundColor: 'var(--elev-1)' }}>
+                <div className="grid grid-cols-2 gap-2.5">
+
+                  {/* Type */}
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Type</p>
+                    <div className="flex p-0.5 rounded-xl" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
+                      {(['all', 'income', 'expense'] as const).map(t => (
+                        <button key={t} onClick={() => setPendingType(t)}
+                          className="flex-1 py-2 text-xs font-semibold rounded-lg capitalize transition-all"
+                          style={pendingType === t
+                            ? {
+                                backgroundColor: t === 'income' ? 'oklch(78% 0.16 150 / 0.2)' : t === 'expense' ? 'oklch(70% 0.17 25 / 0.2)' : 'var(--elev-1)',
+                                color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                              }
+                            : { color: 'var(--muted)' }}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* From */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>From</p>
+                    <input type="date" value={pendingDateFrom} onChange={e => setPendingDateFrom(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: pendingDateFrom ? 'var(--fg)' : 'var(--dim)', outline: 'none' }} />
+                  </div>
+
+                  {/* To */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>To</p>
+                    <input type="date" value={pendingDateTo} onChange={e => setPendingDateTo(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: pendingDateTo ? 'var(--fg)' : 'var(--dim)', outline: 'none' }} />
+                  </div>
+
+                  {/* Account */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Account</p>
+                    <select value={pendingAccount} onChange={e => setPendingAccount(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
+                      <option value="">All accounts</option>
+                      {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Category</p>
+                    <select value={pendingCategory} onChange={e => setPendingCategory(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
+                      <option value="">All categories</option>
+                      <option value="none">Uncategorized</option>
+                      {sortedCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Min $ */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Min $</p>
+                    <input type="number" min="0" step="0.01" value={pendingAmountMin}
+                      onChange={e => setPendingAmountMin(e.target.value)} placeholder="0.00"
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }} />
+                  </div>
+
+                  {/* Max $ */}
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Max $</p>
+                    <input type="number" min="0" step="0.01" value={pendingAmountMax}
+                      onChange={e => setPendingAmountMax(e.target.value)} placeholder="Any"
+                      className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                      style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }} />
+                  </div>
+
+                </div>
+
+                {/* Apply + Clear */}
+                <div className="flex gap-2">
+                  <button onClick={() => { applyFilters(); setShowFilters(false); }}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
+                    style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                    Apply Filters
                   </button>
-                ))}
+                  <button onClick={clearFilters}
+                    className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
+                    style={{ color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.25)', backgroundColor: 'oklch(70% 0.17 25 / 0.07)' }}>
+                    Clear
+                  </button>
+                </div>
               </div>
-
-              {/* Date range */}
-              <input type="date" value={listDateFrom} onChange={e => setListDateFrom(e.target.value)}
-                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: listDateFrom ? 'var(--fg)' : 'var(--dim)', outline: 'none', minWidth: 110 }} />
-              <span className="text-[10px] shrink-0" style={{ color: 'var(--dim)' }}>→</span>
-              <input type="date" value={listDateTo} onChange={e => setListDateTo(e.target.value)}
-                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: listDateTo ? 'var(--fg)' : 'var(--dim)', outline: 'none', minWidth: 110 }} />
-
-              {/* Account */}
-              <select value={listAccount} onChange={e => setListAccount(e.target.value)}
-                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
-                <option value="">All accounts</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-
-              {/* Category */}
-              <select value={listCategory} onChange={e => setListCategory(e.target.value)}
-                className="shrink-0 text-[11px] px-2 py-1 rounded-lg"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
-                <option value="">All categories</option>
-                <option value="none">Uncategorized</option>
-                {sortedCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-
-              {/* Amount range */}
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="text-[10px]" style={{ color: 'var(--dim)' }}>$</span>
-                <input type="number" min="0" step="0.01" value={listAmountMin}
-                  onChange={e => setListAmountMin(e.target.value)}
-                  placeholder="Min"
-                  className="text-[11px] px-2 py-1 rounded-lg"
-                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none', width: 64 }} />
-                <span className="text-[10px]" style={{ color: 'var(--dim)' }}>–</span>
-                <input type="number" min="0" step="0.01" value={listAmountMax}
-                  onChange={e => setListAmountMax(e.target.value)}
-                  placeholder="Max"
-                  className="text-[11px] px-2 py-1 rounded-lg"
-                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none', width: 64 }} />
-              </div>
-
-              {/* Clear filters */}
-              {(listDateFrom || listDateTo || listAccount || listCategory || listType !== 'all' || listAmountMin || listAmountMax) && (
-                <button
-                  onClick={() => { setListDateFrom(''); setListDateTo(''); setListAccount(''); setListCategory(''); setListType('all'); setListAmountMin(''); setListAmountMax(''); }}
-                  className="shrink-0 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                  Clear
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Summary strip */}
             {filteredList.length > 0 && (
@@ -1355,12 +1435,18 @@ const Transactions: React.FC = () => {
             )}
 
             {/* Transaction list */}
-            <div className="flex-1 overflow-y-auto app-scrollbar pb-24 md:pb-4">
+            <div className="flex-1 overflow-y-auto app-scrollbar pb-32 md:pb-4">
               {filteredList.length === 0 ? (
                 <div className="py-16 text-center">
-                  <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>No transactions match</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+                    {hasActiveFilters ? 'No transactions match' : 'No transactions yet'}
+                  </p>
                   <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>
-                    {transactions.length === 0 ? 'Add your first transaction to get started' : 'Try adjusting your filters'}
+                    {hasActiveFilters
+                      ? 'Try adjusting your filters'
+                      : transactions.length === 0
+                        ? 'Add your first transaction to get started'
+                        : 'Tap Filters to search your transactions'}
                   </p>
                 </div>
               ) : (

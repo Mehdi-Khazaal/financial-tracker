@@ -391,8 +391,8 @@ const AccountsPage: React.FC = () => {
                       </button>
                       {showLoanExport && (
                         <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowLoanExport(false)} />
-                          <div className="absolute right-0 top-9 z-20 rounded-xl overflow-hidden shadow-2xl"
+                          <div className="fixed inset-0 z-[100]" onClick={() => setShowLoanExport(false)} />
+                          <div className="absolute right-0 top-9 z-[200] rounded-xl overflow-hidden shadow-2xl"
                             style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: 110 }}>
                             <button onClick={() => exportLoans('csv')}
                               className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
