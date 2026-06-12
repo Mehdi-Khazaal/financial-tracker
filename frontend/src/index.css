@@ -15,11 +15,30 @@ body {
   letter-spacing: -0.005em;
 }
 
+/* Film grain — fixed compositor layer, breaks digital flatness */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-grain);
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
 /* Display — large monetary values (DM Serif Display) */
 .font-display { font-family: 'DM Serif Display', Georgia, serif !important; }
 
 /* Mono — UI labels, amounts, dates (DM Mono) */
 .font-mono { font-family: 'DM Mono', monospace !important; }
+
+/* Keyboard focus — visible ring, mouse clicks unaffected */
+:focus-visible {
+  outline: 2px solid var(--accent-glow);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -71,6 +90,27 @@ body {
   --radius-md:   10px;
   --radius-lg:   14px;
 
+  /* Motion — strong curves; built-in CSS easings are too weak */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-exit:   cubic-bezier(0.4, 0, 1, 1);
+
+  /* Elevation — tinted toward the warm-black bg, never pure black */
+  --shadow-card:  0 1px 2px rgba(5, 4, 3, 0.5);
+  --shadow-float: 0 8px 28px rgba(8, 5, 3, 0.45);
+  --shadow-modal: 0 24px 64px rgba(8, 5, 3, 0.6);
+  --edge-light:   inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  /* Z scale — semantic layers, no arbitrary values */
+  --z-sticky:   20;
+  --z-nav:      40;
+  --z-topbar:   50;
+  --z-backdrop: 60;
+  --z-modal:    70;
+  --z-toast:    80;
+  --z-grain:    90;
+
   /* Fixed 8-color category palette */
   --cat-1: #F97316;
   --cat-2: #22C55E;
@@ -94,22 +134,32 @@ body {
 /* ── Components ────────────────────────────────────────────────────────────── */
 @layer components {
 
-  /* Card — structural border, dark surface */
+  /* Card — structural border, dark surface, machined top edge */
   .card {
     background: var(--elev-1);
     border-radius: var(--radius-md);
     border: 1px solid var(--line);
+    box-shadow: var(--edge-light), var(--shadow-card);
   }
 
   .card-hover {
-    @apply transition-all duration-150 cursor-pointer;
-  }
-  .card-hover:hover {
-    border-color: var(--line-strong);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    @apply cursor-pointer;
+    transition: transform 180ms var(--ease-out), border-color 180ms ease, box-shadow 180ms ease;
   }
   .card-hover:active { transform: scale(.985) translateY(0); }
+  @media (hover: hover) and (pointer: fine) {
+    .card-hover:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-2px);
+      box-shadow: var(--edge-light), var(--shadow-float);
+    }
+  }
+
+  /* Anything pressable — instant physical feedback */
+  .pressable {
+    transition: transform 140ms var(--ease-out);
+  }
+  .pressable:active { transform: scale(0.97); }
 
   /* Monetary value display — DM Serif Display */
   .value-display {
@@ -122,35 +172,62 @@ body {
 
   /* Buttons */
   .btn-gradient {
-    @apply font-semibold text-white rounded-xl px-5 py-3 text-sm transition-all active:scale-95;
+    @apply font-semibold text-white rounded-xl px-5 py-3 text-sm;
     background: var(--accent);
-    box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
+    box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: transform 140ms var(--ease-out), box-shadow 180ms ease, opacity 180ms ease;
   }
-  .btn-gradient:hover { opacity: .92; box-shadow: 0 4px 18px rgba(249, 115, 22, 0.4); }
+  .btn-gradient:hover { opacity: .94; box-shadow: 0 4px 18px rgba(249, 115, 22, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+  .btn-gradient:active { transform: scale(0.97); }
 
   .btn-ghost {
-    @apply font-semibold rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
+    @apply font-semibold rounded-xl px-4 py-2.5 text-sm;
     background: var(--elev-1);
     border: 1px solid var(--line);
     color: var(--muted);
+    transition: transform 140ms var(--ease-out), color 160ms ease, border-color 160ms ease;
   }
   .btn-ghost:hover { color: var(--fg); border-color: var(--line-strong); }
+  .btn-ghost:active { transform: scale(0.97); }
 
   .btn-danger {
-    @apply font-semibold rounded-xl px-4 py-2.5 text-sm transition-all active:scale-95;
+    @apply font-semibold rounded-xl px-4 py-2.5 text-sm;
     background: transparent;
     border: 1px solid var(--neg);
     color: var(--neg);
+    transition: transform 140ms var(--ease-out), background-color 160ms ease;
+  }
+  .btn-danger:hover { background: var(--neg-dim); }
+  .btn-danger:active { transform: scale(0.97); }
+
+  /* Quick-action button (dashboard row, reusable) */
+  .qa-btn {
+    @apply flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium;
+    background: var(--elev-1);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    box-shadow: var(--edge-light);
+    transition: transform 160ms var(--ease-out), color 160ms ease, border-color 160ms ease, box-shadow 200ms ease;
+  }
+  .qa-btn:active { transform: scale(0.96); }
+  @media (hover: hover) and (pointer: fine) {
+    .qa-btn:hover {
+      color: var(--fg);
+      border-color: var(--line-strong);
+      transform: translateY(-2px);
+      box-shadow: var(--edge-light), var(--shadow-float);
+    }
   }
 
   /* Inputs */
   .input-dark {
-    @apply w-full rounded-xl px-4 py-3 text-sm outline-none transition-all;
+    @apply w-full rounded-xl px-4 py-3 text-sm outline-none;
     background: var(--elev-sub);
     border: 1px solid var(--line);
     color: var(--fg);
     font-size: 16px;
     font-family: var(--font-sans);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
   }
   .input-dark::placeholder { color: var(--dim); }
   .input-dark:focus {
@@ -198,7 +275,7 @@ body {
 
   /* Swipe row */
   .swipe-row { position: relative; overflow: hidden; touch-action: pan-y; }
-  .swipe-row-content { transition: transform 0.2s cubic-bezier(.32,1,.4,1); will-change: transform; }
+  .swipe-row-content { transition: transform 0.2s var(--ease-drawer); will-change: transform; }
   .swipe-delete-bg {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: flex-end;
@@ -214,18 +291,42 @@ body {
   /* ── Sidebar nav items ───────────────────────────────────────────────────── */
   .nav-item {
     color: var(--muted);
-    transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+    transition: background-color 0.12s ease, color 0.12s ease;
   }
   .nav-item:hover {
     background-color: rgba(255,255,255,0.04) !important;
     color: var(--fg) !important;
   }
   .nav-item-active {
-    background-color: rgba(249, 115, 22, 0.08) !important;
+    background-color: rgba(249, 115, 22, 0.09) !important;
     color: var(--fg) !important;
-    /* 2px orange left accent via inset box-shadow — no layout shift */
-    box-shadow: inset 2px 0 0 var(--accent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
   }
+
+  /* ── Mobile bottom-nav items ─────────────────────────────────────────────── */
+  .bottom-nav-item {
+    position: relative;
+    transition: color 180ms var(--ease-out);
+  }
+  .bottom-nav-item .bn-pill {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    width: 44px;
+    height: 26px;
+    border-radius: 99px;
+    background: var(--accent-dim);
+    transform: translateX(-50%) scale(0.6);
+    opacity: 0;
+    transition: transform 220ms var(--ease-out), opacity 180ms ease;
+    pointer-events: none;
+  }
+  .bottom-nav-item.bn-active .bn-pill {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+  .bottom-nav-item svg { transition: transform 220ms var(--ease-out); }
+  .bottom-nav-item.bn-active svg { transform: translateY(-1px); }
 
   /* ── Hero card shimmer ───────────────────────────────────────────────────── */
   .hero-card {
@@ -247,6 +348,90 @@ body {
     pointer-events: none;
     border-radius: inherit;
   }
+
+  /* Ambient ember glow anchored to hero top-right */
+  .hero-card::before {
+    content: '';
+    position: absolute;
+    top: -120px;
+    right: -80px;
+    width: 340px;
+    height: 280px;
+    background: radial-gradient(closest-side, rgba(249, 115, 22, 0.07), transparent);
+    pointer-events: none;
+  }
+
+  /* ── Command palette ─────────────────────────────────────────────────────── */
+  .cmdk-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-backdrop);
+    background: rgba(5, 5, 6, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .cmdk-panel {
+    position: fixed;
+    z-index: var(--z-modal);
+    top: 16vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 2rem));
+    background: var(--elev-1);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--edge-light), var(--shadow-modal);
+    overflow: hidden;
+  }
+  .cmdk-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    color: var(--muted);
+    transition: background-color 80ms ease, color 80ms ease;
+  }
+  .cmdk-item[data-selected="true"] {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fg);
+  }
+  .cmdk-item[data-selected="true"] .cmdk-icon { color: var(--accent); }
+  .cmdk-kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--dim);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 6px;
+    line-height: 1;
+  }
+
+  /* ── Privacy mode — blur every monetary value ────────────────────────────── */
+  .blurrable { transition: filter 240ms var(--ease-out); }
+  body.privacy-on :is(.value-display, .stat-value, .tabular-nums):not(input),
+  body.privacy-on [style*="tabular-nums"]:not(input),
+  body.privacy-on .blurrable {
+    filter: blur(9px);
+    user-select: none;
+  }
+
+  /* ── Staggered entrance — apply to a container, children cascade in ──────── */
+  .stagger-in > * {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeIn 420ms var(--ease-out) forwards;
+  }
+  .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > *:nth-child(2) { animation-delay: 45ms; }
+  .stagger-in > *:nth-child(3) { animation-delay: 90ms; }
+  .stagger-in > *:nth-child(4) { animation-delay: 135ms; }
+  .stagger-in > *:nth-child(5) { animation-delay: 180ms; }
+  .stagger-in > *:nth-child(6) { animation-delay: 225ms; }
+  .stagger-in > *:nth-child(n+7) { animation-delay: 260ms; }
 }
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
@@ -294,11 +479,19 @@ body {
   from { opacity: 0; transform: translateY(22px); filter: blur(5px); }
   to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
 }
+@keyframes sparkDraw {
+  from { stroke-dashoffset: var(--spark-len, 600); }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes sparkFill {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
-.slide-up    { animation: slideUp .3s cubic-bezier(.32,1,.4,1) both; }
-.slide-down  { animation: slideDown .25s cubic-bezier(.4,0,1,1) both; }
+.slide-up    { animation: slideUp .3s var(--ease-drawer) both; }
+.slide-down  { animation: slideDown .25s var(--ease-exit) both; }
 .fade-in     { animation: fadeIn .25s ease both; }
-.scale-in    { animation: scaleIn .22s cubic-bezier(.32,1,.4,1) both; }
+.scale-in    { animation: scaleIn .22s var(--ease-out) both; }
 .pulse-dot   { animation: pulse-glow 1.8s ease-in-out infinite; }
 .spin-slow   { animation: spin-slow .9s linear infinite; }
 
@@ -313,6 +506,7 @@ body {
 .nav-collapsed .nav-logo-text { display: none !important; }
 .nav-collapsed .nav-user-info { display: none !important; }
 .nav-collapsed .nav-dot       { display: none !important; }
+.nav-collapsed .nav-cmdk-hint { display: none !important; }
 .nav-collapsed .md\:ml-60     { margin-left: 64px !important; }
 
 /* ── Safe area ─────────────────────────────────────────────────────────────── */
@@ -333,4 +527,17 @@ body {
 select.input-dark option {
   background: var(--elev-1);
   color: var(--fg);
+}
+
+/* ── Reduced motion — remove movement, keep comprehension aids ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .stagger-in > * { animation-duration: 1ms; animation-delay: 0ms; }
+  .slide-up, .slide-down, .scale-in { animation: fadeIn 150ms ease both; }
+  .hero-card::after { animation: none; }
+  .card-hover, .qa-btn, .pressable, .btn-gradient, .btn-ghost, .btn-danger {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+  }
+  .card-hover:hover, .qa-btn:hover { transform: none; }
+  .bottom-nav-item .bn-pill, .bottom-nav-item svg { transition: opacity 150ms ease; }
+  [style*="sparkDraw"], .spark-path { animation: none !important; stroke-dashoffset: 0 !important; }
 }

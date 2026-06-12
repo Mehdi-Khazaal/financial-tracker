@@ -20,7 +20,7 @@ type Tab = 'investments' | 'assets' | 'savings';
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const TYPE_ICONS: Record<string, string> = {
-  stock: '📈', crypto: '₿', gold: '🥇', silver: '🥈', etf: '📊', bond: '📜',
+  stock: 'ðŸ“ˆ', crypto: 'â‚¿', gold: 'ðŸ¥‡', silver: 'ðŸ¥ˆ', etf: 'ðŸ“Š', bond: 'ðŸ“œ',
 };
 
 const ASSET_META: Record<string, { icon: string; color: string }> = {
@@ -173,12 +173,12 @@ const PortfolioPage: React.FC = () => {
       return [
         a.name,
         a.type,
-        a.quantity != null ? String(a.quantity) : '—',
+        a.quantity != null ? String(a.quantity) : 'â€”',
         `$${fmt(Number(a.total_value))}`,
         `$${fmt(currVal)}`,
-        gl != null ? `${gl >= 0 ? '+' : ''}$${fmt(gl)}` : '—',
+        gl != null ? `${gl >= 0 ? '+' : ''}$${fmt(gl)}` : 'â€”',
         a.currency,
-        a.purchase_date ?? '—',
+        a.purchase_date ?? 'â€”',
       ];
     });
     if (format === 'csv') downloadCSV(`investments-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
@@ -218,7 +218,7 @@ const PortfolioPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between pr-12 md:pr-0">
+          <div className="flex items-center justify-between pr-24 md:pr-0">
             <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Portfolio</h1>
             <div className="flex gap-2">
               {tab === 'investments' && (
@@ -296,7 +296,7 @@ const PortfolioPage: React.FC = () => {
             </div>
           </div>
 
-          {/* ── INVESTMENTS TAB ── */}
+          {/* â”€â”€ INVESTMENTS TAB â”€â”€ */}
           {tab === 'investments' && (
             <>
               {/* Hero */}
@@ -311,7 +311,7 @@ const PortfolioPage: React.FC = () => {
                   {fetchingPrices ? (
                     <span className="text-xs text-muted flex items-center gap-1.5 mt-1">
                       <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: 'var(--accent)' }} />
-                      Live prices…
+                      Live pricesâ€¦
                     </span>
                   ) : (
                     <button onClick={() => { localStorage.removeItem('stock_prices_cache'); localStorage.removeItem('stock_prices_cache_time'); fetchPricesBackground(investments, true); }}
@@ -319,7 +319,7 @@ const PortfolioPage: React.FC = () => {
                       style={{ color: 'var(--dim)' }}
                       onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
                       onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}>
-                      ↻ Refresh
+                      â†» Refresh
                     </button>
                   )}
                 </div>
@@ -335,7 +335,7 @@ const PortfolioPage: React.FC = () => {
                         {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
                       </p>
                     ) : (
-                      <p className="font-semibold text-sm text-muted" style={{ fontFamily: 'var(--font-mono)' }}>—</p>
+                      <p className="font-semibold text-sm text-muted" style={{ fontFamily: 'var(--font-mono)' }}>â€”</p>
                     )}
                   </div>
                 </div>
@@ -357,7 +357,7 @@ const PortfolioPage: React.FC = () => {
 
               {investments.length === 0 ? (
                 <div className="card py-12 text-center">
-                  <p className="text-3xl mb-3">📈</p>
+                  <p className="text-3xl mb-3">ðŸ“ˆ</p>
                   <p className="font-semibold text-text mb-1">No investments yet</p>
                   <p className="text-sm text-muted mb-5">Track stocks, crypto, gold, ETFs, and more</p>
                   <button onClick={() => setShowAddInv(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Investment</button>
@@ -375,7 +375,7 @@ const PortfolioPage: React.FC = () => {
                       <div key={inv.id} className="card card-hover p-4 group">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-xl">{TYPE_ICONS[inv.type] ?? '💰'}</span>
+                            <span className="text-xl">{TYPE_ICONS[inv.type] ?? 'ðŸ’°'}</span>
                             <div>
                               <p className="font-semibold text-sm text-text">{inv.name}</p>
                               <span className="text-[10px] px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{inv.type}</span>
@@ -384,10 +384,10 @@ const PortfolioPage: React.FC = () => {
                           <div className="flex items-center gap-2">
                             {hasPx && gainPct != null ? (
                               <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-mono)', color: isGain ? 'var(--pos)' : 'var(--neg)' }}>
-                                {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
+                                {isGain ? 'â–²' : 'â–¼'} {Math.abs(gainPct).toFixed(2)}%
                               </span>
                             ) : (
-                              <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>fetching…</span>
+                              <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>fetchingâ€¦</span>
                             )}
                             <button onClick={() => handleDeleteInv(inv.id, inv.name)}
                               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
@@ -401,9 +401,9 @@ const PortfolioPage: React.FC = () => {
                         <div className="grid grid-cols-2 gap-3">
                           {[
                             { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
-                            { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
+                            { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : 'â€”', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
                             { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
-                            { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '—', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
+                            { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : 'â€”', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
                           ].map(stat => (
                             <div key={stat.label}>
                               <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
@@ -429,7 +429,7 @@ const PortfolioPage: React.FC = () => {
             </>
           )}
 
-          {/* ── ASSETS TAB ── */}
+          {/* â”€â”€ ASSETS TAB â”€â”€ */}
           {tab === 'assets' && (
             <>
               <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
@@ -507,7 +507,7 @@ const PortfolioPage: React.FC = () => {
             </>
           )}
 
-          {/* ── SAVINGS TAB ── */}
+          {/* â”€â”€ SAVINGS TAB â”€â”€ */}
           {tab === 'savings' && (
             <>
               <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
@@ -573,7 +573,7 @@ const PortfolioPage: React.FC = () => {
                   </div>
                   {goals.length === 0 ? (
                     <div className="card py-10 text-center">
-                      <p className="text-3xl mb-3">🎯</p>
+                      <p className="text-3xl mb-3">ðŸŽ¯</p>
                       <p className="font-semibold text-text mb-1">No savings goals</p>
                       <p className="text-sm text-muted mb-4">Set a target and allocate money from your accounts</p>
                       <button onClick={() => setShowAddGoal(true)} className="btn-gradient px-5 py-2 text-sm">Create First Goal</button>
@@ -593,7 +593,7 @@ const PortfolioPage: React.FC = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-semibold text-sm text-text">{goal.name}</p>
-                                  {isComplete && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Complete ✓</span>}
+                                  {isComplete && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Complete âœ“</span>}
                                 </div>
                                 {daysLeft !== null && (
                                   <p className="text-xs mt-0.5" style={{ color: daysLeft < 30 ? 'var(--neg)' : 'var(--muted)' }}>
@@ -620,7 +620,7 @@ const PortfolioPage: React.FC = () => {
                               <ProgressBar value={progress} colorAuto height={6} showLabel={false} />
                             </div>
                             <div className="flex justify-between items-center">
-                              <p className="text-xs text-muted">{isComplete ? '🎉 Goal reached!' : `$${fmt(remaining)} remaining`}</p>
+                              <p className="text-xs text-muted">{isComplete ? 'ðŸŽ‰ Goal reached!' : `$${fmt(remaining)} remaining`}</p>
                             </div>
                           </div>
                         );

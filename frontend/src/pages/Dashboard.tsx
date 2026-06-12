@@ -17,6 +17,9 @@ import AddAccountModal from '../components/modals/AddAccountModal';
 import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
+import CountUp from '../components/CountUp';
+import Sparkline from '../components/Sparkline';
+import { consumeQuickAction } from '../context/UIContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMonth = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
@@ -86,7 +89,6 @@ const Dashboard: React.FC = () => {
   });
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const monthPickerRef = useRef<HTMLDivElement>(null);
-  const [countedNW, setCountedNW]             = useState(0);
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
@@ -112,6 +114,19 @@ const Dashboard: React.FC = () => {
   const { pulling, refreshing, pullDistance } = usePullToRefresh(loadAll);
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Quick actions requested from the command palette (⌘K)
+  useEffect(() => {
+    const apply = () => {
+      const a = consumeQuickAction();
+      if (!a) return;
+      if (a === 'transfer') { setShowTransfer(true); }
+      else { setTxType(a); setShowTx(true); }
+    };
+    apply();
+    window.addEventListener('ft:quick-action', apply);
+    return () => window.removeEventListener('ft:quick-action', apply);
+  }, []);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const now = new Date();
@@ -160,18 +175,6 @@ const Dashboard: React.FC = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showMonthPicker]);
-
-  useEffect(() => {
-    if (!netWorth) return;
-    const dur = 1100;
-    const s = performance.now();
-    const run = (t: number) => {
-      const p = Math.min((t - s) / dur, 1);
-      setCountedNW(netWorth * (1 - Math.pow(1 - p, 4)));
-      if (p < 1) requestAnimationFrame(run);
-    };
-    requestAnimationFrame(run);
-  }, [netWorth]);
 
   const filterByPeriod = (txs: Transaction[]) => {
     const n = new Date();
@@ -272,20 +275,23 @@ const Dashboard: React.FC = () => {
   }
 
   const monthLabel = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const sparkValues = netWorthTrend.map(d => d.Value);
 
   return (
     <>
       <Navigation />
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 md:space-y-6 fade-in">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 md:space-y-6 stagger-in">
 
           {/* ── Greeting ── */}
-          <div className="flex items-center justify-between pr-12 md:pr-0">
+          <div className="flex items-center justify-between pr-24 md:pr-0">
             <div>
               <p className="label mb-1">{monthLabel}</p>
               <h1 className="font-serif text-xl font-medium mt-0.5" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>
-                Hey, {user?.username}
+                {greeting}, {user?.username}
               </h1>
             </div>
             {tab === 'overview' && (
@@ -318,15 +324,34 @@ const Dashboard: React.FC = () => {
           {tab === 'overview' && (
             <>
               {/* ── Hero: Net Worth + Month Stats ── */}
-              <div className="hero-card rounded-xl p-6 md:p-8" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                <div className="flex flex-col md:flex-row md:items-start md:gap-12">
+              <div className="hero-card rounded-xl p-6 md:p-8"
+                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}>
+                <div className="relative flex flex-col md:flex-row md:items-start md:gap-12" style={{ zIndex: 1 }}>
 
-                  {/* Left: net worth number */}
+                  {/* Left: net worth number + 12-month trajectory */}
                   <div className="flex-1 min-w-0">
-                    <p className="label mb-3">Net Worth</p>
+                    <div className="flex items-center gap-3 mb-3">
+                      <p className="label">Net Worth</p>
+                      {nwChange !== 0 && netWorthTrend.length > 1 && (
+                        <span className="font-mono tabular-nums text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{
+                            color: nwChange >= 0 ? 'var(--pos)' : 'var(--neg)',
+                            backgroundColor: nwChange >= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
+                          }}>
+                          {nwChange >= 0 ? '↑' : '↓'} ${fmt(Math.abs(nwChange))} / 12mo
+                        </span>
+                      )}
+                    </div>
                     <p className="value-display" style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)' }}>
-                      ${fmt(countedNW)}
+                      $<CountUp value={netWorth} duration={1100} />
                     </p>
+
+                    {sparkValues.length > 1 && (
+                      <div className="blurrable mt-5 -mx-1" style={{ height: 52 }}>
+                        <Sparkline data={sparkValues} height={52} color="#F97316" />
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-8 md:gap-12 mt-5 pt-5" style={{ borderTop: '1px solid var(--line)' }}>
                       <div>
                         <p className="label mb-1.5">Spendable</p>
@@ -344,17 +369,21 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right: 2×2 stat grid with colored left-border accents */}
+                  {/* Right: 2×2 stat grid */}
                   <div className="grid grid-cols-2 gap-2.5 mt-5 md:mt-0 md:min-w-[280px]">
                     {[
-                      { label: 'Income',      value: `+$${fmt(monthIncome)}`,     color: 'var(--pos)',  border: '#22C55E' },
-                      { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,   color: 'var(--neg)',  border: '#EF4444' },
-                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,      color: 'var(--fg)',   border: 'rgba(241,241,243,0.3)' },
-                      { label: 'Investments', value: `$${fmt(totalInvestments)}`, color: '#a855f7',     border: '#a855f7' },
+                      { label: 'Income',      value: `+$${fmt(monthIncome)}`,     color: 'var(--pos)',  dot: '#22C55E' },
+                      { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,   color: 'var(--neg)',  dot: '#EF4444' },
+                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,      color: 'var(--fg)',   dot: 'rgba(241,241,243,0.45)' },
+                      { label: 'Investments', value: `$${fmt(totalInvestments)}`, color: '#a855f7',     dot: '#a855f7' },
                     ].map(s => (
                       <div key={s.label} className="rounded-lg"
-                        style={{ backgroundColor: 'var(--elev-sub)', borderLeft: `2px solid ${s.border}`, padding: '10px 12px 10px 10px' }}>
-                        <p className="label mb-1.5">{s.label}</p>
+                        style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light)', padding: '10px 12px' }}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: s.dot, boxShadow: `0 0 5px ${s.dot}` }} />
+                          <p className="label">{s.label}</p>
+                        </div>
                         <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: s.color }}>{s.value}</p>
                       </div>
                     ))}
@@ -376,21 +405,7 @@ const Dashboard: React.FC = () => {
                   { label: 'Deposit',  action: () => setShowDeposit(true),
                     icon: <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /> },
                 ].map(({ label, action, icon }) => (
-                  <button key={label} onClick={action}
-                    className="flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium transition-all duration-150 active:scale-95"
-                    style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid var(--line)' }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.color = 'var(--fg)';
-                      e.currentTarget.style.borderColor = 'var(--line-strong)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.color = 'var(--muted)';
-                      e.currentTarget.style.borderColor = 'var(--line)';
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}>
+                  <button key={label} onClick={action} className="qa-btn">
                     <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">{icon}</svg>
                     {label}
                   </button>

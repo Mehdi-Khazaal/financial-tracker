@@ -2,6 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import TopBar from './TopBar';
 import { TabContext } from '../context/TabContext';
+import { useUI } from '../context/UIContext';
+
+/* Subtle tap feedback on devices that support it */
+const haptic = () => { if ('vibrate' in navigator) navigator.vibrate(8); };
 
 const navItems = [
   {
@@ -43,6 +47,7 @@ const COLLAPSE_KEY = 'nav_collapsed';
 const Navigation: React.FC = () => {
   const location = useLocation();
   const { tabs, setRouteTab } = useContext(TabContext);
+  const { setPaletteOpen } = useUI();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
   const isActive = (item: typeof navItems[0]) => item.matchPaths.includes(location.pathname);
@@ -106,8 +111,28 @@ const Navigation: React.FC = () => {
           )}
         </div>
 
+        {/* Search / command palette trigger */}
+        <div className="px-2 pt-3">
+          <button
+            onClick={() => setPaletteOpen(true)}
+            title="Search & commands (Ctrl+K)"
+            className={`nav-item flex items-center gap-3 py-2.5 rounded-md text-sm w-full ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
+              strokeLinecap="round" className="w-[18px] h-[18px] shrink-0">
+              <path d="M13.5 13.5L17 17M9 14.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z" />
+            </svg>
+            {!collapsed && (
+              <>
+                <span className="nav-label flex-1 text-left whitespace-nowrap text-sm font-medium">Search</span>
+                <span className="nav-cmdk-hint font-mono text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ color: 'var(--dim)', border: '1px solid var(--line)' }}>⌘K</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Nav links */}
-        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {navItems.map(item => {
             const active = isActive(item);
             return (
@@ -162,7 +187,7 @@ const Navigation: React.FC = () => {
             {routeTabs.map(t => (
               <button
                 key={t.value}
-                onClick={() => setRouteTab(location.pathname, t.value)}
+                onClick={() => { haptic(); setRouteTab(location.pathname, t.value); }}
                 className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
                 style={activeTab === t.value
                   ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', fontFamily: 'var(--font-mono)' }
@@ -186,16 +211,15 @@ const Navigation: React.FC = () => {
             const active = isActive(item);
             return (
               <Link key={item.path} to={item.path}
-                className="flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all"
+                onClick={haptic}
+                className={`bottom-nav-item flex flex-col items-center justify-center gap-1 flex-1 h-full ${active ? 'bn-active' : ''}`}
                 style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 transition-all"
-                  style={{
-                    transform: active ? 'scale(1.1)' : 'scale(1)',
-                    filter: active ? 'drop-shadow(0 0 4px rgba(249,115,22,0.5))' : 'none',
-                  }}>
+                <span className="bn-pill" aria-hidden="true" />
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative"
+                  style={{ filter: active ? 'drop-shadow(0 0 4px rgba(249,115,22,0.5))' : 'none' }}>
                   <path d={item.icon} />
                 </svg>
-                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase">{item.label}</span>
+                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{item.label}</span>
               </Link>
             );
           })}

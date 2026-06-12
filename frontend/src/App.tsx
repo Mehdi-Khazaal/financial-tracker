@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { TabProvider } from './context/TabContext';
+import { UIProvider } from './context/UIContext';
+import CommandPalette from './components/CommandPalette';
 import Dashboard from './pages/Dashboard';
 import AccountsPage from './pages/AccountsPage';
 import PortfolioPage from './pages/PortfolioPage';
@@ -20,9 +22,9 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+      <div className="flex items-center justify-center" style={{ backgroundColor: 'var(--bg)', minHeight: '100dvh' }}>
         <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow"
-          style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+          style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -36,6 +38,8 @@ function App() {
       <AuthProvider>
         <ToastProvider>
         <TabProvider>
+        <UIProvider>
+        <CommandPalette />
         <Routes>
           <Route path="/login"           element={<Login />} />
           <Route path="/signup"          element={<Signup />} />
@@ -61,6 +65,7 @@ function App() {
           <Route path="/savings"     element={<Navigate to="/portfolio"    replace />} />
           <Route path="/analytics"   element={<Navigate to="/"            replace />} />
         </Routes>
+        </UIProvider>
         </TabProvider>
         </ToastProvider>
       </AuthProvider>

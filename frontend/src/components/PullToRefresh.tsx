@@ -17,13 +17,14 @@ const PullToRefresh: React.FC<Props> = ({ pulling, refreshing, pullDistance }) =
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg"
         style={{
-          backgroundColor: '#0d1018',
-          border: '1px solid #1a1f2e',
+          backgroundColor: 'var(--elev-1)',
+          border: '1px solid var(--line-strong)',
+          boxShadow: 'var(--edge-light), var(--shadow-float)',
           opacity: refreshing ? 1 : progress,
           transform: `scale(${0.6 + progress * 0.4})`,
         }}>
         <svg
-          viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth={2.5}
+          viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={2.5}
           strokeLinecap="round" className="w-4 h-4"
           style={{
             animation: refreshing ? 'spin-slow .8s linear infinite' : 'none',

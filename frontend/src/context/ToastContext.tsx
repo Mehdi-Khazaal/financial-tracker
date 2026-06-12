@@ -40,9 +40,9 @@ const ICONS: Record<ToastType, string> = {
 };
 
 const COLORS: Record<ToastType, { bg: string; border: string; icon: string }> = {
-  success: { bg: 'rgba(16,185,129,.1)',  border: 'rgba(16,185,129,.25)',  icon: '#10b981' },
-  error:   { bg: 'rgba(244,63,94,.1)',   border: 'rgba(244,63,94,.25)',   icon: '#f43f5e' },
-  info:    { bg: 'rgba(99,102,241,.1)',  border: 'rgba(99,102,241,.25)',  icon: '#6366f1' },
+  success: { bg: 'rgba(34,197,94,.1)',   border: 'rgba(34,197,94,.25)',   icon: '#22C55E' },
+  error:   { bg: 'rgba(239,68,68,.1)',   border: 'rgba(239,68,68,.25)',   icon: '#EF4444' },
+  info:    { bg: 'rgba(249,115,22,.1)',  border: 'rgba(249,115,22,.25)',  icon: '#F97316' },
 };
 
 // ── Single toast ───────────────────────────────────────────────────────────────
@@ -50,13 +50,13 @@ const ToastBubble: React.FC<{ toast: ToastItem; onDismiss: () => void }> = ({ to
   const c = COLORS[toast.type];
   return (
     <div
-      className="fade-in flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl pointer-events-auto min-w-[260px] max-w-[340px]"
-      style={{ background: '#0d1018', border: `1px solid ${c.border}`, boxShadow: `0 8px 32px rgba(0,0,0,.4), 0 0 0 1px ${c.border}` }}>
+      className="fade-in flex items-center gap-3 px-4 py-3 rounded-2xl pointer-events-auto min-w-[260px] max-w-[340px]"
+      style={{ background: 'var(--elev-1)', border: `1px solid ${c.border}`, boxShadow: `var(--edge-light), var(--shadow-float)` }}>
       <svg viewBox="0 0 20 20" fill={c.icon} className="w-5 h-5 shrink-0">
         <path fillRule="evenodd" d={ICONS[toast.type]} clipRule="evenodd" />
       </svg>
-      <p className="text-sm text-text flex-1 font-medium leading-snug">{toast.message}</p>
-      <button onClick={onDismiss} className="shrink-0 opacity-40 hover:opacity-80 transition-opacity" style={{ color: '#eef0f8' }}>
+      <p className="text-sm flex-1 font-medium leading-snug" style={{ color: 'var(--fg)' }}>{toast.message}</p>
+      <button onClick={onDismiss} className="shrink-0 opacity-40 hover:opacity-80 transition-opacity" style={{ color: 'var(--fg)' }}>
         <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
           <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
         </svg>
@@ -72,25 +72,25 @@ const ConfirmDialog: React.FC<{
 }> = ({ state, onAnswer }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => onAnswer(false)} />
-    <div className="scale-in relative w-full max-w-sm rounded-2xl p-6 shadow-2xl"
-      style={{ backgroundColor: '#0d1018', border: '1px solid #1a1f2e' }}>
+    <div className="scale-in relative w-full max-w-sm rounded-2xl p-6"
+      style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
       {state.title && (
-        <p className="font-bold text-base text-text mb-2">{state.title}</p>
+        <p className="font-bold text-base mb-2" style={{ color: 'var(--fg)' }}>{state.title}</p>
       )}
-      <p className="text-sm text-muted leading-relaxed mb-6">{state.message}</p>
+      <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--muted)' }}>{state.message}</p>
       <div className="flex gap-3">
         <button
           onClick={() => onAnswer(false)}
-          className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-          style={{ backgroundColor: '#1a1f2e', color: '#666e90' }}>
+          className="pressable flex-1 py-2.5 text-sm font-semibold rounded-xl"
+          style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
           Cancel
         </button>
         <button
           onClick={() => onAnswer(true)}
-          className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
+          className="pressable flex-1 py-2.5 text-sm font-semibold rounded-xl"
           style={state.danger
-            ? { backgroundColor: 'rgba(244,63,94,.15)', color: '#f43f5e', border: '1px solid rgba(244,63,94,.25)' }
-            : { backgroundColor: 'rgba(99,102,241,.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,.25)' }}>
+            ? { backgroundColor: 'var(--neg-dim)', color: 'var(--neg)', border: '1px solid rgba(239,68,68,.25)' }
+            : { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(249,115,22,.25)' }}>
           Confirm
         </button>
       </div>

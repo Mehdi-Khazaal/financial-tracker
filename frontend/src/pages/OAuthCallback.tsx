@@ -45,10 +45,10 @@ const OAuthCallback: React.FC = () => {
   }, [ready, open]);
 
   return (
-    <div className="flex items-center justify-center h-screen" style={{ backgroundColor: '#070810' }}>
+    <div className="flex items-center justify-center" style={{ backgroundColor: 'var(--bg)', minHeight: '100dvh' }}>
       <div className="text-center">
         <div className="w-7 h-7 rounded-full border-2 border-t-transparent spin-slow mx-auto mb-4"
-          style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+          style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
         <p className="text-sm text-muted">Completing bank connection...</p>
       </div>
     </div>

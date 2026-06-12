@@ -22,12 +22,13 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children }) => {
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        style={{ animation: 'fadeOut 200ms ease reverse both' }}
         onClick={onClose}
       />
 
       {/* Sheet */}
       <div className="slide-up relative w-full md:max-w-md md:mx-4 rounded-t-3xl md:rounded-3xl overflow-hidden safe-bottom"
-        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', maxHeight: '92vh' }}>
+        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', maxHeight: '92vh', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
 
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 md:hidden">

@@ -127,7 +127,7 @@ const Analytics: React.FC = () => {
     ? netWorthTrend[netWorthTrend.length - 1].Value - netWorthTrend[0].Value
     : 0;
 
-  // ── Year-over-Year ────────────────────────────────────────────────────────────
+  // â”€â”€ Year-over-Year â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const now = new Date();
   const thisMonthKey     = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const lastYearMonthKey = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -158,7 +158,7 @@ const Analytics: React.FC = () => {
     },
   ];
 
-  // ── Spending Insights: previous-period comparison ────────────────────────────
+  // â”€â”€ Spending Insights: previous-period comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const prevFiltered = (() => {
     const now = new Date();
     if (period === 'This month') {
@@ -252,7 +252,7 @@ const Analytics: React.FC = () => {
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between pr-12 md:pr-0">
+          <div className="flex items-center justify-between pr-24 md:pr-0">
             <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Analytics</h1>
           </div>
 
@@ -513,7 +513,7 @@ const Analytics: React.FC = () => {
             )}
           </div>
 
-          {/* ── Spending Insights ── */}
+          {/* â”€â”€ Spending Insights â”€â”€ */}
           {hasInsights && (
             <div className="card p-5">
               {/* Header */}
@@ -551,14 +551,14 @@ const Analytics: React.FC = () => {
                         lineHeight: 1,
                         color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
                       }}>
-                        {topMover.delta > 0 ? '+' : '−'}${fmt(Math.abs(topMover.delta))}
+                        {topMover.delta > 0 ? '+' : 'âˆ’'}${fmt(Math.abs(topMover.delta))}
                       </p>
                       {topMover.pctChange !== null && (
                         <p className="text-xs mt-0.5" style={{
                           fontFamily: 'var(--font-mono)',
                           color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
                         }}>
-                          {topMover.delta > 0 ? '▲' : '▼'} {Math.abs(topMover.pctChange).toFixed(1)}%
+                          {topMover.delta > 0 ? 'â–²' : 'â–¼'} {Math.abs(topMover.pctChange).toFixed(1)}%
                         </p>
                       )}
                     </div>
@@ -599,7 +599,7 @@ const Analytics: React.FC = () => {
                             fontVariantNumeric: 'tabular-nums',
                             color: isNew ? 'var(--accent)' : isGone ? 'var(--dim)' : unchanged ? 'var(--dim)' : isUp ? 'var(--neg)' : 'var(--pos)',
                           }}>
-                            {isNew ? 'new' : isGone ? 'none' : unchanged ? '—' : `${isUp ? '▲' : '▼'} $${fmt(Math.abs(cat.delta))}`}
+                            {isNew ? 'new' : isGone ? 'none' : unchanged ? 'â€”' : `${isUp ? 'â–²' : 'â–¼'} $${fmt(Math.abs(cat.delta))}`}
                           </p>
                         </div>
                       </div>
