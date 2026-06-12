@@ -19,47 +19,11 @@ import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
 import CountUp from '../components/CountUp';
 import Sparkline from '../components/Sparkline';
+import { AccountTypeIcon, DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMonth = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
-
-const ACCOUNT_ICON_COLORS: Record<string, string> = {
-  checking:    'var(--accent)',
-  savings:     'var(--pos)',
-  credit_card: 'var(--neg)',
-  investment:  '#a855f7',
-  cash:        '#f59e0b',
-};
-
-const AccountIcon: React.FC<{ type: string }> = ({ type }) => {
-  const color = ACCOUNT_ICON_COLORS[type] ?? 'var(--accent)';
-  return (
-    <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center shrink-0"
-      style={{ backgroundColor: `${color}18`, border: `1px solid ${color}35` }}>
-      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}90` }} />
-    </div>
-  );
-};
-
-const DashboardSkeleton: React.FC = () => (
-  <div className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
-    <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
-      <div className="skeleton h-48 w-full rounded-xl" />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">{[0,1,2,3,4].map(i => <div key={i} className="skeleton h-12" />)}</div>
-      <div className="grid md:grid-cols-[3fr_2fr] gap-6">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{[0,1,2,3,4,5].map(i => <div key={i} className="skeleton h-28" />)}</div>
-          <div className="skeleton h-64 w-full" />
-        </div>
-        <div className="space-y-4">
-          <div className="skeleton h-32 w-full" />
-          <div className="skeleton h-48 w-full" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time', 'Custom'] as const;
 type Period = typeof PERIODS[number];
@@ -432,7 +396,7 @@ const Dashboard: React.FC = () => {
                       {accounts.slice(0, 6).map(a => (
                         <div key={a.id} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
                           <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                            <AccountIcon type={a.type} />
+                            <AccountTypeIcon type={a.type} />
                             <p className="label truncate text-[10px] md:text-xs">{a.type.replace('_', ' ')}</p>
                           </div>
                           <p className="text-xs truncate mb-0.5 md:mb-1" style={{ color: 'var(--muted)' }}>{a.name}</p>

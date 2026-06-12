@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import date, timedelta
+from decimal import Decimal
 import calendar
 
 from models.database import get_db, RecurringTransaction, Transaction, Account
@@ -106,7 +107,7 @@ def process_due(background: BackgroundTasks, db: Session = Depends(get_db), curr
             transaction_date=rec.next_date,
         )
         db.add(tx)
-        account.balance = float(account.balance) + float(rec.amount)
+        account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
         rec.next_date = _next_date(rec.next_date, rec.period)
         created.append(tx)
     db.commit()
@@ -152,7 +153,7 @@ def log_variable(
         transaction_date=tx_date,
     )
     db.add(tx)
-    account.balance = float(account.balance) + float(data.amount)
+    account.balance = Decimal(str(account.balance)) + Decimal(str(data.amount))
     # Save this amount as the new estimate for next time
     rec.amount = data.amount
     rec.next_date = _next_date(rec.next_date, rec.period)

@@ -70,8 +70,8 @@ def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
     verify_token = create_verify_token(db_user.id)
     send_verification(db_user.email, verify_token)
 
-    access_token = set_auth_cookies(response, db_user.id)
-    return db_user  # UserResponse; access_token sent via cookie + available in response header X-Access-Token
+    set_auth_cookies(response, db_user.id)
+    return db_user
 
 
 # ─── Login (rate limited) ─────────────────────────────────────────────────────
@@ -94,8 +94,8 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
         db_user.is_admin = True
         db.commit()
 
-    access_token = set_auth_cookies(response, db_user.id)
-    return {"message": "Logged in successfully", "access_token": access_token}
+    set_auth_cookies(response, db_user.id)
+    return {"message": "Logged in successfully"}
 
 
 # ─── Logout ───────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
     from utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES
     new_access = create_access_token({"sub": str(user_id)})
     response.set_cookie("access_token", new_access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
-    return {"message": "Token refreshed", "access_token": new_access}
+    return {"message": "Token refreshed"}
 
 
 # ─── Get current user ─────────────────────────────────────────────────────────
@@ -147,8 +147,8 @@ async def change_password(
     current_user.hashed_password = get_password_hash(body.new_password)
     db.commit()
     # Rotate tokens so any stolen session is invalidated on password change
-    access_token = set_auth_cookies(response, current_user.id)
-    return {"message": "Password changed successfully", "access_token": access_token}
+    set_auth_cookies(response, current_user.id)
+    return {"message": "Password changed successfully"}
 
 
 # ─── Forgot password ──────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from decimal import Decimal
 
 from models.database import get_db, Loan
 from models.auth import User
@@ -37,7 +38,7 @@ def update_loan(loan_id: int, data: LoanUpdate, db: Session = Depends(get_db), c
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(loan, k, v)
     # Auto-mark as repaid if fully paid
-    if float(loan.amount_repaid) >= float(loan.amount) and loan.status == "active":
+    if Decimal(str(loan.amount_repaid)) >= Decimal(str(loan.amount)) and loan.status == "active":
         loan.status = "repaid"
     db.commit()
     db.refresh(loan)

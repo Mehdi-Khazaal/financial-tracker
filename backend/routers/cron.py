@@ -1,6 +1,7 @@
 import os
 import calendar
 from datetime import date, timedelta
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.database import get_db, RecurringTransaction, Transaction, Account
@@ -69,7 +70,7 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
             transaction_date=rec.next_date,
         )
         db.add(tx)
-        account.balance = float(account.balance) + float(rec.amount)
+        account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
         rec.next_date = _next_date(rec.next_date, rec.period)
         created += 1
 

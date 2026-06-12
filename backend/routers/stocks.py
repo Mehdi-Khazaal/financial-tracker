@@ -1,6 +1,7 @@
 import requests
 import yfinance as yf
 from fastapi import APIRouter
+from time import time
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -11,6 +12,25 @@ CRYPTO_SYMBOLS = {
     'SHIB': 'shiba-inu', 'TRX': 'tron', 'UNI': 'uniswap', 'LINK': 'chainlink',
     'TON': 'the-open-network', 'USDT': 'tether', 'USDC': 'usd-coin',
 }
+
+PRICE_CACHE_TTL_SECONDS = 120
+_price_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _get_cached_quote(symbol: str):
+    cached = _price_cache.get(symbol)
+    if not cached:
+        return None
+    cached_at, payload = cached
+    if time() - cached_at > PRICE_CACHE_TTL_SECONDS:
+        _price_cache.pop(symbol, None)
+        return None
+    return payload
+
+
+def _store_cached_quote(symbol: str, payload: dict):
+    _price_cache[symbol] = (time(), payload)
+    return payload
 
 
 def _get_crypto_price(symbol: str) -> float | None:
@@ -61,21 +81,25 @@ def _get_stock_price(symbol: str) -> tuple[float | None, float]:
 @router.get("/{symbol}")
 def get_stock_price(symbol: str):
     sym = symbol.upper().strip().replace('-USD', '')
+    cache_key = symbol.upper().strip()
+    cached = _get_cached_quote(cache_key)
+    if cached is not None:
+        return cached
 
     # Crypto: use CoinGecko
     if sym in CRYPTO_SYMBOLS or symbol.upper().endswith('-USD'):
         price = _get_crypto_price(sym)
         if price:
-            return {"symbol": symbol, "price": price, "change_pct": 0}
+            return _store_cached_quote(cache_key, {"symbol": symbol, "price": price, "change_pct": 0})
         # If CoinGecko fails, try yfinance with -USD suffix
         price, change_pct = _get_stock_price(f"{sym}-USD")
         if price:
-            return {"symbol": symbol, "price": price, "change_pct": change_pct}
-        return {"symbol": symbol, "price": None, "change_pct": 0}
+            return _store_cached_quote(cache_key, {"symbol": symbol, "price": price, "change_pct": change_pct})
+        return _store_cached_quote(cache_key, {"symbol": symbol, "price": None, "change_pct": 0})
 
     # Stocks / ETFs: use yfinance
     price, change_pct = _get_stock_price(sym)
     if price:
-        return {"symbol": symbol, "price": price, "change_pct": change_pct}
+        return _store_cached_quote(cache_key, {"symbol": symbol, "price": price, "change_pct": change_pct})
 
-    return {"symbol": symbol, "price": None, "change_pct": 0}
+    return _store_cached_quote(cache_key, {"symbol": symbol, "price": None, "change_pct": 0})

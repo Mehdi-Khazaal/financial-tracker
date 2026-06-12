@@ -14,6 +14,7 @@ import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import AddRecurringModal from '../components/modals/AddRecurringModal';
+import TransactionCard from '../components/transactions/TransactionCard';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -49,6 +50,7 @@ interface TxCardProps {
   onDelete: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TxCard: React.FC<TxCardProps> = ({
   tx, accounts, isDragging, compact = false, noDrag = false, mobileCard = false, onDragStart, onDragEnd, onClick, onDelete,
 }) => {
@@ -1043,7 +1045,7 @@ const Transactions: React.FC = () => {
                     </div>
                   ) : (
                     uncategorized.map(tx => (
-                      <TxCard key={tx.id} tx={tx} accounts={accounts}
+                      <TransactionCard key={tx.id} tx={tx} accounts={accounts}
                         isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                     ))
                   )}
@@ -1148,7 +1150,7 @@ const Transactions: React.FC = () => {
                           {/* Transaction rows — natural height, no scroll */}
                           <div>
                             {shownTxs.map(tx => (
-                              <TxCard key={tx.id} tx={tx} accounts={accounts} compact
+                              <TransactionCard key={tx.id} tx={tx} accounts={accounts} compact
                                 isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
                             ))}
                             {catTxs.length === 0 && !isDragOver && (
@@ -1232,7 +1234,7 @@ const Transactions: React.FC = () => {
                       <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
                     </div>
                   ) : uncategorized.map(tx => (
-                    <TxCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag mobileCard
+                    <TransactionCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag mobileCard
                       onDragStart={() => {}} onDragEnd={() => {}}
                       onClick={() => setCategorizeTx(tx)}
                       onDelete={() => handleDelete(tx.id)} />
@@ -1451,7 +1453,7 @@ const Transactions: React.FC = () => {
                 </div>
               ) : (
                 filteredList.map(tx => (
-                  <TxCard key={tx.id} tx={tx} accounts={accounts}
+                  <TransactionCard key={tx.id} tx={tx} accounts={accounts}
                     isDragging={false} noDrag
                     onDragStart={() => {}} onDragEnd={() => {}}
                     onClick={() => setEditTx(tx)}

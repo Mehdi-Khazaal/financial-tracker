@@ -1,24 +1,41 @@
 import os
+
 import requests
+
+from utils.logging import get_logger, kv
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "noreply@fintrack.app")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+logger = get_logger(__name__)
+
 
 def _send(to: str, subject: str, html: str) -> bool:
     if not RESEND_API_KEY:
-        print(f"[Email] RESEND_API_KEY not set — would send '{subject}' to {to}")
+        logger.warning("email_delivery_skipped %s", kv(reason="missing_resend_api_key", to=to, subject=subject))
         return False
-    resp = requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-        json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": html},
-        timeout=10,
-    )
+
+    try:
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": html},
+            timeout=10,
+        )
+    except requests.RequestException:
+        logger.exception("email_delivery_request_failed %s", kv(to=to, subject=subject))
+        return False
+
     if not resp.ok:
-        print(f"[Email] Resend error {resp.status_code}: {resp.text}")
-    return resp.ok
+        logger.error(
+            "email_delivery_failed %s",
+            kv(to=to, subject=subject, status_code=resp.status_code, body=resp.text[:500]),
+        )
+        return False
+
+    logger.info("email_delivery_sent %s", kv(to=to, subject=subject))
+    return True
 
 
 def send_password_reset(email: str, token: str):

@@ -26,7 +26,7 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
         )
         for a in goal.allocations
     ]
-    current = sum(float(a.amount) for a in goal.allocations)
+    current = sum((Decimal(str(a.amount)) for a in goal.allocations), Decimal("0"))
     return SavingsGoalResponse(
         id=goal.id,
         user_id=goal.user_id,
@@ -35,7 +35,7 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
         deadline=goal.deadline,
         created_at=goal.created_at,
         allocations=allocs,
-        current_amount=Decimal(str(current)),
+        current_amount=current,
     )
 
 
@@ -99,7 +99,7 @@ def set_allocations(
 
     # Validate each allocation against available balance
     for item in request.allocations:
-        if float(item.amount) <= 0:
+        if item.amount <= 0:
             continue
         account = db.query(Account).filter(
             Account.id == item.account_id,
@@ -113,10 +113,10 @@ def set_allocations(
             SavingsGoalAllocation.user_id == current_user.id,
             SavingsGoalAllocation.account_id == item.account_id,
             SavingsGoalAllocation.goal_id != goal_id,
-        ).scalar() or 0
+        ).scalar() or Decimal("0")
 
-        available = float(account.balance) - float(used_by_others)
-        if float(item.amount) > available + 0.001:  # small epsilon for float rounding
+        available = Decimal(str(account.balance)) - Decimal(str(used_by_others))
+        if item.amount > available:
             raise HTTPException(
                 status_code=400,
                 detail=f"Only ${available:.2f} available in '{account.name}' (balance minus other goals)",
@@ -129,7 +129,7 @@ def set_allocations(
     ).delete()
 
     for item in request.allocations:
-        if float(item.amount) > 0:
+        if item.amount > 0:
             db.add(SavingsGoalAllocation(
                 user_id=current_user.id,
                 goal_id=goal_id,
@@ -141,8 +141,8 @@ def set_allocations(
     result = _serialize_goal(_load_goal(goal_id, current_user.id, db))
 
     # Push notification on milestone (50%, 75%, 100%)
-    target = float(result.target_amount)
-    current = float(result.current_amount)
+    target = Decimal(str(result.target_amount))
+    current = Decimal(str(result.current_amount))
     if target > 0:
         pct = current / target
         for milestone, label in [(1.0, "100%"), (0.75, "75%"), (0.5, "50%")]:
@@ -171,18 +171,19 @@ def spend_from_goal(
     if not alloc:
         raise HTTPException(status_code=404, detail="No allocation found for this account on this goal")
 
-    if float(body.amount) <= 0:
+    if body.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
-    if float(body.amount) > float(alloc.amount) + 0.001:
-        raise HTTPException(status_code=400, detail=f"Only ${float(alloc.amount):.2f} allocated from this account")
+    alloc_amount = Decimal(str(alloc.amount))
+    if body.amount > alloc_amount:
+        raise HTTPException(status_code=400, detail=f"Only ${alloc_amount:.2f} allocated from this account")
 
     account = db.query(Account).filter(Account.id == body.account_id, Account.user_id == current_user.id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
     # Reduce allocation
-    new_alloc_amount = float(alloc.amount) - float(body.amount)
-    if new_alloc_amount <= 0.001:
+    new_alloc_amount = alloc_amount - body.amount
+    if new_alloc_amount <= 0:
         db.delete(alloc)
     else:
         alloc.amount = new_alloc_amount
@@ -191,12 +192,12 @@ def spend_from_goal(
     tx = Transaction(
         user_id=current_user.id,
         account_id=body.account_id,
-        amount=-abs(float(body.amount)),
+        amount=-abs(body.amount),
         description=body.description or f"Spent from {goal.name}",
         transaction_date=body.transaction_date,
     )
     db.add(tx)
-    account.balance = float(account.balance) - float(body.amount)
+    account.balance = Decimal(str(account.balance)) - body.amount
 
     db.commit()
     return _serialize_goal(_load_goal(goal_id, current_user.id, db))

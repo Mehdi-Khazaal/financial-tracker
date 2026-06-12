@@ -4,6 +4,7 @@ import hashlib
 import json
 import traceback
 import requests
+import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
@@ -98,7 +99,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         plaid_acct_id = acct["account_id"]
         acct_name = acct.get("official_name") or acct.get("name") or "Unknown"
         subtype = (acct.get("subtype") or "other").lower()
-        balance = float(acct["balances"].get("current") or 0)
+        balance = Decimal(str(acct["balances"].get("current") or 0))
         if subtype in ("credit card", "credit"):
             balance = -abs(balance)
 
@@ -141,7 +142,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 "user_id":          user_id,
                 "account_id":       local_acct.id,
                 "category_id":      None,
-                "amount":           -float(tx["amount"]),  # Plaid positive = debit; we store debits as negative
+                "amount":           Decimal(str(tx["amount"])) * Decimal("-1"),  # Plaid positive = debit; we store debits as negative
                 "description":      tx.get("merchant_name") or tx.get("name") or "Transaction",
                 "plaid_tx_id":      tx["transaction_id"],
                 "transaction_date": date.fromisoformat(tx["date"]),
@@ -154,7 +155,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         for tx in data.get("modified", []):
             existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
             if existing:
-                existing.amount           = Decimal(str(-float(tx["amount"])))
+                existing.amount           = Decimal(str(tx["amount"])) * Decimal("-1")
                 existing.description      = tx.get("merchant_name") or tx.get("name") or existing.description
                 existing.transaction_date = date.fromisoformat(tx["date"])
 
@@ -265,7 +266,7 @@ def exchange_token(
         plaid_acct_id = acct["account_id"]
         acct_name     = acct.get("official_name") or acct.get("name") or institution_name
         acct_type     = PLAID_TO_ACCOUNT_TYPE.get((acct.get("subtype") or "other").lower(), "checking")
-        balance       = float(acct["balances"].get("current") or 0)
+        balance       = Decimal(str(acct["balances"].get("current") or 0))
         if acct_type == "credit_card":
             balance = -abs(balance)
 

@@ -2,14 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'https://financial-tracker-api-1osn.onrender.com',
-  withCredentials: true, // send httpOnly cookies automatically
-});
-
-// Attach stored access token as Authorization header (needed for Safari cross-origin)
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('access_token');
-  if (token) config.headers['Authorization'] = `Bearer ${token}`;
-  return config;
+  withCredentials: true,
 });
 
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
@@ -19,20 +12,16 @@ api.interceptors.response.use(
   res => res,
   async err => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retried && original.url !== '/auth/refresh') {
+    if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
       original._retried = true;
       if (!_refreshing) {
         _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
       }
       const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
       try {
-        const refreshRes = await _refreshing as any;
-        if (refreshRes?.data?.access_token) {
-          localStorage.setItem('access_token', refreshRes.data.access_token);
-        }
+        await _refreshing;
         return api(original);
       } catch {
-        localStorage.removeItem('access_token');
         if (!PUBLIC.some(p => window.location.pathname.startsWith(p))) {
           window.location.href = '/login';
         }

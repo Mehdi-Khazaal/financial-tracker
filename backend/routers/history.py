@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
+from decimal import Decimal
 import calendar
 
 from models.database import get_db, Account, Transaction
@@ -50,19 +51,20 @@ def net_worth_history(
         Transaction.account_id.in_(account_ids),
     ).all()
 
-    current_accounts_total = sum(float(a.balance) for a in accounts)
+    current_accounts_total = sum((Decimal(str(a.balance)) for a in accounts), Decimal("0"))
 
     result = []
     for year, month in _month_range(months):
         end = _end_of_month(year, month)
         future_tx_sum = sum(
-            float(t.amount) for t in transactions if t.transaction_date > end
+            (Decimal(str(t.amount)) for t in transactions if t.transaction_date > end),
+            Decimal("0"),
         )
         account_total_at_month = current_accounts_total - future_tx_sum
         result.append({
             "month": f"{year}-{month:02d}",
-            "net_worth": round(account_total_at_month, 2),
-            "accounts": round(account_total_at_month, 2),
+            "net_worth": round(float(account_total_at_month), 2),
+            "accounts": round(float(account_total_at_month), 2),
         })
     return result
 
@@ -86,15 +88,16 @@ def account_balance_history(
         Transaction.user_id == current_user.id,
     ).all()
 
-    current_balance = float(account.balance)
+    current_balance = Decimal(str(account.balance))
     result = []
     for year, month in _month_range(months):
         end = _end_of_month(year, month)
         future_tx_sum = sum(
-            float(t.amount) for t in transactions if t.transaction_date > end
+            (Decimal(str(t.amount)) for t in transactions if t.transaction_date > end),
+            Decimal("0"),
         )
         result.append({
             "month": f"{year}-{month:02d}",
-            "balance": round(current_balance - future_tx_sum, 2),
+            "balance": round(float(current_balance - future_tx_sum), 2),
         })
     return result

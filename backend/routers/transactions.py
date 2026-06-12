@@ -38,8 +38,8 @@ def get_transactions(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     search: Optional[str] = Query(None),
-    amount_min: Optional[float] = Query(None),
-    amount_max: Optional[float] = Query(None),
+    amount_min: Optional[Decimal] = Query(None),
+    amount_max: Optional[Decimal] = Query(None),
     limit: int = Query(500, le=1000),
     skip: int = Query(0),
     db: Session = Depends(get_db),
@@ -81,20 +81,20 @@ def update_transaction(transaction_id: int, update: TransactionUpdate, db: Sessi
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    old_amount = float(tx.amount)
+    old_amount = Decimal(str(tx.amount))
     old_account_id = tx.account_id
     data = update.model_dump(exclude_unset=True)
     new_account_id = data.get("account_id", old_account_id)
-    new_amount = float(data.get("amount", old_amount))
+    new_amount = data.get("amount", old_amount)
 
     if old_account_id != new_account_id:
         old_account = _get_account(db, old_account_id, current_user.id)
-        old_account.balance = Account.balance - Decimal(str(old_amount))
+        old_account.balance = Account.balance - old_amount
         new_account = _get_account(db, new_account_id, current_user.id)
-        new_account.balance = Account.balance + Decimal(str(new_amount))
+        new_account.balance = Account.balance + new_amount
     else:
         account = _get_account(db, old_account_id, current_user.id)
-        account.balance = Account.balance - Decimal(str(old_amount)) + Decimal(str(new_amount))
+        account.balance = Account.balance - old_amount + new_amount
 
     for field, value in data.items():
         setattr(tx, field, value)

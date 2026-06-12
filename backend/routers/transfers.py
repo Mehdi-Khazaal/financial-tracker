@@ -21,7 +21,7 @@ def _get_account(db: Session, account_id: int, user_id: int) -> Account:
 def create_transfer(transfer: TransferCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if transfer.from_account_id == transfer.to_account_id:
         raise HTTPException(status_code=400, detail="Cannot transfer to the same account")
-    if float(transfer.amount) <= 0:
+    if transfer.amount <= 0:
         raise HTTPException(status_code=400, detail="Transfer amount must be positive")
 
     from_account = _get_account(db, transfer.from_account_id, current_user.id)
