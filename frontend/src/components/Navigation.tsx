@@ -11,24 +11,28 @@ const navItems = [
   {
     path: '/',
     label: 'Dashboard',
+    mobileLabel: 'Home',
     icon: 'M3 4a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 13a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zM11 4a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zM11 11a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z',
     matchPaths: ['/', '/analytics'],
   },
   {
     path: '/accounts',
     label: 'Accounts',
+    mobileLabel: 'Money',
     icon: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z',
     matchPaths: ['/accounts', '/wallet', '/cards', '/loans'],
   },
   {
     path: '/transactions',
     label: 'Transactions',
+    mobileLabel: 'Txns',
     icon: 'M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z',
     matchPaths: ['/transactions', '/recurring'],
   },
   {
     path: '/portfolio',
     label: 'Portfolio',
+    mobileLabel: 'Invest',
     icon: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z',
     matchPaths: ['/portfolio', '/investments', '/assets', '/savings'],
   },
@@ -176,8 +180,8 @@ const Navigation: React.FC = () => {
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
             backgroundColor: 'rgba(10,10,11,.97)',
             borderTop: '1px solid var(--line)',
-            backdropFilter: 'blur(28px)',
-            WebkitBackdropFilter: 'blur(28px)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
           }}>
           <div className="flex gap-1"
             style={{
@@ -188,7 +192,7 @@ const Navigation: React.FC = () => {
               <button
                 key={t.value}
                 onClick={() => { haptic(); setRouteTab(location.pathname, t.value); }}
-                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
+                className="flex-1 h-11 rounded-lg text-xs font-semibold transition-all active:scale-95"
                 style={activeTab === t.value
                   ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', fontFamily: 'var(--font-mono)' }
                   : { color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
@@ -201,7 +205,7 @@ const Navigation: React.FC = () => {
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
-        style={{ backgroundColor: 'rgba(10,10,11,0.92)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)' }}>
+        style={{ backgroundColor: 'rgba(10,10,11,0.94)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(20px) saturate(140%)', WebkitBackdropFilter: 'blur(20px) saturate(140%)' }}>
         <div className="flex items-center justify-around h-16"
           style={{
             paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
@@ -215,11 +219,10 @@ const Navigation: React.FC = () => {
                 className={`bottom-nav-item flex flex-col items-center justify-center gap-1 flex-1 h-full ${active ? 'bn-active' : ''}`}
                 style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
                 <span className="bn-pill" aria-hidden="true" />
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative"
-                  style={{ filter: active ? 'drop-shadow(0 0 4px rgba(249,115,22,0.5))' : 'none' }}>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative">
                   <path d={item.icon} />
                 </svg>
-                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{item.label}</span>
+                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{item.mobileLabel}</span>
               </Link>
             );
           })}

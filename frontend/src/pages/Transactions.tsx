@@ -109,9 +109,9 @@ const TxCard: React.FC<TxCardProps> = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`group flex items-start gap-2.5 select-none transition-colors ${mobileCard ? 'px-4 py-4 rounded-2xl' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`group flex items-start gap-2.5 select-none transition-colors ${mobileCard ? 'px-4 py-4 rounded-lg' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
       style={mobileCard ? {
-        borderRadius: 16,
+        borderRadius: 14,
         backgroundColor: 'var(--elev-1)',
         border: '1px solid var(--line)',
         opacity: isDragging ? 0.25 : 1,
@@ -238,7 +238,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
               </div>
             </div>
             <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              className="w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -422,6 +422,11 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
+  const monthIncome = monthTransactions.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+  const monthExpenses = monthTransactions.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const monthNet = monthIncome - monthExpenses;
+  const reviewedCount = Math.max(0, monthTransactions.length - uncategorized.length);
+  const reviewRate = monthTransactions.length > 0 ? Math.round((reviewedCount / monthTransactions.length) * 100) : 100;
   const filteredList = useMemo(() => {
     const f = appliedFilters;
     return transactions.filter(t => {
@@ -444,6 +449,21 @@ const Transactions: React.FC = () => {
   const sortedCategories = useMemo(() =>
     [...categories].sort((a, b) => a.name.localeCompare(b.name)),
     [categories],
+  );
+
+  const topCategories = useMemo(() => sortedCategories
+    .map(cat => {
+      const txs = monthTransactions.filter(t => t.category_id === cat.id);
+      return {
+        ...cat,
+        count: txs.length,
+        total: txs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
+      };
+    })
+    .filter(cat => cat.count > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 4),
+    [monthTransactions, sortedCategories],
   );
 
   const visibleCategories = sortedCategories;
@@ -754,7 +774,7 @@ const Transactions: React.FC = () => {
             <div ref={monthPickerRef} className="relative">
               <button
                 onClick={() => setShowMonthPicker(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
                 style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
@@ -798,7 +818,7 @@ const Transactions: React.FC = () => {
           {tab === 'list' && (
             <button
               onClick={() => setShowFilters(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+              className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
               style={{
                 backgroundColor: showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.15)' : 'var(--elev-1)',
                 color: showFilters || hasActiveFilters ? 'var(--accent)' : 'var(--fg)',
@@ -826,7 +846,7 @@ const Transactions: React.FC = () => {
             <div ref={exportMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowExportMenu(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
                 style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
@@ -876,7 +896,7 @@ const Transactions: React.FC = () => {
             <div ref={addMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowAddMenu(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
+                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
                 style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
@@ -948,13 +968,13 @@ const Transactions: React.FC = () => {
             <div className="flex gap-2 ml-auto shrink-0">
               {dueFixed.length > 0 && (
                 <button onClick={handleProcess} disabled={processing}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl disabled:opacity-50 transition-all"
+                  className="text-xs font-semibold h-11 px-3 rounded-lg disabled:opacity-50 transition-all"
                   style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                   {processing ? '…' : `Log ${dueFixed.length} fixed`}
                 </button>
               )}
               <button onClick={() => setShowAddRecurring(true)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+                className="text-xs font-semibold h-11 px-3 rounded-lg transition-all"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
                 + Add
               </button>
@@ -967,16 +987,47 @@ const Transactions: React.FC = () => {
           availableMonths.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <p className="font-semibold text-text mb-1">No transactions yet</p>
-                <p className="text-sm text-muted mb-5">Add your first transaction to get started</p>
-                <button onClick={() => { setTxType('expense'); setShowTx(true); }} className="btn-gradient px-6 py-2.5 text-sm">
-                  Add First Transaction
+                <p className="font-semibold text-text mb-1">No imported transactions yet</p>
+                <p className="text-sm text-muted mb-5">Connect or sync accounts first. Manual entry stays available for rare cash corrections.</p>
+                <button onClick={() => setShowTransfer(true)} className="btn-ghost px-6 py-2.5 text-sm">
+                  Rare manual action
                 </button>
               </div>
             </div>
           ) : (
             <>
             {/* ── Desktop board (md+) ── */}
+            <div className="ledger-panel mx-3 md:mx-4 mt-3 mb-3 p-3 md:p-4 shrink-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div>
+                      <p className="label mb-1">Import Review</p>
+                      <p className="text-sm md:text-base font-semibold" style={{ color: 'var(--fg)' }}>
+                        {uncategorized.length > 0 ? `${uncategorized.length} uncategorized this month` : 'Month is fully categorized'}
+                      </p>
+                    </div>
+                    <span className="font-mono text-sm font-bold" style={{ color: uncategorized.length > 0 ? 'var(--accent)' : 'var(--pos)' }}>
+                      {reviewRate}%
+                    </span>
+                  </div>
+                  <div className="review-meter"><span style={{ width: `${reviewRate}%` }} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 md:w-[420px]">
+                  {[
+                    { label: 'In', value: `+$${fmt(monthIncome)}`, color: 'var(--pos)' },
+                    { label: 'Out', value: `-$${fmt(monthExpenses)}`, color: 'var(--neg)' },
+                    { label: 'Net', value: `${monthNet >= 0 ? '+' : '-'}$${fmt(Math.abs(monthNet))}`, color: monthNet >= 0 ? 'var(--pos)' : 'var(--neg)' },
+                  ].map(item => (
+                    <div key={item.label} className="ledger-cell px-3 py-2">
+                      <p className="label mb-1">{item.label}</p>
+                      <p className="font-mono text-xs font-bold truncate" style={{ color: item.color, fontVariantNumeric: 'tabular-nums' }}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="hidden md:flex flex-1 overflow-hidden">
 
               {/* ── Inbox: uncategorized queue ── */}
@@ -1252,7 +1303,7 @@ const Transactions: React.FC = () => {
                     const shown  = catTxs.slice(0, MAX_TX_SHOWN);
                     const hidden = catTxs.length - shown.length;
                     return (
-                      <div key={cat.id} className="rounded-2xl overflow-hidden"
+                      <div key={cat.id} className="rounded-lg overflow-hidden"
                         style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                         {/* Category header — taps open detail modal */}
                         <div
@@ -1472,17 +1523,17 @@ const Transactions: React.FC = () => {
 
               {items.filter(i => i.is_active).length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                     <p className="label mb-1">Est. Income</p>
                     <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>+${fmt(monthlyIncome)}</p>
                     <p className="text-[10px] text-muted mt-0.5">/month</p>
                   </div>
-                  <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                     <p className="label mb-1">Est. Costs</p>
                     <p className="font-mono font-bold text-sm" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>-${fmt(monthlyExpense)}</p>
                     <p className="text-[10px] text-muted mt-0.5">/month</p>
                   </div>
-                  <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                     <p className="label mb-1">Net</p>
                     <p className="font-mono font-bold text-sm" style={{ color: monthlyNet >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
                       {monthlyNet >= 0 ? '+' : '-'}${fmt(Math.abs(monthlyNet))}
@@ -1513,7 +1564,7 @@ const Transactions: React.FC = () => {
                       </div>
                       {dueFixed.length > 0 && (
                         <button onClick={handleProcess} disabled={processing}
-                          className="mt-2 w-full py-3 text-sm font-semibold rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                          className="mt-2 w-full py-3 text-sm font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-50"
                           style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                           {processing ? 'Processing…' : `Log all ${dueFixed.length} fixed transactions`}
                         </button>
@@ -1569,12 +1620,31 @@ const Transactions: React.FC = () => {
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--dim)' }}>
                   Assign category
                 </p>
+                {topCategories.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent)' }}>
+                      Common this month
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {topCategories.map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={async () => { await handleCategorize(categorizeTx.id, cat.id); setCategorizeTx(null); }}
+                          className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-lg text-left transition-all active:scale-[0.97]"
+                          style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}38` }}>
+                          <span className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</span>
+                          <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--muted)' }}>{cat.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {sortedCategories.map(cat => (
                     <button
                       key={cat.id}
                       onClick={async () => { await handleCategorize(categorizeTx.id, cat.id); setCategorizeTx(null); }}
-                      className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-left transition-all active:scale-[0.97]"
+                      className="flex items-center gap-2.5 px-3.5 py-3 rounded-lg text-left transition-all active:scale-[0.97]"
                       style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}28` }}>
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                       <p className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</p>

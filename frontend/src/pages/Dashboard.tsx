@@ -112,6 +112,11 @@ const Dashboard: React.FC = () => {
   const monthTx        = transactions.filter(t => t.transaction_date.startsWith(thisMonth));
   const monthIncome    = monthTx.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
   const monthExpenses  = monthTx.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  const monthNet       = monthIncome - monthExpenses;
+  const uncategorizedMonth = monthTx.filter(t => !t.category_id).length;
+  const categorizedMonth = Math.max(0, monthTx.length - uncategorizedMonth);
+  const reviewRate = monthTx.length > 0 ? Math.round((categorizedMonth / monthTx.length) * 100) : 100;
+  const savingsRate = monthIncome > 0 ? Math.round((monthNet / monthIncome) * 100) : 0;
 
   const lastMonthDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonth      = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -173,6 +178,7 @@ const Dashboard: React.FC = () => {
     }))
     .filter(d => d.value > 0)
     .sort((a, b) => b.value - a.value);
+  const topSpendCategory = spendingByCategory[0];
 
   const monthlyData = (() => {
     const months: Record<string, { income: number; expenses: number }> = {};
@@ -260,7 +266,7 @@ const Dashboard: React.FC = () => {
             </div>
             {tab === 'overview' && (
               <button onClick={() => setShowAddAccount(true)}
-                className="text-xs font-medium px-3 py-1.5 rounded-md transition-all"
+                className="text-xs font-medium h-11 md:h-auto px-3 md:py-1.5 rounded-md transition-all"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--muted)' }}
                 onMouseEnter={e => { (e.currentTarget.style.color = 'var(--fg)'); (e.currentTarget.style.borderColor = 'var(--line-strong)'); }}
                 onMouseLeave={e => { (e.currentTarget.style.color = 'var(--muted)'); (e.currentTarget.style.borderColor = 'var(--line)'); }}>
@@ -356,7 +362,42 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* ── Quick Actions ── */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              <div className="ledger-panel p-3 md:p-4">
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <Link to="/transactions" className="flex-1 min-w-0 rounded-lg px-4 py-3 transition-colors"
+                    style={{ backgroundColor: uncategorizedMonth > 0 ? 'oklch(72% 0.17 55 / 0.12)' : 'var(--elev-sub)', border: '1px solid var(--line)' }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="label mb-1">Imported Transaction Review</p>
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>
+                          {uncategorizedMonth > 0 ? `${uncategorizedMonth} transactions need categories` : 'All imports categorized'}
+                        </p>
+                      </div>
+                      <span className="font-mono text-xs font-bold shrink-0" style={{ color: uncategorizedMonth > 0 ? 'var(--accent)' : 'var(--pos)' }}>
+                        {reviewRate}%
+                      </span>
+                    </div>
+                    <div className="review-meter mt-3"><span style={{ width: `${reviewRate}%` }} /></div>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--dim)' }}>
+                      <span>Savings {savingsRate}%</span>
+                      <span className="truncate">Top {topSpendCategory ? topSpendCategory.name : 'None'}</span>
+                    </div>
+                  </Link>
+                  <div className="grid grid-cols-3 gap-2 md:w-[360px]">
+                    {[
+                      { label: 'Transfer', action: () => setShowTransfer(true) },
+                      { label: 'Withdraw', action: () => setShowWithdraw(true) },
+                      { label: 'Deposit', action: () => setShowDeposit(true) },
+                    ].map(item => (
+                      <button key={item.label} onClick={item.action} className="qa-btn min-h-11 text-xs">
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden">
                 {[
                   { label: 'Expense',  action: () => { setTxType('expense'); setShowTx(true); },
                     icon: <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /> },
@@ -574,7 +615,7 @@ const Dashboard: React.FC = () => {
                 <div className="card p-5">
                   <p className="font-semibold text-sm mb-4" style={{ color: 'var(--fg)' }}>Spending by Category</p>
                   {spendingByCategory.length > 0 ? (
-                    <div className="flex gap-4 items-center">
+                    <div className="flex flex-col sm:flex-row gap-4 items-center">
                       <div className="relative shrink-0" style={{ width: 150, height: 150 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>

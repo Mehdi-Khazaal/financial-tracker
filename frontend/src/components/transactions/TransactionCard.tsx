@@ -45,10 +45,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        className={`group flex items-center gap-2 px-3 py-2.5 select-none transition-colors ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
+        className={`tx-row group flex items-center gap-2 px-3 py-2.5 select-none ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
         style={{ borderBottom: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1 }}
-        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
-        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
       >
         <div className="flex-1 min-w-0">
           <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
@@ -88,14 +86,12 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`group flex items-start gap-2.5 select-none transition-colors ${mobileCard ? 'px-4 py-4 rounded-2xl' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`tx-row group flex items-start gap-2.5 select-none ${mobileCard ? 'px-4 py-4 rounded-lg' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
       style={
         mobileCard
-          ? { borderRadius: 16, backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1 }
+          ? { backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1, boxShadow: 'var(--edge-light)' }
           : { borderBottom: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1 }
       }
-      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = mobileCard ? 'var(--elev-1)' : 'transparent')}
     >
       {!mobileCard && (
         <div className="mt-[3px] shrink-0 opacity-0 group-hover:opacity-30 transition-opacity" style={{ color: 'var(--muted)' }}>
@@ -141,9 +137,12 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
           {accountName} · {shortDate}
         </p>
         {mobileCard && (
-          <p className="text-[10px] mt-1.5 font-medium" style={{ color: 'var(--accent)' }}>
-            Tap to categorize →
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+              Review
+            </span>
+            <span className="h-px flex-1" style={{ backgroundColor: 'var(--line)' }} />
+          </div>
         )}
       </div>
       <div className="shrink-0 flex flex-col items-end">

@@ -57,7 +57,7 @@ const TopBar: React.FC = () => {
         aria-label={privacy ? 'Show amounts' : 'Hide amounts'}
         aria-pressed={privacy}
         title={privacy ? 'Show amounts' : 'Hide amounts'}
-        className="pressable w-9 h-9 rounded-full flex items-center justify-center"
+        className="pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center"
         style={{
           backgroundColor: 'var(--elev-1)',
           border: `1px solid ${privacy ? 'rgba(249,115,22,0.4)' : 'var(--line-strong)'}`,
@@ -72,7 +72,7 @@ const TopBar: React.FC = () => {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
-        className="pressable w-9 h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
+        className="pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
         style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', color: 'var(--accent)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}>
         {user.username.charAt(0).toUpperCase()}
       </button>

@@ -172,7 +172,7 @@ body::after {
 
   /* Buttons */
   .btn-gradient {
-    @apply font-semibold text-white rounded-xl px-5 py-3 text-sm;
+    @apply font-semibold text-white rounded-lg px-5 py-3 text-sm;
     background: var(--accent);
     box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.18);
     transition: transform 140ms var(--ease-out), box-shadow 180ms ease, opacity 180ms ease;
@@ -181,7 +181,7 @@ body::after {
   .btn-gradient:active { transform: scale(0.97); }
 
   .btn-ghost {
-    @apply font-semibold rounded-xl px-4 py-2.5 text-sm;
+    @apply font-semibold rounded-lg px-4 py-2.5 text-sm;
     background: var(--elev-1);
     border: 1px solid var(--line);
     color: var(--muted);
@@ -191,7 +191,7 @@ body::after {
   .btn-ghost:active { transform: scale(0.97); }
 
   .btn-danger {
-    @apply font-semibold rounded-xl px-4 py-2.5 text-sm;
+    @apply font-semibold rounded-lg px-4 py-2.5 text-sm;
     background: transparent;
     border: 1px solid var(--neg);
     color: var(--neg);
@@ -202,7 +202,7 @@ body::after {
 
   /* Quick-action button (dashboard row, reusable) */
   .qa-btn {
-    @apply flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium;
+    @apply flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium;
     background: var(--elev-1);
     color: var(--muted);
     border: 1px solid var(--line);
@@ -221,7 +221,7 @@ body::after {
 
   /* Inputs */
   .input-dark {
-    @apply w-full rounded-xl px-4 py-3 text-sm outline-none;
+    @apply w-full rounded-lg px-4 py-3 text-sm outline-none;
     background: var(--elev-sub);
     border: 1px solid var(--line);
     color: var(--fg);
@@ -247,6 +247,56 @@ body::after {
   .pill-orange { @apply pill; background: rgba(249, 115, 22, 0.12); color: var(--accent); }
   .pill-purple { @apply pill; background: rgba(168, 85,  247, 0.12); color: #a855f7; }
   .pill-muted  { @apply pill; background: var(--elev-sub); color: var(--muted); }
+
+  .ledger-panel {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.025), transparent 44%),
+      var(--elev-1);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--edge-light), var(--shadow-card);
+  }
+
+  .ledger-cell {
+    background: var(--elev-sub);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--edge-light);
+  }
+
+  .review-meter {
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--line);
+  }
+
+  .review-meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), #f59e0b);
+    transition: width 220ms var(--ease-out);
+  }
+
+  .tx-row {
+    transition: background-color 160ms ease, border-color 160ms ease, transform 140ms var(--ease-out);
+  }
+  .tx-row:active { transform: scale(0.992); }
+
+  @media (hover: hover) and (pointer: fine) {
+    .tx-row:hover { background: rgba(255,255,255,0.025); }
+  }
+
+  .bottom-sheet-panel {
+    border-radius: 14px 14px 0 0;
+  }
+
+  @media (min-width: 768px) {
+    .bottom-sheet-panel {
+      border-radius: var(--radius-lg);
+    }
+  }
 
   /* Stat value */
   .stat-value {
