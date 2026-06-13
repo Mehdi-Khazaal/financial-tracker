@@ -4,11 +4,51 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
 from routers import admin, cron, history, loans, plaid_router, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
+from utils.logging import get_logger, kv
+
+
+logger = get_logger(__name__)
+
+
+def _prepare_database() -> None:
+    """Keep deployments usable without a manual migration step.
+
+    This is intentionally non-destructive: it creates missing tables and adds
+    missing compatibility columns, but never drops or rewrites user data.
+    Alembic remains available for explicit migration workflows.
+    """
+    if os.getenv("AUTO_PREPARE_DB", "true").lower() != "true":
+        logger.info("automatic database preparation disabled")
+        return
+
+    Base.metadata.create_all(bind=engine)
+
+    migrations = [
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_tx_id VARCHAR(200)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_plaid_tx_id ON transactions (plaid_tx_id) WHERE plaid_tx_id IS NOT NULL",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plaid_account_id VARCHAR(200)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_plaid_account_id ON accounts (plaid_account_id) WHERE plaid_account_id IS NOT NULL",
+    ]
+    with engine.begin() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+            except Exception as exc:
+                logger.info("database compatibility migration skipped %s", kv(error=str(exc), sql=sql))
+
+
+_prepare_database()
 
 
 app = FastAPI(title="Fintrack API", version="2.0.0")
