@@ -292,6 +292,21 @@ body::after {
     border-radius: 14px 14px 0 0;
   }
 
+  .topbar-safe {
+    padding-right: calc(7rem + env(safe-area-inset-right, 0px));
+  }
+
+  @media (min-width: 768px) {
+    .topbar-safe {
+      padding-right: calc(10rem + env(safe-area-inset-right, 0px));
+    }
+  }
+
+  .recharts-tooltip-wrapper {
+    z-index: var(--z-toast) !important;
+    pointer-events: none;
+  }
+
   @media (min-width: 768px) {
     .bottom-sheet-panel {
       border-radius: var(--radius-lg);

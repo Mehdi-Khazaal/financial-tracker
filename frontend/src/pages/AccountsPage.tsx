@@ -330,7 +330,7 @@ const AccountsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="flex items-center justify-between pr-24 md:pr-0">
+          <div className="topbar-safe flex items-center justify-between">
             <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Accounts</h1>
             <div className="flex gap-2">
               {tab === 'wallet' && (

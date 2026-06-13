@@ -24,6 +24,11 @@ import { consumeQuickAction } from '../context/UIContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMonth = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
+const previousMonthKey = (ym: string) => {
+  const [year, month] = ym.split('-').map(Number);
+  const d = new Date(year, month - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time', 'Custom'] as const;
 type Period = typeof PERIODS[number];
@@ -171,6 +176,7 @@ const Dashboard: React.FC = () => {
   const spendingByCategory = categories
     .filter(c => c.type === 'expense')
     .map(c => ({
+      id: c.id,
       name: c.name,
       value: filtered.filter(t => t.category_id === c.id && Number(t.amount) < 0)
         .reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
@@ -179,6 +185,26 @@ const Dashboard: React.FC = () => {
     .filter(d => d.value > 0)
     .sort((a, b) => b.value - a.value);
   const topSpendCategory = spendingByCategory[0];
+  const insightMonthKey = period === 'Custom' ? customMonth : thisMonth;
+  const previousInsightMonthKey = previousMonthKey(insightMonthKey);
+  const insightMonthTxs = transactions.filter(t => t.transaction_date.startsWith(insightMonthKey));
+  const previousInsightTxs = transactions.filter(t => t.transaction_date.startsWith(previousInsightMonthKey));
+  const categoryInsights = categories
+    .filter(c => c.type === 'expense')
+    .map(c => {
+      const current = insightMonthTxs
+        .filter(t => t.category_id === c.id && Number(t.amount) < 0)
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+      const previous = previousInsightTxs
+        .filter(t => t.category_id === c.id && Number(t.amount) < 0)
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+      return { ...c, current, previous, delta: current - previous };
+    })
+    .filter(c => c.current > 0 || c.previous > 0)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const biggestCategoryMove = categoryInsights[0];
+  const lowerSpendCount = categoryInsights.filter(c => c.delta < 0).length;
+  const higherSpendCount = categoryInsights.filter(c => c.delta > 0).length;
 
   const monthlyData = (() => {
     const months: Record<string, { income: number; expenses: number }> = {};
@@ -233,6 +259,8 @@ const Dashboard: React.FC = () => {
       color: 'var(--fg)',
     },
     cursor: { fill: 'oklch(72% 0.17 55 / 0.05)' },
+    wrapperStyle: { zIndex: 80, pointerEvents: 'none' as const },
+    allowEscapeViewBox: { x: true, y: true },
   };
 
   if (loading) {
@@ -257,7 +285,7 @@ const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 md:space-y-6 stagger-in">
 
           {/* ── Greeting ── */}
-          <div className="flex items-center justify-between pr-24 md:pr-0">
+          <div className="topbar-safe flex items-center justify-between">
             <div>
               <p className="label mb-1">{monthLabel}</p>
               <h1 className="font-serif text-xl font-medium mt-0.5" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>
@@ -586,6 +614,56 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* Charts row — 2 columns on desktop */}
+              <div className="ledger-panel p-4 md:p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <p className="label mb-1">What changed</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+                      {formatMonth(insightMonthKey)} vs {formatMonth(previousInsightMonthKey)}
+                    </p>
+                  </div>
+                  <div className="font-mono text-[10px] px-2 py-1 rounded-full"
+                    style={{
+                      color: net >= 0 ? 'var(--pos)' : 'var(--neg)',
+                      backgroundColor: net >= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
+                    }}>
+                    {net >= 0 ? 'positive flow' : 'negative flow'}
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-3 gap-3">
+                  <div className="ledger-cell p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="label">Top movement</p>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: biggestCategoryMove?.color ?? 'var(--muted)' }} />
+                    </div>
+                    {biggestCategoryMove ? (
+                      <>
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{biggestCategoryMove.name}</p>
+                        <p className="font-mono text-xs mt-1" style={{ color: biggestCategoryMove.delta > 0 ? 'var(--neg)' : biggestCategoryMove.delta < 0 ? 'var(--pos)' : 'var(--muted)' }}>
+                          {biggestCategoryMove.delta > 0 ? 'up' : biggestCategoryMove.delta < 0 ? 'down' : 'flat'} ${fmt(Math.abs(biggestCategoryMove.delta))} vs last month
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm" style={{ color: 'var(--muted)' }}>No category movement yet</p>
+                    )}
+                  </div>
+                  <div className="ledger-cell p-3">
+                    <p className="label mb-2">Improved categories</p>
+                    <p className="font-mono text-2xl font-bold" style={{ color: lowerSpendCount > 0 ? 'var(--pos)' : 'var(--muted)' }}>
+                      {lowerSpendCount}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>spent less than last month</p>
+                  </div>
+                  <div className="ledger-cell p-3">
+                    <p className="label mb-2">Watch list</p>
+                    <p className="font-mono text-2xl font-bold" style={{ color: higherSpendCount > 0 ? 'var(--accent)' : 'var(--pos)' }}>
+                      {higherSpendCount}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>categories trending higher</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid md:grid-cols-2 gap-6">
 
                 {/* Bar chart */}
@@ -625,6 +703,8 @@ const Dashboard: React.FC = () => {
                             </Pie>
                             <Tooltip
                               contentStyle={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 12, color: 'var(--fg)' }}
+                              wrapperStyle={{ zIndex: 80, pointerEvents: 'none' }}
+                              allowEscapeViewBox={{ x: true, y: true }}
                               formatter={(v: any) => `$${fmt(Number(v))}`}
                             />
                           </PieChart>
