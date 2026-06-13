@@ -48,7 +48,7 @@ def seed_user_categories(db: Session, user_id: int):
 
 
 # ─── Signup ───────────────────────────────────────────────────────────────────
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -70,8 +70,16 @@ def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
     verify_token = create_verify_token(db_user.id)
     send_verification(db_user.email, verify_token)
 
-    set_auth_cookies(response, db_user.id)
-    return db_user
+    access = set_auth_cookies(response, db_user.id)
+    return {
+        "id": db_user.id,
+        "email": db_user.email,
+        "username": db_user.username,
+        "is_verified": db_user.is_verified,
+        "is_admin": db_user.is_admin,
+        "created_at": db_user.created_at,
+        "access_token": access,
+    }
 
 
 # ─── Login (rate limited) ─────────────────────────────────────────────────────
@@ -94,8 +102,8 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
         db_user.is_admin = True
         db.commit()
 
-    set_auth_cookies(response, db_user.id)
-    return {"message": "Logged in successfully"}
+    access = set_auth_cookies(response, db_user.id)
+    return {"message": "Logged in successfully", "access_token": access}
 
 
 # ─── Logout ───────────────────────────────────────────────────────────────────
@@ -125,7 +133,7 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
     from utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES
     new_access = create_access_token({"sub": str(user_id)})
     response.set_cookie("access_token", new_access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
-    return {"message": "Token refreshed"}
+    return {"message": "Token refreshed", "access_token": new_access}
 
 
 # ─── Get current user ─────────────────────────────────────────────────────────

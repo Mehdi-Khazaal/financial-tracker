@@ -5,6 +5,13 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Send stored access token as Bearer header (cross-origin cookie fallback)
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
 
@@ -15,7 +22,9 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
       original._retried = true;
       if (!_refreshing) {
-        _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
+        _refreshing = api.post('/auth/refresh').then(res => {
+          if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
+        }).finally(() => { _refreshing = null; });
       }
       const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
       try {
@@ -32,12 +41,21 @@ api.interceptors.response.use(
 );
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-export const login    = (identifier: string, password: string) =>
-  api.post('/auth/login', { identifier, password });
-export const signup   = (email: string, username: string, password: string) =>
-  api.post('/auth/signup', { email, username, password });
+export const login = (identifier: string, password: string) =>
+  api.post('/auth/login', { identifier, password }).then(res => {
+    if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
+    return res;
+  });
+export const signup = (email: string, username: string, password: string) =>
+  api.post('/auth/signup', { email, username, password }).then(res => {
+    if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
+    return res;
+  });
 export const getMe    = () => api.get('/auth/me');
-export const logout   = () => api.post('/auth/logout');
+export const logout   = () => {
+  localStorage.removeItem('access_token');
+  return api.post('/auth/logout');
+};
 export const changePassword = (current_password: string, new_password: string) =>
   api.post('/auth/change-password', { current_password, new_password });
 
