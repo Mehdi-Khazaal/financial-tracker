@@ -682,15 +682,26 @@ const Dashboard: React.FC = () => {
 
                 {/* Spending by category */}
                 <div className="card p-5">
-                  <p className="font-semibold text-sm mb-4" style={{ color: 'var(--fg)' }}>Spending by Category</p>
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Spending by Category</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{spendingByCategory.length} active categories</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="label mb-0.5">Total</p>
+                      <p className="font-mono text-sm font-bold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalExpenses)}</p>
+                    </div>
+                  </div>
                   {spendingByCategory.length > 0 ? (
-                    <div className="flex flex-col sm:flex-row gap-4 items-center">
-                      <div className="relative shrink-0" style={{ width: 150, height: 150 }}>
+                    <div className="grid gap-5 sm:grid-cols-[176px_1fr] items-center">
+                      <div className="relative shrink-0 mx-auto" style={{ width: 176, height: 176 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={42} outerRadius={66}
-                              dataKey="value" paddingAngle={3}>
-                              {spendingByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
+                            <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={56} outerRadius={78}
+                              dataKey="value" paddingAngle={2} cornerRadius={5}>
+                              {spendingByCategory.map((e, i) => (
+                                <Cell key={i} fill={e.color} stroke="transparent" strokeWidth={0} />
+                              ))}
                             </Pie>
                             <Tooltip
                               contentStyle={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', borderRadius: 12, fontSize: 12, color: 'var(--fg)' }}
@@ -701,19 +712,31 @@ const Dashboard: React.FC = () => {
                           </PieChart>
                         </ResponsiveContainer>
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 1 }}>top</p>
-                          <p style={{ fontSize: '9px', fontWeight: 500, color: 'var(--fg)', textAlign: 'center', lineHeight: 1.2, maxWidth: 52 }}>{spendingByCategory[0].name.slice(0, 10)}</p>
-                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, color: spendingByCategory[0].color, fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>${fmt(spendingByCategory[0].value)}</p>
+                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 2 }}>largest</p>
+                          <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--fg)', textAlign: 'center', lineHeight: 1.15, maxWidth: 68 }}>{spendingByCategory[0].name.slice(0, 12)}</p>
+                          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, color: spendingByCategory[0].color, fontVariantNumeric: 'tabular-nums', marginTop: 3 }}>
+                            {totalExpenses > 0 ? ((spendingByCategory[0].value / totalExpenses) * 100).toFixed(0) : 0}%
+                          </p>
                         </div>
                       </div>
-                      <div className="flex-1 space-y-2 min-w-0">
+                      <div className="space-y-2.5 min-w-0">
                         {spendingByCategory.slice(0, 7).map((cat, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                            <p className="text-xs flex-1 truncate" style={{ color: 'var(--fg)' }}>{cat.name}</p>
-                            <div className="text-right shrink-0">
-                              <p className="font-mono text-xs font-semibold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>${fmt(cat.value)}</p>
-                              <p className="text-[10px]" style={{ color: 'var(--muted)' }}>{totalExpenses > 0 ? ((cat.value / totalExpenses) * 100).toFixed(0) : 0}%</p>
+                          <div key={i} className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--dim)', width: 16 }}>{String(i + 1).padStart(2, '0')}</span>
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                              <p className="text-xs flex-1 truncate" style={{ color: 'var(--fg)' }}>{cat.name}</p>
+                              <p className="font-mono text-xs font-semibold shrink-0" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>${fmt(cat.value)}</p>
+                              <p className="text-[10px] text-right shrink-0" style={{ color: 'var(--muted)', width: 30 }}>{totalExpenses > 0 ? ((cat.value / totalExpenses) * 100).toFixed(0) : 0}%</p>
+                            </div>
+                            <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${totalExpenses > 0 ? Math.min((cat.value / totalExpenses) * 100, 100) : 0}%`,
+                                  backgroundColor: cat.color,
+                                }}
+                              />
                             </div>
                           </div>
                         ))}

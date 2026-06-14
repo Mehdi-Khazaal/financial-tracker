@@ -463,7 +463,7 @@ const Analytics: React.FC = () => {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <p className="font-semibold text-text text-sm">Spending by Category</p>
-                <p className="text-xs text-muted mt-0.5">Share of expenses for this period</p>
+                <p className="text-xs text-muted mt-0.5">{spendingByCategory.length} active categories</p>
               </div>
               <div className="text-right shrink-0">
                 <p className="label mb-0.5">Total</p>
@@ -472,8 +472,8 @@ const Analytics: React.FC = () => {
             </div>
             {spendingByCategory.length > 0 ? (
               <>
-                <div className="flex flex-col sm:flex-row gap-5 items-center">
-                  <div className="relative shrink-0" style={{ width: 172, height: 172 }}>
+                <div className="grid gap-6 sm:grid-cols-[190px_1fr] items-center">
+                  <div className="relative shrink-0 mx-auto" style={{ width: 190, height: 190 }}>
                     {pieHovered && (
                       <div className="absolute pointer-events-none" style={{
                         top: 4, left: '50%', transform: 'translateX(-50%)',
@@ -487,7 +487,7 @@ const Analytics: React.FC = () => {
                     )}
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={53} outerRadius={76}
+                        <Pie data={spendingByCategory} cx="50%" cy="50%" innerRadius={61} outerRadius={85}
                           dataKey="value" paddingAngle={2} cornerRadius={5}
                           onMouseEnter={(data: any) => setPieHovered({ name: data.name, value: data.value, color: data.color })}
                           onMouseLeave={() => setPieHovered(null)}
@@ -499,17 +499,18 @@ const Analytics: React.FC = () => {
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 2 }}>top spend</p>
-                      <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--fg)', textAlign: 'center', lineHeight: 1.15, maxWidth: 66 }}>{spendingByCategory[0].name.slice(0, 12)}</p>
-                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, color: spendingByCategory[0].color, fontVariantNumeric: 'tabular-nums', marginTop: 3 }}>
+                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 2 }}>largest</p>
+                      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--fg)', textAlign: 'center', lineHeight: 1.15, maxWidth: 76 }}>{spendingByCategory[0].name.slice(0, 14)}</p>
+                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, color: spendingByCategory[0].color, fontVariantNumeric: 'tabular-nums', marginTop: 3 }}>
                         {totalExpenses > 0 ? ((spendingByCategory[0].value / totalExpenses) * 100).toFixed(0) : 0}%
                       </p>
                     </div>
                   </div>
-                  <div className="flex-1 space-y-2.5 w-full">
+                  <div className="space-y-3 w-full min-w-0">
                     {spendingByCategory.slice(0, 6).map((cat, i) => (
                       <div key={i} className="space-y-1">
                         <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--dim)', width: 16 }}>{String(i + 1).padStart(2, '0')}</span>
                           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                           <p className="text-xs text-text flex-1 truncate">{cat.name}</p>
                           <p className="font-mono text-xs font-semibold text-text shrink-0" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(cat.value)}</p>
