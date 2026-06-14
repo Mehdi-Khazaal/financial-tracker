@@ -8,8 +8,27 @@ import { useToast } from '../context/ToastContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const TYPE_ICONS: Record<string, string> = {
-  stock: '📈', crypto: '₿', gold: '🥇', silver: '🥈', etf: '📊', bond: '📜',
+const TYPE_META: Record<string, { label: string; color: string; iconPath: string }> = {
+  stock:  { label: 'Stock', color: 'var(--accent)', iconPath: 'M3 15.5l4.5-4.5 3 3L17 7.5M13 7.5h4v4' },
+  etf:    { label: 'ETF', color: '#3B82F6', iconPath: 'M4 16V9m4 7V5m4 11v-5m4 5V3' },
+  crypto: { label: 'Crypto', color: '#F59E0B', iconPath: 'M10 3v14M7 3v14M6 6h5.5a2.5 2.5 0 010 5H6m0 0h6.25a2.5 2.5 0 010 5H6' },
+  bond:   { label: 'Bond', color: '#22C55E', iconPath: 'M5 4h10v12H5zM7.5 7h5M7.5 10h5M7.5 13h3' },
+  gold:   { label: 'Gold', color: '#F59E0B', iconPath: 'M6.5 14h7l-1.5-5h-4L6.5 14zM4 17h12l-1.5-3h-9L4 17z' },
+  silver: { label: 'Silver', color: '#94A3B8', iconPath: 'M6.5 14h7l-1.5-5h-4L6.5 14zM4 17h12l-1.5-3h-9L4 17z' },
+  other:  { label: 'Investment', color: '#A855F7', iconPath: 'M3 15l5-5 3 3 6-8M14 5h3v3' },
+};
+
+const InvestmentTypeIcon: React.FC<{ type: string }> = ({ type }) => {
+  const meta = TYPE_META[type] ?? TYPE_META.other;
+  return (
+    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+      style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: meta.color }}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7}
+        strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+        <path d={meta.iconPath} />
+      </svg>
+    </div>
+  );
 };
 
 const Investments: React.FC = () => {
@@ -55,7 +74,7 @@ const Investments: React.FC = () => {
           setStockPrices(cachedPrices);
           return;
         }
-        // Some symbols missing from cache — fall through to fetch
+        // Some symbols missing from cache; fall through to fetch.
       }
     }
 
@@ -123,7 +142,7 @@ const Investments: React.FC = () => {
               {fetchingPrices ? (
                 <p className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full pulse-dot inline-block" style={{ backgroundColor: 'var(--accent)' }} />
-                  Fetching live prices…
+                  Fetching live prices...
                 </p>
               ) : (
                 <button
@@ -132,7 +151,7 @@ const Investments: React.FC = () => {
                   style={{ color: 'var(--dim)' }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}>
-                  ↻ Refresh prices
+                  Refresh prices
                 </button>
               )}
             </div>
@@ -162,7 +181,7 @@ const Investments: React.FC = () => {
                     {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
                   </p>
                 ) : (
-                  <p className="font-semibold text-sm text-muted" style={{ fontFamily: 'var(--font-mono)' }}>—</p>
+                  <p className="font-semibold text-sm text-muted" style={{ fontFamily: 'var(--font-mono)' }}>-</p>
                 )}
               </div>
             </div>
@@ -177,7 +196,7 @@ const Investments: React.FC = () => {
                   style={filter === t
                     ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
                     : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
-                  {t}
+                  {t === 'all' ? 'All' : (TYPE_META[t]?.label ?? t)}
                 </button>
               ))}
             </div>
@@ -186,7 +205,7 @@ const Investments: React.FC = () => {
           {/* List */}
           {investments.length === 0 ? (
             <div className="card py-12 text-center">
-              <p className="text-3xl mb-3">📈</p>
+              <div className="flex justify-center mb-3"><InvestmentTypeIcon type="stock" /></div>
               <p className="font-semibold text-text mb-1">No investments yet</p>
               <p className="text-sm text-muted mb-5">Track stocks, crypto, gold, ETFs, and more</p>
               <button onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Investment</button>
@@ -200,27 +219,28 @@ const Investments: React.FC = () => {
                 const curVal    = getCurrentValue(inv);
                 const isGain    = (gainLoss ?? 0) >= 0;
                 const hasPx     = hasLivePrice(inv);
+                const meta      = TYPE_META[inv.type] ?? TYPE_META.other;
 
                 return (
                   <div key={inv.id} className="card card-hover p-4 group">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{TYPE_ICONS[inv.type] ?? '💰'}</span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <InvestmentTypeIcon type={inv.type} />
                         <div>
-                          <p className="font-semibold text-sm text-text">{inv.name}</p>
+                          <p className="font-semibold text-sm text-text truncate">{inv.name}</p>
                           <span className="text-[10px] px-2 py-0.5 rounded-full capitalize"
-                            style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{inv.type}</span>
+                            style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{meta.label}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {hasPx && gainPct != null ? (
                           <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-mono)', color: isGain ? 'var(--pos)' : 'var(--neg)' }}>
-                            {isGain ? '▲' : '▼'} {Math.abs(gainPct).toFixed(2)}%
+                            {isGain ? '+' : '-'}{Math.abs(gainPct).toFixed(2)}%
                           </span>
                         ) : (
                           <span className="text-xs flex items-center gap-1" style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>
                             <span className="w-1.5 h-1.5 rounded-full inline-block pulse-dot" style={{ backgroundColor: '#f59e0b' }} />
-                            fetching…
+                            Fetching
                           </span>
                         )}
                         <button onClick={() => handleDelete(inv.id, inv.name)}
@@ -236,9 +256,9 @@ const Investments: React.FC = () => {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
-                        { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
+                        { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '-', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
                         { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
-                        { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '—', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
+                        { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '-', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
                       ].map(stat => (
                         <div key={stat.label}>
                           <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>

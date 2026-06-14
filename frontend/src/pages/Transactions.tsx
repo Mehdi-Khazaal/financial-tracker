@@ -754,7 +754,7 @@ const Transactions: React.FC = () => {
         style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
       >
         {/* ── Header ── */}
-        <div className="shrink-0 flex items-center gap-2 md:gap-3 pl-4 md:pl-5 pr-16 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="topbar-safe shrink-0 flex items-center gap-2 md:gap-3 pl-4 md:pl-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher — desktop only; mobile uses the context tab bar in Navigation */}
           <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>

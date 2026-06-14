@@ -13,13 +13,12 @@ import PullToRefresh from '../components/PullToRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
-import AddAccountModal from '../components/modals/AddAccountModal';
 import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
 import CountUp from '../components/CountUp';
 import Sparkline from '../components/Sparkline';
-import { AccountTypeIcon, DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
+import { ACCOUNT_TYPE_META, AccountTypeIcon, DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,7 +60,6 @@ const Dashboard: React.FC = () => {
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
-  const [showAddAccount, setShowAddAccount]   = useState(false);
   const [showWithdraw, setShowWithdraw]       = useState(false);
   const [showDeposit, setShowDeposit]         = useState(false);
 
@@ -292,15 +290,6 @@ const Dashboard: React.FC = () => {
                 {greeting}, {user?.username}
               </h1>
             </div>
-            {tab === 'overview' && (
-              <button onClick={() => setShowAddAccount(true)}
-                className="text-xs font-medium h-11 md:h-auto px-3 md:py-1.5 rounded-md transition-all"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--muted)' }}
-                onMouseEnter={e => { (e.currentTarget.style.color = 'var(--fg)'); (e.currentTarget.style.borderColor = 'var(--line-strong)'); }}
-                onMouseLeave={e => { (e.currentTarget.style.color = 'var(--muted)'); (e.currentTarget.style.borderColor = 'var(--line)'); }}>
-                + Account
-              </button>
-            )}
           </div>
 
           {/* ── Desktop tab bar ── */}
@@ -455,18 +444,20 @@ const Dashboard: React.FC = () => {
                     <Link to="/accounts" className="text-xs font-medium transition-colors" style={{ color: 'var(--accent)' }}>View all →</Link>
                   </div>
                   {accounts.length === 0 ? (
-                    <button onClick={() => setShowAddAccount(true)}
-                      className="w-full rounded-lg py-10 text-center text-sm transition-all"
+                    <Link to="/accounts"
+                      className="block w-full rounded-lg py-10 text-center text-sm transition-all"
                       style={{ backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px dashed var(--line)' }}>
-                      + Add your first account
-                    </button>
+                      Add accounts in Wallet
+                    </Link>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 md:gap-3">
-                      {accounts.slice(0, 6).map(a => (
+                      {accounts.slice(0, 6).map(a => {
+                        const meta = ACCOUNT_TYPE_META[a.type] ?? ACCOUNT_TYPE_META.checking;
+                        return (
                         <div key={a.id} className="rounded-lg p-3 md:p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
                           <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
                             <AccountTypeIcon type={a.type} />
-                            <p className="label truncate text-[10px] md:text-xs">{a.type.replace('_', ' ')}</p>
+                            <p className="label truncate text-[10px] md:text-xs">{meta.label}</p>
                           </div>
                           <p className="text-xs truncate mb-0.5 md:mb-1" style={{ color: 'var(--muted)' }}>{a.name}</p>
                           <p className="font-mono tabular-nums text-base md:text-lg font-medium leading-tight" style={{ color: Number(a.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
@@ -476,7 +467,7 @@ const Dashboard: React.FC = () => {
                             <p className="text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>Limit ${fmt(Number(a.credit_limit))}</p>
                           )}
                         </div>
-                      ))}
+                      );})}
                       {accounts.length > 6 && (
                         <Link to="/accounts"
                           className="rounded-lg p-3 md:p-4 flex items-center justify-center text-sm transition-colors"
@@ -837,7 +828,6 @@ const Dashboard: React.FC = () => {
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
-      <AddAccountModal isOpen={showAddAccount} onClose={() => setShowAddAccount(false)} onSuccess={loadAll} />
       <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={loadAll} />
       <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={loadAll} />
     </>

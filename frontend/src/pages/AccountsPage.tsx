@@ -19,6 +19,7 @@ import TransferModal from '../components/modals/TransferModal';
 import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
+import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
 
 type Tab = 'wallet' | 'cards' | 'loans';
 
@@ -33,14 +34,6 @@ const getDueStatus = (loan: Loan): 'overdue' | 'soon' | 'ok' | null => {
   if (loan.due_date < today) return 'overdue';
   const days = Math.ceil((new Date(loan.due_date).getTime() - new Date(today).getTime()) / 86400000);
   return days <= 7 ? 'soon' : 'ok';
-};
-
-const TYPE_META: Record<string, { iconPath: string; iconColor: string; label: string; group: string }> = {
-  checking:    { iconPath: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z', iconColor: 'var(--accent)', label: 'Checking',    group: 'Spending' },
-  savings:     { iconPath: 'M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267zm4-4.849a3 3 0 11-6 0 3 3 0 016 0z M10 18a8 8 0 100-16 8 8 0 000 16z', iconColor: 'var(--pos)', label: 'Savings',     group: 'Savings' },
-  credit_card: { iconPath: 'M2 5a2 2 0 012-2h12a2 2 0 012 2v2H2V5zm0 4h16v7a2 2 0 01-2 2H4a2 2 0 01-2-2V9zm3 3a1 1 0 000 2h.01a1 1 0 000-2H5zm2 0a1 1 0 000 2h3a1 1 0 000-2H7z', iconColor: 'var(--neg)', label: 'Credit Card', group: 'Credit' },
-  cash:        { iconPath: 'M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z', iconColor: '#f59e0b', label: 'Cash',        group: 'Spending' },
-  investment:  { iconPath: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z', iconColor: '#a855f7', label: 'Brokerage',   group: 'Other' },
 };
 
 const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
@@ -270,7 +263,7 @@ const AccountsPage: React.FC = () => {
   const totalUtil    = totalLimit > 0 ? (totalOwed / totalLimit) * 100 : 0;
   const groups       = ['Spending', 'Savings', 'Credit', 'Other'];
   const grouped      = groups.reduce<Record<string, Account[]>>((acc, g) => {
-    acc[g] = accounts.filter(a => (TYPE_META[a.type]?.group ?? 'Other') === g);
+    acc[g] = accounts.filter(a => (ACCOUNT_TYPE_META[a.type]?.group ?? 'Other') === g);
     return acc;
   }, {});
 
@@ -475,7 +468,7 @@ const AccountsPage: React.FC = () => {
                       <p className="label mb-3">{group}</p>
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {list.map(account => {
-                          const meta = TYPE_META[account.type] ?? { iconPath: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z', iconColor: 'var(--accent)', label: account.type, group: 'Other' };
+                          const meta = ACCOUNT_TYPE_META[account.type] ?? ACCOUNT_TYPE_META.checking;
                           const isCreditCard = account.type === 'credit_card';
                           const owed = isCreditCard ? Math.abs(Number(account.balance)) : 0;
                           const limit = Number(account.credit_limit) || 0;
@@ -493,12 +486,7 @@ const AccountsPage: React.FC = () => {
                               {/* Top row: icon + name + action buttons */}
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
-                                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
-                                    <svg viewBox="0 0 20 20" fill={meta.iconColor} className="w-4.5 h-4.5 w-[18px] h-[18px]">
-                                      <path d={meta.iconPath} />
-                                    </svg>
-                                  </div>
+                                  <AccountTypeIcon type={account.type} className="w-9 h-9" iconClassName="w-[18px] h-[18px]" />
                                   <div className="min-w-0">
                                     <p className="font-semibold text-sm text-text leading-snug">{account.name}</p>
                                     <p className="text-xs text-muted">{meta.label}</p>
@@ -556,7 +544,7 @@ const AccountsPage: React.FC = () => {
             <>
               {ccAccounts.length === 0 ? (
                 <div className="card py-14 text-center">
-                  <p className="text-4xl mb-3">ðŸ’³</p>
+                  <AccountTypeIcon type="credit_card" className="w-12 h-12 mx-auto mb-3" iconClassName="w-6 h-6" />
                   <p className="font-semibold text-text mb-1">No credit cards</p>
                   <p className="text-sm text-muted mb-5">Add your credit cards to track spending and limits</p>
                   <button onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add Credit Card</button>
@@ -594,7 +582,7 @@ const AccountsPage: React.FC = () => {
                                 <p className="font-bold text-text">{card.name}</p>
                                 <p className="text-xs text-muted mt-0.5">Credit Card</p>
                               </div>
-                              <span className="text-2xl">ðŸ’³</span>
+                              <AccountTypeIcon type="credit_card" className="w-9 h-9" iconClassName="w-[18px] h-[18px]" />
                             </div>
                             <div className="flex justify-between items-end">
                               <div>
