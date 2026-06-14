@@ -200,9 +200,23 @@ const Dashboard: React.FC = () => {
     })
     .filter(c => c.current > 0 || c.previous > 0)
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-  const biggestCategoryMove = categoryInsights[0];
+  const movementRows = categoryInsights.filter(c => c.delta !== 0);
+  const biggestIncrease = movementRows
+    .filter(c => c.delta > 0)
+    .sort((a, b) => b.delta - a.delta)[0] ?? null;
+  const biggestDrop = movementRows
+    .filter(c => c.delta < 0)
+    .sort((a, b) => a.delta - b.delta)[0] ?? null;
   const lowerSpendCount = categoryInsights.filter(c => c.delta < 0).length;
   const higherSpendCount = categoryInsights.filter(c => c.delta > 0).length;
+  const improvedSpend = categoryInsights.filter(c => c.delta < 0).reduce((s, c) => s + Math.abs(c.delta), 0);
+  const worsenedSpend = categoryInsights.filter(c => c.delta > 0).reduce((s, c) => s + c.delta, 0);
+  const netCategoryDelta = worsenedSpend - improvedSpend;
+  const previousCategorySpend = categoryInsights.reduce((s, c) => s + c.previous, 0);
+  const spendChangePct = previousCategorySpend > 0 ? (netCategoryDelta / previousCategorySpend) * 100 : null;
+  const movementBalance = higherSpendCount + lowerSpendCount > 0
+    ? Math.round((lowerSpendCount / (higherSpendCount + lowerSpendCount)) * 100)
+    : 0;
 
   const monthlyData = (() => {
     const months: Record<string, { income: number; expenses: number }> = {};
@@ -605,52 +619,116 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* Charts row — 2 columns on desktop */}
-              <div className="ledger-panel p-4 md:p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="ledger-panel p-4 md:p-5 overflow-hidden">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-5">
                   <div>
                     <p className="label mb-1">What changed</p>
-                    <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>
+                    <p className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
                       {formatMonth(insightMonthKey)} vs {formatMonth(previousInsightMonthKey)}
                     </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                      Category spend is {netCategoryDelta <= 0 ? 'lower' : 'higher'} by{' '}
+                      <span className="font-mono" style={{ color: netCategoryDelta <= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                        ${fmt(Math.abs(netCategoryDelta))}
+                      </span>
+                      {spendChangePct !== null && (
+                        <span> ({spendChangePct >= 0 ? '+' : ''}{spendChangePct.toFixed(1)}%)</span>
+                      )}
+                    </p>
                   </div>
-                  <div className="font-mono text-[10px] px-2 py-1 rounded-full"
+                  <div className="font-mono text-[10px] px-2.5 py-1 rounded-full self-start"
                     style={{
-                      color: net >= 0 ? 'var(--pos)' : 'var(--neg)',
-                      backgroundColor: net >= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
+                      color: netCategoryDelta <= 0 ? 'var(--pos)' : 'var(--neg)',
+                      backgroundColor: netCategoryDelta <= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
                     }}>
-                    {net >= 0 ? 'positive flow' : 'negative flow'}
+                    {netCategoryDelta <= 0 ? 'spending improved' : 'needs attention'}
                   </div>
                 </div>
-                <div className="grid md:grid-cols-3 gap-3">
-                  <div className="ledger-cell p-3">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="label">Top movement</p>
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: biggestCategoryMove?.color ?? 'var(--muted)' }} />
-                    </div>
-                    {biggestCategoryMove ? (
-                      <>
-                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{biggestCategoryMove.name}</p>
-                        <p className="font-mono text-xs mt-1" style={{ color: biggestCategoryMove.delta > 0 ? 'var(--neg)' : biggestCategoryMove.delta < 0 ? 'var(--pos)' : 'var(--muted)' }}>
-                          {biggestCategoryMove.delta > 0 ? 'up' : biggestCategoryMove.delta < 0 ? 'down' : 'flat'} ${fmt(Math.abs(biggestCategoryMove.delta))} vs last month
+                <div className="grid lg:grid-cols-[1.15fr_1fr] gap-3">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {[
+                      { label: 'Biggest increase', item: biggestIncrease, empty: 'No category increased', tone: 'var(--neg)' },
+                      { label: 'Biggest drop', item: biggestDrop, empty: 'No category decreased', tone: 'var(--pos)' },
+                    ].map(card => (
+                      <div key={card.label} className="ledger-cell p-4">
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <p className="label">{card.label}</p>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: card.item?.color ?? 'var(--dim)' }} />
+                        </div>
+                        {card.item ? (
+                          <>
+                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{card.item.name}</p>
+                            <div className="flex items-end justify-between gap-3 mt-2">
+                              <p className="font-mono text-xl font-bold" style={{ color: card.tone, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                                {card.item.delta > 0 ? '+' : '-'}${fmt(Math.abs(card.item.delta))}
+                              </p>
+                              <p className="text-[10px] text-right" style={{ color: 'var(--muted)' }}>
+                                was ${fmt(card.item.previous)}<br />now ${fmt(card.item.current)}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-sm" style={{ color: 'var(--muted)' }}>{card.empty}</p>
+                        )}
+                      </div>
+                    ))}
+                    <div className="ledger-cell p-4 sm:col-span-2">
+                      <div className="flex items-center justify-between gap-4 mb-3">
+                        <div>
+                          <p className="label mb-1">Category balance</p>
+                          <p className="text-xs" style={{ color: 'var(--muted)' }}>{lowerSpendCount} improved, {higherSpendCount} higher</p>
+                        </div>
+                        <p className="font-mono text-lg font-bold" style={{ color: movementBalance >= 60 ? 'var(--pos)' : movementBalance >= 40 ? 'var(--accent)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                          {movementBalance}%
                         </p>
-                      </>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${movementBalance}%`,
+                            backgroundColor: movementBalance >= 60 ? 'var(--pos)' : movementBalance >= 40 ? 'var(--accent)' : 'var(--neg)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="ledger-cell p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <p className="label">Movement detail</p>
+                      <p className="font-mono text-[10px]" style={{ color: 'var(--muted)' }}>{movementRows.length} changed</p>
+                    </div>
+                    {movementRows.length > 0 ? (
+                      <div className="space-y-2.5">
+                        {movementRows.slice(0, 5).map(item => {
+                          const isUp = item.delta > 0;
+                          const maxMove = Math.max(...movementRows.map(c => Math.abs(c.delta)), 1);
+                          return (
+                            <div key={item.id} className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                <p className="text-xs font-medium truncate flex-1" style={{ color: 'var(--fg)' }}>{item.name}</p>
+                                <p className="font-mono text-xs font-semibold shrink-0" style={{ color: isUp ? 'var(--neg)' : 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
+                                  {isUp ? '+' : '-'}${fmt(Math.abs(item.delta))}
+                                </p>
+                              </div>
+                              <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${Math.max(6, (Math.abs(item.delta) / maxMove) * 100)}%`,
+                                    backgroundColor: isUp ? 'var(--neg)' : 'var(--pos)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
-                      <p className="text-sm" style={{ color: 'var(--muted)' }}>No category movement yet</p>
+                      <p className="text-sm" style={{ color: 'var(--muted)' }}>No category changes to compare yet</p>
                     )}
-                  </div>
-                  <div className="ledger-cell p-3">
-                    <p className="label mb-2">Improved categories</p>
-                    <p className="font-mono text-2xl font-bold" style={{ color: lowerSpendCount > 0 ? 'var(--pos)' : 'var(--muted)' }}>
-                      {lowerSpendCount}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>spent less than last month</p>
-                  </div>
-                  <div className="ledger-cell p-3">
-                    <p className="label mb-2">Watch list</p>
-                    <p className="font-mono text-2xl font-bold" style={{ color: higherSpendCount > 0 ? 'var(--accent)' : 'var(--pos)' }}>
-                      {higherSpendCount}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>categories trending higher</p>
                   </div>
                 </div>
               </div>
