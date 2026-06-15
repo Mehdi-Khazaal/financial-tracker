@@ -207,11 +207,7 @@ const Navigation: React.FC = () => {
       <nav className="mobile-dock md:hidden fixed inset-x-0 z-40"
         style={{ bottom: 0 }}>
         <div
-          className="mobile-dock-shell mx-auto flex items-center justify-between"
-          style={{
-            marginLeft: 'max(0.85rem, env(safe-area-inset-left, 0px))',
-            marginRight: 'max(0.85rem, env(safe-area-inset-right, 0px))',
-          }}>
+          className="mobile-dock-shell mx-auto flex items-center justify-between">
           {[navItems[0], navItems[2], navItems[1], navItems[3]].map(item => {
             const active = isActive(item);
             return (

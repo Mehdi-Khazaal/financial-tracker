@@ -393,6 +393,7 @@ body::after {
   }
 
   .mobile-dock-shell {
+    width: min(430px, calc(100vw - 1.7rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
     max-width: 430px;
     min-height: 68px;
     padding: 7px;
