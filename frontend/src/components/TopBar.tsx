@@ -31,11 +31,9 @@ const TopBar: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div ref={ref} className="fixed flex items-center gap-2"
+    <div ref={ref} className="app-topbar fixed flex items-center gap-2"
       style={{
         zIndex: 'var(--z-topbar)' as any,
-        top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
-        right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
       }}>
 
       {/* Search / command palette — desktop only; mobile keeps the bottom nav */}
