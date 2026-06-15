@@ -35,7 +35,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children }) => {
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/45 backdrop-blur-md"
         style={{ animation: 'fadeOut 200ms ease reverse both' }}
         onClick={onClose}
       />
@@ -49,10 +49,13 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children }) => {
         tabIndex={-1}
         className="bottom-sheet-panel slide-up relative w-full md:max-w-md md:mx-4 overflow-hidden safe-bottom outline-none"
         style={{
-          backgroundColor: 'var(--elev-1)',
-          border: '1px solid var(--line)',
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--glass-bg-strong)',
+          border: '1px solid var(--glass-border-strong)',
           maxHeight: '92vh',
-          boxShadow: 'var(--edge-light), var(--shadow-modal)',
+          boxShadow: 'var(--glass-highlight), var(--shadow-modal)',
+          backdropFilter: 'blur(30px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(30px) saturate(180%)',
         }}>
 
         {/* Drag handle */}
@@ -67,7 +70,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children }) => {
             <h2 className="font-bold text-base text-text">{title}</h2>
             <button onClick={onClose}
               className="w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors"
-              style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid var(--glass-border)', color: 'var(--muted)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>

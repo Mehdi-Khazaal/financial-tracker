@@ -725,7 +725,7 @@ const Transactions: React.FC = () => {
     return (
       <>
         <Navigation />
-        <div className="md:ml-60 h-screen flex flex-col" style={{ backgroundColor: 'var(--bg)' }}>
+        <div className="md:ml-60 min-h-[100dvh] flex flex-col mobile-tabs-spacer md:pb-0" style={{ backgroundColor: 'var(--bg)' }}>
           <div className="p-5 space-y-4">
             <div className="skeleton h-8 w-48 rounded-xl" />
             <div className="skeleton h-6 w-full rounded-xl" />
@@ -1274,7 +1274,7 @@ const Transactions: React.FC = () => {
 
               {/* Uncategorized queue */}
               {mobileView === 'queue' && (
-                <div className="app-scrollbar flex-1 overflow-y-auto p-3 space-y-2 pb-32">
+                <div className="app-scrollbar flex-1 overflow-y-auto p-3 space-y-2 mobile-tabs-spacer md:pb-4">
                   {uncategorized.length === 0 ? (
                     <div className="py-16 text-center">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
@@ -1295,7 +1295,7 @@ const Transactions: React.FC = () => {
 
               {/* By-category list */}
               {mobileView === 'categories' && (
-                <div className="app-scrollbar flex-1 overflow-y-auto p-3 pb-32">
+                <div className="app-scrollbar flex-1 overflow-y-auto p-3 mobile-tabs-spacer md:pb-4">
                   <div className="grid grid-cols-2 gap-2.5">
                   {visibleCategories.map(cat => {
                     const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
@@ -1488,7 +1488,7 @@ const Transactions: React.FC = () => {
             )}
 
             {/* Transaction list */}
-            <div className="flex-1 overflow-y-auto app-scrollbar pb-32 md:pb-4">
+            <div className="flex-1 overflow-y-auto app-scrollbar mobile-tabs-spacer md:pb-4">
               {filteredList.length === 0 ? (
                 <div className="py-16 text-center">
                   <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
@@ -1517,7 +1517,7 @@ const Transactions: React.FC = () => {
 
         {/* ── Recurring Tab ── */}
         {tab === 'recurring' && (
-          <div className="flex-1 overflow-y-auto pb-20 md:pb-10">
+          <div className="flex-1 overflow-y-auto mobile-tabs-spacer md:pb-10">
             <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5 fade-in">
               <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Recurring</h1>
 

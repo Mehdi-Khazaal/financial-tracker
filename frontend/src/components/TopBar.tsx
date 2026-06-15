@@ -43,8 +43,8 @@ const TopBar: React.FC = () => {
         onClick={() => setPaletteOpen(true)}
         aria-label="Open command palette"
         title="Search & commands (⌘K)"
-        className="pressable w-9 h-9 rounded-full hidden md:flex items-center justify-center"
-        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', color: 'var(--muted)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}>
+        className="topbar-glass-btn pressable w-9 h-9 rounded-full hidden md:flex items-center justify-center"
+        style={{ color: 'var(--muted)' }}>
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
           strokeLinecap="round" className="w-[17px] h-[17px]">
           <path d="M13.5 13.5L17 17M9 14.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z" />
@@ -57,12 +57,10 @@ const TopBar: React.FC = () => {
         aria-label={privacy ? 'Show amounts' : 'Hide amounts'}
         aria-pressed={privacy}
         title={privacy ? 'Show amounts' : 'Hide amounts'}
-        className="pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+        className="topbar-glass-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center"
         style={{
-          backgroundColor: 'var(--elev-1)',
-          border: `1px solid ${privacy ? 'rgba(249,115,22,0.4)' : 'var(--line-strong)'}`,
+          borderColor: privacy ? 'rgba(249,115,22,0.42)' : undefined,
           color: privacy ? 'var(--accent)' : 'var(--muted)',
-          boxShadow: 'var(--edge-light), var(--shadow-card)',
           transition: 'color 160ms ease, border-color 160ms ease',
         }}>
         <EyeIcon off={privacy} />
@@ -72,18 +70,15 @@ const TopBar: React.FC = () => {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
-        className="pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
-        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', color: 'var(--accent)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}>
+        className="topbar-glass-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
+        style={{ color: 'var(--accent)' }}>
         {user.username.charAt(0).toUpperCase()}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 rounded-xl overflow-hidden scale-in"
+        <div className="topbar-menu absolute right-0 top-11 rounded-xl overflow-hidden scale-in"
           style={{
-            backgroundColor: 'var(--elev-sub)',
-            border: '1px solid var(--line)',
             minWidth: '210px',
-            boxShadow: 'var(--edge-light), var(--shadow-modal)',
             transformOrigin: 'top right',
           }}>
           <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
