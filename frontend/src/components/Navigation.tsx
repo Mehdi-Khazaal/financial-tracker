@@ -38,6 +38,12 @@ const navItems = [
   },
 ];
 
+const assistantItem = {
+  label: 'AI Assistant',
+  mobileLabel: 'AI',
+  icon: 'M10 2.5l.9 3.1a4.4 4.4 0 002.9 2.9l3.2.9-3.2.9a4.4 4.4 0 00-2.9 2.9l-.9 3.3-.9-3.3a4.4 4.4 0 00-2.9-2.9L3 9.4l3.2-.9a4.4 4.4 0 002.9-2.9L10 2.5zM15.5 13l.4 1.2a1.9 1.9 0 001.2 1.2l1.2.4-1.2.4a1.9 1.9 0 00-1.2 1.2l-.4 1.2-.4-1.2a1.9 1.9 0 00-1.2-1.2l-1.2-.4 1.2-.4a1.9 1.9 0 001.2-1.2l.4-1.2z',
+};
+
 /* Sub-tabs shown in the context bar per route */
 const ROUTE_TABS: Record<string, { label: string; value: string }[]> = {
   '/':             [{ label: 'Overview', value: 'overview' }, { label: 'Analytics', value: 'analytics' }],
@@ -175,26 +181,20 @@ const Navigation: React.FC = () => {
       {/* ── Mobile context tab bar (above bottom nav) ────────────────── */}
       {routeTabs.length > 0 && (
         <div
-          className="md:hidden fixed inset-x-0 z-40 px-3 py-1.5"
+          className="mobile-context-tabs md:hidden fixed inset-x-0 z-40 px-4"
           style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 64px)',
-            backgroundColor: 'rgba(10,10,11,.97)',
-            borderTop: '1px solid var(--line)',
-            backdropFilter: 'blur(18px)',
-            WebkitBackdropFilter: 'blur(18px)',
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 86px)',
+            paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
           }}>
-          <div className="flex gap-1"
-            style={{
-              paddingLeft: 'env(safe-area-inset-left, 0px)',
-              paddingRight: 'env(safe-area-inset-right, 0px)',
-            }}>
+          <div className="mobile-context-tabs-inner flex gap-1 mx-auto">
             {routeTabs.map(t => (
               <button
                 key={t.value}
                 onClick={() => { haptic(); setRouteTab(location.pathname, t.value); }}
-                className="flex-1 h-11 rounded-lg text-xs font-semibold transition-all active:scale-95"
+                className="mobile-context-tab flex-1 h-9 rounded-lg text-xs font-semibold transition-all active:scale-95"
                 style={activeTab === t.value
-                  ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', fontFamily: 'var(--font-mono)' }
+                  ? { backgroundColor: 'var(--accent-dim)', color: 'var(--fg)', boxShadow: 'var(--edge-light)', fontFamily: 'var(--font-mono)' }
                   : { color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
                 {t.label}
               </button>
@@ -204,19 +204,20 @@ const Navigation: React.FC = () => {
       )}
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom"
-        style={{ backgroundColor: 'rgba(10,10,11,0.94)', borderTop: '1px solid var(--line)', backdropFilter: 'blur(20px) saturate(140%)', WebkitBackdropFilter: 'blur(20px) saturate(140%)' }}>
-        <div className="flex items-center justify-around h-16"
+      <nav className="mobile-dock md:hidden fixed inset-x-0 z-40"
+        style={{ bottom: 0 }}>
+        <div
+          className="mobile-dock-shell mx-auto flex items-center justify-between"
           style={{
-            paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
+            marginLeft: 'max(0.85rem, env(safe-area-inset-left, 0px))',
+            marginRight: 'max(0.85rem, env(safe-area-inset-right, 0px))',
           }}>
-          {navItems.map(item => {
+          {[navItems[0], navItems[2], navItems[1], navItems[3]].map(item => {
             const active = isActive(item);
             return (
               <Link key={item.path} to={item.path}
                 onClick={haptic}
-                className={`bottom-nav-item flex flex-col items-center justify-center gap-1 flex-1 h-full ${active ? 'bn-active' : ''}`}
+                className={`bottom-nav-item flex flex-col items-center justify-center gap-1 ${active ? 'bn-active' : ''}`}
                 style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
                 <span className="bn-pill" aria-hidden="true" />
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative">
@@ -226,6 +227,19 @@ const Navigation: React.FC = () => {
               </Link>
             );
           })}
+          <button
+            type="button"
+            aria-label="AI Assistant coming soon"
+            title={assistantItem.label}
+            className="bottom-nav-item bottom-nav-ai flex flex-col items-center justify-center gap-1"
+            style={{ color: 'var(--dim)', minHeight: 44 }}
+          >
+            <span className="bn-pill" aria-hidden="true" />
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 relative">
+              <path d={assistantItem.icon} />
+            </svg>
+            <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{assistantItem.mobileLabel}</span>
+          </button>
         </div>
       </nav>
     </>
