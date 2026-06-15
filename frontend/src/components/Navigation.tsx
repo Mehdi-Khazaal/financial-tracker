@@ -64,6 +64,9 @@ const Navigation: React.FC = () => {
 
   const routeTabs = ROUTE_TABS[location.pathname] ?? [];
   const activeTab = tabs[location.pathname] ?? '';
+  const activeTabIndex = Math.max(0, routeTabs.findIndex(t => t.value === activeTab));
+  const mobileDockItems = [navItems[0], navItems[2], navItems[1], navItems[3]];
+  const activeDockIndex = Math.max(0, mobileDockItems.findIndex(item => isActive(item)));
 
   useEffect(() => {
     document.body.classList.toggle('nav-collapsed', collapsed);
@@ -187,14 +190,19 @@ const Navigation: React.FC = () => {
             paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
           }}>
-          <div className="mobile-context-tabs-inner flex gap-1 mx-auto">
+          <div
+            key={location.pathname}
+            className="mobile-context-tabs-inner flex gap-1 mx-auto"
+            data-count={routeTabs.length}
+            data-active-index={activeTabIndex}
+          >
             {routeTabs.map(t => (
               <button
                 key={t.value}
                 onClick={() => { haptic(); setRouteTab(location.pathname, t.value); }}
-                className="mobile-context-tab flex-1 h-9 rounded-lg text-xs font-semibold transition-all active:scale-95"
+                className={`mobile-context-tab flex-1 h-9 rounded-lg text-xs font-semibold active:scale-95 ${activeTab === t.value ? 'is-active' : ''}`}
                 style={activeTab === t.value
-                  ? { backgroundColor: 'var(--accent-dim)', color: 'var(--fg)', boxShadow: 'var(--edge-light)', fontFamily: 'var(--font-mono)' }
+                  ? { color: 'var(--fg)', fontFamily: 'var(--font-mono)' }
                   : { color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
                 {t.label}
               </button>
@@ -207,15 +215,15 @@ const Navigation: React.FC = () => {
       <nav className="mobile-dock md:hidden fixed inset-x-0 z-40"
         style={{ bottom: 0 }}>
         <div
-          className="mobile-dock-shell mx-auto flex items-center justify-between">
-          {[navItems[0], navItems[2], navItems[1], navItems[3]].map(item => {
+          className="mobile-dock-shell mx-auto flex items-center justify-between"
+          style={{ '--dock-active-index': activeDockIndex } as React.CSSProperties}>
+          {mobileDockItems.map(item => {
             const active = isActive(item);
             return (
               <Link key={item.path} to={item.path}
                 onClick={haptic}
                 className={`bottom-nav-item flex flex-col items-center justify-center gap-1 ${active ? 'bn-active' : ''}`}
                 style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
-                <span className="bn-pill" aria-hidden="true" />
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative">
                   <path d={item.icon} />
                 </svg>
@@ -230,7 +238,6 @@ const Navigation: React.FC = () => {
             className="bottom-nav-item bottom-nav-ai flex flex-col items-center justify-center gap-1"
             style={{ color: 'var(--dim)', minHeight: 44 }}
           >
-            <span className="bn-pill" aria-hidden="true" />
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 relative">
               <path d={assistantItem.icon} />
             </svg>
