@@ -216,7 +216,7 @@ const Navigation: React.FC = () => {
         style={{ bottom: 0 }}>
         <div
           className="mobile-dock-shell mx-auto flex items-center justify-between"
-          style={{ '--dock-active-index': activeDockIndex } as React.CSSProperties}>
+          data-dock-active-index={activeDockIndex}>
           {mobileDockItems.map(item => {
             const active = isActive(item);
             return (
