@@ -39,20 +39,18 @@ const Login: React.FC = () => {
 
       {/* ── Ambient orbs ─────────────────────────────────────────── */}
       <div aria-hidden="true" style={{
-        position: 'absolute', bottom: '-8%', left: '-12%',
-        width: 'min(72vw, 560px)', height: 'min(72vw, 560px)',
+        position: 'absolute', bottom: '-18%', left: '-10%',
+        width: 'min(78vw, 620px)', height: 'min(78vw, 620px)',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(249,115,22,0.2) 0%, rgba(249,115,22,0.07) 42%, transparent 68%)',
-        filter: 'blur(48px)',
+        background: 'radial-gradient(circle, rgba(249,115,22,0.14) 0%, rgba(249,115,22,0.055) 40%, transparent 66%)',
         animation: 'authOrb 9s ease-in-out infinite',
         pointerEvents: 'none',
       }} />
       <div aria-hidden="true" style={{
-        position: 'absolute', top: '-8%', right: '-10%',
+        position: 'absolute', top: '-14%', right: '-12%',
         width: 'min(45vw, 380px)', height: 'min(45vw, 380px)',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(249,115,22,0.09) 0%, transparent 65%)',
-        filter: 'blur(36px)',
+        background: 'radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 66%)',
         animation: 'authOrb 13s ease-in-out infinite reverse',
         pointerEvents: 'none',
       }} />
@@ -123,15 +121,12 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        {/* Glass card */}
+        {/* Auth card */}
         <div style={{
-          background: 'rgba(17,17,19,0.72)',
-          backdropFilter: 'blur(28px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-          borderRadius: '22px',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderTop: '1px solid rgba(255,255,255,0.13)',
-          boxShadow: '0 48px 96px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.25) inset',
+          background: 'linear-gradient(180deg, #171719, #101012)',
+          borderRadius: '18px',
+          border: '1px solid var(--line-strong)',
+          boxShadow: 'var(--edge-light), 0 24px 58px rgba(0,0,0,0.55)',
           padding: '2rem',
           animation: 'authReveal 0.65s cubic-bezier(.32,1,.4,1) both',
           animationDelay: '0.18s',

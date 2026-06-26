@@ -8,8 +8,8 @@
 body {
   font-family: var(--font-sans);
   background:
-    radial-gradient(circle at 50% -12%, rgba(255,255,255,0.045), transparent 36%),
-    linear-gradient(180deg, #0b0b0d 0%, #070708 52%, #050506 100%);
+    radial-gradient(circle at 50% -18%, rgba(249, 115, 22, 0.09), transparent 30%),
+    linear-gradient(180deg, #080809 0%, #050506 58%, #030304 100%);
   color: #F1F1F3;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -60,16 +60,12 @@ body::after {
 :root {
   /* Surface — warm near-black */
   --bg:          #070708;
-  --elev-1:      #141416;
-  --elev-sub:    #0F0F11;
-  --material-1:  rgba(24, 24, 27, 0.72);
-  --material-2:  rgba(18, 18, 20, 0.62);
-  --material-3:  rgba(255, 255, 255, 0.075);
-  --glass-bg:    rgba(24, 24, 27, 0.56);
-  --glass-bg-strong: rgba(20, 20, 23, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.13);
-  --glass-border-strong: rgba(255, 255, 255, 0.2);
-  --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(255,255,255,0.045);
+  --elev-1:      #121214;
+  --elev-2:      #18181B;
+  --elev-sub:    #0D0D0F;
+  --material-1:  #141416;
+  --material-2:  #101012;
+  --material-3:  rgba(249, 115, 22, 0.11);
 
   /* Text */
   --fg:          #F1F1F3;
@@ -77,8 +73,8 @@ body::after {
   --dim:         #6B7280;
 
   /* Lines / borders — solid structural lines */
-  --line:        rgba(255, 255, 255, 0.075);
-  --line-strong: rgba(255, 255, 255, 0.14);
+  --line:        rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.18);
 
   /* Semantic */
   --accent:      #F97316;
@@ -107,15 +103,15 @@ body::after {
   --ease-exit:   cubic-bezier(0.4, 0, 1, 1);
 
   /* Elevation — tinted toward the warm-black bg, never pure black */
-  --shadow-card:  0 10px 32px rgba(0, 0, 0, 0.24);
-  --shadow-float: 0 18px 52px rgba(0, 0, 0, 0.34);
-  --shadow-modal: 0 28px 80px rgba(0, 0, 0, 0.52);
-  --edge-light:   inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --shadow-card:  0 2px 0 rgba(255,255,255,0.025), 0 10px 22px rgba(0, 0, 0, 0.22);
+  --shadow-float: 0 2px 0 rgba(255,255,255,0.035), 0 16px 28px rgba(0, 0, 0, 0.32);
+  --shadow-modal: 0 24px 62px rgba(0, 0, 0, 0.58);
+  --edge-light:   inset 0 1px 0 rgba(255, 255, 255, 0.075);
   --hit-min:      44px;
-  --dock-height:  86px;
-  --context-tabs-height: 52px;
-  --mobile-dock-reserve: calc(var(--dock-height) + env(safe-area-inset-bottom, 0px) + 24px);
-  --mobile-tabs-reserve: calc(var(--dock-height) + var(--context-tabs-height) + env(safe-area-inset-bottom, 0px) + 34px);
+  --dock-height:  78px;
+  --context-tabs-height: 50px;
+  --mobile-dock-reserve: calc(var(--dock-height) + env(safe-area-inset-bottom, 0px) + 34px);
+  --mobile-tabs-reserve: calc(var(--dock-height) + var(--context-tabs-height) + env(safe-area-inset-bottom, 0px) + 46px);
 
   /* Z scale — semantic layers, no arbitrary values */
   --z-sticky:   20;
@@ -152,13 +148,11 @@ body::after {
   /* Card — structural border, dark surface, machined top edge */
   .card {
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018) 46%, transparent),
+      linear-gradient(180deg, rgba(255,255,255,0.04), transparent 42%),
       var(--material-1);
     border-radius: var(--radius-md);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-highlight), var(--shadow-card);
-    backdrop-filter: blur(18px) saturate(135%);
-    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    border: 1px solid var(--line);
+    box-shadow: var(--edge-light), var(--shadow-card);
   }
 
   .card-hover {
@@ -180,6 +174,13 @@ body::after {
   }
   .pressable:active { transform: scale(0.97); }
 
+  /* AI assistant typing indicator */
+  .typing-dot { animation: typing-bounce 1s infinite ease-in-out; }
+  @keyframes typing-bounce {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30%           { opacity: 1;   transform: translateY(-3px); }
+  }
+
   /* Monetary value display — DM Serif Display */
   .value-display {
     font-family: var(--font-display);
@@ -193,22 +194,20 @@ body::after {
   .btn-gradient {
     @apply font-semibold text-white rounded-lg px-5 py-3 text-sm;
     background: linear-gradient(180deg, #ff8a2c, var(--accent));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 10px 22px rgba(249, 115, 22, 0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 8px 16px rgba(249, 115, 22, 0.18);
     transition: transform 140ms var(--ease-out), box-shadow 180ms ease, opacity 180ms ease;
   }
-  .btn-gradient:hover { opacity: .96; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 14px 28px rgba(249, 115, 22, 0.24); }
+  .btn-gradient:hover { opacity: .96; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 10px 18px rgba(249, 115, 22, 0.24); }
   .btn-gradient:active { transform: scale(0.97); }
 
   .btn-ghost {
     @apply font-semibold rounded-lg px-4 py-2.5 text-sm;
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)),
+      linear-gradient(180deg, rgba(255,255,255,0.035), transparent),
       var(--material-2);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--line);
     color: var(--muted);
     box-shadow: var(--edge-light);
-    backdrop-filter: blur(14px) saturate(130%);
-    -webkit-backdrop-filter: blur(14px) saturate(130%);
     transition: transform 140ms var(--ease-out), color 160ms ease, border-color 160ms ease, background-color 160ms ease;
   }
   .btn-ghost:hover { color: var(--fg); border-color: var(--line-strong); }
@@ -228,10 +227,10 @@ body::after {
   .qa-btn {
     @apply flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium;
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.014)),
+      linear-gradient(180deg, rgba(255,255,255,0.035), transparent),
       var(--material-2);
     color: var(--muted);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--line);
     box-shadow: var(--edge-light);
     transition: transform 160ms var(--ease-out), color 160ms ease, border-color 160ms ease, box-shadow 200ms ease;
   }
@@ -248,8 +247,8 @@ body::after {
   /* Inputs */
   .input-dark {
     @apply w-full rounded-lg px-4 py-3 text-sm outline-none;
-    background: rgba(255,255,255,0.055);
-    border: 1px solid var(--glass-border);
+    background: var(--elev-sub);
+    border: 1px solid var(--line);
     color: var(--fg);
     font-size: 16px;
     font-family: var(--font-sans);
@@ -276,18 +275,16 @@ body::after {
 
   .ledger-panel {
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.06), transparent 44%),
+      linear-gradient(180deg, rgba(255,255,255,0.035), transparent 44%),
       var(--material-1);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--glass-highlight), var(--shadow-card);
-    backdrop-filter: blur(18px) saturate(135%);
-    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    box-shadow: var(--edge-light), var(--shadow-card);
   }
 
   .ledger-cell {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.085);
+    background: var(--elev-sub);
+    border: 1px solid var(--line);
     border-radius: var(--radius-md);
     box-shadow: var(--edge-light);
   }
@@ -329,16 +326,12 @@ body::after {
   .mobile-tabs-spacer { padding-bottom: var(--mobile-tabs-reserve); }
   .fab-dock-aware { bottom: calc(var(--dock-height) + env(safe-area-inset-bottom, 0px) + 10px); }
 
-  .topbar-glass-btn {
+  .topbar-action-btn {
     min-width: var(--hit-min);
     min-height: var(--hit-min);
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.03)),
-      var(--glass-bg-strong);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-highlight), 0 12px 30px rgba(0,0,0,0.28);
-    backdrop-filter: blur(24px) saturate(175%);
-    -webkit-backdrop-filter: blur(24px) saturate(175%);
+    background: linear-gradient(180deg, var(--elev-2), var(--material-2));
+    border: 1px solid var(--line);
+    box-shadow: var(--edge-light), 0 8px 18px rgba(0,0,0,0.28);
   }
 
   .app-topbar {
@@ -347,20 +340,16 @@ body::after {
   }
 
   @media (min-width: 768px) {
-    .topbar-glass-btn {
+    .topbar-action-btn {
       min-width: 2.25rem;
       min-height: 2.25rem;
     }
   }
 
   .topbar-menu {
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.02)),
-      var(--glass-bg-strong);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-highlight), var(--shadow-modal);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: linear-gradient(180deg, #1a1a1d, #111113);
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--edge-light), var(--shadow-modal);
   }
 
   @media (min-width: 768px) {
@@ -439,15 +428,11 @@ body::after {
   .mobile-context-tabs-inner {
     position: relative;
     max-width: 420px;
-    padding: 5px;
-    border: 1px solid var(--glass-border-strong);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.17), rgba(255,255,255,0.045) 44%, rgba(255,255,255,0.025)),
-      rgba(20,20,23,0.52);
-    box-shadow: var(--glass-highlight), 0 18px 52px rgba(0, 0, 0, 0.44);
-    backdrop-filter: blur(32px) saturate(180%) contrast(1.08);
-    -webkit-backdrop-filter: blur(32px) saturate(180%) contrast(1.08);
+    padding: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #1a1a1d, #101012);
+    box-shadow: var(--edge-light), 0 12px 28px rgba(0, 0, 0, 0.48);
     animation: navMaterialIn 220ms var(--ease-out) both;
   }
 
@@ -455,17 +440,13 @@ body::after {
     content: '';
     position: absolute;
     z-index: 0;
-    top: 5px;
-    bottom: 5px;
-    left: 5px;
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.035)),
-      rgba(249,115,22,0.14);
-    border: 1px solid rgba(255,255,255,0.18);
-    box-shadow: var(--glass-highlight), 0 8px 20px rgba(249,115,22,0.14);
-    backdrop-filter: blur(18px) saturate(165%);
-    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(249,115,22,0.28), rgba(249,115,22,0.16));
+    border: 1px solid rgba(249,115,22,0.42);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.11), 0 0 0 1px rgba(249,115,22,0.06);
     transition:
       transform 260ms var(--ease-drawer),
       width 220ms var(--ease-out),
@@ -473,8 +454,8 @@ body::after {
     pointer-events: none;
   }
 
-  .mobile-context-tabs-inner[data-count="2"]::before { width: calc((100% - 14px) / 2); }
-  .mobile-context-tabs-inner[data-count="3"]::before { width: calc((100% - 18px) / 3); }
+  .mobile-context-tabs-inner[data-count="2"]::before { width: calc((100% - 12px) / 2); }
+  .mobile-context-tabs-inner[data-count="3"]::before { width: calc((100% - 16px) / 3); }
   .mobile-context-tabs-inner[data-active-index="0"]::before { transform: translateX(0); }
   .mobile-context-tabs-inner[data-active-index="1"]::before { transform: translateX(calc(100% + 4px)); }
   .mobile-context-tabs-inner[data-active-index="2"]::before { transform: translateX(calc(200% + 8px)); }
@@ -486,7 +467,8 @@ body::after {
   .mobile-context-tab {
     position: relative;
     z-index: 1;
-    border-radius: 999px;
+    min-height: 40px;
+    border-radius: 12px;
     transition:
       color 190ms ease,
       transform 180ms var(--ease-out),
@@ -498,26 +480,21 @@ body::after {
   }
 
   .mobile-dock {
-    padding-top: 8px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-top: 6px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
   }
 
   .mobile-dock-shell {
     position: relative;
-    width: min(430px, calc(100vw - 1.7rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    width: min(430px, calc(100vw - 1rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
     max-width: 430px;
-    min-height: 68px;
-    padding: 7px;
-    border: 1px solid var(--glass-border-strong);
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.19), rgba(255,255,255,0.052) 42%, rgba(255,255,255,0.024)),
-      radial-gradient(circle at 50% 0%, rgba(255,255,255,0.11), transparent 54%),
-      rgba(21,21,24,0.56);
-    box-shadow: var(--glass-highlight), 0 22px 62px rgba(0, 0, 0, 0.56);
-    backdrop-filter: blur(36px) saturate(185%) contrast(1.08);
-    -webkit-backdrop-filter: blur(36px) saturate(185%) contrast(1.08);
+    min-height: 64px;
+    padding: 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 18px;
+    background: linear-gradient(180deg, #1b1b1e, #0f0f11);
+    box-shadow: var(--edge-light), 0 16px 32px rgba(0, 0, 0, 0.58);
     pointer-events: auto;
     animation: dockFloatIn 260ms var(--ease-out) both;
   }
@@ -526,18 +503,14 @@ body::after {
     content: '';
     position: absolute;
     z-index: 0;
-    top: 7px;
-    left: 7px;
-    width: calc((100% - 14px) / 5);
-    height: 54px;
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.06) 48%, rgba(249,115,22,0.14)),
-      rgba(249,115,22,0.16);
-    border: 1px solid rgba(255,255,255,0.24);
-    box-shadow: var(--glass-highlight), 0 10px 24px rgba(249,115,22,0.2);
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    top: 6px;
+    left: 6px;
+    width: calc((100% - 12px) / 5);
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(249,115,22,0.28), rgba(249,115,22,0.15));
+    border: 1px solid rgba(249,115,22,0.42);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.11);
     transition:
       left 260ms var(--ease-drawer),
       opacity 180ms ease,
@@ -545,17 +518,17 @@ body::after {
     pointer-events: none;
   }
 
-  .mobile-dock-shell[data-dock-active-index="0"]::before { left: 7px; }
-  .mobile-dock-shell[data-dock-active-index="1"]::before { left: calc(20% + 4.2px); }
-  .mobile-dock-shell[data-dock-active-index="2"]::before { left: calc(40% + 1.4px); }
-  .mobile-dock-shell[data-dock-active-index="3"]::before { left: calc(60% - 1.4px); }
-  .mobile-dock-shell[data-dock-active-index="4"]::before { left: calc(80% - 4.2px); }
+  .mobile-dock-shell[data-dock-active-index="0"]::before { left: 6px; }
+  .mobile-dock-shell[data-dock-active-index="1"]::before { left: calc(20% + 3.6px); }
+  .mobile-dock-shell[data-dock-active-index="2"]::before { left: calc(40% + 1.2px); }
+  .mobile-dock-shell[data-dock-active-index="3"]::before { left: calc(60% - 1.2px); }
+  .mobile-dock-shell[data-dock-active-index="4"]::before { left: calc(80% - 3.6px); }
 
   .bottom-nav-item {
     position: relative;
     width: 20%;
-    height: 54px;
-    border-radius: 999px;
+    height: 52px;
+    border-radius: 14px;
     transition:
       color 190ms ease,
       text-shadow 190ms ease,
@@ -618,9 +591,7 @@ body::after {
     position: fixed;
     inset: 0;
     z-index: var(--z-backdrop);
-    background: rgba(5, 5, 6, 0.48);
-    backdrop-filter: blur(12px) saturate(130%);
-    -webkit-backdrop-filter: blur(12px) saturate(130%);
+    background: rgba(5, 5, 6, 0.68);
   }
   .cmdk-panel {
     position: fixed;
@@ -629,14 +600,10 @@ body::after {
     left: 50%;
     transform: translateX(-50%);
     width: min(560px, calc(100vw - 2rem));
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
-      var(--glass-bg-strong);
-    border: 1px solid var(--glass-border-strong);
+    background: linear-gradient(180deg, #1b1b1e, #101012);
+    border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
-    box-shadow: var(--glass-highlight), var(--shadow-modal);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    box-shadow: var(--edge-light), var(--shadow-modal);
     overflow: hidden;
   }
   .cmdk-item {
@@ -784,6 +751,17 @@ body::after {
     padding-top:   env(safe-area-inset-top,   0px);
     padding-left:  env(safe-area-inset-left,  0px);
     padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  main {
+    min-height: 100dvh;
+    padding-bottom: var(--mobile-tabs-reserve) !important;
+  }
+
+  .mobile-dock,
+  .mobile-context-tabs {
+    transform: translateZ(0);
+    will-change: transform;
   }
 }
 

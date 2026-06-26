@@ -71,7 +71,7 @@ const ConfirmDialog: React.FC<{
   onAnswer: (val: boolean) => void;
 }> = ({ state, onAnswer }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => onAnswer(false)} />
+    <div className="absolute inset-0 bg-black/70" onClick={() => onAnswer(false)} />
     <div className="scale-in relative w-full max-w-sm rounded-2xl p-6"
       style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
       {state.title && (

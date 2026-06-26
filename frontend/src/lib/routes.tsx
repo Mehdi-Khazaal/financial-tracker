@@ -1,5 +1,6 @@
 import React from 'react';
 import AccountsPage from '../pages/AccountsPage';
+import Assistant from '../pages/Assistant';
 import Dashboard from '../pages/Dashboard';
 import ForgotPassword from '../pages/ForgotPassword';
 import Login from '../pages/Login';
@@ -33,6 +34,7 @@ export const APP_ROUTES: AppRouteDefinition[] = [
   { path: '/accounts', element: <AccountsPage />, requiresAuth: true },
   { path: '/transactions', element: <Transactions />, requiresAuth: true },
   { path: '/portfolio', element: <PortfolioPage />, requiresAuth: true },
+  { path: '/assistant', element: <Assistant />, requiresAuth: true },
   { path: '/settings', element: <Settings />, requiresAuth: true },
 ];
 

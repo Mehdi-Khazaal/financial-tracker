@@ -36,6 +36,13 @@ const navItems = [
     icon: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z',
     matchPaths: ['/portfolio', '/investments', '/assets', '/savings'],
   },
+  {
+    path: '/assistant',
+    label: 'AI Assistant',
+    mobileLabel: 'AI',
+    icon: 'M10 2.5l.9 3.1a4.4 4.4 0 002.9 2.9l3.2.9-3.2.9a4.4 4.4 0 00-2.9 2.9l-.9 3.3-.9-3.3a4.4 4.4 0 00-2.9-2.9L3 9.4l3.2-.9a4.4 4.4 0 002.9-2.9L10 2.5zM15.5 13l.4 1.2a1.9 1.9 0 001.2 1.2l1.2.4-1.2.4a1.9 1.9 0 00-1.2 1.2l-.4 1.2-.4-1.2a1.9 1.9 0 00-1.2-1.2l-1.2-.4 1.2-.4a1.9 1.9 0 001.2-1.2l.4-1.2z',
+    matchPaths: ['/assistant'],
+  },
 ];
 
 const assistantItem = {
@@ -231,18 +238,19 @@ const Navigation: React.FC = () => {
               </Link>
             );
           })}
-          <button
-            type="button"
-            aria-label="AI Assistant coming soon"
+          <Link
+            to="/assistant"
+            onClick={haptic}
+            aria-label={assistantItem.label}
             title={assistantItem.label}
-            className="bottom-nav-item bottom-nav-ai flex flex-col items-center justify-center gap-1"
-            style={{ color: 'var(--dim)', minHeight: 44 }}
+            className={`bottom-nav-item bottom-nav-ai flex flex-col items-center justify-center gap-1 ${location.pathname === '/assistant' ? 'bn-active' : ''}`}
+            style={{ color: location.pathname === '/assistant' ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}
           >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 relative">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={location.pathname === '/assistant' ? 2 : 1.5} className="w-5 h-5 relative">
               <path d={assistantItem.icon} />
             </svg>
             <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{assistantItem.mobileLabel}</span>
-          </button>
+          </Link>
         </div>
       </nav>
     </>

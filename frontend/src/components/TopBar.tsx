@@ -41,7 +41,7 @@ const TopBar: React.FC = () => {
         onClick={() => setPaletteOpen(true)}
         aria-label="Open command palette"
         title="Search & commands (⌘K)"
-        className="topbar-glass-btn pressable w-9 h-9 rounded-full hidden md:flex items-center justify-center"
+        className="topbar-action-btn pressable w-9 h-9 rounded-full hidden md:flex items-center justify-center"
         style={{ color: 'var(--muted)' }}>
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
           strokeLinecap="round" className="w-[17px] h-[17px]">
@@ -55,7 +55,7 @@ const TopBar: React.FC = () => {
         aria-label={privacy ? 'Show amounts' : 'Hide amounts'}
         aria-pressed={privacy}
         title={privacy ? 'Show amounts' : 'Hide amounts'}
-        className="topbar-glass-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+        className="topbar-action-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center"
         style={{
           borderColor: privacy ? 'rgba(249,115,22,0.42)' : undefined,
           color: privacy ? 'var(--accent)' : 'var(--muted)',
@@ -68,7 +68,7 @@ const TopBar: React.FC = () => {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
-        className="topbar-glass-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
+        className="topbar-action-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
         style={{ color: 'var(--accent)' }}>
         {user.username.charAt(0).toUpperCase()}
       </button>

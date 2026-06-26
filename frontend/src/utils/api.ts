@@ -129,6 +129,17 @@ export const deleteLoan  = (id: number) => api.delete(`/loans/${id}`);
 export const getNetWorthHistory = (months = 12) => api.get(`/history/net-worth?months=${months}`);
 export const getAccountHistory  = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
 
+// ── AI Assistant ──────────────────────────────────────────────────────────────
+export const assistantListConversations = () => api.get('/assistant/conversations');
+export const assistantGetConversation   = (id: number) => api.get(`/assistant/conversations/${id}`);
+export const assistantDeleteConversation = (id: number) => api.delete(`/assistant/conversations/${id}`);
+export const assistantChat = (message: string, conversation_id?: number | null) =>
+  api.post('/assistant/chat', { message, conversation_id: conversation_id ?? null });
+export const assistantExecute = (tool: string, input: any, conversation_id?: number | null) =>
+  api.post('/assistant/execute', { tool, input, conversation_id: conversation_id ?? null });
+export const assistantListMemories  = () => api.get('/assistant/memories');
+export const assistantDeleteMemory  = (id: number) => api.delete(`/assistant/memories/${id}`);
+
 // ── Plaid helpers ─────────────────────────────────────────────────────────────
 export const cleanDescription = (desc: string | null | undefined): string => {
   if (!desc) return 'No note';

@@ -502,9 +502,18 @@ const Transactions: React.FC = () => {
   };
 
   const handleCategorize = async (txId: number, categoryId: number | null) => {
+    const previousTx = transactions.find(t => t.id === txId);
+    if (!previousTx) return;
+
     setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: categoryId } : t));
-    try { await updateTransaction(txId, { category_id: categoryId }); }
-    catch { load(); toast.error('Failed to update category'); }
+    try {
+      const res = await updateTransaction(txId, { category_id: categoryId });
+      setTransactions(prev => prev.map(t => t.id === txId ? { ...t, ...res.data } : t));
+    } catch {
+      setTransactions(prev => prev.map(t => t.id === txId ? previousTx : t));
+      load();
+      toast.error('Failed to update category');
+    }
   };
 
   const handleDragOver = (target: number | 'uncategorized') => (e: React.DragEvent) => {

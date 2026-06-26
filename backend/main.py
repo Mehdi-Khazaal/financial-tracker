@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import admin, cron, history, loans, plaid_router, push, recurring_transactions, savings_goals, stocks, transfers
+from routers import admin, assistant, cron, history, loans, plaid_router, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 
@@ -90,6 +90,7 @@ app.include_router(push.router)
 app.include_router(admin.router)
 app.include_router(cron.router)
 app.include_router(plaid_router.router)
+app.include_router(assistant.router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

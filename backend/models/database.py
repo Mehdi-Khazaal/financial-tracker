@@ -177,3 +177,45 @@ class SavingsGoalAllocation(Base):
 
     goal = relationship("SavingsGoal", back_populates="allocations")
     account = relationship("Account")
+
+
+# ─── AI Assistant ─────────────────────────────────────────────────────────────
+class AssistantConversation(Base):
+    __tablename__ = "assistant_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False, default="New chat")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    messages = relationship(
+        "AssistantMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="AssistantMessage.id",
+    )
+
+
+class AssistantMessage(Base):
+    __tablename__ = "assistant_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("assistant_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False)  # "user" | "assistant"
+    content = Column(Text, nullable=False, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("AssistantConversation", back_populates="messages")
+
+
+class AssistantMemory(Base):
+    """Durable facts the assistant has learned about the user — its persistent notebook."""
+
+    __tablename__ = "assistant_memories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

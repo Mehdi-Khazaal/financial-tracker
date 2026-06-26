@@ -85,6 +85,49 @@ def _plaid_post(path: str, body: dict) -> dict:
     return data
 
 
+def _plaid_amount(tx: dict) -> Decimal:
+    return Decimal(str(tx["amount"])) * Decimal("-1")
+
+
+def _plaid_description(tx: dict, fallback: Optional[str] = None) -> str:
+    return tx.get("merchant_name") or tx.get("name") or fallback or "Transaction"
+
+
+def _apply_pending_replacement(db: Session, tx: dict, user_id: int, local_acct: Account) -> bool:
+    """Update a categorized pending transaction when Plaid replaces it with the posted one."""
+    pending_tx_id = tx.get("pending_transaction_id")
+    if not pending_tx_id:
+        return False
+
+    existing = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.plaid_tx_id == pending_tx_id,
+    ).first()
+    if not existing:
+        return False
+
+    posted = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.plaid_tx_id == tx["transaction_id"],
+    ).first()
+    if posted:
+        if posted.category_id is None:
+            posted.category_id = existing.category_id
+        posted.account_id = local_acct.id
+        posted.amount = _plaid_amount(tx)
+        posted.description = _plaid_description(tx, posted.description)
+        posted.transaction_date = date.fromisoformat(tx["date"])
+        db.delete(existing)
+        return True
+
+    existing.account_id = local_acct.id
+    existing.amount = _plaid_amount(tx)
+    existing.description = _plaid_description(tx, existing.description)
+    existing.transaction_date = date.fromisoformat(tx["date"])
+    existing.plaid_tx_id = tx["transaction_id"]
+    return True
+
+
 # ─── Sync logic ───────────────────────────────────────────────────────────────
 def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     """Sync one Plaid item. Returns number of new transactions added."""
@@ -138,12 +181,14 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             local_acct = local_acct_cache.get(tx["account_id"])
             if not local_acct:
                 continue
+            if _apply_pending_replacement(db, tx, user_id, local_acct):
+                continue
             rows_to_add.append({
                 "user_id":          user_id,
                 "account_id":       local_acct.id,
                 "category_id":      None,
-                "amount":           Decimal(str(tx["amount"])) * Decimal("-1"),  # Plaid positive = debit; we store debits as negative
-                "description":      tx.get("merchant_name") or tx.get("name") or "Transaction",
+                "amount":           _plaid_amount(tx),  # Plaid positive = debit; we store debits as negative
+                "description":      _plaid_description(tx),
                 "plaid_tx_id":      tx["transaction_id"],
                 "transaction_date": date.fromisoformat(tx["date"]),
             })
@@ -155,8 +200,8 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         for tx in data.get("modified", []):
             existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
             if existing:
-                existing.amount           = Decimal(str(tx["amount"])) * Decimal("-1")
-                existing.description      = tx.get("merchant_name") or tx.get("name") or existing.description
+                existing.amount           = _plaid_amount(tx)
+                existing.description      = _plaid_description(tx, existing.description)
                 existing.transaction_date = date.fromisoformat(tx["date"])
 
         # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
