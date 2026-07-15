@@ -12,12 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from models.database import get_db, Base, Transaction, Account, SessionLocal
 from models.auth import User
 from utils.auth import get_current_user
 from utils.push_sender import send_push_to_user
+from utils.secret_box import decrypt_secret, encrypt_secret, is_encrypted
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
 
@@ -64,12 +65,11 @@ class ExchangeTokenRequest(BaseModel):
 
 
 class PlaidItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     institution_name: Optional[str]
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Plaid API helper ─────────────────────────────────────────────────────────
@@ -83,6 +83,14 @@ def _plaid_post(path: str, body: dict) -> dict:
     if data.get("error_code"):
         raise HTTPException(status_code=502, detail=f"Plaid API error: {data.get('error_message', data['error_code'])}")
     return data
+
+
+def _item_access_token(db: Session, item: PlaidItem) -> str:
+    token = decrypt_secret(item.access_token)
+    if not is_encrypted(item.access_token):
+        item.access_token = encrypt_secret(token)
+        db.flush()
+    return token
 
 
 def _plaid_amount(tx: dict) -> Decimal:
@@ -135,7 +143,8 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     cursor = item.cursor or ""
 
     # Fetch accounts — update local balances and build plaid_account_id → Account map
-    accounts_data = _plaid_post("/accounts/get", {"access_token": item.access_token})
+    access_token = _item_access_token(db, item)
+    accounts_data = _plaid_post("/accounts/get", {"access_token": access_token})
     local_acct_cache: dict[str, Optional[Account]] = {}
 
     for acct in accounts_data.get("accounts", []):
@@ -170,7 +179,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
     # Page through /transactions/sync, committing after each page
     while True:
-        body: dict = {"access_token": item.access_token, "count": 500}
+        body: dict = {"access_token": access_token, "count": 500}
         if cursor:
             body["cursor"] = cursor
         data = _plaid_post("/transactions/sync", body)
@@ -297,7 +306,7 @@ def exchange_token(
 
     item = PlaidItem(
         user_id=current_user.id,
-        access_token=access_token,
+        access_token=encrypt_secret(access_token),
         item_id=item_id,
         institution_name=institution_name,
     )
@@ -355,7 +364,7 @@ def disconnect_item(item_id: int, db: Session = Depends(get_db), current_user: U
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     try:
-        _plaid_post("/item/remove", {"access_token": item.access_token})
+        _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
     except Exception:
         pass
     db.delete(item)
@@ -412,7 +421,7 @@ def reset_plaid_data(
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
     for item in items:
         try:
-            _plaid_post("/item/remove", {"access_token": item.access_token})
+            _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
         except Exception:
             pass
         db.delete(item)

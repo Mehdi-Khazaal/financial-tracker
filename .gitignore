@@ -21,6 +21,13 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local databases and database exports
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.sql
 # Locally installed agent skills (npx skills)
 .agents/
 .claude/skills/

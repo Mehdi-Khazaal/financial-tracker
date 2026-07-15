@@ -4,30 +4,25 @@ from sqlalchemy import func
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal
-from models.database import get_db, Transaction, Account
+from models.database import get_db, Transaction
 from models.auth import User
 from models.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
+from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
-def _get_account(db: Session, account_id: int, user_id: int) -> Account:
-    account = db.query(Account).filter(Account.id == account_id, Account.user_id == user_id).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    return account
+def _not_found(error: LedgerResourceNotFound) -> HTTPException:
+    return HTTPException(status_code=404, detail=error.detail)
 
 
 @router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    account = _get_account(db, tx.account_id, current_user.id)
-    db_tx = Transaction(**tx.model_dump(), user_id=current_user.id)
-    db.add(db_tx)
-    account.balance = Account.balance + Decimal(str(tx.amount))
-    db.commit()
-    db.refresh(db_tx)
-    return db_tx
+    try:
+        return LedgerService(db).create_transaction(current_user.id, tx.model_dump())
+    except LedgerResourceNotFound as error:
+        raise _not_found(error) from error
 
 
 @router.get("/", response_model=List[TransactionResponse])
@@ -77,38 +72,19 @@ def get_transaction(transaction_id: int, db: Session = Depends(get_db), current_
 
 @router.put("/{transaction_id}", response_model=TransactionResponse)
 def update_transaction(transaction_id: int, update: TransactionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    tx = db.query(Transaction).filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-
-    old_amount = Decimal(str(tx.amount))
-    old_account_id = tx.account_id
-    data = update.model_dump(exclude_unset=True)
-    new_account_id = data.get("account_id", old_account_id)
-    new_amount = data.get("amount", old_amount)
-
-    if old_account_id != new_account_id:
-        old_account = _get_account(db, old_account_id, current_user.id)
-        old_account.balance = Account.balance - old_amount
-        new_account = _get_account(db, new_account_id, current_user.id)
-        new_account.balance = Account.balance + new_amount
-    else:
-        account = _get_account(db, old_account_id, current_user.id)
-        account.balance = Account.balance - old_amount + new_amount
-
-    for field, value in data.items():
-        setattr(tx, field, value)
-    db.commit()
-    db.refresh(tx)
-    return tx
+    try:
+        return LedgerService(db).update_transaction(
+            current_user.id,
+            transaction_id,
+            update.model_dump(exclude_unset=True),
+        )
+    except LedgerResourceNotFound as error:
+        raise _not_found(error) from error
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    tx = db.query(Transaction).filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    account = _get_account(db, tx.account_id, current_user.id)
-    account.balance = Account.balance - Decimal(str(tx.amount))
-    db.delete(tx)
-    db.commit()
+    try:
+        LedgerService(db).delete_transaction(current_user.id, transaction_id)
+    except LedgerResourceNotFound as error:
+        raise _not_found(error) from error

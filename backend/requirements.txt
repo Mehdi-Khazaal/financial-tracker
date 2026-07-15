@@ -1,13 +1,13 @@
 fastapi>=0.115.0
 uvicorn>=0.32.0
-httpx2>=0.28.0
 alembic>=1.14.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
-python-jose[cryptography]>=3.3.0
+PyJWT==2.13.0
 bcrypt>=4.0.0
+cryptography==48.0.1
 email-validator>=2.0.0
 python-multipart>=0.0.20
 requests>=2.31.0

@@ -1,10 +1,11 @@
 import os
+import hmac
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from models.database import get_db, RecurringTransaction, Transaction, Account
+from models.database import get_db, RecurringTransaction, Transaction, Account, Category
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 
@@ -40,9 +41,9 @@ def _next_date(current: date, period: str) -> date:
 @router.post("/process-recurring")
 def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
     """Process all users' due fixed recurring transactions. Secured by CRON_SECRET."""
-    secret = request.headers.get("X-Cron-Secret") or request.query_params.get("secret")
+    secret = request.headers.get("X-Cron-Secret", "")
     expected = os.getenv("CRON_SECRET")
-    if not expected or secret != expected:
+    if not expected or not hmac.compare_digest(secret.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     today = date.today()
@@ -58,9 +59,18 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
 
     created = 0
     for rec in due:
-        account = db.query(Account).filter(Account.id == rec.account_id).first()
+        account = db.query(Account).filter(Account.id == rec.account_id, Account.user_id == rec.user_id).first()
         if not account:
             continue
+        if rec.category_id is not None:
+            category = (
+                db.query(Category)
+                .filter(Category.id == rec.category_id)
+                .filter((Category.user_id == rec.user_id) | (Category.user_id.is_(None)))
+                .first()
+            )
+            if not category:
+                continue
         tx = Transaction(
             user_id=rec.user_id,
             account_id=rec.account_id,

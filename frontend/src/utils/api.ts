@@ -1,16 +1,13 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'https://financial-tracker-api-1osn.onrender.com',
+  baseURL: process.env.REACT_APP_API_URL || '/api',
   withCredentials: true,
 });
 
-// Send stored access token as Bearer header (cross-origin cookie fallback)
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('access_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// Remove bearer tokens left by pre-cookie releases. Authentication now stays
+// in HttpOnly cookies so page scripts cannot read or exfiltrate the session.
+localStorage.removeItem('access_token');
 
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
@@ -22,9 +19,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
       original._retried = true;
       if (!_refreshing) {
-        _refreshing = api.post('/auth/refresh').then(res => {
-          if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
-        }).finally(() => { _refreshing = null; });
+        _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
       }
       const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
       try {
@@ -42,20 +37,11 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (identifier: string, password: string) =>
-  api.post('/auth/login', { identifier, password }).then(res => {
-    if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
-    return res;
-  });
+  api.post('/auth/login', { identifier, password });
 export const signup = (email: string, username: string, password: string) =>
-  api.post('/auth/signup', { email, username, password }).then(res => {
-    if (res.data.access_token) localStorage.setItem('access_token', res.data.access_token);
-    return res;
-  });
+  api.post('/auth/signup', { email, username, password });
 export const getMe    = () => api.get('/auth/me');
-export const logout   = () => {
-  localStorage.removeItem('access_token');
-  return api.post('/auth/logout');
-};
+export const logout   = () => api.post('/auth/logout');
 export const changePassword = (current_password: string, new_password: string) =>
   api.post('/auth/change-password', { current_password, new_password });
 
@@ -130,13 +116,58 @@ export const getNetWorthHistory = (months = 12) => api.get(`/history/net-worth?m
 export const getAccountHistory  = (id: number, months = 6) => api.get(`/history/account/${id}?months=${months}`);
 
 // ── AI Assistant ──────────────────────────────────────────────────────────────
-export const assistantListConversations = () => api.get('/assistant/conversations');
-export const assistantGetConversation   = (id: number) => api.get(`/assistant/conversations/${id}`);
+export type AssistantRole = 'user' | 'assistant';
+export interface AssistantMessage { role: AssistantRole; content: string; created_at?: string; }
+export interface AssistantConversation { id: number; title: string; updated_at: string; }
+export interface AssistantPendingAction {
+  tool: string;
+  input: Record<string, unknown>;
+  summary: string;
+  action_token: string;
+}
+export interface AssistantMetric { label: string; value: number; format: 'currency' | 'number'; }
+export interface AssistantVisualRow {
+  id?: number;
+  label: string;
+  detail?: string;
+  date?: string | null;
+  value: number;
+  share?: number;
+  target?: number;
+  currency?: string;
+  income?: number;
+  spending?: number;
+}
+export interface AssistantVisualBlock {
+  type: 'metric_grid' | 'category_breakdown' | 'transaction_list' | 'progress_list' | 'account_list' | 'cashflow_trend';
+  title: string;
+  scope: string;
+  source: string;
+  total?: number;
+  metrics?: AssistantMetric[];
+  rows?: AssistantVisualRow[];
+}
+export interface AssistantChatResponse {
+  conversation_id: number;
+  title: string;
+  reply: string;
+  pending_actions: AssistantPendingAction[];
+  visual_blocks: AssistantVisualBlock[];
+}
+
+export const assistantListConversations = () => api.get<AssistantConversation[]>('/assistant/conversations');
+export const assistantGetConversation   = (id: number) => api.get<{ id: number; title: string; messages: AssistantMessage[] }>(`/assistant/conversations/${id}`);
 export const assistantDeleteConversation = (id: number) => api.delete(`/assistant/conversations/${id}`);
-export const assistantChat = (message: string, conversation_id?: number | null) =>
-  api.post('/assistant/chat', { message, conversation_id: conversation_id ?? null });
-export const assistantExecute = (tool: string, input: any, conversation_id?: number | null) =>
-  api.post('/assistant/execute', { tool, input, conversation_id: conversation_id ?? null });
+export const assistantGetBriefing = () => api.get<{ as_of: string; blocks: AssistantVisualBlock[] }>('/assistant/briefing');
+export const assistantChat = (message: string, conversation_id?: number | null, signal?: AbortSignal) =>
+  api.post<AssistantChatResponse>('/assistant/chat', { message, conversation_id: conversation_id ?? null }, { signal });
+export const assistantExecute = (action: AssistantPendingAction, conversation_id?: number | null) =>
+  api.post<{ success: boolean; message: string }>('/assistant/execute', {
+    tool: action.tool,
+    input: action.input,
+    action_token: action.action_token,
+    conversation_id: conversation_id ?? null,
+  });
 export const assistantListMemories  = () => api.get('/assistant/memories');
 export const assistantDeleteMemory  = (id: number) => api.delete(`/assistant/memories/${id}`);
 

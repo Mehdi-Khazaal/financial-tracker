@@ -1,7 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
-from models.database import get_db, Account
+from models.database import (
+    Account,
+    RecurringTransaction,
+    SavingsGoal,
+    SavingsGoalAllocation,
+    Transaction,
+    Transfer,
+    get_db,
+)
 from models.auth import User
 from models.schemas import AccountCreate, AccountUpdate, AccountResponse
 from utils.auth import get_current_user
@@ -48,5 +57,21 @@ def delete_account(account_id: int, db: Session = Depends(get_db), current_user:
     account = db.query(Account).filter(Account.id == account_id, Account.user_id == current_user.id).first()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    has_financial_history = any(
+        (
+            db.query(Transaction.id).filter(Transaction.account_id == account.id).first(),
+            db.query(Transfer.id)
+            .filter(or_(Transfer.from_account_id == account.id, Transfer.to_account_id == account.id))
+            .first(),
+            db.query(RecurringTransaction.id).filter(RecurringTransaction.account_id == account.id).first(),
+            db.query(SavingsGoal.id).filter(SavingsGoal.account_id == account.id).first(),
+            db.query(SavingsGoalAllocation.id).filter(SavingsGoalAllocation.account_id == account.id).first(),
+        )
+    )
+    if has_financial_history:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account with financial history cannot be deleted",
+        )
     db.delete(account)
     db.commit()

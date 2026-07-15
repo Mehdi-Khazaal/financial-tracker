@@ -12,6 +12,7 @@ from routers import accounts, assets, auth, categories, transactions
 from routers import admin, assistant, cron, history, loans, plaid_router, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
+from utils.security import BrowserOriginMiddleware
 
 
 logger = get_logger(__name__)
@@ -35,6 +36,7 @@ def _prepare_database() -> None:
         "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_tx_id VARCHAR(200)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_plaid_tx_id ON transactions (plaid_tx_id) WHERE plaid_tx_id IS NOT NULL",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plaid_account_id VARCHAR(200)",
@@ -67,6 +69,7 @@ _allowed_origins = [
     if origin
 ]
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -74,6 +77,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "Cookie"],
 )
+app.add_middleware(BrowserOriginMiddleware, allowed_origins=_allowed_origins)
 
 app.include_router(auth.router)
 app.include_router(accounts.router)
@@ -99,6 +103,12 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if os.getenv("ENVIRONMENT") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
 

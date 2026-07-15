@@ -12,12 +12,16 @@ Design:
 
 import json
 import os
+import secrets
+from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from threading import Lock
+from time import monotonic
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -37,6 +41,7 @@ from models.database import (
 )
 from utils.auth import get_current_user
 from utils.logging import get_logger, kv
+from utils.limiter import limiter
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 logger = get_logger(__name__)
@@ -45,6 +50,18 @@ MODEL = "claude-haiku-4-5"
 MAX_TOKENS = 2048
 MAX_TOOL_ITERATIONS = 8
 MAX_HISTORY_MESSAGES = 30
+MAX_MESSAGE_CHARS = 4000
+MAX_REPLY_CHARS = 12000
+MAX_CONVERSATIONS = 100
+MAX_STORED_MESSAGES = 200
+MAX_LISTED_CONVERSATIONS = 100
+PENDING_ACTION_TTL_SECONDS = 10 * 60
+MAX_PENDING_ACTIONS = 2000
+
+# A schema migration is intentionally avoided here. Pending confirmations are
+# process-local, short-lived, unguessable, and consumed atomically on execute.
+_pending_actions: OrderedDict[str, dict] = OrderedDict()
+_pending_actions_lock = Lock()
 
 
 # ─── JSON helpers ────────────────────────────────────────────────────────────
@@ -60,11 +77,106 @@ def _dump(obj) -> str:
     return json.dumps(obj, default=_jsonable)
 
 
+def _date_scope(tool_input: dict, *, as_of: Optional[date] = None) -> str:
+    start = tool_input.get("date_from")
+    end = tool_input.get("date_to")
+    if start and end:
+        return f"{start} to {end}"
+    if start:
+        return f"Since {start}"
+    if end:
+        return f"Through {end}"
+    return f"As of {(as_of or date.today()).isoformat()}"
+
+
+def _visual_block_for_tool(name: str, tool_input: dict, result, *, as_of: Optional[date] = None) -> Optional[dict]:
+    """Turn trusted read-tool output into a small, client-renderable block."""
+    source = "Fintrack ledger"
+    scope = _date_scope(tool_input, as_of=as_of)
+
+    if name == "get_overview" and isinstance(result, dict):
+        metrics = [
+            {"label": "Estimated net worth", "value": result.get("estimated_net_worth", 0), "format": "currency"},
+            {"label": "Liquid balance", "value": result.get("liquid_balance", 0), "format": "currency"},
+            {"label": "Assets", "value": result.get("assets_total", 0), "format": "currency"},
+            {"label": "Credit cards", "value": result.get("credit_card_balance", 0), "format": "currency"},
+        ]
+        return {"type": "metric_grid", "title": "Financial position", "scope": scope, "source": source, "metrics": metrics}
+
+    if name == "spending_by_category" and isinstance(result, list):
+        total = sum(float(row.get("total_spent") or 0) for row in result)
+        rows = [
+            {
+                "label": str(row.get("category") or "Uncategorized"),
+                "value": float(row.get("total_spent") or 0),
+                "share": (float(row.get("total_spent") or 0) / total) if total else 0,
+            }
+            for row in result[:8]
+        ]
+        return {"type": "category_breakdown", "title": "Spending by category", "scope": scope, "source": source, "total": total, "rows": rows}
+
+    if name == "list_transactions" and isinstance(result, list):
+        rows = [
+            {
+                "id": row.get("id"),
+                "label": row.get("description") or "Transaction",
+                "date": row.get("date"),
+                "value": float(row.get("amount") or 0),
+            }
+            for row in result[:10]
+        ]
+        return {"type": "transaction_list", "title": "Transactions", "scope": scope, "source": source, "rows": rows}
+
+    if name == "cashflow_trend" and isinstance(result, list):
+        scope = f"Last {len(result)} months through {(as_of or date.today()).isoformat()}"
+        rows = [
+            {
+                "label": row.get("month"),
+                "value": float(row.get("net") or 0),
+                "income": float(row.get("income") or 0),
+                "spending": float(row.get("spending") or 0),
+            }
+            for row in result
+        ]
+        return {"type": "cashflow_trend", "title": "Cash flow trend", "scope": scope, "source": source, "rows": rows}
+
+    if name == "list_savings_goals" and isinstance(result, list):
+        rows = [
+            {
+                "id": row.get("id"),
+                "label": row.get("name") or "Savings goal",
+                "value": float(row.get("saved") or 0),
+                "target": float(row.get("target_amount") or 0),
+                "date": row.get("deadline"),
+            }
+            for row in result[:8]
+        ]
+        return {"type": "progress_list", "title": "Savings goals", "scope": scope, "source": source, "rows": rows}
+
+    if name == "list_accounts" and isinstance(result, list):
+        rows = [
+            {
+                "id": row.get("id"),
+                "label": row.get("name") or "Account",
+                "detail": str(row.get("type") or "account").replace("_", " "),
+                "value": float(row.get("balance") or 0),
+                "currency": row.get("currency") or "USD",
+            }
+            for row in result[:10]
+        ]
+        return {"type": "account_list", "title": "Accounts", "scope": scope, "source": source, "rows": rows}
+
+    return None
+
+
 def _num(value) -> Decimal:
     try:
-        return Decimal(str(value))
+        number = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
         raise HTTPException(status_code=400, detail=f"Invalid number: {value!r}")
+    if not number.is_finite() or abs(number) > Decimal("9999999999999.99"):
+        raise HTTPException(status_code=400, detail="Number is outside the supported range")
+    return number
 
 
 def _parse_date(value) -> Optional[date]:
@@ -77,6 +189,19 @@ def _parse_date(value) -> Optional[date]:
         return date.fromisoformat(str(value)[:10])
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid date (expected YYYY-MM-DD): {value!r}")
+
+
+def _clean_text(value, field: str, max_length: int, required: bool = True) -> Optional[str]:
+    if value is None and not required:
+        return None
+    if not isinstance(value, str):
+        raise HTTPException(status_code=400, detail=f"{field} must be text")
+    cleaned = value.strip()
+    if required and not cleaned:
+        raise HTTPException(status_code=400, detail=f"{field} is required")
+    if len(cleaned) > max_length:
+        raise HTTPException(status_code=400, detail=f"{field} is too long")
+    return cleaned or None
 
 
 # ─── Read-tool implementations (execute immediately) ─────────────────────────
@@ -157,6 +282,42 @@ def _t_spending_by_category(db: Session, user: User, date_from: Optional[str] = 
     return [{"category": name or "Uncategorized", "total_spent": _jsonable(total)} for name, total in rows]
 
 
+def _t_cashflow_trend(db: Session, user: User, months: int = 6, **_) -> list:
+    try:
+        months = max(1, min(int(months), 24))
+    except (TypeError, ValueError):
+        months = 6
+    today = date.today()
+    month_index = today.year * 12 + today.month - 1
+    start_index = month_index - months + 1
+    start = date(start_index // 12, start_index % 12 + 1, 1)
+    rows = (
+        db.query(Transaction)
+        .filter(Transaction.user_id == user.id, Transaction.transaction_date >= start)
+        .order_by(Transaction.transaction_date)
+        .all()
+    )
+    buckets = {}
+    for offset in range(months):
+        index = start_index + offset
+        buckets[f"{index // 12:04d}-{index % 12 + 1:02d}"] = {"income": Decimal("0"), "spending": Decimal("0")}
+    for transaction in rows:
+        key = transaction.transaction_date.strftime("%Y-%m")
+        if transaction.amount >= 0:
+            buckets[key]["income"] += transaction.amount
+        else:
+            buckets[key]["spending"] += abs(transaction.amount)
+    return [
+        {
+            "month": month,
+            "income": _jsonable(values["income"]),
+            "spending": _jsonable(values["spending"]),
+            "net": _jsonable(values["income"] - values["spending"]),
+        }
+        for month, values in buckets.items()
+    ]
+
+
 def _t_list_recurring(db: Session, user: User, **_) -> list:
     rows = db.query(RecurringTransaction).filter(RecurringTransaction.user_id == user.id, RecurringTransaction.is_active.is_(True)).all()
     return [
@@ -213,10 +374,15 @@ def _t_list_assets(db: Session, user: User, **_) -> list:
 
 
 def _t_save_memory(db: Session, user: User, content: str = "", **_) -> dict:
-    content = (content or "").strip()
+    if not isinstance(content, str):
+        return {"saved": False, "reason": "content must be text"}
+    content = content.strip()
     if not content:
         return {"saved": False, "reason": "empty"}
-    db.add(AssistantMemory(user_id=user.id, content=content[:2000]))
+    memory_count = db.query(func.count(AssistantMemory.id)).filter(AssistantMemory.user_id == user.id).scalar()
+    if memory_count >= 100:
+        return {"saved": False, "reason": "memory limit reached"}
+    db.add(AssistantMemory(user_id=user.id, content=content[:1000]))
     db.commit()
     return {"saved": True}
 
@@ -226,6 +392,7 @@ READ_TOOLS = {
     "list_accounts": _t_list_accounts,
     "list_transactions": _t_list_transactions,
     "spending_by_category": _t_spending_by_category,
+    "cashflow_trend": _t_cashflow_trend,
     "list_recurring": _t_list_recurring,
     "list_savings_goals": _t_list_savings_goals,
     "list_loans": _t_list_loans,
@@ -272,6 +439,14 @@ def _tool_schemas() -> list:
                     "date_from": {"type": "string"},
                     "date_to": {"type": "string"},
                 },
+            },
+        },
+        {
+            "name": "cashflow_trend",
+            "description": "Get monthly income, spending, and net cash flow for a trend comparison.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"months": {"type": "integer", "minimum": 1, "maximum": 24}},
             },
         },
         {"name": "list_recurring", "description": "List active recurring transactions (subscriptions, salary, bills).", "input_schema": {"type": "object", "properties": {}}},
@@ -382,7 +557,9 @@ def _build_system_prompt(db: Session, user: User) -> str:
         "- To CHANGE data (add a transaction, account, savings goal, or loan), call the matching `add_*` tool. These are NOT executed immediately — they are surfaced to the user as a confirmation card. Tell the user you've prepared it and ask them to confirm.\n"
         "- Never claim a change is done until the user confirms it. After proposing, stop and let them confirm.\n"
         "- When you learn a durable fact about the user (a goal, a habit, a preference, a rule), call `save_memory` so you remember it forever.\n"
-        "- Be brief. Lead with the answer. Use plain text and short lists; no markdown tables.\n\n"
+        "- Use the narrowest read tool that can answer the question, including an explicit date range when the user names a period.\n"
+        "- The interface visualizes read-tool results separately. Summarize the finding and implication; do not repeat every row.\n"
+        "- Be brief. Lead with the answer. Use plain text and short lists; no markdown tables. Never invent a value that was not returned by a tool.\n\n"
         "## Live financial snapshot\n"
         f"{_dump(overview)}\n"
         f"Accounts: {_dump(accounts)}\n\n"
@@ -393,14 +570,26 @@ def _build_system_prompt(db: Session, user: User) -> str:
 
 # ─── Request / response models ───────────────────────────────────────────────
 class ChatRequest(BaseModel):
-    conversation_id: Optional[int] = None
-    message: str
+    conversation_id: Optional[int] = Field(default=None, gt=0)
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
 
 
 class ExecuteRequest(BaseModel):
-    conversation_id: Optional[int] = None
-    tool: str
+    conversation_id: Optional[int] = Field(default=None, gt=0)
+    tool: str = Field(min_length=1, max_length=50)
     input: dict
+    action_token: str = Field(min_length=32, max_length=128)
+
+    @field_validator("input")
+    @classmethod
+    def validate_input_size(cls, value: dict) -> dict:
+        try:
+            serialized = json.dumps(value, separators=(",", ":"), allow_nan=False)
+        except (TypeError, ValueError):
+            raise ValueError("input must contain valid JSON values")
+        if len(serialized) > 8000:
+            raise ValueError("input is too large")
+        return value
 
 
 # ─── Conversation helpers ────────────────────────────────────────────────────
@@ -415,6 +604,52 @@ def _get_conversation(db: Session, user: User, conversation_id: int) -> Assistan
     return conv
 
 
+def _register_pending_action(user_id: int, conversation_id: int, tool: str, tool_input: dict) -> str:
+    now = monotonic()
+    token = secrets.token_urlsafe(32)
+    with _pending_actions_lock:
+        expired = [key for key, item in _pending_actions.items() if item["expires_at"] <= now]
+        for key in expired:
+            _pending_actions.pop(key, None)
+        _pending_actions[token] = {
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "tool": tool,
+            "input": tool_input,
+            "expires_at": now + PENDING_ACTION_TTL_SECONDS,
+        }
+        while len(_pending_actions) > MAX_PENDING_ACTIONS:
+            _pending_actions.popitem(last=False)
+    return token
+
+
+def _consume_pending_action(token: str, user_id: int, conversation_id: Optional[int]) -> dict:
+    with _pending_actions_lock:
+        action = _pending_actions.get(token)
+        if not action or action["expires_at"] <= monotonic():
+            _pending_actions.pop(token, None)
+            raise HTTPException(status_code=400, detail="Pending action is invalid or expired")
+        if action["user_id"] != user_id or action["conversation_id"] != conversation_id:
+            raise HTTPException(status_code=404, detail="Pending action not found")
+        _pending_actions.pop(token)
+    return action
+
+
+def _prune_conversation_messages(db: Session, conversation_id: int) -> None:
+    stale_ids = [
+        row[0]
+        for row in (
+            db.query(AssistantMessage.id)
+            .filter(AssistantMessage.conversation_id == conversation_id)
+            .order_by(AssistantMessage.id.desc())
+            .offset(MAX_STORED_MESSAGES)
+            .all()
+        )
+    ]
+    if stale_ids:
+        db.query(AssistantMessage).filter(AssistantMessage.id.in_(stale_ids)).delete(synchronize_session=False)
+
+
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @router.get("/conversations")
 def list_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -422,19 +657,46 @@ def list_conversations(db: Session = Depends(get_db), current_user: User = Depen
         db.query(AssistantConversation)
         .filter(AssistantConversation.user_id == current_user.id)
         .order_by(AssistantConversation.updated_at.desc())
+        .limit(MAX_LISTED_CONVERSATIONS)
         .all()
     )
     return [{"id": c.id, "title": c.title, "updated_at": _jsonable(c.updated_at)} for c in rows]
 
 
+@router.get("/briefing")
+def get_briefing(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return a fast, model-free briefing sourced only from the user's ledger."""
+    today = date.today()
+    month_input = {"date_from": today.replace(day=1).isoformat(), "date_to": today.isoformat()}
+    overview = _t_get_overview(db, current_user)
+    categories = _t_spending_by_category(db, current_user, **month_input)
+    transactions = _t_list_transactions(db, current_user, **month_input, limit=5)
+    blocks = []
+    if overview.get("account_count", 0):
+        blocks.append(_visual_block_for_tool("get_overview", {}, overview, as_of=today))
+    if categories:
+        blocks.append(_visual_block_for_tool("spending_by_category", month_input, categories, as_of=today))
+    elif transactions:
+        blocks.append(_visual_block_for_tool("list_transactions", month_input, transactions, as_of=today))
+    return {"as_of": today.isoformat(), "blocks": [block for block in blocks if block]}
+
+
 @router.get("/conversations/{conversation_id}")
 def get_conversation(conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conv = _get_conversation(db, current_user, conversation_id)
+    messages = (
+        db.query(AssistantMessage)
+        .filter(AssistantMessage.conversation_id == conv.id, AssistantMessage.user_id == current_user.id)
+        .order_by(AssistantMessage.id.desc())
+        .limit(MAX_STORED_MESSAGES)
+        .all()
+    )
     return {
         "id": conv.id,
         "title": conv.title,
         "messages": [
-            {"role": m.role, "content": m.content, "created_at": _jsonable(m.created_at)} for m in conv.messages
+            {"role": m.role, "content": m.content[:MAX_REPLY_CHARS], "created_at": _jsonable(m.created_at)}
+            for m in reversed(messages)
         ],
     }
 
@@ -452,6 +714,7 @@ def list_memories(db: Session = Depends(get_db), current_user: User = Depends(ge
         db.query(AssistantMemory)
         .filter(AssistantMemory.user_id == current_user.id)
         .order_by(AssistantMemory.created_at.desc())
+        .limit(100)
         .all()
     )
     return [{"id": m.id, "content": m.content, "created_at": _jsonable(m.created_at)} for m in rows]
@@ -467,7 +730,14 @@ def delete_memory(memory_id: int, db: Session = Depends(get_db), current_user: U
 
 
 @router.post("/chat")
-def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@limiter.limit("20/minute")
+def chat(
+    req: ChatRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    del request
     message = (req.message or "").strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message is empty")
@@ -488,6 +758,13 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
     if req.conversation_id:
         conv = _get_conversation(db, current_user, req.conversation_id)
     else:
+        conversation_count = (
+            db.query(func.count(AssistantConversation.id))
+            .filter(AssistantConversation.user_id == current_user.id)
+            .scalar()
+        )
+        if conversation_count >= MAX_CONVERSATIONS:
+            raise HTTPException(status_code=409, detail="Conversation limit reached; delete an older chat first")
         conv = AssistantConversation(user_id=current_user.id, title=message[:60])
         db.add(conv)
         db.commit()
@@ -496,18 +773,19 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
     # Build the message history for the API from stored turns
     history = (
         db.query(AssistantMessage)
-        .filter(AssistantMessage.conversation_id == conv.id)
+        .filter(AssistantMessage.conversation_id == conv.id, AssistantMessage.user_id == current_user.id)
         .order_by(AssistantMessage.id.desc())
         .limit(MAX_HISTORY_MESSAGES)
         .all()
     )
     history = list(reversed(history))
-    api_messages = [{"role": m.role, "content": m.content} for m in history]
+    api_messages = [{"role": m.role, "content": m.content[:MAX_REPLY_CHARS]} for m in history]
     api_messages.append({"role": "user", "content": message})
 
     system_prompt = _build_system_prompt(db, current_user)
     tools = _tool_schemas()
     pending_actions: list[dict] = []
+    visual_blocks: list[dict] = []
 
     client = anthropic.Anthropic(api_key=api_key)
     response = None
@@ -530,8 +808,14 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
                     continue
                 name, tool_input = block.name, dict(block.input or {})
                 if name in WRITE_TOOLS:
+                    action_token = _register_pending_action(current_user.id, conv.id, name, tool_input)
                     pending_actions.append(
-                        {"tool": name, "input": tool_input, "summary": _action_summary(name, tool_input)}
+                        {
+                            "tool": name,
+                            "input": tool_input,
+                            "summary": _action_summary(name, tool_input),
+                            "action_token": action_token,
+                        }
                     )
                     result_str = (
                         "Proposed and surfaced to the user for confirmation. It is NOT executed yet — "
@@ -539,7 +823,11 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
                     )
                 elif name in READ_TOOLS:
                     try:
-                        result_str = _dump(READ_TOOLS[name](db, current_user, **tool_input))
+                        tool_result = READ_TOOLS[name](db, current_user, **tool_input)
+                        result_str = _dump(tool_result)
+                        block = _visual_block_for_tool(name, tool_input, tool_result)
+                        if block:
+                            visual_blocks.append(block)
                     except HTTPException as exc:
                         result_str = _dump({"error": exc.detail})
                 else:
@@ -554,10 +842,14 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
     if not reply:
         reply = "Done." if pending_actions else "I'm not sure how to help with that — could you rephrase?"
 
+    reply = reply[:MAX_REPLY_CHARS]
+
     # Persist this turn (user message + assistant reply text only)
     db.add(AssistantMessage(conversation_id=conv.id, user_id=current_user.id, role="user", content=message))
     db.add(AssistantMessage(conversation_id=conv.id, user_id=current_user.id, role="assistant", content=reply))
     conv.updated_at = datetime.utcnow()
+    db.flush()
+    _prune_conversation_messages(db, conv.id)
     db.commit()
 
     return {
@@ -565,13 +857,24 @@ def chat(req: ChatRequest, db: Session = Depends(get_db), current_user: User = D
         "title": conv.title,
         "reply": reply,
         "pending_actions": pending_actions,
+        "visual_blocks": visual_blocks[-4:],
     }
 
 
 @router.post("/execute")
-def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@limiter.limit("30/minute")
+def execute_action(
+    req: ExecuteRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Run a write action the user has confirmed."""
-    tool, inp = req.tool, req.input or {}
+    del request
+    action = _consume_pending_action(req.action_token, current_user.id, req.conversation_id)
+    if req.tool != action["tool"] or req.input != action["input"]:
+        raise HTTPException(status_code=400, detail="Pending action payload does not match")
+    tool, inp = action["tool"], action["input"]
     if tool not in WRITE_TOOLS:
         raise HTTPException(status_code=400, detail=f"'{tool}' is not an executable action")
 
@@ -580,12 +883,18 @@ def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_u
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
         amount = abs(_num(inp.get("amount")))
-        signed = amount if inp.get("direction") == "income" else -amount
+        if amount == 0:
+            raise HTTPException(status_code=400, detail="amount must be greater than zero")
+        direction = inp.get("direction")
+        if direction not in {"income", "expense"}:
+            raise HTTPException(status_code=400, detail="direction must be income or expense")
+        signed = amount if direction == "income" else -amount
         category_id = None
         if inp.get("category"):
+            category_name = _clean_text(inp["category"], "category", 100)
             cat = (
                 db.query(Category)
-                .filter(func.lower(Category.name) == str(inp["category"]).lower())
+                .filter(func.lower(Category.name) == category_name.lower())
                 .filter((Category.user_id == current_user.id) | (Category.user_id.is_(None)))
                 .first()
             )
@@ -598,7 +907,7 @@ def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_u
             account_id=account.id,
             category_id=category_id,
             amount=signed,
-            description=inp.get("description"),
+            description=_clean_text(inp.get("description"), "description", 500, required=False),
             transaction_date=tx_date,
         )
         db.add(tx)
@@ -607,10 +916,13 @@ def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_u
         message = "Transaction recorded."
 
     elif tool == "add_account":
+        account_type = inp.get("type")
+        if account_type not in {"checking", "savings", "credit_card", "cash", "investment"}:
+            raise HTTPException(status_code=400, detail="Invalid account type")
         acc = Account(
             user_id=current_user.id,
-            name=inp.get("name"),
-            type=inp.get("type"),
+            name=_clean_text(inp.get("name"), "name", 100),
+            type=account_type,
             balance=_num(inp.get("balance", 0)),
         )
         db.add(acc)
@@ -618,10 +930,13 @@ def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_u
         message = "Account created."
 
     elif tool == "add_savings_goal":
+        target_amount = _num(inp.get("target_amount"))
+        if target_amount <= 0:
+            raise HTTPException(status_code=400, detail="target_amount must be greater than zero")
         goal = SavingsGoal(
             user_id=current_user.id,
-            name=inp.get("name"),
-            target_amount=_num(inp.get("target_amount")),
+            name=_clean_text(inp.get("name"), "name", 100),
+            target_amount=target_amount,
             deadline=_parse_date(inp.get("deadline")),
         )
         db.add(goal)
@@ -629,11 +944,14 @@ def execute_action(req: ExecuteRequest, db: Session = Depends(get_db), current_u
         message = "Savings goal created."
 
     elif tool == "add_loan":
+        loan_amount = _num(inp.get("amount"))
+        if loan_amount <= 0:
+            raise HTTPException(status_code=400, detail="amount must be greater than zero")
         loan = Loan(
             user_id=current_user.id,
-            borrower_name=inp.get("borrower_name"),
-            amount=_num(inp.get("amount")),
-            note=inp.get("note"),
+            borrower_name=_clean_text(inp.get("borrower_name"), "borrower_name", 100),
+            amount=loan_amount,
+            note=_clean_text(inp.get("note"), "note", 1000, required=False),
             loan_date=_parse_date(inp.get("loan_date")) or date.today(),
             due_date=_parse_date(inp.get("due_date")),
         )

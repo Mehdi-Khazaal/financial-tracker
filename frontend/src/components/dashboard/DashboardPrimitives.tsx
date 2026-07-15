@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const DashboardSkeleton: React.FC = () => (
-  <div className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+  <div>
     <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
       <div className="skeleton h-48 w-full rounded-xl" />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">{[0, 1, 2, 3, 4].map(i => <div key={i} className="skeleton h-12" />)}</div>

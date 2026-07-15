@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
@@ -19,6 +19,9 @@ const TopBar: React.FC = () => {
   const { privacy, togglePrivacy, setPaletteOpen } = useUI();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -28,13 +31,43 @@ const TopBar: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const menuItems = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    menuItems[0]?.focus();
+
+    const handleMenuKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        accountButtonRef.current?.focus();
+        return;
+      }
+
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? menuItems.length - 1
+          : event.key === 'ArrowDown'
+            ? (currentIndex + 1) % menuItems.length
+            : (currentIndex - 1 + menuItems.length) % menuItems.length;
+      menuItems[nextIndex]?.focus();
+    };
+
+    document.addEventListener('keydown', handleMenuKeyDown);
+    return () => document.removeEventListener('keydown', handleMenuKeyDown);
+  }, [open]);
+
   if (!user) return null;
 
   return (
-    <div ref={ref} className="app-topbar fixed flex items-center gap-2"
-      style={{
-        zIndex: 'var(--z-topbar)' as any,
-      }}>
+    <div ref={ref} className="app-topbar fixed flex items-center gap-2">
 
       {/* Search / command palette — desktop only; mobile keeps the bottom nav */}
       <button
@@ -66,15 +99,20 @@ const TopBar: React.FC = () => {
 
       {/* Avatar */}
       <button
+        ref={accountButtonRef}
         onClick={() => setOpen(o => !o)}
         aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
         className="topbar-action-btn pressable w-11 h-11 md:w-9 md:h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm"
         style={{ color: 'var(--accent)' }}>
         {user.username.charAt(0).toUpperCase()}
       </button>
 
       {open && (
-        <div className="topbar-menu absolute right-0 top-11 rounded-xl overflow-hidden scale-in"
+        <div ref={menuRef} id={menuId} role="menu" aria-label="Account"
+          className="topbar-menu absolute right-0 top-12 rounded-xl overflow-hidden scale-in"
           style={{
             minWidth: '210px',
             transformOrigin: 'top right',
@@ -85,6 +123,7 @@ const TopBar: React.FC = () => {
           </div>
           <Link
             to="/settings"
+            role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-4 py-3 text-sm transition-colors"
             style={{ color: 'var(--muted)' }}
@@ -96,6 +135,7 @@ const TopBar: React.FC = () => {
             Settings
           </Link>
           <button
+            role="menuitem"
             onClick={() => { togglePrivacy(); setOpen(false); }}
             className="flex items-center gap-3 w-full px-4 py-3 text-sm transition-colors"
             style={{ color: 'var(--muted)', borderTop: '1px solid var(--line)' }}
@@ -105,6 +145,7 @@ const TopBar: React.FC = () => {
             {privacy ? 'Show amounts' : 'Hide amounts'}
           </button>
           <button
+            role="menuitem"
             onClick={() => { setOpen(false); logout(); }}
             className="flex items-center gap-3 w-full px-4 py-3 text-sm"
             style={{ color: 'var(--neg)', borderTop: '1px solid var(--line)' }}

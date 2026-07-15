@@ -1,8 +1,7 @@
-import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Request
+import jwt
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from jose import JWTError, jwt
 from models.database import get_db, Category
 from models.auth import User, UserCreate, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
 from utils.auth import (
@@ -49,7 +48,8 @@ def seed_user_categories(db: Session, user_id: int):
 
 # ─── Signup ───────────────────────────────────────────────────────────────────
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("3/hour")
+def signup(request: Request, user: UserCreate, response: Response, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(User).filter(User.username == user.username).first():
@@ -67,10 +67,10 @@ def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
 
     seed_user_categories(db, db_user.id)
 
-    verify_token = create_verify_token(db_user.id)
+    verify_token = create_verify_token(db_user.id, db_user.session_version)
     send_verification(db_user.email, verify_token)
 
-    access = set_auth_cookies(response, db_user.id)
+    set_auth_cookies(response, db_user.id, db_user.session_version)
     return {
         "id": db_user.id,
         "email": db_user.email,
@@ -78,7 +78,6 @@ def signup(user: UserCreate, response: Response, db: Session = Depends(get_db)):
         "is_verified": db_user.is_verified,
         "is_admin": db_user.is_admin,
         "created_at": db_user.created_at,
-        "access_token": access,
     }
 
 
@@ -96,19 +95,19 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
             detail="Invalid credentials",
         )
 
-    # Auto-promote to admin if email matches ADMIN_EMAIL env var
-    admin_email = os.getenv("ADMIN_EMAIL", "").lower()
-    if admin_email and db_user.email.lower() == admin_email and not db_user.is_admin:
-        db_user.is_admin = True
-        db.commit()
-
-    access = set_auth_cookies(response, db_user.id)
-    return {"message": "Logged in successfully", "access_token": access}
+    set_auth_cookies(response, db_user.id, db_user.session_version)
+    return {"message": "Logged in successfully"}
 
 
 # ─── Logout ───────────────────────────────────────────────────────────────────
 @router.post("/logout")
-def logout(response: Response):
+def logout(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.session_version += 1
+    db.commit()
     clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
 
@@ -123,17 +122,19 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
         if payload.get("type") != "refresh":
             raise ValueError("wrong token type")
         user_id = int(payload["sub"])
-    except (JWTError, ValueError, KeyError):
+    except (jwt.InvalidTokenError, ValueError, KeyError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if payload.get("sv", 0) != user.session_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
 
     from utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES
-    new_access = create_access_token({"sub": str(user_id)})
+    new_access = create_access_token({"sub": str(user_id), "sv": user.session_version})
     response.set_cookie("access_token", new_access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
-    return {"message": "Token refreshed", "access_token": new_access}
+    return {"message": "Token refreshed"}
 
 
 # ─── Get current user ─────────────────────────────────────────────────────────
@@ -153,9 +154,9 @@ async def change_password(
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     current_user.hashed_password = get_password_hash(body.new_password)
+    current_user.session_version += 1
     db.commit()
-    # Rotate tokens so any stolen session is invalidated on password change
-    set_auth_cookies(response, current_user.id)
+    set_auth_cookies(response, current_user.id, current_user.session_version)
     return {"message": "Password changed successfully"}
 
 
@@ -165,7 +166,7 @@ async def change_password(
 def forgot_password(request: Request, body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if user:
-        token = create_reset_token(user.id)
+        token = create_reset_token(user.id, user.session_version)
         send_password_reset(user.email, token)
     # Always return same response to prevent email enumeration
     return {"message": "If that email is registered, a reset link has been sent"}
@@ -179,14 +180,17 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
         if payload.get("type") != "reset":
             raise ValueError("wrong token type")
         user_id = int(payload["sub"])
-    except (JWTError, ValueError, KeyError):
+    except (jwt.InvalidTokenError, ValueError, KeyError):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if payload.get("sv", 0) != user.session_version:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     user.hashed_password = get_password_hash(body.new_password)
+    user.session_version += 1
     db.commit()
     return {"message": "Password reset successfully. You can now log in."}
 
@@ -199,12 +203,14 @@ def verify_email(token: str, db: Session = Depends(get_db)):
         if payload.get("type") != "verify":
             raise ValueError("wrong token type")
         user_id = int(payload["sub"])
-    except (JWTError, ValueError, KeyError):
+    except (jwt.InvalidTokenError, ValueError, KeyError):
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if payload.get("sv", 0) != user.session_version:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
 
     user.is_verified = True
     db.commit()

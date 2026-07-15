@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.database import Base
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 # ============ DATABASE MODEL ============
 class User(Base):
@@ -14,6 +14,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False, server_default="false")
     is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
+    session_version = Column(Integer, default=0, nullable=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # ============ PYDANTIC SCHEMAS ============
@@ -34,15 +35,14 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: str
     username: str
     is_verified: bool
     is_admin: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

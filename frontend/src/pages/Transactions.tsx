@@ -8,7 +8,7 @@ import {
   updateTransaction,
 } from '../utils/api';
 import { downloadCSV, printPDF } from '../utils/export';
-import Navigation from '../components/Navigation';
+import { AppShell, PageLayout } from '../components/layout/AppShell';
 import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
@@ -18,6 +18,7 @@ import TransactionCard from '../components/transactions/TransactionCard';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import LoadErrorBanner from '../components/LoadErrorBanner';
 
 type Tab = 'transactions' | 'list' | 'recurring';
 
@@ -326,6 +327,7 @@ const Transactions: React.FC = () => {
   const [accounts, setAccounts]         = useState<Account[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState(false);
 
   const [showTx, setShowTx]             = useState(false);
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
@@ -373,6 +375,7 @@ const Transactions: React.FC = () => {
   const exportMenuRef   = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const [txRes, accRes, catRes, recRes] = await Promise.all([
         getTransactions(), getAccounts(), getCategories(), getRecurring(),
@@ -381,7 +384,7 @@ const Transactions: React.FC = () => {
       setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
       setCategories(Array.isArray(catRes.data) ? catRes.data : []);
       setItems(Array.isArray(recRes.data) ? recRes.data : []);
-    } catch { /* ignore */ }
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, []);
 
@@ -681,12 +684,14 @@ const Transactions: React.FC = () => {
               {item.is_variable ? '~' : (pos ? '+' : '-')}${fmt(Math.abs(Number(item.amount)))}
             </p>
             <button onClick={() => handleToggle(item)}
-              className="w-8 h-5 rounded-full transition-all relative shrink-0"
+              className="w-11 h-11 rounded-full transition-all relative shrink-0"
+              role="switch" aria-checked={item.is_active} aria-label={`${item.description || 'Recurring transaction'} active`}
               style={{ backgroundColor: item.is_active ? 'var(--pos)' : 'var(--line)' }}>
-              <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all" style={{ left: item.is_active ? '14px' : '2px' }} />
+              <div className="absolute top-3 w-5 h-5 rounded-full bg-white shadow transition-all" style={{ left: item.is_active ? '21px' : '3px' }} />
             </button>
             <button onClick={() => handleDeleteRecurring(item.id)}
-              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
+              aria-label={`Delete ${item.description || 'recurring transaction'}`}
               style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -698,7 +703,8 @@ const Transactions: React.FC = () => {
           <div className="px-4 pb-3 flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-muted text-xs">$</span>
-              <input type="number" step="0.01" min="0.01" value={billInputs[item.id] ?? ''}
+              <label className="sr-only" htmlFor={`recurring-amount-${item.id}`}>Amount for {item.description || 'recurring transaction'}</label>
+              <input id={`recurring-amount-${item.id}`} type="number" inputMode="decimal" step="0.01" min="0.01" value={billInputs[item.id] ?? ''}
                 onChange={e => setBillInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
                 className="input-dark pl-6 text-sm py-2.5"
                 placeholder={`This month's amount (last: $${fmt(Math.abs(Number(item.amount)))})`} />
@@ -732,9 +738,8 @@ const Transactions: React.FC = () => {
   // ── Loading skeleton ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <div className="md:ml-60 min-h-[100dvh] flex flex-col mobile-tabs-spacer md:pb-0" style={{ backgroundColor: 'var(--bg)' }}>
+      <AppShell>
+        <PageLayout>
           <div className="p-5 space-y-4">
             <div className="skeleton h-8 w-48 rounded-xl" />
             <div className="skeleton h-6 w-full rounded-xl" />
@@ -742,8 +747,8 @@ const Transactions: React.FC = () => {
               {[0, 1, 2, 3].map(i => <div key={i} className="skeleton rounded-2xl w-44" style={{ minHeight: 140 }} />)}
             </div>
           </div>
-        </div>
-      </>
+        </PageLayout>
+      </AppShell>
     );
   }
 
@@ -754,16 +759,12 @@ const Transactions: React.FC = () => {
   ];
 
   return (
-    <>
-      <Navigation />
+    <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
 
-      <main
-        className="md:ml-60 flex flex-col overflow-hidden"
-        style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
-      >
+      <PageLayout scrollRegion="contained">
         {/* ── Header ── */}
-        <div className="topbar-safe shrink-0 flex items-center gap-2 md:gap-3 pl-4 md:pl-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="product-page-header topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher — desktop only; mobile uses the context tab bar in Navigation */}
           <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
@@ -783,10 +784,8 @@ const Transactions: React.FC = () => {
             <div ref={monthPickerRef} className="relative">
               <button
                 onClick={() => setShowMonthPicker(v => !v)}
-                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
-                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                className="header-action text-sm"
+                aria-haspopup="listbox" aria-expanded={showMonthPicker}
               >
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M13.25 3v2.25M3 8.25h14M5.25 3.75h9.5A2.25 2.25 0 0117 6v10.5A2.25 2.25 0 0114.75 18.75H5.25A2.25 2.25 0 013 16.5V6A2.25 2.25 0 015.25 3.75z" />
@@ -798,17 +797,15 @@ const Transactions: React.FC = () => {
               </button>
 
               {showMonthPicker && availableMonths.length > 0 && (
-                <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
-                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                <div className="menu-surface absolute top-full left-0 mt-1.5 min-w-[170px] py-1" role="listbox" aria-label="Transaction month">
                   {availableMonths.map(m => (
                     <button key={m}
                       onClick={() => { setSelectedMonth(m); setShowMonthPicker(false); }}
-                      className="w-full text-left flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors"
+                      className="menu-item justify-between text-sm font-medium"
+                      role="option" aria-selected={m === selectedMonth}
                       style={m === selectedMonth
                         ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
                         : { color: 'var(--fg)' }}
-                      onMouseEnter={e => { if (m !== selectedMonth) e.currentTarget.style.backgroundColor = 'var(--elev-sub)'; }}
-                      onMouseLeave={e => { if (m !== selectedMonth) e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {formatMonth(m)}
                       {m === selectedMonth && (
@@ -827,7 +824,7 @@ const Transactions: React.FC = () => {
           {tab === 'list' && (
             <button
               onClick={() => setShowFilters(v => !v)}
-              className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
+              className="header-action text-sm"
               style={{
                 backgroundColor: showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.15)' : 'var(--elev-1)',
                 color: showFilters || hasActiveFilters ? 'var(--accent)' : 'var(--fg)',
@@ -855,10 +852,8 @@ const Transactions: React.FC = () => {
             <div ref={exportMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowExportMenu(v => !v)}
-                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
-                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                className="header-action text-sm"
+                aria-haspopup="menu" aria-expanded={showExportMenu}
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -866,8 +861,7 @@ const Transactions: React.FC = () => {
                 <span>Export</span>
               </button>
               {showExportMenu && (
-                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
-                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 148, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                <div className="menu-surface absolute top-full right-0 mt-1.5 min-w-[156px] py-1" role="menu">
                   {[
                     {
                       label: 'CSV', hint: 'Spreadsheet', color: 'var(--pos)',
@@ -881,9 +875,8 @@ const Transactions: React.FC = () => {
                     },
                   ].map(item => (
                     <button key={item.label} onClick={item.action}
-                      className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      className="menu-item"
+                      role="menuitem"
                     >
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
                         style={{ backgroundColor: item.color === 'var(--pos)' ? 'oklch(78% 0.16 150 / 0.15)' : 'oklch(70% 0.17 25 / 0.15)' }}>
@@ -905,10 +898,8 @@ const Transactions: React.FC = () => {
             <div ref={addMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowAddMenu(v => !v)}
-                className="flex items-center gap-1.5 h-11 px-3 rounded-lg text-sm font-semibold transition-all"
-                style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                className="header-action header-action--primary text-sm"
+                aria-haspopup="menu" aria-expanded={showAddMenu}
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
                   <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -920,8 +911,7 @@ const Transactions: React.FC = () => {
               </button>
 
               {showAddMenu && (
-                <div className="absolute top-full right-0 mt-1.5 rounded-xl overflow-hidden z-[200]"
-                  style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 160, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                <div className="menu-surface absolute top-full right-0 mt-1.5 min-w-[168px] py-1" role="menu">
                   {[
                     {
                       label: 'Income', hint: 'Money in',
@@ -937,9 +927,8 @@ const Transactions: React.FC = () => {
                     },
                   ].map(item => (
                     <button key={item.label} onClick={item.action}
-                      className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      className="menu-item"
+                      role="menuitem"
                     >
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: item.bg }}>
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
@@ -953,9 +942,8 @@ const Transactions: React.FC = () => {
                   <div className="mx-3.5 my-1" style={{ height: 1, backgroundColor: 'var(--line)' }} />
                   <button
                     onClick={() => { setShowTransfer(true); setShowAddMenu(false); }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 transition-colors"
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    className="menu-item"
+                    role="menuitem"
                   >
                     <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.15)' }}>
                       <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }}>
@@ -992,8 +980,16 @@ const Transactions: React.FC = () => {
         </div>
 
         {/* ── Board Tab ── */}
+        {loadError && (
+          <div className="shrink-0 px-3 pt-3 md:px-4">
+            <LoadErrorBanner onRetry={() => void load()} />
+          </div>
+        )}
+
         {tab === 'transactions' && (
-          availableMonths.length === 0 ? (
+          loadError && transactions.length === 0 ? (
+            <div className="flex-1" />
+          ) : availableMonths.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <p className="font-semibold text-text mb-1">No imported transactions yet</p>
@@ -1177,12 +1173,12 @@ const Transactions: React.FC = () => {
                           onDrop={handleDrop(cat.id)}
                         >
                           {/* Column header — click to open full detail modal */}
-                          <div
-                            className="cursor-pointer transition-colors"
+                          <button
+                            type="button"
+                            className="w-full cursor-pointer text-left transition-colors"
                             style={{
                               borderBottom: `1px solid ${cat.color}20`,
-                              borderLeft: `3px solid ${cat.color}`,
-                              padding: '10px 12px 10px 10px',
+                              padding: '10px 12px',
                             }}
                             onClick={() => setDetailCat(cat)}
                             onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
@@ -1190,6 +1186,7 @@ const Transactions: React.FC = () => {
                           >
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
                                 <p className="text-[12px] font-semibold truncate" style={{ color: 'var(--fg)' }}>
                                   {cat.name}
                                 </p>
@@ -1205,7 +1202,7 @@ const Transactions: React.FC = () => {
                               style={{ fontFamily: 'var(--font-mono)', color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
                               ${fmt(total)}
                             </p>
-                          </div>
+                          </button>
 
                           {/* Transaction rows — natural height, no scroll */}
                           <div>
@@ -1605,7 +1602,7 @@ const Transactions: React.FC = () => {
           </div>
         )}
 
-      </main>
+      </PageLayout>
 
       {/* ── Categorize picker (mobile) ── */}
       {categorizeTx && (() => {
@@ -1692,7 +1689,7 @@ const Transactions: React.FC = () => {
         onEditTx={tx => setEditTx(tx)}
         defaultMonth={selectedMonth}
       />
-    </>
+    </AppShell>
   );
 };
 

@@ -8,7 +8,7 @@ import {
 } from '../utils/api';
 import { localDateStr } from '../utils/date';
 import { downloadCSV, printPDF } from '../utils/export';
-import Navigation from '../components/Navigation';
+import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import ProgressBar from '../components/ProgressBar';
 import { useToast } from '../context/ToastContext';
@@ -20,6 +20,7 @@ import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
+import LoadErrorBanner from '../components/LoadErrorBanner';
 
 type Tab = 'wallet' | 'cards' | 'loans';
 
@@ -98,7 +99,8 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
               )}
             </div>
             <button onClick={() => onDelete(loan)}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center transition-all mt-0.5"
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
+              aria-label={`Delete loan for ${loan.borrower_name}`}
               style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -170,6 +172,7 @@ const AccountsPage: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/accounts');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Wallet / Cards state
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -192,6 +195,7 @@ const AccountsPage: React.FC = () => {
   const loanExportRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const [aRes, tRes, lRes] = await Promise.all([getAccounts(), getTransactions(), getLoans()]);
       const accs: Account[] = Array.isArray(aRes.data) ? aRes.data : [];
@@ -206,7 +210,7 @@ const AccountsPage: React.FC = () => {
         })
       );
       setHistories(Object.fromEntries(histEntries));
-    } catch { /* ignore */ }
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, []);
 
@@ -270,6 +274,7 @@ const AccountsPage: React.FC = () => {
   const activeLoans  = loans.filter(l => l.status === 'active');
   const repaidLoans  = loans.filter(l => l.status === 'repaid');
   const writtenOff   = loans.filter(l => l.status === 'written_off');
+  const hasNoUsableData = loadError && accounts.length === 0 && loans.length === 0;
   const totalOutstanding = activeLoans.reduce((s, l) => s + Number(l.amount) - Number(l.amount_repaid), 0);
   const totalLent    = loans.reduce((s, l) => s + Number(l.amount), 0);
   const totalRecovered = loans.reduce((s, l) => s + Number(l.amount_repaid), 0);
@@ -293,19 +298,18 @@ const AccountsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <div className="md:ml-60 min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
+      <AppShell>
+        <PageLayout>
           <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
             <div className="skeleton h-7 w-32 rounded-xl" />
             <div className="skeleton h-10 w-full rounded-xl" />
-            <div className="skeleton h-32 w-full rounded-3xl" />
+            <div className="skeleton h-32 w-full rounded-xl" />
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {[0,1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}
+              {[0,1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
             </div>
           </div>
-        </div>
-      </>
+        </PageLayout>
+      </AppShell>
     );
   }
 
@@ -316,35 +320,33 @@ const AccountsPage: React.FC = () => {
   ];
 
   return (
-    <>
-      <Navigation />
+    <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+      <PageLayout>
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="topbar-safe flex items-center justify-between">
-            <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Accounts</h1>
-            <div className="flex gap-2">
+          <div className="product-page-header topbar-safe">
+            <h1 className="product-page-title">Accounts</h1>
+            <div className="product-header-actions">
               {tab === 'wallet' && (
                 <>
                   <div className="relative">
                     <button onClick={() => setShowFundsMenu(v => !v)}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
-                      style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', border: '1px solid oklch(78% 0.16 150 / 0.2)', color: 'var(--pos)' }}>
+                      className="header-action header-action--positive"
+                      aria-haspopup="menu" aria-expanded={showFundsMenu}>
                       Funds
                     </button>
                     {showFundsMenu && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowFundsMenu(false)} />
-                        <div className="absolute right-0 top-9 z-20 rounded-xl overflow-hidden shadow-2xl"
-                          style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: '130px' }}>
+                        <div className="menu-backdrop fixed inset-0" onClick={() => setShowFundsMenu(false)} />
+                        <div className="menu-surface absolute left-0 top-12 min-w-[144px]" role="menu">
                           <button onClick={() => { setShowFundsMenu(false); setShowDeposit(true); }}
-                            className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--pos)' }}>
+                            className="menu-item text-sm font-semibold" style={{ color: 'var(--pos)' }} role="menuitem">
                             Deposit
                           </button>
                           <button onClick={() => { setShowFundsMenu(false); setShowWithdraw(true); }}
-                            className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold" style={{ color: '#f59e0b', borderTop: '1px solid var(--line)' }}>
+                            className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--accent)' }} role="menuitem">
                             Withdraw
                           </button>
                         </div>
@@ -352,21 +354,18 @@ const AccountsPage: React.FC = () => {
                     )}
                   </div>
                   <button onClick={() => setShowTransfer(true)}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', border: '1px solid oklch(72% 0.17 55 / 0.2)', color: 'var(--accent)' }}>
+                    className="header-action header-action--primary">
                     Transfer
                   </button>
                   <button onClick={() => setShowAdd(true)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                    className="header-action">
                     + Account
                   </button>
                 </>
               )}
               {tab === 'cards' && (
                 <button onClick={() => setShowAdd(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                  className="header-action">
                   + Card
                 </button>
               )}
@@ -375,8 +374,8 @@ const AccountsPage: React.FC = () => {
                   {loans.length > 0 && (
                     <div ref={loanExportRef} className="relative">
                       <button onClick={() => setShowLoanExport(v => !v)}
-                        className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
-                        style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                        className="header-action"
+                        aria-haspopup="menu" aria-expanded={showLoanExport}>
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
@@ -384,21 +383,14 @@ const AccountsPage: React.FC = () => {
                       </button>
                       {showLoanExport && (
                         <>
-                          <div className="fixed inset-0 z-[100]" onClick={() => setShowLoanExport(false)} />
-                          <div className="absolute right-0 top-9 z-[200] rounded-xl overflow-hidden shadow-2xl"
-                            style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: 110 }}>
+                          <div className="menu-backdrop fixed inset-0" onClick={() => setShowLoanExport(false)} />
+                          <div className="menu-surface absolute right-0 top-12 min-w-[120px]" role="menu">
                             <button onClick={() => exportLoans('csv')}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
-                              style={{ color: 'var(--pos)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              className="menu-item text-sm font-semibold" style={{ color: 'var(--pos)' }} role="menuitem">
                               CSV
                             </button>
                             <button onClick={() => exportLoans('pdf')}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
-                              style={{ color: 'var(--neg)', borderTop: '1px solid var(--line)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--neg)' }} role="menuitem">
                               PDF
                             </button>
                           </div>
@@ -407,8 +399,7 @@ const AccountsPage: React.FC = () => {
                     </div>
                   )}
                   <button onClick={() => setShowAddLoan(true)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: '#f59e0b' }}>
+                    className="header-action header-action--primary">
                     + Loan
                   </button>
                 </>
@@ -431,11 +422,13 @@ const AccountsPage: React.FC = () => {
             </div>
           </div>
 
+          {loadError && <LoadErrorBanner onRetry={() => void load()} />}
+
           {/* â”€â”€ WALLET TAB â”€â”€ */}
           {tab === 'wallet' && (
             <>
               {/* Hero */}
-              <div className="rounded-3xl p-5 relative overflow-hidden"
+              <div className="rounded-xl p-5 relative overflow-hidden"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Spendable Balance</p>
                 <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.2rem', letterSpacing: '-1px' }}>
@@ -453,7 +446,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               </div>
 
-              {accounts.length === 0 ? (
+              {hasNoUsableData ? null : accounts.length === 0 ? (
                 <div className="card py-12 text-center">
                   <p className="font-semibold text-text mb-1">No accounts yet</p>
                   <p className="text-sm text-muted mb-5">Add your bank accounts, credit cards, and cash</p>
@@ -494,12 +487,14 @@ const AccountsPage: React.FC = () => {
                                 </div>
                                 <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                                   <button onClick={() => setEditAccount(account)}
-                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                                    className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
+                                    aria-label={`Edit ${account.name}`}
                                     style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
                                     <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                                   </button>
                                   <button onClick={() => handleDeleteAccount(account.id, account.name)}
-                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                                    className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
+                                    aria-label={`Delete ${account.name}`}
                                     style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
                                     <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                                   </button>
@@ -542,7 +537,7 @@ const AccountsPage: React.FC = () => {
           {/* â”€â”€ CARDS TAB â”€â”€ */}
           {tab === 'cards' && (
             <>
-              {ccAccounts.length === 0 ? (
+              {hasNoUsableData ? null : ccAccounts.length === 0 ? (
                 <div className="card py-14 text-center">
                   <AccountTypeIcon type="credit_card" className="w-12 h-12 mx-auto mb-3" iconClassName="w-6 h-6" />
                   <p className="font-semibold text-text mb-1">No credit cards</p>
@@ -648,13 +643,13 @@ const AccountsPage: React.FC = () => {
           {tab === 'loans' && (
             <>
               {loans.length > 0 && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { label: 'Outstanding', value: `$${fmt(totalOutstanding)}`, color: '#f59e0b' },
                     { label: 'Total Lent',  value: `$${fmt(totalLent)}`,        color: 'var(--fg)' },
                     { label: 'Recovered',   value: `$${fmt(totalRecovered)}`,   color: 'var(--pos)' },
                   ].map(s => (
-                    <div key={s.label} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+                    <div key={s.label} className="rounded-xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                       <p className="label mb-1">{s.label}</p>
                       <p className="font-mono font-bold text-sm" style={{ color: s.color, fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
                     </div>
@@ -662,7 +657,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               )}
 
-              {loans.length === 0 ? (
+              {hasNoUsableData ? null : loans.length === 0 ? (
                 <div className="card py-14 text-center">
                   <p className="font-semibold text-text mb-1">No loans tracked</p>
                   <p className="text-sm text-muted mb-5">Record money you've lent to friends or family.</p>
@@ -717,7 +712,7 @@ const AccountsPage: React.FC = () => {
 
           <div className="h-4 md:hidden" />
         </div>
-      </main>
+      </PageLayout>
 
       <AddAccountModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} />
       <EditAccountModal isOpen={!!editAccount} onClose={() => setEditAccount(null)} onSuccess={load} account={editAccount} />
@@ -726,7 +721,7 @@ const AccountsPage: React.FC = () => {
       <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={load} />
       <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={load} />
       <AddLoanModal isOpen={showAddLoan} onClose={() => setShowAddLoan(false)} onSuccess={load} />
-    </>
+    </AppShell>
   );
 };
 

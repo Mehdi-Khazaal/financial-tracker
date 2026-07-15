@@ -1,5 +1,5 @@
 from models.database import Category
-from jose import jwt
+import jwt
 
 from routers.auth import SYSTEM_CATEGORIES
 from utils.auth import ALGORITHM, SECRET_KEY, verify_password
@@ -27,7 +27,7 @@ def test_signup_sets_auth_cookies_and_seeds_categories(client, db_session):
     assert all(category.is_system for category in categories)
 
 
-def test_login_accepts_username_and_promotes_configured_admin(client, db_session, monkeypatch, user):
+def test_login_accepts_username_without_runtime_admin_promotion(client, db_session, monkeypatch, user):
     monkeypatch.setenv("ADMIN_EMAIL", user.email)
 
     response = client.post(
@@ -39,7 +39,8 @@ def test_login_accepts_username_and_promotes_configured_admin(client, db_session
     assert response.json()["message"] == "Logged in successfully"
     db_session.expire_all()
     updated_user = db_session.get(type(user), user.id)
-    assert updated_user.is_admin is True
+    assert updated_user.is_admin is False
+    assert "access_token" not in response.json()
 
 
 def test_refresh_rejects_wrong_token_type(client):
@@ -69,3 +70,36 @@ def test_reset_password_updates_hash_and_allows_new_login(client, db_session, us
         json={"identifier": user.email, "password": "NewPassword123"},
     )
     assert login_response.status_code == 200
+
+
+def test_password_reset_revokes_existing_access_token(client, db_session, user):
+    from utils.auth import create_access_token
+
+    old_access = create_access_token({"sub": str(user.id), "sv": user.session_version})
+    reset_token = jwt.encode(
+        {"sub": str(user.id), "type": "reset", "sv": user.session_version},
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+    response = client.post(
+        "/auth/reset-password",
+        json={"token": reset_token, "new_password": "NewPassword123"},
+    )
+
+    assert response.status_code == 200
+    me_response = client.get("/auth/me", headers={"Authorization": f"Bearer {old_access}"})
+    assert me_response.status_code == 401
+    assert me_response.json()["detail"] == "Session has been revoked"
+
+
+def test_reset_token_is_one_time_use(client, user):
+    reset_token = jwt.encode(
+        {"sub": str(user.id), "type": "reset", "sv": user.session_version},
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    body = {"token": reset_token, "new_password": "NewPassword123"}
+
+    assert client.post("/auth/reset-password", json=body).status_code == 200
+    assert client.post("/auth/reset-password", json=body).status_code == 400

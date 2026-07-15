@@ -1,0 +1,46 @@
+.app-shell {
+  --app-shell-sidebar-width: 240px;
+  --app-shell-mobile-bottom-reserve: var(--mobile-dock-reserve);
+  min-height: 100dvh;
+  background-color: var(--bg);
+}
+
+.app-shell[data-mobile-reserve='context-tabs'] {
+  --app-shell-mobile-bottom-reserve: var(--mobile-tabs-reserve);
+}
+
+.app-page-layout {
+  min-width: 0;
+  background-color: var(--bg);
+  transition: margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-page-layout--document {
+  min-height: 100dvh;
+  padding-bottom: var(--app-shell-mobile-bottom-reserve) !important;
+}
+
+.app-page-layout--contained {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .app-page-layout {
+    margin-left: var(--app-shell-sidebar-width);
+  }
+
+  .app-page-layout--document {
+    padding-bottom: 2.5rem !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .nav-collapsed .app-page-layout {
+    margin-left: 64px;
+  }
+}

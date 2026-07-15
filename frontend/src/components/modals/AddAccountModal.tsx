@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import BottomSheet from '../BottomSheet';
 import { createAccount } from '../../utils/api';
 import { useToast } from '../../context/ToastContext';
+import { AccountTypeIcon } from '../dashboard/DashboardPrimitives';
 
 interface Props { isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
 const TYPES = [
-  { value: 'checking',    label: 'Checking',    icon: '🏦', desc: 'Day-to-day spending' },
-  { value: 'savings',     label: 'Savings',     icon: '💰', desc: 'Emergency & goals' },
-  { value: 'credit_card', label: 'Credit Card', icon: '💳', desc: 'Credit & debt' },
-  { value: 'cash',        label: 'Cash',        icon: '💵', desc: 'Physical money' },
-  { value: 'investment',  label: 'Brokerage',   icon: '📈', desc: 'Stock account' },
+  { value: 'checking',    label: 'Checking',    desc: 'Day-to-day spending' },
+  { value: 'savings',     label: 'Savings',     desc: 'Emergency and goals' },
+  { value: 'credit_card', label: 'Credit Card', desc: 'Credit and debt' },
+  { value: 'cash',        label: 'Cash',        desc: 'Physical money' },
+  { value: 'investment',  label: 'Brokerage',   desc: 'Investment account' },
 ];
 
 const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
@@ -45,41 +46,44 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
       <form onSubmit={handleSubmit} className="px-5 pb-6 space-y-5">
         {/* Name */}
         <div>
-          <p className="label mb-2">Account Name</p>
-          <input type="text" value={name} onChange={e => setName(e.target.value)}
+          <label className="form-label" htmlFor="account-name">Account name</label>
+          <input id="account-name" type="text" value={name} onChange={e => setName(e.target.value)}
+            autoComplete="off"
             className="input-dark" placeholder="e.g. Chase Checking" required />
         </div>
 
         {/* Type */}
-        <div>
-          <p className="label mb-2">Type</p>
-          <div className="grid grid-cols-3 gap-2">
+        <fieldset>
+          <legend className="form-label">Account type</legend>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {TYPES.map(t => (
               <button key={t.value} type="button" onClick={() => setType(t.value)}
-                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all"
+                className="min-h-[88px] flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border text-center transition-all"
+                aria-pressed={type === t.value}
+                aria-label={`${t.label}: ${t.desc}`}
                 style={type === t.value
                   ? { borderColor: 'var(--accent)', backgroundColor: 'oklch(72% 0.17 55 / 0.08)' }
                   : { borderColor: 'var(--line)', backgroundColor: 'var(--elev-1)' }}>
-                <span className="text-xl">{t.icon}</span>
+                <AccountTypeIcon type={t.value} className="w-8 h-8" iconClassName="w-4 h-4" />
                 <span className="text-xs font-semibold" style={{ color: type === t.value ? 'var(--accent)' : 'var(--muted)' }}>
                   {t.label}
                 </span>
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {/* Balance / Credit limit */}
         <div className={`grid gap-3 ${isCreditCard ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <div>
-            <p className="label mb-2">{isCreditCard ? 'Current Balance' : 'Balance'}</p>
-            <input type="number" step="0.01" value={balance} onChange={e => setBalance(e.target.value)}
+            <label className="form-label" htmlFor="account-balance">{isCreditCard ? 'Current balance' : 'Balance'}</label>
+            <input id="account-balance" type="number" inputMode="decimal" step="0.01" value={balance} onChange={e => setBalance(e.target.value)}
               className="input-dark" placeholder={isCreditCard ? '-500.00' : '0.00'} />
           </div>
           {isCreditCard && (
             <div>
-              <p className="label mb-2">Credit Limit</p>
-              <input type="number" step="0.01" min="0" value={creditLimit} onChange={e => setCreditLimit(e.target.value)}
+              <label className="form-label" htmlFor="account-credit-limit">Credit limit</label>
+              <input id="account-credit-limit" type="number" inputMode="decimal" step="0.01" min="0" value={creditLimit} onChange={e => setCreditLimit(e.target.value)}
                 className="input-dark" placeholder="5000.00" />
             </div>
           )}
@@ -87,7 +91,7 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
         {isCreditCard && (
           <p className="text-xs text-muted">
-            💡 Enter current balance as a negative number (e.g. -450) if you owe money.
+            Enter the current balance as a negative number (for example, -450) when you owe money.
           </p>
         )}
 

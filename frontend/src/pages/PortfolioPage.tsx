@@ -3,10 +3,11 @@ import { useRouteTab } from '../context/TabContext';
 import { Account, Asset, SavingsGoal } from '../types';
 import { getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
 import { getStockPrice } from '../utils/stockApi';
-import Navigation from '../components/Navigation';
+import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import ProgressBar from '../components/ProgressBar';
 import EmptyState from '../components/EmptyState';
+import LoadErrorBanner from '../components/LoadErrorBanner';
 import { useToast } from '../context/ToastContext';
 import { downloadCSV, printPDF } from '../utils/export';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -40,6 +41,7 @@ const PortfolioPage: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/portfolio');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Investments
   const [investments, setInvestments] = useState<Asset[]>([]);
@@ -92,6 +94,7 @@ const PortfolioPage: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [invRes, assetRes, accRes, goalRes] = await Promise.all([
         getAssets({ asset_class: 'investment' }),
@@ -105,7 +108,7 @@ const PortfolioPage: React.FC = () => {
       setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
       setGoals(Array.isArray(goalRes.data) ? goalRes.data : []);
       fetchPricesBackground(invs);
-    } catch { /* ignore */ }
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   }, [fetchPricesBackground]);
 
@@ -159,6 +162,7 @@ const PortfolioPage: React.FC = () => {
   const totalBalance = accounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + Number(a.balance), 0);
   const totalAllocated = Object.values(allocatedPerAccount).reduce((s, v) => s + v, 0);
   const totalUnallocated = Math.max(0, totalBalance - totalAllocated);
+  const hasNoUsableData = loadError && investments.length === 0 && assets.length === 0 && goals.length === 0;
   const getDaysLeft = (deadline: string | null) => {
     if (!deadline) return null;
     return Math.ceil((new Date(deadline + 'T00:00:00').getTime() - Date.now()) / 86400000);
@@ -188,19 +192,18 @@ const PortfolioPage: React.FC = () => {
 
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <div className="md:ml-60 min-h-screen" style={{ backgroundColor: 'var(--bg)' }}>
+      <AppShell>
+        <PageLayout>
           <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
             <div className="skeleton h-7 w-28 rounded-xl" />
             <div className="skeleton h-10 w-full rounded-xl" />
-            <div className="skeleton h-36 w-full rounded-3xl" />
+            <div className="skeleton h-36 w-full rounded-xl" />
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {[0,1,2,3].map(i => <div key={i} className="skeleton h-36 rounded-2xl" />)}
+              {[0,1,2,3].map(i => <div key={i} className="skeleton h-36 rounded-xl" />)}
             </div>
           </div>
-        </div>
-      </>
+        </PageLayout>
+      </AppShell>
     );
   }
 
@@ -211,23 +214,22 @@ const PortfolioPage: React.FC = () => {
   ];
 
   return (
-    <>
-      <Navigation />
+    <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+      <PageLayout>
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
-          <div className="topbar-safe flex items-center justify-between">
-            <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Portfolio</h1>
-            <div className="flex gap-2">
+          <div className="product-page-header topbar-safe">
+            <h1 className="product-page-title">Portfolio</h1>
+            <div className="product-header-actions">
               {tab === 'investments' && (
                 <>
                   {investments.length > 0 && (
                     <div className="relative">
                       <button onClick={() => setShowInvExport(v => !v)}
-                        className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full transition-all"
-                        style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                        className="header-action"
+                        aria-haspopup="menu" aria-expanded={showInvExport}>
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
                           <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                         </svg>
@@ -235,21 +237,14 @@ const PortfolioPage: React.FC = () => {
                       </button>
                       {showInvExport && (
                         <>
-                          <div className="fixed inset-0 z-[100]" onClick={() => setShowInvExport(false)} />
-                          <div className="absolute right-0 top-9 z-[200] rounded-xl overflow-hidden shadow-2xl"
-                            style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', minWidth: 110 }}>
+                          <div className="menu-backdrop fixed inset-0" onClick={() => setShowInvExport(false)} />
+                          <div className="menu-surface absolute right-0 top-12 min-w-[120px]" role="menu">
                             <button onClick={() => exportInvestments('csv')}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
-                              style={{ color: 'var(--pos)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              className="menu-item text-sm font-semibold" style={{ color: 'var(--pos)' }} role="menuitem">
                               CSV
                             </button>
                             <button onClick={() => exportInvestments('pdf')}
-                              className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-semibold transition-colors"
-                              style={{ color: 'var(--neg)', borderTop: '1px solid var(--line)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-1)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--neg)' }} role="menuitem">
                               PDF
                             </button>
                           </div>
@@ -258,23 +253,20 @@ const PortfolioPage: React.FC = () => {
                     </div>
                   )}
                   <button onClick={() => setShowAddInv(true)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                    className="header-action header-action--primary">
                     + Investment
                   </button>
                 </>
               )}
               {tab === 'assets' && (
                 <button onClick={() => setShowAddAsset(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                  className="header-action header-action--primary">
                   + Asset
                 </button>
               )}
               {tab === 'savings' && (
                 <button onClick={() => setShowAddGoal(true)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
+                  className="header-action header-action--primary">
                   + Goal
                 </button>
               )}
@@ -296,11 +288,13 @@ const PortfolioPage: React.FC = () => {
             </div>
           </div>
 
+          {loadError && <LoadErrorBanner onRetry={() => void load()} />}
+
           {/* â”€â”€ INVESTMENTS TAB â”€â”€ */}
           {tab === 'investments' && (
             <>
               {/* Hero */}
-              <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="label mb-1">Portfolio Value</p>
@@ -355,7 +349,7 @@ const PortfolioPage: React.FC = () => {
                 </div>
               )}
 
-              {investments.length === 0 ? (
+              {hasNoUsableData ? null : investments.length === 0 ? (
                 <div className="card py-12 text-center">
                   <p className="text-3xl mb-3">ðŸ“ˆ</p>
                   <p className="font-semibold text-text mb-1">No investments yet</p>
@@ -432,7 +426,7 @@ const PortfolioPage: React.FC = () => {
           {/* â”€â”€ ASSETS TAB â”€â”€ */}
           {tab === 'assets' && (
             <>
-              <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Asset Value</p>
                 <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                   ${fmt(totalAssetValue)}
@@ -451,7 +445,7 @@ const PortfolioPage: React.FC = () => {
                 )}
               </div>
 
-              {assets.length === 0 ? (
+              {hasNoUsableData ? null : assets.length === 0 ? (
                 <EmptyState
                   iconPath="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"
                   iconColor="#a855f7"
@@ -510,7 +504,7 @@ const PortfolioPage: React.FC = () => {
           {/* â”€â”€ SAVINGS TAB â”€â”€ */}
           {tab === 'savings' && (
             <>
-              <div className="rounded-3xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Balance</p>
                 <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                   ${fmt(totalBalance)}
@@ -571,7 +565,7 @@ const PortfolioPage: React.FC = () => {
                     <p className="label">Goals</p>
                     <button onClick={() => setShowAddGoal(true)} className="text-xs font-semibold transition-colors" style={{ color: 'var(--accent)' }}>+ New Goal</button>
                   </div>
-                  {goals.length === 0 ? (
+                  {hasNoUsableData ? null : goals.length === 0 ? (
                     <div className="card py-10 text-center">
                       <p className="text-3xl mb-3">ðŸŽ¯</p>
                       <p className="font-semibold text-text mb-1">No savings goals</p>
@@ -634,7 +628,7 @@ const PortfolioPage: React.FC = () => {
 
           <div className="h-4 md:hidden" />
         </div>
-      </main>
+      </PageLayout>
 
 
 
@@ -643,7 +637,7 @@ const PortfolioPage: React.FC = () => {
       <AddSavingsGoalModal isOpen={showAddGoal} onClose={() => setShowAddGoal(false)} onSuccess={load} />
       <SpendFromGoalModal isOpen={!!spendGoal} onClose={() => setSpendGoal(null)} onSuccess={load} goal={spendGoal} />
       <ManageAllocationsModal isOpen={!!editGoal} onClose={() => setEditGoal(null)} onSuccess={load} goal={editGoal} allGoals={goals} accounts={accounts} />
-    </>
+    </AppShell>
   );
 };
 

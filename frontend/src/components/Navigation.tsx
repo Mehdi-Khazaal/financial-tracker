@@ -3,9 +3,24 @@ import { Link, useLocation } from 'react-router-dom';
 import TopBar from './TopBar';
 import { TabContext } from '../context/TabContext';
 import { useUI } from '../context/UIContext';
+import { CONTEXT_TABS } from './layout/routeLayout';
 
 /* Subtle tap feedback on devices that support it */
-const haptic = () => { if ('vibrate' in navigator) navigator.vibrate(8); };
+const haptic = () => {
+  if ('vibrate' in navigator) {
+    try { navigator.vibrate(8); } catch { /* Haptics are optional. */ }
+  }
+};
+
+const isTextEntry = (element: Element | null): boolean => {
+  if (!element) return false;
+  if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) return true;
+  if (element instanceof HTMLInputElement) {
+    return !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit']
+      .includes(element.type);
+  }
+  return element instanceof HTMLElement && element.isContentEditable;
+};
 
 const navItems = [
   {
@@ -45,20 +60,6 @@ const navItems = [
   },
 ];
 
-const assistantItem = {
-  label: 'AI Assistant',
-  mobileLabel: 'AI',
-  icon: 'M10 2.5l.9 3.1a4.4 4.4 0 002.9 2.9l3.2.9-3.2.9a4.4 4.4 0 00-2.9 2.9l-.9 3.3-.9-3.3a4.4 4.4 0 00-2.9-2.9L3 9.4l3.2-.9a4.4 4.4 0 002.9-2.9L10 2.5zM15.5 13l.4 1.2a1.9 1.9 0 001.2 1.2l1.2.4-1.2.4a1.9 1.9 0 00-1.2 1.2l-.4 1.2-.4-1.2a1.9 1.9 0 00-1.2-1.2l-1.2-.4 1.2-.4a1.9 1.9 0 001.2-1.2l.4-1.2z',
-};
-
-/* Sub-tabs shown in the context bar per route */
-const ROUTE_TABS: Record<string, { label: string; value: string }[]> = {
-  '/':             [{ label: 'Overview', value: 'overview' }, { label: 'Analytics', value: 'analytics' }],
-  '/accounts':     [{ label: 'Wallet', value: 'wallet' }, { label: 'Cards', value: 'cards' }, { label: 'Loans', value: 'loans' }],
-  '/transactions': [{ label: 'Board', value: 'transactions' }, { label: 'List', value: 'list' }, { label: 'Recurring', value: 'recurring' }],
-  '/portfolio':    [{ label: 'Investments', value: 'investments' }, { label: 'Assets', value: 'assets' }, { label: 'Savings', value: 'savings' }],
-};
-
 const COLLAPSE_KEY = 'nav_collapsed';
 
 const Navigation: React.FC = () => {
@@ -69,11 +70,11 @@ const Navigation: React.FC = () => {
 
   const isActive = (item: typeof navItems[0]) => item.matchPaths.includes(location.pathname);
 
-  const routeTabs = ROUTE_TABS[location.pathname] ?? [];
+  const routeTabs = CONTEXT_TABS[location.pathname] ?? [];
   const activeTab = tabs[location.pathname] ?? '';
   const activeTabIndex = Math.max(0, routeTabs.findIndex(t => t.value === activeTab));
-  const mobileDockItems = [navItems[0], navItems[2], navItems[1], navItems[3]];
-  const activeDockIndex = Math.max(0, mobileDockItems.findIndex(item => isActive(item)));
+  const mobileDockItems = [navItems[0], navItems[2], navItems[1], navItems[3], navItems[4]];
+  const activeDockIndex = mobileDockItems.findIndex(item => isActive(item));
 
   useEffect(() => {
     document.body.classList.toggle('nav-collapsed', collapsed);
@@ -85,10 +86,76 @@ const Navigation: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    document.body.classList.toggle('has-mobile-context-tabs', routeTabs.length > 0);
+    return () => document.body.classList.remove('has-mobile-context-tabs');
+  }, [routeTabs.length]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    let focusFrame = 0;
+
+    const syncViewport = () => {
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const keyboardInset = Math.max(
+        0,
+        window.innerHeight - viewportHeight - (viewport?.offsetTop ?? 0),
+      );
+      const textEntryActive = isTextEntry(document.activeElement);
+
+      document.documentElement.style.setProperty('--visual-viewport-height', `${viewportHeight}px`);
+      document.documentElement.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
+      document.body.classList.toggle('mobile-text-entry', textEntryActive);
+      document.body.classList.toggle('mobile-keyboard-open', textEntryActive && keyboardInset > 80);
+    };
+
+    const deferViewportSync = () => {
+      window.cancelAnimationFrame(focusFrame);
+      focusFrame = window.requestAnimationFrame(syncViewport);
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    document.addEventListener('focusin', deferViewportSync);
+    document.addEventListener('focusout', deferViewportSync);
+    viewport?.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('scroll', syncViewport);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener('resize', syncViewport);
+      document.removeEventListener('focusin', deferViewportSync);
+      document.removeEventListener('focusout', deferViewportSync);
+      viewport?.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('scroll', syncViewport);
+      document.body.classList.remove('mobile-text-entry', 'mobile-keyboard-open');
+      document.documentElement.style.removeProperty('--keyboard-inset');
+      document.documentElement.style.removeProperty('--visual-viewport-height');
+    };
+  }, []);
+
   const toggleCollapse = () => {
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? routeTabs.length - 1
+        : event.key === 'ArrowRight'
+          ? (index + 1) % routeTabs.length
+          : (index - 1 + routeTabs.length) % routeTabs.length;
+    const nextTab = routeTabs[nextIndex];
+    setRouteTab(location.pathname, nextTab.value);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]
+      ?.focus();
   };
 
   return (
@@ -118,7 +185,8 @@ const Navigation: React.FC = () => {
               <span className="nav-logo-text font-semibold text-sm ml-3 flex-1 whitespace-nowrap" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>Fintrack</span>
               <button
                 onClick={toggleCollapse}
-                className="w-6 h-6 flex items-center justify-center rounded-md transition-colors"
+                aria-label="Collapse sidebar"
+                className="nav-collapse-button flex items-center justify-center rounded-md transition-colors"
                 style={{ color: 'var(--dim)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'var(--muted)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}
@@ -135,6 +203,7 @@ const Navigation: React.FC = () => {
         <div className="px-2 pt-3">
           <button
             onClick={() => setPaletteOpen(true)}
+            aria-label="Search and commands"
             title="Search & commands (Ctrl+K)"
             className={`nav-item flex items-center gap-3 py-2.5 rounded-md text-sm w-full ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
@@ -157,6 +226,7 @@ const Navigation: React.FC = () => {
             const active = isActive(item);
             return (
               <Link key={item.path} to={item.path}
+                aria-current={active ? 'page' : undefined}
                 title={collapsed ? item.label : undefined}
                 className={`nav-item flex items-center gap-3 py-2.5 rounded-md text-sm ${active ? 'nav-item-active' : ''} ${collapsed ? 'justify-center px-2' : 'px-3'}`}>
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
@@ -177,7 +247,8 @@ const Navigation: React.FC = () => {
           <div className="p-2 shrink-0" style={{ borderTop: '1px solid var(--line)' }}>
             <button
               onClick={toggleCollapse}
-              className="w-full flex items-center justify-center py-2 rounded-md transition-colors"
+              aria-label="Expand sidebar"
+              className="nav-collapse-button w-full flex items-center justify-center rounded-md transition-colors"
               style={{ color: 'var(--dim)' }}
               title="Expand sidebar">
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -191,23 +262,24 @@ const Navigation: React.FC = () => {
       {/* ── Mobile context tab bar (above bottom nav) ────────────────── */}
       {routeTabs.length > 0 && (
         <div
-          className="mobile-context-tabs md:hidden fixed inset-x-0 z-40 px-4"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 86px)',
-            paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
-          }}>
+          className="mobile-context-tabs md:hidden fixed inset-x-0">
           <div
             key={location.pathname}
             className="mobile-context-tabs-inner flex gap-1 mx-auto"
+            role="tablist"
+            aria-label="Page views"
             data-count={routeTabs.length}
             data-active-index={activeTabIndex}
           >
-            {routeTabs.map(t => (
+            {routeTabs.map((t, index) => (
               <button
                 key={t.value}
                 onClick={() => { haptic(); setRouteTab(location.pathname, t.value); }}
-                className={`mobile-context-tab flex-1 h-9 rounded-lg text-xs font-semibold active:scale-95 ${activeTab === t.value ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={activeTab === t.value}
+                tabIndex={activeTab === t.value ? 0 : -1}
+                onKeyDown={event => handleTabKeyDown(event, index)}
+                className={`mobile-context-tab flex-1 rounded-lg text-xs font-semibold active:scale-95 ${activeTab === t.value ? 'is-active' : ''}`}
                 style={activeTab === t.value
                   ? { color: 'var(--fg)', fontFamily: 'var(--font-mono)' }
                   : { color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
@@ -219,8 +291,7 @@ const Navigation: React.FC = () => {
       )}
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
-      <nav className="mobile-dock md:hidden fixed inset-x-0 z-40"
-        style={{ bottom: 0 }}>
+      <nav className="mobile-dock md:hidden fixed inset-x-0" aria-label="Primary navigation">
         <div
           className="mobile-dock-shell mx-auto flex items-center justify-between"
           data-dock-active-index={activeDockIndex}>
@@ -229,8 +300,10 @@ const Navigation: React.FC = () => {
             return (
               <Link key={item.path} to={item.path}
                 onClick={haptic}
+                aria-current={active ? 'page' : undefined}
+                aria-label={item.label}
                 className={`bottom-nav-item flex flex-col items-center justify-center gap-1 ${active ? 'bn-active' : ''}`}
-                style={{ color: active ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}>
+                style={{ color: active ? 'var(--accent)' : 'var(--dim)' }}>
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative">
                   <path d={item.icon} />
                 </svg>
@@ -238,19 +311,6 @@ const Navigation: React.FC = () => {
               </Link>
             );
           })}
-          <Link
-            to="/assistant"
-            onClick={haptic}
-            aria-label={assistantItem.label}
-            title={assistantItem.label}
-            className={`bottom-nav-item bottom-nav-ai flex flex-col items-center justify-center gap-1 ${location.pathname === '/assistant' ? 'bn-active' : ''}`}
-            style={{ color: location.pathname === '/assistant' ? 'var(--accent)' : 'var(--dim)', minHeight: 44 }}
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={location.pathname === '/assistant' ? 2 : 1.5} className="w-5 h-5 relative">
-              <path d={assistantItem.icon} />
-            </svg>
-            <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{assistantItem.mobileLabel}</span>
-          </Link>
         </div>
       </nav>
     </>

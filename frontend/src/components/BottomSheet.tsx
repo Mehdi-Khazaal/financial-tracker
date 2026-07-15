@@ -32,7 +32,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 flex items-end md:items-center justify-center" style={{ zIndex: 'var(--z-modal)' }}>
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/70"

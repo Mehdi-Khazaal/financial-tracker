@@ -25,6 +25,6 @@ def admin_reset_password(user_id: int, db: Session = Depends(get_db), _: User = 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    token = create_reset_token(user.id)
+    token = create_reset_token(user.id, user.session_version)
     send_password_reset(user.email, token)
     return {"message": f"Password reset email sent to {user.email}"}

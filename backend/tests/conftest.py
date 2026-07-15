@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-TEST_DB_PATH = Path(tempfile.gettempdir()) / "financial_tracker_backend_tests.db"
+TEST_DB_PATH = Path(tempfile.gettempdir()) / f"financial_tracker_backend_tests_{os.getpid()}.db"
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("ENVIRONMENT", "test")
@@ -19,13 +19,16 @@ if TEST_DB_PATH.exists():
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
-from routers import auth, transactions
+from routers import accounts, assistant, auth, cron, recurring_transactions, stocks, transactions
 from utils import auth as auth_utils
+from utils.limiter import limiter
 
 
 engine = create_engine(
@@ -44,8 +47,15 @@ def override_get_db():
 
 
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth.router)
+app.include_router(accounts.router)
 app.include_router(transactions.router)
+app.include_router(recurring_transactions.router)
+app.include_router(cron.router)
+app.include_router(stocks.router)
+app.include_router(assistant.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 

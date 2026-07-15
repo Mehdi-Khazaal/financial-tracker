@@ -8,7 +8,7 @@ import {
 import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset } from '../types';
 import { getAccounts, getTransactions, getSavingsGoals, getCategories, getNetWorthHistory, getAssets } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import Navigation from '../components/Navigation';
+import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
@@ -20,6 +20,7 @@ import CountUp from '../components/CountUp';
 import Sparkline from '../components/Sparkline';
 import { ACCOUNT_TYPE_META, AccountTypeIcon, DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
+import LoadErrorBanner from '../components/LoadErrorBanner';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMonth = (ym: string) => { const [y, m] = ym.split('-').map(Number); return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
@@ -49,6 +50,7 @@ const Dashboard: React.FC = () => {
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [assetsList, setAssetsList]           = useState<Asset[]>([]);
   const [loading, setLoading]                 = useState(true);
+  const [loadError, setLoadError]             = useState(false);
   const [tab, setTab]                         = useRouteTab('/');
   const [period, setPeriod]                   = useState<Period>('This month');
   const [customMonth, setCustomMonth]         = useState<string>(() => {
@@ -64,6 +66,7 @@ const Dashboard: React.FC = () => {
   const [showDeposit, setShowDeposit]         = useState(false);
 
   const loadAll = async () => {
+    setLoadError(false);
     try {
       const [aRes, tRes, gRes, catRes, nwRes, assetsRes] = await Promise.all([
         getAccounts(), getTransactions(), getSavingsGoals(), getCategories(), getNetWorthHistory(12), getAssets(),
@@ -74,7 +77,7 @@ const Dashboard: React.FC = () => {
       setCategories(Array.isArray(catRes.data) ? catRes.data : []);
       setNetWorthSnapshots(Array.isArray(nwRes.data) ? nwRes.data : []);
       setAssetsList(Array.isArray(assetsRes.data) ? assetsRes.data : []);
-    } catch { /* ignore */ }
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   };
 
@@ -277,10 +280,11 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <>
-        <Navigation />
-        <DashboardSkeleton />
-      </>
+      <AppShell>
+        <PageLayout>
+          <DashboardSkeleton />
+        </PageLayout>
+      </AppShell>
     );
   }
 
@@ -290,17 +294,16 @@ const Dashboard: React.FC = () => {
   const sparkValues = netWorthTrend.map(d => d.Value);
 
   return (
-    <>
-      <Navigation />
+    <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <main className="md:ml-60 min-h-screen pb-44 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+      <PageLayout>
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 md:space-y-6 stagger-in">
 
           {/* ── Greeting ── */}
-          <div className="topbar-safe flex items-center justify-between">
+          <div className="product-page-header topbar-safe">
             <div>
               <p className="label mb-1">{monthLabel}</p>
-              <h1 className="font-serif text-xl font-medium mt-0.5" style={{ color: 'var(--fg)', letterSpacing: '-0.02em' }}>
+              <h1 className="product-page-title mt-0.5">
                 {greeting}, {user?.username}
               </h1>
             </div>
@@ -322,6 +325,8 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* ══════════════════ OVERVIEW ══════════════════ */}
+          {loadError && <LoadErrorBanner onRetry={() => void loadAll()} />}
+
           {tab === 'overview' && (
             <>
               {/* ── Hero: Net Worth + Month Stats ── */}
@@ -548,7 +553,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {PERIODS.map(p => (
                     <button key={p} onClick={() => setPeriod(p)}
-                      className="pill shrink-0 transition-all"
+                      className="pill min-h-[44px] shrink-0 transition-all"
                       style={period === p
                         ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
                         : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
@@ -562,10 +567,8 @@ const Dashboard: React.FC = () => {
                   <div ref={monthPickerRef} className="relative inline-block">
                     <button
                       onClick={() => setShowMonthPicker(v => !v)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all"
-                      style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line)' }}
-                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--line-strong)')}
-                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+                      className="header-action text-sm"
+                      aria-haspopup="listbox" aria-expanded={showMonthPicker}
                     >
                       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M13.25 3v2.25M3 8.25h14M5.25 3.75h9.5A2.25 2.25 0 0117 6v10.5A2.25 2.25 0 0114.75 18.75H5.25A2.25 2.25 0 013 16.5V6A2.25 2.25 0 015.25 3.75z" />
@@ -576,17 +579,15 @@ const Dashboard: React.FC = () => {
                       </svg>
                     </button>
                     {showMonthPicker && availableMonths.length > 0 && (
-                      <div className="absolute top-full left-0 mt-1.5 rounded-xl overflow-hidden z-50"
-                        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.45)', paddingTop: 4, paddingBottom: 4 }}>
+                      <div className="menu-surface absolute top-full left-0 mt-1.5 min-w-[170px] py-1" role="listbox" aria-label="Analytics month">
                         {availableMonths.map(m => (
                           <button key={m}
                             onClick={() => { setCustomMonth(m); setShowMonthPicker(false); }}
-                            className="w-full text-left flex items-center justify-between px-4 py-2.5 text-sm font-medium transition-colors"
+                            className="menu-item justify-between text-sm font-medium"
+                            role="option" aria-selected={m === customMonth}
                             style={m === customMonth
                               ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
                               : { color: 'var(--fg)' }}
-                            onMouseEnter={e => { if (m !== customMonth) e.currentTarget.style.backgroundColor = 'var(--elev-sub)'; }}
-                            onMouseLeave={e => { if (m !== customMonth) e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                             {formatMonth(m)}
                             {m === customMonth && (
@@ -925,13 +926,13 @@ const Dashboard: React.FC = () => {
           )}
 
         </div>
-      </main>
+      </PageLayout>
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
       <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={loadAll} />
       <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={loadAll} />
-    </>
+    </AppShell>
   );
 };
 

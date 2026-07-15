@@ -1,8 +1,33 @@
 from decimal import Decimal
 from datetime import date
 
-from models.database import Transaction
+from models.auth import User
+from models.database import Category, Transaction
 from routers.plaid_router import _apply_pending_replacement
+from utils import auth as auth_utils
+
+
+def _create_other_category(db_session):
+    other_user = User(
+        email="transaction-other@example.com",
+        username="transaction-other",
+        hashed_password=auth_utils.get_password_hash("Password123"),
+        is_verified=True,
+        is_admin=False,
+    )
+    db_session.add(other_user)
+    db_session.commit()
+    db_session.refresh(other_user)
+    category = Category(
+        user_id=other_user.id,
+        name="Other private",
+        type="expense",
+        color="#112233",
+    )
+    db_session.add(category)
+    db_session.commit()
+    db_session.refresh(category)
+    return category
 
 
 def test_create_transaction_persists_row_and_updates_balance(client, db_session, auth_headers, account, category):
@@ -24,6 +49,60 @@ def test_create_transaction_persists_row_and_updates_balance(client, db_session,
 
     db_session.refresh(account)
     assert Decimal(str(account.balance)) == Decimal("974.50")
+
+
+def test_create_transaction_rejects_cross_tenant_category_without_changing_balance(
+    client, db_session, auth_headers, account
+):
+    other_category = _create_other_category(db_session)
+
+    response = client.post(
+        "/transactions/",
+        headers=auth_headers,
+        json={
+            "account_id": account.id,
+            "category_id": other_category.id,
+            "amount": "-25.50",
+            "description": "Should not persist",
+            "transaction_date": "2026-06-12",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Category not found"}
+    db_session.expire_all()
+    assert Decimal(str(db_session.get(type(account), account.id).balance)) == Decimal("1000.00")
+    assert db_session.query(Transaction).count() == 0
+
+
+def test_create_transaction_accepts_visible_system_category(
+    client, db_session, auth_headers, account
+):
+    system_category = Category(
+        user_id=None,
+        name="System food",
+        type="expense",
+        color="#334455",
+        is_system=True,
+    )
+    db_session.add(system_category)
+    db_session.commit()
+    db_session.refresh(system_category)
+
+    response = client.post(
+        "/transactions/",
+        headers=auth_headers,
+        json={
+            "account_id": account.id,
+            "category_id": system_category.id,
+            "amount": "-10.00",
+            "description": "System category",
+            "transaction_date": "2026-06-12",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["category_id"] == system_category.id
 
 
 def test_update_transaction_can_move_accounts_and_rebalance(client, db_session, auth_headers, user, account, second_account):
@@ -51,6 +130,44 @@ def test_update_transaction_can_move_accounts_and_rebalance(client, db_session, 
     db_session.refresh(second_account)
     assert Decimal(str(account.balance)) == Decimal("1000.00")
     assert Decimal(str(second_account.balance)) == Decimal("195.00")
+
+
+def test_update_transaction_rejects_cross_tenant_category_without_partial_rebalance(
+    client, db_session, auth_headers, user, account, second_account, category
+):
+    other_category = _create_other_category(db_session)
+    transaction = Transaction(
+        user_id=user.id,
+        account_id=account.id,
+        category_id=category.id,
+        amount=Decimal("-40.00"),
+        description="Groceries",
+        transaction_date=date(2026, 6, 10),
+    )
+    db_session.add(transaction)
+    account.balance = Decimal("960.00")
+    db_session.commit()
+    db_session.refresh(transaction)
+
+    response = client.put(
+        f"/transactions/{transaction.id}",
+        headers=auth_headers,
+        json={
+            "account_id": second_account.id,
+            "category_id": other_category.id,
+            "amount": "-55.00",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Category not found"}
+    db_session.expire_all()
+    persisted = db_session.get(Transaction, transaction.id)
+    assert persisted.account_id == account.id
+    assert persisted.category_id == category.id
+    assert Decimal(str(persisted.amount)) == Decimal("-40.00")
+    assert Decimal(str(db_session.get(type(account), account.id).balance)) == Decimal("960.00")
+    assert Decimal(str(db_session.get(type(second_account), second_account.id).balance)) == Decimal("250.00")
 
 
 def test_delete_transaction_restores_balance(client, db_session, auth_headers, user, account):

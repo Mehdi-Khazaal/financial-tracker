@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Literal, List
 from decimal import Decimal
 from datetime import datetime, date
@@ -24,13 +24,12 @@ class AccountUpdate(BaseModel):
     currency: Optional[str] = None
 
 class AccountResponse(AccountBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Category ─────────────────────────────────────────────────────────────────
@@ -48,13 +47,12 @@ class CategoryUpdate(BaseModel):
     color: Optional[str] = None
 
 class CategoryResponse(CategoryBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: Optional[int]
     is_system: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Transaction ──────────────────────────────────────────────────────────────
@@ -76,12 +74,11 @@ class TransactionUpdate(BaseModel):
     transaction_date: Optional[date] = None
 
 class TransactionResponse(TransactionBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Transfer ─────────────────────────────────────────────────────────────────
@@ -96,12 +93,11 @@ class TransferCreate(TransferBase):
     pass
 
 class TransferResponse(TransferBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Asset ────────────────────────────────────────────────────────────────────
@@ -129,13 +125,12 @@ class AssetUpdate(BaseModel):
     purchase_date: Optional[date] = None
 
 class AssetResponse(AssetBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Savings Goal ─────────────────────────────────────────────────────────────
@@ -178,14 +173,13 @@ class RecurringTransactionUpdate(BaseModel):
     is_variable: Optional[bool] = None
 
 class RecurringTransactionResponse(RecurringTransactionBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     is_active: bool
     is_variable: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class LogVariableRecurringRequest(BaseModel):
     amount: Decimal
@@ -193,13 +187,12 @@ class LogVariableRecurringRequest(BaseModel):
 
 
 class AllocationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     account_id: int
     account_name: str
     amount: Decimal
-
-    class Config:
-        from_attributes = True
 
 class AllocationItem(BaseModel):
     account_id: int
@@ -209,6 +202,8 @@ class SetAllocationsRequest(BaseModel):
     allocations: list[AllocationItem]
 
 class SavingsGoalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     name: str
@@ -217,9 +212,6 @@ class SavingsGoalResponse(BaseModel):
     created_at: datetime
     allocations: list[AllocationResponse] = []
     current_amount: Decimal = Decimal("0")
-
-    class Config:
-        from_attributes = True
 
 
 # ─── Loan ─────────────────────────────────────────────────────────────────────
@@ -246,6 +238,8 @@ class LoanUpdate(BaseModel):
     status: Optional[str] = None
 
 class LoanResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     borrower_name: str
@@ -257,6 +251,3 @@ class LoanResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True

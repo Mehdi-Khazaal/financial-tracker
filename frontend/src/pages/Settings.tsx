@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Category } from '../types';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../utils/api';
-import Navigation from '../components/Navigation';
+import { AppShell, PageLayout } from '../components/layout/AppShell';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
 import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
 import { usePlaidLink } from 'react-plaid-link';
+import LoadErrorBanner from '../components/LoadErrorBanner';
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -18,6 +19,7 @@ const Settings: React.FC = () => {
   const toast = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [catTab, setCatTab] = useState<'expense' | 'income'>('expense');
 
   const [newName, setNewName] = useState('');
@@ -32,8 +34,9 @@ const Settings: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
+    setLoadError(false);
     try { const res = await getCategories(); setCategories(Array.isArray(res.data) ? res.data : []); }
-    catch { /* ignore */ }
+    catch { setLoadError(true); }
     finally { setLoading(false); }
   };
 
@@ -205,12 +208,15 @@ const Settings: React.FC = () => {
   const expenseCount = categories.filter(c => c.type === 'expense').length;
 
   return (
-    <>
-      <Navigation />
-      <main className="md:ml-60 min-h-screen pb-28 md:pb-10" style={{ backgroundColor: 'var(--bg)' }}>
+    <AppShell>
+      <PageLayout>
         <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-6 fade-in">
 
-          <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Settings</h1>
+          <div className="product-page-header topbar-safe">
+            <h1 className="product-page-title">Settings</h1>
+          </div>
+
+          {loadError && <LoadErrorBanner message="Categories could not be loaded. Other settings remain available." onRetry={() => void load()} />}
 
           {/* ── Profile ── */}
           <section className="card p-5">
@@ -220,9 +226,9 @@ const Settings: React.FC = () => {
                 style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--accent)' }}>
                 {user?.username.charAt(0).toUpperCase()}
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold text-text">{user?.username}</p>
-                <p className="text-sm text-muted">{user?.email}</p>
+                <p className="text-sm text-muted break-all">{user?.email}</p>
               </div>
             </div>
             <button
@@ -236,7 +242,8 @@ const Settings: React.FC = () => {
           {/* ── Change Password ── */}
           <section className="card p-5">
             <button onClick={() => setPwOpen(o => !o)}
-              className="w-full flex items-center justify-between">
+              className="w-full min-h-[44px] flex items-center justify-between"
+              aria-expanded={pwOpen} aria-controls="security-settings-form">
               <p className="label">Security</p>
               <svg className={`w-4 h-4 transition-transform ${pwOpen ? 'rotate-180' : ''}`}
                 fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
@@ -246,20 +253,20 @@ const Settings: React.FC = () => {
             </button>
 
             {pwOpen && (
-              <form onSubmit={handleChangePassword} className="mt-4 space-y-3">
+              <form id="security-settings-form" onSubmit={handleChangePassword} className="mt-4 space-y-3">
                 <div>
-                  <p className="label mb-2">Current password</p>
-                  <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+                  <label className="form-label" htmlFor="current-password">Current password</label>
+                  <input id="current-password" type="password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
                     className="input-dark" placeholder="••••••••" required />
                 </div>
                 <div>
-                  <p className="label mb-2">New password</p>
-                  <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+                  <label className="form-label" htmlFor="new-password">New password</label>
+                  <input id="new-password" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)}
                     className="input-dark" placeholder="At least 8 characters" required minLength={8} />
                 </div>
                 <div>
-                  <p className="label mb-2">Confirm new password</p>
-                  <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                  <label className="form-label" htmlFor="confirm-password">Confirm new password</label>
+                  <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
                     className="input-dark" placeholder="••••••••" required />
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -288,9 +295,10 @@ const Settings: React.FC = () => {
                 <button
                   onClick={togglePush}
                   disabled={pushLoading}
-                  className="relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50"
+                  className="relative w-12 h-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50"
+                  role="switch" aria-checked={pushEnabled} aria-label="Push notifications"
                   style={{ backgroundColor: pushEnabled ? 'var(--accent)' : 'var(--line)' }}>
-                  <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
+                  <span className="absolute top-3 left-1.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
                     style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
                 </button>
               </div>
@@ -324,18 +332,18 @@ const Settings: React.FC = () => {
               <div className="flex gap-2 flex-wrap mb-3">
                 {PRESET_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setNewColor(c)}
-                    className="w-7 h-7 rounded-full transition-transform hover:scale-110"
-                    style={{
-                      backgroundColor: c,
-                      outline: newColor === c ? `3px solid ${c}` : 'none',
-                      outlineOffset: '2px',
-                    }} />
+                    className="color-swatch"
+                    style={{ backgroundColor: c }}
+                    aria-label={`Use ${c} for this category`}
+                    aria-pressed={newColor === c} />
                 ))}
               </div>
-              <div className="flex gap-2">
-                <div className="flex items-center gap-2 flex-1">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex min-w-0 items-center gap-2 flex-1">
                   <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: newColor }} />
+                  <label className="sr-only" htmlFor="new-category">Category name</label>
                   <input
+                    id="new-category"
                     type="text"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
@@ -344,7 +352,7 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <button type="submit" disabled={adding || !newName.trim()}
-                  className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all disabled:opacity-40"
+                  className="min-h-[44px] px-4 py-2.5 text-sm font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={catTab === 'expense'
                     ? { backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.25)' }
                     : { backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.25)' }}>
@@ -373,18 +381,18 @@ const Settings: React.FC = () => {
                         <div className="flex gap-1.5 flex-wrap">
                           {PRESET_COLORS.map(c => (
                             <button key={c} type="button" onClick={() => setEditColor(c)}
-                              className="w-6 h-6 rounded-full transition-transform hover:scale-110"
-                              style={{
-                                backgroundColor: c,
-                                outline: editColor === c ? `2px solid ${c}` : 'none',
-                                outlineOffset: '2px',
-                              }} />
+                              className="color-swatch"
+                              style={{ backgroundColor: c }}
+                              aria-label={`Use ${c} for this category`}
+                              aria-pressed={editColor === c} />
                           ))}
                         </div>
-                        <div className="flex gap-2">
-                          <div className="flex items-center gap-2 flex-1">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="flex min-w-0 items-center gap-2 flex-1">
                             <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: editColor }} />
+                            <label className="sr-only" htmlFor={`edit-category-${cat.id}`}>Category name</label>
                             <input
+                              id={`edit-category-${cat.id}`}
                               type="text"
                               value={editName}
                               onChange={e => setEditName(e.target.value)}
@@ -414,12 +422,14 @@ const Settings: React.FC = () => {
                         )}
                         <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(cat)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
+                            className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs transition-all"
+                            aria-label={`Edit ${cat.name}`}
                             style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                           </button>
                           <button onClick={() => handleDelete(cat.id, cat.name)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all"
+                            className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs transition-all"
+                            aria-label={`Delete ${cat.name}`}
                             style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                           </button>
@@ -434,7 +444,7 @@ const Settings: React.FC = () => {
 
           {/* ── Connected Banks ── */}
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <p className="label">Connected Banks</p>
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
@@ -442,23 +452,23 @@ const Settings: React.FC = () => {
                   PLAID
                 </span>
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex w-full sm:w-auto gap-2 flex-wrap">
                 {plaidItems.length > 0 && (
                   <>
                     <button onClick={handlePlaidSync} disabled={plaidSyncing}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                      className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                       style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
                       {plaidSyncing ? 'Syncing…' : 'Sync Now'}
                     </button>
                   </>
                 )}
                 <button onClick={handlePlaidReset} disabled={plaidResetting}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                  className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                   {plaidResetting ? 'Clearing…' : 'Reset & Start Fresh'}
                 </button>
                 <button onClick={() => { if (plaidLinkToken) sessionStorage.setItem('plaid_link_token', plaidLinkToken); openPlaidLink(); }} disabled={!plaidReady || !plaidLinkToken}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                  className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
                   + Connect Bank
                 </button>
@@ -550,8 +560,8 @@ const Settings: React.FC = () => {
           )}
 
         </div>
-      </main>
-    </>
+      </PageLayout>
+    </AppShell>
   );
 };
 
