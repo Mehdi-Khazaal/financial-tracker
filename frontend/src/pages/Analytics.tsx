@@ -127,7 +127,7 @@ const Analytics: React.FC = () => {
     ? netWorthTrend[netWorthTrend.length - 1].Value - netWorthTrend[0].Value
     : 0;
 
-  // â”€â”€ Year-over-Year â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Year-over-year
   const now = new Date();
   const thisMonthKey     = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const lastYearMonthKey = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -158,7 +158,7 @@ const Analytics: React.FC = () => {
     },
   ];
 
-  // â”€â”€ Spending Insights: previous-period comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Spending insights: previous-period comparison
   const prevFiltered = (() => {
     const now = new Date();
     if (period === 'This month') {
@@ -537,7 +537,7 @@ const Analytics: React.FC = () => {
             )}
           </div>
 
-          {/* â”€â”€ Spending Insights â”€â”€ */}
+          {/* Spending insights */}
           {hasInsights && (
             <div className="card p-5">
               {/* Header */}
@@ -575,14 +575,14 @@ const Analytics: React.FC = () => {
                         lineHeight: 1,
                         color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
                       }}>
-                        {topMover.delta > 0 ? '+' : 'âˆ’'}${fmt(Math.abs(topMover.delta))}
+                        {topMover.delta > 0 ? '+' : '-'}${fmt(Math.abs(topMover.delta))}
                       </p>
                       {topMover.pctChange !== null && (
                         <p className="text-xs mt-0.5" style={{
                           fontFamily: 'var(--font-mono)',
                           color: topMover.delta > 0 ? 'var(--neg)' : 'var(--pos)',
                         }}>
-                          {topMover.delta > 0 ? 'â–²' : 'â–¼'} {Math.abs(topMover.pctChange).toFixed(1)}%
+                          {topMover.delta > 0 ? 'Up' : 'Down'} {Math.abs(topMover.pctChange).toFixed(1)}%
                         </p>
                       )}
                     </div>
@@ -623,7 +623,7 @@ const Analytics: React.FC = () => {
                             fontVariantNumeric: 'tabular-nums',
                             color: isNew ? 'var(--accent)' : isGone ? 'var(--dim)' : unchanged ? 'var(--dim)' : isUp ? 'var(--neg)' : 'var(--pos)',
                           }}>
-                            {isNew ? 'new' : isGone ? 'none' : unchanged ? 'â€”' : `${isUp ? 'â–²' : 'â–¼'} $${fmt(Math.abs(cat.delta))}`}
+                            {isNew ? 'new' : isGone ? 'none' : unchanged ? '--' : `${isUp ? 'Up' : 'Down'} $${fmt(Math.abs(cat.delta))}`}
                           </p>
                         </div>
                       </div>

@@ -92,7 +92,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
                 <p className="text-[10px] text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>of ${fmt(Number(loan.amount))}</p>
               )}
               {loan.status === 'repaid' && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Repaid âœ“</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Repaid</span>
               )}
               {loan.status === 'written_off' && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>Written off</span>
@@ -116,7 +116,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
                 backgroundColor: dueStatus === 'overdue' ? 'oklch(70% 0.17 25 / 0.15)' : dueStatus === 'soon' ? 'rgba(245,158,11,.15)' : 'oklch(72% 0.17 55 / 0.1)',
                 color: dueStatus === 'overdue' ? 'var(--neg)' : dueStatus === 'soon' ? '#f59e0b' : 'var(--accent)',
               }}>
-              {dueStatus === 'overdue' ? 'Overdue Â· ' : 'Due '}{formatDate(loan.due_date)}
+              {dueStatus === 'overdue' ? 'Overdue - ' : 'Due '}{formatDate(loan.due_date)}
             </span>
           </div>
         )}
@@ -146,7 +146,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
               disabled={repaying || !repayInput || parseFloat(repayInput) <= 0}
               className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
               style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-              {repaying ? 'â€¦' : '+ Got paid'}
+              {repaying ? '...' : '+ Got paid'}
             </button>
           </div>
           <div className="flex gap-2">
@@ -167,7 +167,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
   );
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Accounts page
 const AccountsPage: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/accounts');
@@ -304,7 +304,7 @@ const AccountsPage: React.FC = () => {
       `$${fmt(Number(l.amount) - Number(l.amount_repaid))}`,
       l.note ?? '',
       l.loan_date,
-      l.due_date ?? 'â€”',
+      l.due_date ?? 'N/A',
       l.status,
     ]);
     if (format === 'csv') downloadCSV(`loans-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
@@ -440,7 +440,7 @@ const AccountsPage: React.FC = () => {
 
           {loadError && <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />}
 
-          {/* â”€â”€ WALLET TAB â”€â”€ */}
+          {/* Wallet tab */}
           {tab === 'wallet' && !failedSources.includes('accounts') && (
             <>
               {/* Hero */}
@@ -550,7 +550,7 @@ const AccountsPage: React.FC = () => {
             </>
           )}
 
-          {/* â”€â”€ CARDS TAB â”€â”€ */}
+          {/* Cards tab */}
           {tab === 'cards' && !failedSources.includes('accounts') && (
             <>
               {ccAccounts.length === 0 ? (
@@ -655,7 +655,7 @@ const AccountsPage: React.FC = () => {
             </>
           )}
 
-          {/* â”€â”€ LOANS TAB â”€â”€ */}
+          {/* Loans tab */}
           {tab === 'loans' && !failedSources.includes('loans') && (
             <>
               {loans.length > 0 && (
