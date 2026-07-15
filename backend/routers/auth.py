@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie, Request
 import jwt
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from models.database import get_db, Category
 from models.auth import User, UserCreate, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
 from utils.auth import (
@@ -85,8 +85,9 @@ def signup(request: Request, user: UserCreate, response: Response, db: Session =
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(request: Request, user: UserLogin, response: Response, db: Session = Depends(get_db)):
+    identifier = user.identifier.strip()
     db_user = db.query(User).filter(
-        or_(User.email == user.identifier, User.username == user.identifier)
+        or_(func.lower(User.email) == identifier.lower(), User.username == identifier)
     ).first()
 
     if not db_user or not verify_password(user.password, db_user.hashed_password):

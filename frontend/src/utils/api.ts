@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  // Keep browser authentication same-origin. Production API traffic is
+  // forwarded by Vercel, while setupProxy handles the same path locally.
+  baseURL: '/api',
   withCredentials: true,
 });
 

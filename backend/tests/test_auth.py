@@ -43,6 +43,16 @@ def test_login_accepts_username_without_runtime_admin_promotion(client, db_sessi
     assert "access_token" not in response.json()
 
 
+def test_login_normalizes_email_case_and_whitespace(client, user):
+    response = client.post(
+        "/auth/login",
+        json={"identifier": f"  {user.email.upper()}  ", "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "Logged in successfully"}
+
+
 def test_refresh_rejects_wrong_token_type(client):
     bad_token = jwt.encode({"sub": "42", "type": "access"}, SECRET_KEY, algorithm=ALGORITHM)
 

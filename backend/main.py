@@ -63,6 +63,7 @@ _allowed_origins = [
     origin
     for origin in [
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "https://financial-tracker-gamma-sable.vercel.app",
         _extra_origin,
     ]
