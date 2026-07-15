@@ -18,8 +18,15 @@ const Login: React.FC = () => {
     try {
       await login(identifier, password);
       navigate('/');
-    } catch {
-      setError('Invalid email or password');
+    } catch (requestError: any) {
+      const status = requestError?.response?.status;
+      if (status === 401) {
+        setError('Invalid email or password');
+      } else if (status === 429) {
+        setError('Too many sign-in attempts. Please wait a minute and try again.');
+      } else {
+        setError('Sign-in service is temporarily unavailable. Please try again shortly.');
+      }
     } finally {
       setLoading(false);
     }

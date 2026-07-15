@@ -2,12 +2,40 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "^/api/(.*)$",
-      "destination": "https://financial-tracker-api-1osn.onrender.com/$1"
+      "source": "/api/accounts",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/accounts/"
     },
     {
-      "source": "/api",
-      "destination": "https://financial-tracker-api-1osn.onrender.com/"
+      "source": "/api/categories",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/categories/"
+    },
+    {
+      "source": "/api/transactions",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/transactions/"
+    },
+    {
+      "source": "/api/transfers",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/transfers/"
+    },
+    {
+      "source": "/api/assets",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/assets/"
+    },
+    {
+      "source": "/api/savings-goals",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/savings-goals/"
+    },
+    {
+      "source": "/api/recurring",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/recurring/"
+    },
+    {
+      "source": "/api/loans",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/loans/"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/:path*"
     }
   ],
   "headers": [
