@@ -1,4 +1,15 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "^/api/(.*)$",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/$1"
+    },
+    {
+      "source": "/api",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
