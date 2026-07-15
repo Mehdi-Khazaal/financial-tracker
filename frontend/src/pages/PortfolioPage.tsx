@@ -42,6 +42,7 @@ const PortfolioPage: React.FC = () => {
   const [tab, setTab] = useRouteTab('/portfolio');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
 
   // Investments
   const [investments, setInvestments] = useState<Asset[]>([]);
@@ -95,20 +96,40 @@ const PortfolioPage: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
+    setFailedSources([]);
     try {
-      const [invRes, assetRes, accRes, goalRes] = await Promise.all([
+      const results = await Promise.allSettled([
         getAssets({ asset_class: 'investment' }),
         getAssets({ asset_class: 'physical' }),
         getAccounts(),
         getSavingsGoals(),
       ]);
-      const invs = Array.isArray(invRes.data) ? invRes.data : [];
-      setInvestments(invs);
-      setAssets(Array.isArray(assetRes.data) ? assetRes.data : []);
-      setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
-      setGoals(Array.isArray(goalRes.data) ? goalRes.data : []);
-      fetchPricesBackground(invs);
-    } catch { setLoadError(true); }
+      const labels = ['investments', 'assets', 'accounts', 'savings goals'];
+      const failed = labels.filter((_, index) => results[index].status === 'rejected');
+      const investmentsResult = results[0];
+      if (investmentsResult.status === 'fulfilled') {
+        const invs: Asset[] = Array.isArray(investmentsResult.value.data) ? investmentsResult.value.data : [];
+        setInvestments(invs);
+        fetchPricesBackground(invs);
+      }
+      const assetsResult = results[1];
+      if (assetsResult.status === 'fulfilled') {
+        setAssets(Array.isArray(assetsResult.value.data) ? assetsResult.value.data : []);
+      }
+      const accountsResult = results[2];
+      if (accountsResult.status === 'fulfilled') {
+        setAccounts(Array.isArray(accountsResult.value.data) ? accountsResult.value.data : []);
+      }
+      const goalsResult = results[3];
+      if (goalsResult.status === 'fulfilled') {
+        setGoals(Array.isArray(goalsResult.value.data) ? goalsResult.value.data : []);
+      }
+      setFailedSources(failed);
+      setLoadError(failed.length > 0);
+    } catch {
+      setFailedSources(['investments', 'assets', 'accounts', 'savings goals']);
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, [fetchPricesBackground]);
 
@@ -162,7 +183,6 @@ const PortfolioPage: React.FC = () => {
   const totalBalance = accounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + Number(a.balance), 0);
   const totalAllocated = Object.values(allocatedPerAccount).reduce((s, v) => s + v, 0);
   const totalUnallocated = Math.max(0, totalBalance - totalAllocated);
-  const hasNoUsableData = loadError && investments.length === 0 && assets.length === 0 && goals.length === 0;
   const getDaysLeft = (deadline: string | null) => {
     if (!deadline) return null;
     return Math.ceil((new Date(deadline + 'T00:00:00').getTime() - Date.now()) / 86400000);
@@ -288,10 +308,10 @@ const PortfolioPage: React.FC = () => {
             </div>
           </div>
 
-          {loadError && <LoadErrorBanner onRetry={() => void load()} />}
+          {loadError && <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />}
 
           {/* â”€â”€ INVESTMENTS TAB â”€â”€ */}
-          {tab === 'investments' && (
+          {tab === 'investments' && !failedSources.includes('investments') && (
             <>
               {/* Hero */}
               <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
@@ -349,7 +369,7 @@ const PortfolioPage: React.FC = () => {
                 </div>
               )}
 
-              {hasNoUsableData ? null : investments.length === 0 ? (
+              {investments.length === 0 ? (
                 <div className="card py-12 text-center">
                   <p className="text-3xl mb-3">ðŸ“ˆ</p>
                   <p className="font-semibold text-text mb-1">No investments yet</p>
@@ -424,7 +444,7 @@ const PortfolioPage: React.FC = () => {
           )}
 
           {/* â”€â”€ ASSETS TAB â”€â”€ */}
-          {tab === 'assets' && (
+          {tab === 'assets' && !failedSources.includes('assets') && (
             <>
               <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Asset Value</p>
@@ -445,7 +465,7 @@ const PortfolioPage: React.FC = () => {
                 )}
               </div>
 
-              {hasNoUsableData ? null : assets.length === 0 ? (
+              {assets.length === 0 ? (
                 <EmptyState
                   iconPath="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"
                   iconColor="#a855f7"
@@ -502,7 +522,7 @@ const PortfolioPage: React.FC = () => {
           )}
 
           {/* â”€â”€ SAVINGS TAB â”€â”€ */}
-          {tab === 'savings' && (
+          {tab === 'savings' && !failedSources.some(source => source === 'accounts' || source === 'savings goals') && (
             <>
               <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Balance</p>
@@ -565,7 +585,7 @@ const PortfolioPage: React.FC = () => {
                     <p className="label">Goals</p>
                     <button onClick={() => setShowAddGoal(true)} className="text-xs font-semibold transition-colors" style={{ color: 'var(--accent)' }}>+ New Goal</button>
                   </div>
-                  {hasNoUsableData ? null : goals.length === 0 ? (
+                  {goals.length === 0 ? (
                     <div className="card py-10 text-center">
                       <p className="text-3xl mb-3">ðŸŽ¯</p>
                       <p className="font-semibold text-text mb-1">No savings goals</p>

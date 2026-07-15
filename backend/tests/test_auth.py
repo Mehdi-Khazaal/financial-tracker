@@ -1,8 +1,9 @@
 from models.database import Category
+from models.auth import User
 import jwt
 
 from routers.auth import SYSTEM_CATEGORIES
-from utils.auth import ALGORITHM, SECRET_KEY, verify_password
+from utils.auth import ALGORITHM, SECRET_KEY, get_password_hash, verify_password
 
 
 def test_signup_sets_auth_cookies_and_seeds_categories(client, db_session):
@@ -51,6 +52,42 @@ def test_login_normalizes_email_case_and_whitespace(client, user):
 
     assert response.status_code == 200
     assert response.json() == {"message": "Logged in successfully"}
+
+
+def test_email_login_does_not_match_another_users_username(client, db_session, user):
+    conflicting_username = User(
+        email="different@example.com",
+        username=user.email.upper(),
+        hashed_password=get_password_hash("DifferentPassword123"),
+        is_verified=True,
+        is_admin=False,
+    )
+    db_session.add(conflicting_username)
+    db_session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={"identifier": user.email, "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["id"] == user.id
+
+
+def test_signup_rejects_case_variant_of_existing_email(client, user):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": user.email.upper(),
+            "username": "another-user",
+            "password": "Password123",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Email already registered"}
 
 
 def test_refresh_rejects_wrong_token_type(client):

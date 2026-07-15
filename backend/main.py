@@ -32,6 +32,14 @@ def _prepare_database() -> None:
     Base.metadata.create_all(bind=engine)
 
     migrations = [
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(15, 2)",
+        "ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_class VARCHAR(20) NOT NULL DEFAULT 'physical'",
+        """UPDATE assets
+           SET asset_class = 'investment'
+           WHERE asset_class = 'physical'
+             AND LOWER(type) IN ('stock', 'crypto', 'gold', 'silver', 'etf', 'bond')""",
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS is_variable BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE loans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
@@ -45,7 +53,11 @@ def _prepare_database() -> None:
     with engine.begin() as conn:
         for sql in migrations:
             try:
-                conn.execute(text(sql))
+                # PostgreSQL marks the whole transaction as failed after one
+                # bad statement. A savepoint keeps compatibility repairs
+                # independent so later columns can still be added safely.
+                with conn.begin_nested():
+                    conn.execute(text(sql))
             except Exception as exc:
                 logger.info("database compatibility migration skipped %s", kv(error=str(exc), sql=sql))
 

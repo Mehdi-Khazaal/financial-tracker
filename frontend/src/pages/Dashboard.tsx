@@ -51,6 +51,7 @@ const Dashboard: React.FC = () => {
   const [assetsList, setAssetsList]           = useState<Asset[]>([]);
   const [loading, setLoading]                 = useState(true);
   const [loadError, setLoadError]             = useState(false);
+  const [failedSources, setFailedSources]     = useState<string[]>([]);
   const [tab, setTab]                         = useRouteTab('/');
   const [period, setPeriod]                   = useState<Period>('This month');
   const [customMonth, setCustomMonth]         = useState<string>(() => {
@@ -67,17 +68,29 @@ const Dashboard: React.FC = () => {
 
   const loadAll = async () => {
     setLoadError(false);
+    setFailedSources([]);
     try {
-      const [aRes, tRes, gRes, catRes, nwRes, assetsRes] = await Promise.all([
+      const results = await Promise.allSettled([
         getAccounts(), getTransactions(), getSavingsGoals(), getCategories(), getNetWorthHistory(12), getAssets(),
       ]);
-      setAccounts(Array.isArray(aRes.data) ? aRes.data : []);
-      setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
-      setSavingsGoals(Array.isArray(gRes.data) ? gRes.data : []);
-      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
-      setNetWorthSnapshots(Array.isArray(nwRes.data) ? nwRes.data : []);
-      setAssetsList(Array.isArray(assetsRes.data) ? assetsRes.data : []);
-    } catch { setLoadError(true); }
+      const labels = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets'];
+      const failed = labels.filter((_, index) => results[index].status === 'rejected');
+      const apply = <T,>(index: number, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
+        const result = results[index];
+        if (result.status === 'fulfilled') setter(Array.isArray(result.value.data) ? result.value.data : []);
+      };
+      apply<Account>(0, setAccounts);
+      apply<Transaction>(1, setTransactions);
+      apply<SavingsGoal>(2, setSavingsGoals);
+      apply<Category>(3, setCategories);
+      apply<MonthSnapshot>(4, setNetWorthSnapshots);
+      apply<Asset>(5, setAssetsList);
+      setFailedSources(failed);
+      setLoadError(failed.length > 0);
+    } catch {
+      setFailedSources(['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets']);
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   };
 
@@ -325,9 +338,9 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* ══════════════════ OVERVIEW ══════════════════ */}
-          {loadError && <LoadErrorBanner onRetry={() => void loadAll()} />}
+          {loadError && <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available sections are still shown.`} onRetry={() => void loadAll()} />}
 
-          {tab === 'overview' && (
+          {tab === 'overview' && !failedSources.some(source => source === 'accounts' || source === 'transactions') && (
             <>
               {/* ── Hero: Net Worth + Month Stats ── */}
               <div className="hero-card rounded-xl p-6 md:p-8"
@@ -380,8 +393,10 @@ const Dashboard: React.FC = () => {
                     {[
                       { label: 'Income',      value: `+$${fmt(monthIncome)}`,     color: 'var(--pos)',  dot: '#22C55E' },
                       { label: 'Expenses',    value: `-$${fmt(monthExpenses)}`,   color: 'var(--neg)',  dot: '#EF4444' },
-                      { label: 'Assets',      value: `$${fmt(totalAssets)}`,      color: 'var(--fg)',   dot: 'rgba(241,241,243,0.45)' },
-                      { label: 'Investments', value: `$${fmt(totalInvestments)}`, color: '#a855f7',     dot: '#a855f7' },
+                      ...(failedSources.includes('assets') ? [] : [
+                        { label: 'Assets', value: `$${fmt(totalAssets)}`, color: 'var(--fg)', dot: 'rgba(241,241,243,0.45)' },
+                        { label: 'Investments', value: `$${fmt(totalInvestments)}`, color: '#a855f7', dot: '#a855f7' },
+                      ]),
                     ].map(s => (
                       <div key={s.label} className="rounded-lg"
                         style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light)', padding: '10px 12px' }}>
@@ -416,7 +431,7 @@ const Dashboard: React.FC = () => {
                     <div className="review-meter mt-3"><span style={{ width: `${reviewRate}%` }} /></div>
                     <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--dim)' }}>
                       <span>Savings {savingsRate}%</span>
-                      <span className="truncate">Top {topSpendCategory ? topSpendCategory.name : 'None'}</span>
+                      <span className="truncate">Top {failedSources.includes('categories') ? 'unavailable' : topSpendCategory ? topSpendCategory.name : 'None'}</span>
                     </div>
                   </Link>
                   <div className="grid grid-cols-3 gap-2 md:w-[360px]">
@@ -504,7 +519,7 @@ const Dashboard: React.FC = () => {
                 <div className="space-y-6">
 
                   {/* Savings Goals */}
-                  {activeGoals.length > 0 && (
+                  {!failedSources.includes('savings goals') && activeGoals.length > 0 && (
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <p className="label">Savings Goals</p>
@@ -532,7 +547,7 @@ const Dashboard: React.FC = () => {
                   )}
 
                   {/* Empty right column hint */}
-                  {activeGoals.length === 0 && (
+                  {!failedSources.includes('savings goals') && activeGoals.length === 0 && (
                     <div className="rounded-lg py-10 text-center hidden md:flex flex-col items-center justify-center gap-2"
                       style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}>
                       <p className="text-sm" style={{ color: 'var(--muted)' }}>No savings goals yet</p>
@@ -545,7 +560,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* ══════════════════ ANALYTICS ══════════════════ */}
-          {tab === 'analytics' && (
+          {tab === 'analytics' && !failedSources.some(source => source === 'transactions' || source === 'categories') && (
             <div className="space-y-6">
 
               {/* Period selector */}

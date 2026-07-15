@@ -173,6 +173,7 @@ const AccountsPage: React.FC = () => {
   const [tab, setTab] = useRouteTab('/accounts');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
 
   // Wallet / Cards state
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -196,21 +197,37 @@ const AccountsPage: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoadError(false);
+    setFailedSources([]);
     try {
-      const [aRes, tRes, lRes] = await Promise.all([getAccounts(), getTransactions(), getLoans()]);
-      const accs: Account[] = Array.isArray(aRes.data) ? aRes.data : [];
-      setAccounts(accs);
-      setTransactions(Array.isArray(tRes.data) ? tRes.data : []);
-      setLoans(Array.isArray(lRes.data) ? lRes.data : []);
-      // Sparklines
-      const histEntries = await Promise.all(
-        accs.map(async a => {
-          try { const h = await getAccountHistory(a.id, 6); return [a.id, h.data] as [number, MonthSnapshot[]]; }
-          catch { return [a.id, []] as [number, MonthSnapshot[]]; }
-        })
-      );
-      setHistories(Object.fromEntries(histEntries));
-    } catch { setLoadError(true); }
+      const results = await Promise.allSettled([getAccounts(), getTransactions(), getLoans()]);
+      const labels = ['accounts', 'transactions', 'loans'];
+      const failed = labels.filter((_, index) => results[index].status === 'rejected');
+      const accountsResult = results[0];
+      if (accountsResult.status === 'fulfilled') {
+        const accs: Account[] = Array.isArray(accountsResult.value.data) ? accountsResult.value.data : [];
+        setAccounts(accs);
+        const historyResults = await Promise.allSettled(accs.map(account => getAccountHistory(account.id, 6)));
+        const historyEntries = historyResults.flatMap((result, index) =>
+          result.status === 'fulfilled'
+            ? [[accs[index].id, Array.isArray(result.value.data) ? result.value.data : []] as [number, MonthSnapshot[]]]
+            : []
+        );
+        setHistories(previous => ({ ...previous, ...Object.fromEntries(historyEntries) }));
+      }
+      const transactionsResult = results[1];
+      if (transactionsResult.status === 'fulfilled') {
+        setTransactions(Array.isArray(transactionsResult.value.data) ? transactionsResult.value.data : []);
+      }
+      const loansResult = results[2];
+      if (loansResult.status === 'fulfilled') {
+        setLoans(Array.isArray(loansResult.value.data) ? loansResult.value.data : []);
+      }
+      setFailedSources(failed);
+      setLoadError(failed.length > 0);
+    } catch {
+      setFailedSources(['accounts', 'transactions', 'loans']);
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -274,7 +291,6 @@ const AccountsPage: React.FC = () => {
   const activeLoans  = loans.filter(l => l.status === 'active');
   const repaidLoans  = loans.filter(l => l.status === 'repaid');
   const writtenOff   = loans.filter(l => l.status === 'written_off');
-  const hasNoUsableData = loadError && accounts.length === 0 && loans.length === 0;
   const totalOutstanding = activeLoans.reduce((s, l) => s + Number(l.amount) - Number(l.amount_repaid), 0);
   const totalLent    = loans.reduce((s, l) => s + Number(l.amount), 0);
   const totalRecovered = loans.reduce((s, l) => s + Number(l.amount_repaid), 0);
@@ -422,10 +438,10 @@ const AccountsPage: React.FC = () => {
             </div>
           </div>
 
-          {loadError && <LoadErrorBanner onRetry={() => void load()} />}
+          {loadError && <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />}
 
           {/* â”€â”€ WALLET TAB â”€â”€ */}
-          {tab === 'wallet' && (
+          {tab === 'wallet' && !failedSources.includes('accounts') && (
             <>
               {/* Hero */}
               <div className="rounded-xl p-5 relative overflow-hidden"
@@ -446,7 +462,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               </div>
 
-              {hasNoUsableData ? null : accounts.length === 0 ? (
+              {accounts.length === 0 ? (
                 <div className="card py-12 text-center">
                   <p className="font-semibold text-text mb-1">No accounts yet</p>
                   <p className="text-sm text-muted mb-5">Add your bank accounts, credit cards, and cash</p>
@@ -535,9 +551,9 @@ const AccountsPage: React.FC = () => {
           )}
 
           {/* â”€â”€ CARDS TAB â”€â”€ */}
-          {tab === 'cards' && (
+          {tab === 'cards' && !failedSources.includes('accounts') && (
             <>
-              {hasNoUsableData ? null : ccAccounts.length === 0 ? (
+              {ccAccounts.length === 0 ? (
                 <div className="card py-14 text-center">
                   <AccountTypeIcon type="credit_card" className="w-12 h-12 mx-auto mb-3" iconClassName="w-6 h-6" />
                   <p className="font-semibold text-text mb-1">No credit cards</p>
@@ -640,7 +656,7 @@ const AccountsPage: React.FC = () => {
           )}
 
           {/* â”€â”€ LOANS TAB â”€â”€ */}
-          {tab === 'loans' && (
+          {tab === 'loans' && !failedSources.includes('loans') && (
             <>
               {loans.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -657,7 +673,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               )}
 
-              {hasNoUsableData ? null : loans.length === 0 ? (
+              {loans.length === 0 ? (
                 <div className="card py-14 text-center">
                   <p className="font-semibold text-text mb-1">No loans tracked</p>
                   <p className="text-sm text-muted mb-5">Record money you've lent to friends or family.</p>

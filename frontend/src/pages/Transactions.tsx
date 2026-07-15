@@ -328,6 +328,7 @@ const Transactions: React.FC = () => {
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);
   const [loadError, setLoadError]       = useState(false);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
 
   const [showTx, setShowTx]             = useState(false);
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
@@ -376,15 +377,35 @@ const Transactions: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoadError(false);
+    setFailedSources([]);
     try {
-      const [txRes, accRes, catRes, recRes] = await Promise.all([
+      const results = await Promise.allSettled([
         getTransactions(), getAccounts(), getCategories(), getRecurring(),
       ]);
-      setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
-      setAccounts(Array.isArray(accRes.data) ? accRes.data : []);
-      setCategories(Array.isArray(catRes.data) ? catRes.data : []);
-      setItems(Array.isArray(recRes.data) ? recRes.data : []);
-    } catch { setLoadError(true); }
+      const labels = ['transactions', 'accounts', 'categories', 'recurring transactions'];
+      const failed = labels.filter((_, index) => results[index].status === 'rejected');
+      const transactionsResult = results[0];
+      if (transactionsResult.status === 'fulfilled') {
+        setTransactions(Array.isArray(transactionsResult.value.data) ? transactionsResult.value.data : []);
+      }
+      const accountsResult = results[1];
+      if (accountsResult.status === 'fulfilled') {
+        setAccounts(Array.isArray(accountsResult.value.data) ? accountsResult.value.data : []);
+      }
+      const categoriesResult = results[2];
+      if (categoriesResult.status === 'fulfilled') {
+        setCategories(Array.isArray(categoriesResult.value.data) ? categoriesResult.value.data : []);
+      }
+      const recurringResult = results[3];
+      if (recurringResult.status === 'fulfilled') {
+        setItems(Array.isArray(recurringResult.value.data) ? recurringResult.value.data : []);
+      }
+      setFailedSources(failed);
+      setLoadError(failed.length > 0);
+    } catch {
+      setFailedSources(['transactions', 'accounts', 'categories', 'recurring transactions']);
+      setLoadError(true);
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -982,14 +1003,12 @@ const Transactions: React.FC = () => {
         {/* ── Board Tab ── */}
         {loadError && (
           <div className="shrink-0 px-3 pt-3 md:px-4">
-            <LoadErrorBanner onRetry={() => void load()} />
+            <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />
           </div>
         )}
 
-        {tab === 'transactions' && (
-          loadError && transactions.length === 0 ? (
-            <div className="flex-1" />
-          ) : availableMonths.length === 0 ? (
+        {tab === 'transactions' && !failedSources.some(source => source === 'transactions' || source === 'categories') && (
+          availableMonths.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <p className="font-semibold text-text mb-1">No imported transactions yet</p>
@@ -1372,7 +1391,7 @@ const Transactions: React.FC = () => {
         )}
 
         {/* ── List Tab ── */}
-        {tab === 'list' && (
+        {tab === 'list' && !failedSources.includes('transactions') && (
           <div className="flex-1 flex flex-col overflow-hidden">
 
             {/* Collapsible filter panel */}
@@ -1522,7 +1541,7 @@ const Transactions: React.FC = () => {
         )}
 
         {/* ── Recurring Tab ── */}
-        {tab === 'recurring' && (
+        {tab === 'recurring' && !failedSources.includes('recurring transactions') && (
           <div className="flex-1 overflow-y-auto mobile-tabs-spacer md:pb-10">
             <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5 fade-in">
               <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Recurring</h1>
