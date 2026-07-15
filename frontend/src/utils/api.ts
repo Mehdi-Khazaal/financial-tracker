@@ -15,7 +15,13 @@ localStorage.removeItem('access_token');
 let _refreshing: Promise<unknown> | null = null;
 
 api.interceptors.response.use(
-  res => res,
+  res => {
+    const contentType = String(res.headers?.['content-type'] || '').toLowerCase();
+    if (contentType.includes('text/html')) {
+      throw new Error(`API route returned HTML instead of data: ${res.config.url || 'unknown route'}`);
+    }
+    return res;
+  },
   async err => {
     const original = err.config;
     if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
