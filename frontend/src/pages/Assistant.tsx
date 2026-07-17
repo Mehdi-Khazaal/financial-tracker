@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import { useToast } from '../context/ToastContext';
 import {
@@ -69,6 +70,19 @@ const currency = (value: number, currencyCode = 'USD') => {
     return `$${value.toLocaleString()}`;
   }
 };
+
+const AssistantReply: React.FC<{ content: string }> = ({ content }) => (
+  <ReactMarkdown
+    allowedElements={['p', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'code', 'pre', 'a', 'br', 'hr']}
+    components={{
+      a: ({ href, children }) => (
+        <a href={href} target="_blank" rel="noreferrer noopener">{children}</a>
+      ),
+    }}
+  >
+    {content}
+  </ReactMarkdown>
+);
 
 const VisualBlock: React.FC<{ block: AssistantVisualBlock; onFollowUp: (prompt: string) => void }> = ({ block, onFollowUp }) => {
   const rows = block.rows ?? [];
@@ -417,7 +431,9 @@ const Assistant: React.FC = () => {
                 {messages.map(message => (
                   <article className={`assistant-message is-${message.role}`} key={message.id} aria-label={`${message.role === 'user' ? 'You' : 'Fin'} said`}>
                     {message.role === 'assistant' && <span className="assistant-message-name">Fin</span>}
-                    <div className="assistant-bubble">{message.content}</div>
+                    <div className="assistant-bubble">
+                      {message.role === 'assistant' ? <AssistantReply content={message.content} /> : message.content}
+                    </div>
                     {message.blocks?.map((block, index) => <VisualBlock block={block} onFollowUp={send} key={`${message.id}-${block.type}-${index}`} />)}
                   </article>
                 ))}

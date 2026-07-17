@@ -185,9 +185,27 @@
 .assistant-message { width: 100%; margin-top: 20px; display: flex; flex-direction: column; align-items: flex-start; }
 .assistant-message.is-user { align-items: flex-end; }
 .assistant-message-name { margin: 0 0 5px 3px; font: 10px var(--font-mono); color: var(--dim); }
-.assistant-bubble { max-width: min(78%, 610px); padding: 11px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
+.assistant-bubble { max-width: min(78%, 610px); padding: 11px 14px; border-radius: 14px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
 .assistant-message.is-assistant .assistant-bubble { background: var(--elev-1); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
-.assistant-message.is-user .assistant-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+.assistant-message.is-user .assistant-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 5px; white-space: pre-wrap; }
+.assistant-message.is-assistant .assistant-bubble > :first-child { margin-top: 0; }
+.assistant-message.is-assistant .assistant-bubble > :last-child { margin-bottom: 0; }
+.assistant-message.is-assistant .assistant-bubble p { margin: 0 0 10px; }
+.assistant-message.is-assistant .assistant-bubble h1,
+.assistant-message.is-assistant .assistant-bubble h2,
+.assistant-message.is-assistant .assistant-bubble h3,
+.assistant-message.is-assistant .assistant-bubble h4 { margin: 14px 0 6px; font-size: 14px; line-height: 1.35; font-weight: 700; }
+.assistant-message.is-assistant .assistant-bubble strong { font-weight: 700; color: var(--fg); }
+.assistant-message.is-assistant .assistant-bubble ul,
+.assistant-message.is-assistant .assistant-bubble ol { margin: 5px 0 11px; padding-left: 20px; }
+.assistant-message.is-assistant .assistant-bubble li { padding-left: 2px; }
+.assistant-message.is-assistant .assistant-bubble li + li { margin-top: 3px; }
+.assistant-message.is-assistant .assistant-bubble blockquote { margin: 10px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--elev-sub); color: var(--muted); }
+.assistant-message.is-assistant .assistant-bubble code { padding: 1px 4px; border-radius: 4px; background: var(--elev-2); font: .9em var(--font-mono); }
+.assistant-message.is-assistant .assistant-bubble pre { margin: 10px 0; padding: 10px; overflow-x: auto; border-radius: 7px; background: var(--elev-sub); }
+.assistant-message.is-assistant .assistant-bubble pre code { padding: 0; background: transparent; }
+.assistant-message.is-assistant .assistant-bubble a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.assistant-message.is-assistant .assistant-bubble hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
 
 .assistant-data-block {
   width: min(100%, 680px);

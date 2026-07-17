@@ -559,7 +559,7 @@ def _build_system_prompt(db: Session, user: User) -> str:
         "- When you learn a durable fact about the user (a goal, a habit, a preference, a rule), call `save_memory` so you remember it forever.\n"
         "- Use the narrowest read tool that can answer the question, including an explicit date range when the user names a period.\n"
         "- The interface visualizes read-tool results separately. Summarize the finding and implication; do not repeat every row.\n"
-        "- Be brief. Lead with the answer. Use plain text and short lists; no markdown tables. Never invent a value that was not returned by a tool.\n\n"
+        "- Be brief. Lead with the answer. Use concise Markdown with short bold section labels and bullet lists when useful; never use tables. Never invent a value that was not returned by a tool.\n\n"
         "## Live financial snapshot\n"
         f"{_dump(overview)}\n"
         f"Accounts: {_dump(accounts)}\n\n"
