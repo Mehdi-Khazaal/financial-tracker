@@ -803,10 +803,10 @@ def chat(
 
             api_messages.append({"role": "assistant", "content": response.content})
             tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
+            for tool_block in response.content:
+                if tool_block.type != "tool_use":
                     continue
-                name, tool_input = block.name, dict(block.input or {})
+                name, tool_input = tool_block.name, dict(tool_block.input or {})
                 if name in WRITE_TOOLS:
                     action_token = _register_pending_action(current_user.id, conv.id, name, tool_input)
                     pending_actions.append(
@@ -825,14 +825,14 @@ def chat(
                     try:
                         tool_result = READ_TOOLS[name](db, current_user, **tool_input)
                         result_str = _dump(tool_result)
-                        block = _visual_block_for_tool(name, tool_input, tool_result)
-                        if block:
-                            visual_blocks.append(block)
+                        visual_block = _visual_block_for_tool(name, tool_input, tool_result)
+                        if visual_block:
+                            visual_blocks.append(visual_block)
                     except HTTPException as exc:
                         result_str = _dump({"error": exc.detail})
                 else:
                     result_str = _dump({"error": f"Unknown tool {name}"})
-                tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": result_str})
+                tool_results.append({"type": "tool_result", "tool_use_id": tool_block.id, "content": result_str})
             api_messages.append({"role": "user", "content": tool_results})
     except anthropic.APIError as exc:
         logger.warning("assistant_api_error %s", kv(error=str(exc), user_id=current_user.id))
