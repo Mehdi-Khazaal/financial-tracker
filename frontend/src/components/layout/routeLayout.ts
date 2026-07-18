@@ -9,13 +9,13 @@ export const CONTEXT_TABS: Record<string, ReadonlyArray<ContextTabDefinition>> =
     { label: 'Analytics', value: 'analytics' },
   ],
   '/accounts': [
-    { label: 'Wallet', value: 'wallet' },
+    { label: 'Banking', value: 'wallet' },
     { label: 'Cards', value: 'cards' },
     { label: 'Loans', value: 'loans' },
   ],
   '/transactions': [
-    { label: 'Board', value: 'transactions' },
-    { label: 'List', value: 'list' },
+    { label: 'Timeline', value: 'list' },
+    { label: 'Review', value: 'transactions' },
     { label: 'Recurring', value: 'recurring' },
   ],
   '/portfolio': [

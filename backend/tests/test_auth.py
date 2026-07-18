@@ -1,7 +1,10 @@
+import pytest
+
 from models.database import Category
 from models.auth import User
 import jwt
 
+from routers import auth as auth_router
 from routers.auth import SYSTEM_CATEGORIES
 from utils.auth import ALGORITHM, SECRET_KEY, get_password_hash, verify_password
 
@@ -26,6 +29,59 @@ def test_signup_sets_auth_cookies_and_seeds_categories(client, db_session):
     categories = db_session.query(Category).filter(Category.user_id == body["id"]).all()
     assert len(categories) == len(SYSTEM_CATEGORIES)
     assert all(category.is_system for category in categories)
+
+
+def test_signup_rolls_back_user_when_category_seed_fails(client, db_session, monkeypatch):
+    def fail_seed(*_args, **_kwargs):
+        raise RuntimeError("seed failed")
+
+    monkeypatch.setattr(auth_router, "seed_user_categories", fail_seed)
+
+    with pytest.raises(RuntimeError, match="seed failed"):
+        client.post(
+            "/auth/signup",
+            json={
+                "email": "rollback@example.com",
+                "username": "rollback-user",
+                "password": "Password123",
+            },
+        )
+
+    db_session.expire_all()
+    assert db_session.query(User).filter(User.email == "rollback@example.com").first() is None
+
+
+def test_auth_rejects_password_beyond_bcrypt_limit(client):
+    oversized_password = "a" * 73
+
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "oversized@example.com",
+            "username": "oversized-user",
+            "password": oversized_password,
+        },
+    )
+    login = client.post(
+        "/auth/login",
+        json={"identifier": "missing-user", "password": oversized_password},
+    )
+
+    assert signup.status_code == 422
+    assert login.status_code == 422
+
+
+def test_login_treats_malformed_password_hash_as_invalid_credentials(client, db_session, user):
+    user.hashed_password = "not-a-bcrypt-hash"
+    db_session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={"identifier": user.email, "password": "Password123"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid credentials"}
 
 
 def test_login_accepts_username_without_runtime_admin_promotion(client, db_session, monkeypatch, user):

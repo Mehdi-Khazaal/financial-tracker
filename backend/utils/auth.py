@@ -17,6 +17,8 @@ if not SECRET_KEY:
         "SECRET_KEY environment variable is required. "
         "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
     )
+if len(SECRET_KEY.encode("utf-8")) < 32:
+    raise RuntimeError("SECRET_KEY must be at least 32 bytes for HS256")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
@@ -27,12 +29,14 @@ logger = get_logger(__name__)
 
 
 def cookie_cfg(path: str = "/") -> dict:
-    samesite = "none" if IS_PROD else "lax"
-    return {"httponly": True, "secure": IS_PROD, "samesite": samesite, "path": path}
+    return {"httponly": True, "secure": IS_PROD, "samesite": "lax", "path": path}
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def get_password_hash(password: str) -> str:

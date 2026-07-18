@@ -31,13 +31,6 @@ const navItems = [
     matchPaths: ['/', '/analytics'],
   },
   {
-    path: '/accounts',
-    label: 'Accounts',
-    mobileLabel: 'Money',
-    icon: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z',
-    matchPaths: ['/accounts', '/wallet', '/cards', '/loans'],
-  },
-  {
     path: '/transactions',
     label: 'Transactions',
     mobileLabel: 'Txns',
@@ -45,16 +38,23 @@ const navItems = [
     matchPaths: ['/transactions', '/recurring'],
   },
   {
+    path: '/accounts',
+    label: 'Accounts',
+    mobileLabel: 'Money',
+    icon: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z',
+    matchPaths: ['/accounts', '/wallet', '/cards', '/loans'],
+  },
+  {
     path: '/portfolio',
     label: 'Portfolio',
-    mobileLabel: 'Invest',
+    mobileLabel: 'Wealth',
     icon: 'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z',
     matchPaths: ['/portfolio', '/investments', '/assets', '/savings'],
   },
   {
     path: '/assistant',
-    label: 'AI Assistant',
-    mobileLabel: 'AI',
+    label: 'Assistant',
+    mobileLabel: 'Ask',
     icon: 'M10 2.5l.9 3.1a4.4 4.4 0 002.9 2.9l3.2.9-3.2.9a4.4 4.4 0 00-2.9 2.9l-.9 3.3-.9-3.3a4.4 4.4 0 00-2.9-2.9L3 9.4l3.2-.9a4.4 4.4 0 002.9-2.9L10 2.5zM15.5 13l.4 1.2a1.9 1.9 0 001.2 1.2l1.2.4-1.2.4a1.9 1.9 0 00-1.2 1.2l-.4 1.2-.4-1.2a1.9 1.9 0 00-1.2-1.2l-1.2-.4 1.2-.4a1.9 1.9 0 001.2-1.2l.4-1.2z',
     matchPaths: ['/assistant'],
   },
@@ -73,7 +73,7 @@ const Navigation: React.FC = () => {
   const routeTabs = CONTEXT_TABS[location.pathname] ?? [];
   const activeTab = tabs[location.pathname] ?? '';
   const activeTabIndex = Math.max(0, routeTabs.findIndex(t => t.value === activeTab));
-  const mobileDockItems = [navItems[0], navItems[2], navItems[1], navItems[3], navItems[4]];
+  const mobileDockItems = navItems;
   const activeDockIndex = mobileDockItems.findIndex(item => isActive(item));
 
   useEffect(() => {

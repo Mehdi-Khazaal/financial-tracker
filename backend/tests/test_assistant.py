@@ -1,7 +1,9 @@
 from datetime import date
 from decimal import Decimal
+import sys
+from types import SimpleNamespace
 
-from models.database import Transaction
+from models.database import AssistantConversation, Transaction
 from routers import assistant
 
 
@@ -64,3 +66,37 @@ def test_cashflow_trend_uses_signed_transactions(db_session, user, account):
     assert result == [{"month": date.today().strftime("%Y-%m"), "income": 100.0, "spending": 35.0, "net": 65.0}]
     assert block["type"] == "cashflow_trend"
     assert block["rows"][0]["value"] == 65.0
+
+
+def test_failed_new_chat_does_not_leave_empty_conversation(
+    client,
+    db_session,
+    auth_headers,
+    monkeypatch,
+):
+    class FakeAPIError(Exception):
+        pass
+
+    class FailingMessages:
+        def create(self, **_kwargs):
+            raise FakeAPIError("provider unavailable")
+
+    class FailingAnthropic:
+        def __init__(self, **_kwargs):
+            self.messages = FailingMessages()
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FailingAnthropic, APIError=FakeAPIError),
+    )
+
+    response = client.post(
+        "/assistant/chat",
+        headers=auth_headers,
+        json={"message": "Break down my balances"},
+    )
+
+    assert response.status_code == 502
+    assert db_session.query(AssistantConversation).count() == 0

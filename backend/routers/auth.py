@@ -41,9 +41,10 @@ SYSTEM_CATEGORIES = [
 
 
 def seed_user_categories(db: Session, user_id: int):
-    for cat in SYSTEM_CATEGORIES:
-        db.add(Category(user_id=user_id, name=cat["name"], type=cat["type"], color=cat["color"], is_system=True))
-    db.commit()
+    db.add_all(
+        Category(user_id=user_id, name=cat["name"], type=cat["type"], color=cat["color"], is_system=True)
+        for cat in SYSTEM_CATEGORIES
+    )
 
 
 # ─── Signup ───────────────────────────────────────────────────────────────────
@@ -63,11 +64,15 @@ def signup(request: Request, user: UserCreate, response: Response, db: Session =
         hashed_password=get_password_hash(user.password),
         is_verified=False,
     )
-    db.add(db_user)
-    db.commit()
+    try:
+        db.add(db_user)
+        db.flush()
+        seed_user_categories(db, db_user.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(db_user)
-
-    seed_user_categories(db, db_user.id)
 
     verify_token = create_verify_token(db_user.id, db_user.session_version)
     send_verification(db_user.email, verify_token)

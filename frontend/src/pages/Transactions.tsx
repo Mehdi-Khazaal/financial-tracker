@@ -774,8 +774,8 @@ const Transactions: React.FC = () => {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'transactions', label: 'Board' },
-    { id: 'list',         label: 'List' },
+    { id: 'list',         label: 'Timeline' },
+    { id: 'transactions', label: 'Review' },
     { id: 'recurring',    label: 'Recurring' },
   ];
 

@@ -1,8 +1,19 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from models.database import Base
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from models.database import Base, utc_now
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+MAX_PASSWORD_BYTES = 72
+
+
+def _validate_password(value: str, *, require_strength: bool) -> str:
+    if require_strength and len(value) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} UTF-8 bytes")
+    return value
 
 # ============ DATABASE MODEL ============
 class User(Base):
@@ -15,24 +26,35 @@ class User(Base):
     is_verified = Column(Boolean, default=False, nullable=False, server_default="false")
     is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
     session_version = Column(Integer, default=0, nullable=False, server_default="0")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 # ============ PYDANTIC SCHEMAS ============
 class UserCreate(BaseModel):
     email: EmailStr
-    username: str
+    username: str = Field(min_length=1, max_length=100)
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def username_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Username is required")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return _validate_password(value, require_strength=True)
+
+class UserLogin(BaseModel):
+    identifier: str = Field(min_length=1, max_length=320)
     password: str
 
     @field_validator("password")
     @classmethod
-    def password_strength(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
-
-class UserLogin(BaseModel):
-    identifier: str
-    password: str
+    def password_size(cls, value: str) -> str:
+        return _validate_password(value, require_strength=False)
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -48,23 +70,24 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+    @field_validator("current_password")
+    @classmethod
+    def current_password_size(cls, value: str) -> str:
+        return _validate_password(value, require_strength=False)
+
     @field_validator("new_password")
     @classmethod
-    def password_strength(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+    def password_strength(cls, value: str) -> str:
+        return _validate_password(value, require_strength=True)
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 class ResetPasswordRequest(BaseModel):
-    token: str
+    token: str = Field(min_length=1, max_length=4096)
     new_password: str
 
     @field_validator("new_password")
     @classmethod
-    def password_strength(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+    def password_strength(cls, value: str) -> str:
+        return _validate_password(value, require_strength=True)

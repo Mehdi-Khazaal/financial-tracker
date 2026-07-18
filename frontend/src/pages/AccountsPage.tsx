@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Account, Loan, MonthSnapshot, Transaction } from '../types';
 import {
-  getAccounts, deleteAccount, getAccountHistory,
+  getAccounts, deleteAccount, getAccountHistories,
   getLoans, updateLoan, deleteLoan,
   getTransactions, cleanDescription,
 } from '../utils/api';
@@ -199,20 +199,13 @@ const AccountsPage: React.FC = () => {
     setLoadError(false);
     setFailedSources([]);
     try {
-      const results = await Promise.allSettled([getAccounts(), getTransactions(), getLoans()]);
-      const labels = ['accounts', 'transactions', 'loans'];
+      const results = await Promise.allSettled([getAccounts(), getTransactions(), getLoans(), getAccountHistories(6)]);
+      const labels = ['accounts', 'transactions', 'loans', 'history'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const accountsResult = results[0];
       if (accountsResult.status === 'fulfilled') {
         const accs: Account[] = Array.isArray(accountsResult.value.data) ? accountsResult.value.data : [];
         setAccounts(accs);
-        const historyResults = await Promise.allSettled(accs.map(account => getAccountHistory(account.id, 6)));
-        const historyEntries = historyResults.flatMap((result, index) =>
-          result.status === 'fulfilled'
-            ? [[accs[index].id, Array.isArray(result.value.data) ? result.value.data : []] as [number, MonthSnapshot[]]]
-            : []
-        );
-        setHistories(previous => ({ ...previous, ...Object.fromEntries(historyEntries) }));
       }
       const transactionsResult = results[1];
       if (transactionsResult.status === 'fulfilled') {
@@ -222,10 +215,15 @@ const AccountsPage: React.FC = () => {
       if (loansResult.status === 'fulfilled') {
         setLoans(Array.isArray(loansResult.value.data) ? loansResult.value.data : []);
       }
+      const historiesResult = results[3];
+      if (historiesResult.status === 'fulfilled') {
+        const data = historiesResult.value.data;
+        setHistories(data && typeof data === 'object' && !Array.isArray(data) ? data : {});
+      }
       setFailedSources(failed);
       setLoadError(failed.length > 0);
     } catch {
-      setFailedSources(['accounts', 'transactions', 'loans']);
+      setFailedSources(['accounts', 'transactions', 'loans', 'history']);
       setLoadError(true);
     }
     finally { setLoading(false); }
@@ -330,7 +328,7 @@ const AccountsPage: React.FC = () => {
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'wallet', label: 'Wallet' },
+    { id: 'wallet', label: 'Banking' },
     { id: 'cards', label: 'Cards' },
     { id: 'loans', label: 'Loans' },
   ];

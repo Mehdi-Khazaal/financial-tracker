@@ -23,6 +23,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from models.auth import User
@@ -38,6 +39,7 @@ from models.database import (
     SavingsGoal,
     Transaction,
     get_db,
+    utc_now,
 )
 from utils.auth import get_current_user
 from utils.logging import get_logger, kv
@@ -754,7 +756,10 @@ def chat(
     except ImportError:
         raise HTTPException(status_code=503, detail="The anthropic package is not installed on the server.")
 
-    # Resolve / create conversation
+    user_id = current_user.id
+
+    # Resolve the conversation. New conversations are persisted only after a
+    # successful model response so retries cannot leave empty history rows.
     if req.conversation_id:
         conv = _get_conversation(db, current_user, req.conversation_id)
     else:
@@ -765,19 +770,18 @@ def chat(
         )
         if conversation_count >= MAX_CONVERSATIONS:
             raise HTTPException(status_code=409, detail="Conversation limit reached; delete an older chat first")
-        conv = AssistantConversation(user_id=current_user.id, title=message[:60])
-        db.add(conv)
-        db.commit()
-        db.refresh(conv)
+        conv = None
 
     # Build the message history for the API from stored turns
-    history = (
-        db.query(AssistantMessage)
-        .filter(AssistantMessage.conversation_id == conv.id, AssistantMessage.user_id == current_user.id)
-        .order_by(AssistantMessage.id.desc())
-        .limit(MAX_HISTORY_MESSAGES)
-        .all()
-    )
+    history = []
+    if conv is not None:
+        history = (
+            db.query(AssistantMessage)
+            .filter(AssistantMessage.conversation_id == conv.id, AssistantMessage.user_id == user_id)
+            .order_by(AssistantMessage.id.desc())
+            .limit(MAX_HISTORY_MESSAGES)
+            .all()
+        )
     history = list(reversed(history))
     api_messages = [{"role": m.role, "content": m.content[:MAX_REPLY_CHARS]} for m in history]
     api_messages.append({"role": "user", "content": message})
@@ -787,7 +791,7 @@ def chat(
     pending_actions: list[dict] = []
     visual_blocks: list[dict] = []
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic(api_key=api_key, timeout=30.0, max_retries=1)
     response = None
     try:
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -808,13 +812,11 @@ def chat(
                     continue
                 name, tool_input = tool_block.name, dict(tool_block.input or {})
                 if name in WRITE_TOOLS:
-                    action_token = _register_pending_action(current_user.id, conv.id, name, tool_input)
                     pending_actions.append(
                         {
                             "tool": name,
                             "input": tool_input,
                             "summary": _action_summary(name, tool_input),
-                            "action_token": action_token,
                         }
                     )
                     result_str = (
@@ -830,13 +832,25 @@ def chat(
                             visual_blocks.append(visual_block)
                     except HTTPException as exc:
                         result_str = _dump({"error": exc.detail})
+                    except (SQLAlchemyError, TypeError, ValueError) as exc:
+                        db.rollback()
+                        logger.exception(
+                            "assistant_tool_error %s",
+                            kv(tool=name, error=str(exc), user_id=user_id),
+                        )
+                        result_str = _dump({"error": "The requested ledger data could not be read."})
                 else:
                     result_str = _dump({"error": f"Unknown tool {name}"})
                 tool_results.append({"type": "tool_result", "tool_use_id": tool_block.id, "content": result_str})
             api_messages.append({"role": "user", "content": tool_results})
     except anthropic.APIError as exc:
-        logger.warning("assistant_api_error %s", kv(error=str(exc), user_id=current_user.id))
+        db.rollback()
+        logger.warning("assistant_api_error %s", kv(error=str(exc), user_id=user_id))
         raise HTTPException(status_code=502, detail="The AI service returned an error. Please try again.")
+
+    if response is None:
+        db.rollback()
+        raise HTTPException(status_code=502, detail="The AI service returned no response. Please try again.")
 
     reply = "".join(getattr(b, "text", "") for b in response.content if b.type == "text").strip()
     if not reply:
@@ -844,13 +858,29 @@ def chat(
 
     reply = reply[:MAX_REPLY_CHARS]
 
-    # Persist this turn (user message + assistant reply text only)
-    db.add(AssistantMessage(conversation_id=conv.id, user_id=current_user.id, role="user", content=message))
-    db.add(AssistantMessage(conversation_id=conv.id, user_id=current_user.id, role="assistant", content=reply))
-    conv.updated_at = datetime.utcnow()
-    db.flush()
-    _prune_conversation_messages(db, conv.id)
-    db.commit()
+    # Persist this turn (user message + assistant reply text only).
+    try:
+        if conv is None:
+            conv = AssistantConversation(user_id=user_id, title=message[:60])
+            db.add(conv)
+            db.flush()
+        db.add(AssistantMessage(conversation_id=conv.id, user_id=user_id, role="user", content=message))
+        db.add(AssistantMessage(conversation_id=conv.id, user_id=user_id, role="assistant", content=reply))
+        conv.updated_at = utc_now()
+        db.flush()
+        _prune_conversation_messages(db, conv.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    for action in pending_actions:
+        action["action_token"] = _register_pending_action(
+            user_id,
+            conv.id,
+            action["tool"],
+            action["input"],
+        )
 
     return {
         "conversation_id": conv.id,
@@ -973,7 +1003,7 @@ def execute_action(
                 content=f"[Confirmed] {_action_summary(tool, inp)}",
             )
         )
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = utc_now()
         db.commit()
 
     return {"success": True, "message": message}

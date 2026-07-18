@@ -2,31 +2,42 @@ import os
 import hmac
 import hashlib
 import json
-import traceback
 import requests
 import time
+from collections import OrderedDict
 from datetime import date, datetime
 from decimal import Decimal
+from threading import Lock
 from typing import Optional
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
+from starlette.concurrency import run_in_threadpool
 
-from models.database import get_db, Base, Transaction, Account, SessionLocal
+from models.database import get_db, Base, Transaction, Account, SessionLocal, utc_now
 from models.auth import User
 from utils.auth import get_current_user
+from utils.limiter import limiter
+from utils.logging import get_logger, kv
 from utils.push_sender import send_push_to_user
 from utils.secret_box import decrypt_secret, encrypt_secret, is_encrypted
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
+logger = get_logger(__name__)
 
 PLAID_CLIENT_ID      = os.getenv("PLAID_CLIENT_ID", "")
 PLAID_SECRET         = os.getenv("PLAID_SECRET", "")
 PLAID_ENV            = os.getenv("PLAID_ENV", "sandbox").lower()
 PLAID_WEBHOOK_URL    = os.getenv("PLAID_WEBHOOK_URL", "")
-PLAID_WEBHOOK_SECRET = os.getenv("PLAID_WEBHOOK_SECRET", "")
+
+MAX_WEBHOOK_BYTES = 1_000_000
+WEBHOOK_MAX_AGE_SECONDS = 5 * 60
+WEBHOOK_KEY_CACHE_MAX_ENTRIES = 16
+_webhook_key_cache: OrderedDict[str, dict] = OrderedDict()
+_webhook_key_cache_lock = Lock()
 
 _BASE_URLS = {
     "sandbox":     "https://sandbox.plaid.com",
@@ -55,7 +66,7 @@ class PlaidItem(Base):
     item_id          = Column(String(200), nullable=False, unique=True)
     institution_name = Column(String(200), nullable=True)
     cursor           = Column(Text, nullable=True)
-    created_at       = Column(DateTime, default=datetime.utcnow)
+    created_at       = Column(DateTime, default=utc_now)
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -76,12 +87,22 @@ class PlaidItemResponse(BaseModel):
 def _plaid_post(path: str, body: dict) -> dict:
     url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + path
     body = {**body, "client_id": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
-    resp = requests.post(url, json=body, timeout=30)
+    try:
+        resp = requests.post(url, json=body, timeout=30)
+    except requests.RequestException as exc:
+        logger.warning("plaid_request_failed %s", kv(path=path, error=str(exc)))
+        raise HTTPException(status_code=502, detail="Plaid is temporarily unavailable")
     if not resp.ok:
-        raise HTTPException(status_code=502, detail=f"Plaid error: {resp.text}")
-    data = resp.json()
+        logger.warning("plaid_response_error %s", kv(path=path, status_code=resp.status_code))
+        raise HTTPException(status_code=502, detail="Plaid returned an error")
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.warning("plaid_invalid_response %s", kv(path=path))
+        raise HTTPException(status_code=502, detail="Plaid returned an invalid response")
     if data.get("error_code"):
-        raise HTTPException(status_code=502, detail=f"Plaid API error: {data.get('error_message', data['error_code'])}")
+        logger.warning("plaid_api_error %s", kv(path=path, error_code=data.get("error_code")))
+        raise HTTPException(status_code=502, detail="Plaid returned an error")
     return data
 
 
@@ -207,7 +228,10 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
         # Modified — update amount/description/date if Plaid revised a pending transaction
         for tx in data.get("modified", []):
-            existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
+            existing = db.query(Transaction).filter(
+                Transaction.user_id == user_id,
+                Transaction.plaid_tx_id == tx["transaction_id"],
+            ).first()
             if existing:
                 existing.amount           = _plaid_amount(tx)
                 existing.description      = _plaid_description(tx, existing.description)
@@ -215,7 +239,10 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
         # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
         for tx in data.get("removed", []):
-            existing = db.query(Transaction).filter(Transaction.plaid_tx_id == tx["transaction_id"]).first()
+            existing = db.query(Transaction).filter(
+                Transaction.user_id == user_id,
+                Transaction.plaid_tx_id == tx["transaction_id"],
+            ).first()
             if existing:
                 db.delete(existing)
 
@@ -245,9 +272,8 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
                 url="/transactions",
                 tag="plaid-sync",
             )
-    except Exception as e:
-        print(f"[Plaid sync error] item={plaid_item_db_id}: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("plaid_sync_failed %s", kv(item_id=plaid_item_db_id, user_id=user_id))
     finally:
         db.close()
 
@@ -294,8 +320,11 @@ def exchange_token(
                     "country_codes":  ["US"],
                 })
                 institution_name = inst_data["institution"]["name"]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.info(
+                "plaid_institution_lookup_failed %s",
+                kv(user_id=current_user.id, error_type=type(exc).__name__),
+            )
         institution_name = institution_name or "Bank"
 
     if db.query(PlaidItem).filter(
@@ -365,8 +394,11 @@ def disconnect_item(item_id: int, db: Session = Depends(get_db), current_user: U
         raise HTTPException(status_code=404, detail="Item not found")
     try:
         _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "plaid_remote_disconnect_failed %s",
+            kv(item_id=item.id, user_id=current_user.id, error_type=type(exc).__name__),
+        )
     db.delete(item)
     db.commit()
     return {"message": "Bank disconnected."}
@@ -422,8 +454,11 @@ def reset_plaid_data(
     for item in items:
         try:
             _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "plaid_remote_reset_failed %s",
+                kv(item_id=item.id, user_id=current_user.id, error_type=type(exc).__name__),
+            )
         db.delete(item)
 
     db.commit()
@@ -431,21 +466,92 @@ def reset_plaid_data(
 
 
 # ─── Webhook ──────────────────────────────────────────────────────────────────
-def _verify_plaid_webhook(body: bytes, headers: dict) -> bool:
-    if not PLAID_WEBHOOK_SECRET:
-        return True
-    sig      = headers.get("plaid-verification") or headers.get("Plaid-Verification") or ""
-    expected = hmac.new(PLAID_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(sig, expected)
+def _get_plaid_verification_key(key_id: str) -> dict:
+    now = int(time.time())
+    with _webhook_key_cache_lock:
+        cached = _webhook_key_cache.get(key_id)
+        if cached and (cached.get("expired_at") is None or int(cached["expired_at"]) > now):
+            _webhook_key_cache.move_to_end(key_id)
+            return cached
+        _webhook_key_cache.pop(key_id, None)
+
+    data = _plaid_post("/webhook_verification_key/get", {"key_id": key_id})
+    key = data.get("key")
+    if not isinstance(key, dict):
+        raise ValueError("Plaid verification key is missing")
+    if (
+        key.get("kid") != key_id
+        or key.get("alg") != "ES256"
+        or key.get("kty") != "EC"
+        or key.get("crv") != "P-256"
+    ):
+        raise ValueError("Plaid verification key is invalid")
+    if key.get("expired_at") is not None and int(key["expired_at"]) <= now:
+        raise ValueError("Plaid verification key is expired")
+
+    with _webhook_key_cache_lock:
+        _webhook_key_cache[key_id] = key
+        _webhook_key_cache.move_to_end(key_id)
+        while len(_webhook_key_cache) > WEBHOOK_KEY_CACHE_MAX_ENTRIES:
+            _webhook_key_cache.popitem(last=False)
+    return key
+
+
+def _verify_plaid_webhook(body: bytes, signed_token: str) -> bool:
+    if not PLAID_CLIENT_ID or not PLAID_SECRET or not signed_token or len(signed_token) > 4096:
+        return False
+    try:
+        token_header = jwt.get_unverified_header(signed_token)
+        if token_header.get("alg") != "ES256":
+            return False
+        key_id = token_header.get("kid")
+        if not isinstance(key_id, str) or not key_id or len(key_id) > 128:
+            return False
+
+        jwk = _get_plaid_verification_key(key_id)
+        verification_key = jwt.PyJWK.from_dict(jwk).key
+        claims = jwt.decode(
+            signed_token,
+            verification_key,
+            algorithms=["ES256"],
+            options={"require": ["iat", "request_body_sha256"]},
+        )
+        issued_at = int(claims["iat"])
+        now = int(time.time())
+        if issued_at < now - WEBHOOK_MAX_AGE_SECONDS or issued_at > now + 30:
+            return False
+        claimed_hash = claims["request_body_sha256"]
+        if not isinstance(claimed_hash, str):
+            return False
+        body_hash = hashlib.sha256(body).hexdigest()
+        return hmac.compare_digest(body_hash, claimed_hash)
+    except (HTTPException, jwt.InvalidTokenError, KeyError, TypeError, ValueError):
+        return False
 
 
 @router.post("/webhook")
+@limiter.limit("300/minute")
 async def plaid_webhook(request: Request, background: BackgroundTasks):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_WEBHOOK_BYTES:
+                raise HTTPException(status_code=413, detail="Webhook payload is too large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
     body = await request.body()
-    if not _verify_plaid_webhook(body, dict(request.headers)):
+    if len(body) > MAX_WEBHOOK_BYTES:
+        raise HTTPException(status_code=413, detail="Webhook payload is too large")
+    signed_token = request.headers.get("Plaid-Verification", "")
+    if not await run_in_threadpool(_verify_plaid_webhook, body, signed_token):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-    payload      = json.loads(body)
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Webhook payload is not valid JSON")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Webhook payload must be a JSON object")
     webhook_type = payload.get("webhook_type", "")
     webhook_code = payload.get("webhook_code", "")
     item_id      = payload.get("item_id", "")

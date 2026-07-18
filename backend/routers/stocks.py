@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from models.auth import User
 from utils.auth import get_current_user
 from utils.limiter import limiter
+from utils.logging import get_logger, kv
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
+logger = get_logger(__name__)
 
 CRYPTO_SYMBOLS = {
     'BTC': 'bitcoin', 'ETH': 'ethereum', 'BNB': 'binancecoin', 'SOL': 'solana',
@@ -92,8 +94,9 @@ def _get_stock_price(symbol: str) -> tuple[float | None, float]:
             prev_close = getattr(info, 'previous_close', None) or getattr(info, 'regular_market_previous_close', None)
             change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0.0
             return round(float(price), 4), round(float(change_pct), 2)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.info("stock_quote_lookup_failed %s", kv(symbol=symbol, error_type=type(exc).__name__))
+        return None, 0.0
     return None, 0.0
 
 

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,6 +15,11 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+def utc_now() -> datetime:
+    """Return naive UTC for existing TIMESTAMP WITHOUT TIME ZONE columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def get_db():
@@ -36,8 +41,8 @@ class Account(Base):
     credit_limit = Column(Numeric(15, 2), nullable=True)
     currency = Column(String(3), default="USD")
     plaid_account_id = Column(String(200), nullable=True, unique=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
     outgoing_transfers = relationship(
@@ -64,7 +69,7 @@ class Category(Base):
     type = Column(String(20), nullable=False)
     color = Column(String(7), default="#5b8fff")
     is_system = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     transactions = relationship("Transaction", back_populates="category")
 
@@ -80,7 +85,7 @@ class Transaction(Base):
     description = Column(Text)
     plaid_tx_id = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
@@ -96,7 +101,7 @@ class Transfer(Base):
     amount = Column(Numeric(15, 2), nullable=False)
     note = Column(Text, nullable=True)
     transfer_date = Column(Date, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     from_account = relationship("Account", foreign_keys=[from_account_id], back_populates="outgoing_transfers")
     to_account = relationship("Account", foreign_keys=[to_account_id], back_populates="incoming_transfers")
@@ -115,8 +120,8 @@ class Asset(Base):
     total_value = Column(Numeric(15, 2), nullable=False)
     currency = Column(String(3), default="USD")
     purchase_date = Column(Date, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class RecurringTransaction(Base):
@@ -132,7 +137,7 @@ class RecurringTransaction(Base):
     next_date = Column(Date, nullable=False)
     is_active = Column(Boolean, default=True)
     is_variable = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class Loan(Base):
@@ -147,8 +152,8 @@ class Loan(Base):
     loan_date = Column(Date, nullable=False)
     due_date = Column(Date, nullable=True)
     status = Column(String(20), nullable=False, default="active")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class SavingsGoal(Base):
@@ -160,7 +165,7 @@ class SavingsGoal(Base):
     name = Column(String(100), nullable=False)
     target_amount = Column(Numeric(15, 2), nullable=False)
     deadline = Column(Date, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     account = relationship("Account", back_populates="savings_goals")
     allocations = relationship("SavingsGoalAllocation", back_populates="goal", cascade="all, delete-orphan")
@@ -186,8 +191,8 @@ class AssistantConversation(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(200), nullable=False, default="New chat")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     messages = relationship(
         "AssistantMessage",
@@ -205,7 +210,7 @@ class AssistantMessage(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False)  # "user" | "assistant"
     content = Column(Text, nullable=False, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     conversation = relationship("AssistantConversation", back_populates="messages")
 
@@ -218,4 +223,4 @@ class AssistantMemory(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

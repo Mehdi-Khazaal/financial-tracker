@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState } from 'react';
 const DEFAULTS: Record<string, string> = {
   '/':             'overview',
   '/accounts':     'wallet',
-  '/transactions': 'transactions',
+  '/transactions': 'list',
   '/portfolio':    'investments',
 };
 

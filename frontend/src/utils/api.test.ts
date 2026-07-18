@@ -33,7 +33,7 @@ describe('API client', () => {
     }
   });
 
-  it('uses proxy-safe paths for collection endpoints', async () => {
+  it('uses canonical proxy-safe paths for collection endpoints', async () => {
     const urls: string[] = [];
     const originalAdapter = api.defaults.adapter;
     api.defaults.adapter = async config => {
@@ -64,14 +64,14 @@ describe('API client', () => {
     }
 
     expect(urls).toEqual([
-      '/accounts',
-      '/categories',
-      '/transactions',
-      '/transfers',
-      '/assets',
-      '/savings-goals',
-      '/recurring',
-      '/loans',
+      '/accounts/',
+      '/categories/',
+      '/transactions/',
+      '/transfers/',
+      '/assets/',
+      '/savings-goals/',
+      '/recurring/',
+      '/loans/',
     ]);
   });
 });
