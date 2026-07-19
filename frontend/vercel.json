@@ -6,7 +6,15 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/accounts/"
     },
     {
+      "source": "/api/accounts/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/accounts/"
+    },
+    {
       "source": "/api/categories",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/categories/"
+    },
+    {
+      "source": "/api/categories/",
       "destination": "https://financial-tracker-api-1osn.onrender.com/categories/"
     },
     {
@@ -14,7 +22,15 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/transactions/"
     },
     {
+      "source": "/api/transactions/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/transactions/"
+    },
+    {
       "source": "/api/transfers",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/transfers/"
+    },
+    {
+      "source": "/api/transfers/",
       "destination": "https://financial-tracker-api-1osn.onrender.com/transfers/"
     },
     {
@@ -22,7 +38,15 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/assets/"
     },
     {
+      "source": "/api/assets/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/assets/"
+    },
+    {
       "source": "/api/savings-goals",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/savings-goals/"
+    },
+    {
+      "source": "/api/savings-goals/",
       "destination": "https://financial-tracker-api-1osn.onrender.com/savings-goals/"
     },
     {
@@ -30,7 +54,15 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/recurring/"
     },
     {
+      "source": "/api/recurring/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/recurring/"
+    },
+    {
       "source": "/api/loans",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/loans/"
+    },
+    {
+      "source": "/api/loans/",
       "destination": "https://financial-tracker-api-1osn.onrender.com/loans/"
     },
     {

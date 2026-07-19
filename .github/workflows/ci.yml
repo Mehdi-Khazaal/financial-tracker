@@ -14,7 +14,7 @@ jobs:
       run:
         working-directory: backend
     env:
-      SECRET_KEY: ci-secret-key
+      SECRET_KEY: 0123456789abcdef0123456789abcdef
       DATABASE_URL: sqlite:///./ci.db
       ENVIRONMENT: test
     steps:
