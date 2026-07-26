@@ -21,7 +21,6 @@ import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
 import LoadErrorBanner from '../components/LoadErrorBanner';
-import Money from '../components/Money';
 import { AccountsPageSkeleton } from '../components/Skeleton';
 
 type Tab = 'wallet' | 'cards' | 'loans';
@@ -440,16 +439,13 @@ const AccountsPage: React.FC = () => {
               <div className="rounded-xl p-5 relative overflow-hidden"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Spendable Balance</p>
-                <Money
-                  value={spendable}
-                  decimals={2}
-                  size="xl"
-                  color="var(--fg)"
-                />
+                <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.2rem', letterSpacing: '-1px' }}>
+                  ${fmt(spendable)}
+                </p>
                 <div className="flex gap-6 mt-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--accent)' }}>Total Accounts</p>
-                    <Money value={totalAssets} decimals={2} size="sm" color="var(--fg)" />
+                    <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalAssets)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--muted)' }}>Count</p>
