@@ -3,8 +3,10 @@ from datetime import date
 
 from models.auth import User
 from models.database import Category, Transaction
-from routers.plaid_router import _apply_pending_replacement
+from routers import plaid_router
+from routers.plaid_router import PlaidItem, _apply_pending_replacement, _sync_item
 from utils import auth as auth_utils
+from utils.secret_box import encrypt_secret
 
 
 def _create_other_category(db_session):
@@ -275,3 +277,71 @@ def test_plaid_pending_replacement_merges_duplicate_posted_row(db_session, user,
     assert posted.category_id == category.id
     assert posted.description == "Coffee Shop"
     assert db_session.get(Transaction, pending_id) is None
+
+
+def test_plaid_sync_skips_pending_transactions(db_session, user, account, monkeypatch):
+    """Pending transactions must not be imported — they force duplicate categorization
+    when Plaid later replaces them with the posted (settled) version."""
+    account.plaid_account_id = "plaid-account-1"
+    db_session.add(account)
+    item = PlaidItem(
+        user_id=user.id,
+        access_token=encrypt_secret("access-token"),
+        item_id="item-1",
+        institution_name="Test Bank",
+    )
+    db_session.add(item)
+    db_session.commit()
+    db_session.refresh(item)
+
+    calls: list[tuple[str, dict]] = []
+
+    def fake_plaid_post(path: str, body: dict) -> dict:
+        calls.append((path, body))
+        if path == "/accounts/get":
+            return {
+                "accounts": [{
+                    "account_id": "plaid-account-1",
+                    "name": "Primary Checking",
+                    "subtype": "checking",
+                    "balances": {"current": 1000.00},
+                }],
+            }
+        if path == "/transactions/sync":
+            return {
+                "added": [
+                    {
+                        "account_id": "plaid-account-1",
+                        "transaction_id": "pending-1",
+                        "pending_transaction_id": None,
+                        "pending": True,
+                        "amount": 5.75,
+                        "merchant_name": "Coffee (pending)",
+                        "date": "2026-07-20",
+                    },
+                    {
+                        "account_id": "plaid-account-1",
+                        "transaction_id": "posted-1",
+                        "pending_transaction_id": None,
+                        "pending": False,
+                        "amount": 42.00,
+                        "merchant_name": "Grocer",
+                        "date": "2026-07-21",
+                    },
+                ],
+                "modified": [],
+                "removed": [],
+                "has_more": False,
+                "next_cursor": "cursor-2",
+            }
+        raise AssertionError(f"unexpected plaid call {path}")
+
+    monkeypatch.setattr(plaid_router, "_plaid_post", fake_plaid_post)
+
+    added = _sync_item(db_session, item, user.id)
+    db_session.commit()
+
+    imported = db_session.query(Transaction).filter(Transaction.user_id == user.id).all()
+    assert added == 1
+    assert [t.plaid_tx_id for t in imported] == ["posted-1"]
+    assert item.cursor == "cursor-2"

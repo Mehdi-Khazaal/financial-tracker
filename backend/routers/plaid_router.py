@@ -205,9 +205,14 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             body["cursor"] = cursor
         data = _plaid_post("/transactions/sync", body)
 
-        # Added — bulk insert; ON CONFLICT DO NOTHING is atomic, no race condition possible
+        # Added — bulk insert; ON CONFLICT DO NOTHING is atomic, no race condition possible.
+        # Skip pending charges entirely — they get replaced by a posted transaction with a
+        # different transaction_id, forcing the user to re-categorize each time. We only
+        # import posted (settled) transactions so each purchase is categorized once.
         rows_to_add = []
         for tx in data.get("added", []):
+            if tx.get("pending"):
+                continue
             local_acct = local_acct_cache.get(tx["account_id"])
             if not local_acct:
                 continue

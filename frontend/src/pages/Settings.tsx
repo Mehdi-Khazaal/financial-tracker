@@ -6,8 +6,57 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
 import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
-import { usePlaidLink } from 'react-plaid-link';
+import { usePlaidLink, PlaidLinkOnSuccessMetadata, PlaidLinkOnEventMetadata, PlaidLinkStableEvent, PlaidLinkOnExitMetadata, PlaidLinkError } from 'react-plaid-link';
 import LoadErrorBanner from '../components/LoadErrorBanner';
+
+/**
+ * Lazy Plaid Link launcher — only mounted while the user is actively connecting
+ * a bank. Loading `usePlaidLink` at page mount pulls in Plaid's CDN script and
+ * injects a persistent preload iframe, which on iOS/Android PWAs has been
+ * observed to break subsequent page rendering (the app snaps back to the
+ * pre-redesign styles until the PWA is closed and reopened). Keeping this
+ * hook out of the Settings render tree by default eliminates that side effect.
+ */
+type PlaidLauncherProps = {
+  onSuccess: (public_token: string, metadata: PlaidLinkOnSuccessMetadata) => void;
+  onExit: (err: PlaidLinkError | null, metadata: PlaidLinkOnExitMetadata) => void;
+  onEvent?: (eventName: PlaidLinkStableEvent | string, metadata: PlaidLinkOnEventMetadata) => void;
+  onError: (message: string) => void;
+};
+
+const PlaidLinkLauncher: React.FC<PlaidLauncherProps> = ({ onSuccess, onExit, onEvent, onError }) => {
+  const [token, setToken] = useState<string | null>(null);
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    plaidCreateLinkToken()
+      .then(r => { if (!cancelled) setToken(r.data.link_token); })
+      .catch(() => { if (!cancelled) onError('Could not start bank connection. Try again.'); });
+    return () => { cancelled = true; };
+  }, [onError]);
+
+  useEffect(() => {
+    if (token) sessionStorage.setItem('plaid_link_token', token);
+  }, [token]);
+
+  const { open, ready } = usePlaidLink({
+    token,
+    receivedRedirectUri: undefined,
+    onSuccess,
+    onExit,
+    onEvent,
+  });
+
+  useEffect(() => {
+    if (ready && token && !opened) {
+      setOpened(true);
+      open();
+    }
+  }, [ready, token, opened, open]);
+
+  return null;
+};
 
 const PRESET_COLORS = [
   '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
@@ -94,10 +143,10 @@ const Settings: React.FC = () => {
   };
 
   const [plaidItems, setPlaidItems] = useState<any[]>([]);
-  const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
   const [plaidSyncing, setPlaidSyncing] = useState(false);
   const [plaidResetting, setPlaidResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
+  const [plaidLaunching, setPlaidLaunching] = useState(false);
 
   const loadPlaidItems = useCallback(async () => {
     try { const r = await plaidGetItems(); setPlaidItems(Array.isArray(r.data) ? r.data : []); } catch {}
@@ -105,34 +154,37 @@ const Settings: React.FC = () => {
 
   useEffect(() => { loadPlaidItems(); }, [loadPlaidItems]);
 
-  useEffect(() => {
-    plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => {});
+  const handlePlaidLaunchError = useCallback((message: string) => {
+    toast.error(message);
+    setPlaidLaunching(false);
+  }, [toast]);
+
+  const handlePlaidSuccess = useCallback(async (public_token: string, metadata: any) => {
+    const institution_name = metadata?.institution?.name as string | undefined;
+    try {
+      await plaidExchangeToken(public_token, institution_name);
+      toast.success(`${institution_name || 'Bank'} connected! Syncing transactions...`);
+      await loadPlaidItems();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Failed to connect bank');
+    } finally {
+      sessionStorage.removeItem('plaid_link_token');
+      setPlaidLaunching(false);
+    }
+  }, [toast, loadPlaidItems]);
+
+  const handlePlaidExit = useCallback(() => {
+    sessionStorage.removeItem('plaid_link_token');
+    setPlaidLaunching(false);
   }, []);
 
-  const { open: openPlaidLink, ready: plaidReady } = usePlaidLink({
-    token: plaidLinkToken,
-    receivedRedirectUri: undefined,
-    onSuccess: async (public_token, metadata) => {
-      const institution_name = (metadata as any)?.institution?.name as string | undefined;
-      try {
-        await plaidExchangeToken(public_token, institution_name);
-        toast.success(`${institution_name || 'Bank'} connected! Syncing transactions...`);
-        await loadPlaidItems();
-        plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
-      } catch (e: any) {
-        toast.error(e?.response?.data?.detail || 'Failed to connect bank');
-        plaidCreateLinkToken().then(r => setPlaidLinkToken(r.data.link_token)).catch(() => setPlaidLinkToken(null));
-      }
-    },
-    onEvent: (eventName, metadata) => {
-      const sessionId = (metadata as any)?.link_session_id;
-      if (sessionId && (eventName === 'ERROR' || eventName === 'EXIT')) {
-        navigator.clipboard.writeText(sessionId).catch(() => {});
-        toast.success(`Session ID copied: ${sessionId}`);
-      }
-    },
-    onExit: () => {},
-  });
+  const handlePlaidEvent = useCallback((eventName: any, metadata: any) => {
+    const sessionId = metadata?.link_session_id;
+    if (sessionId && (eventName === 'ERROR' || eventName === 'EXIT')) {
+      navigator.clipboard.writeText(sessionId).catch(() => {});
+      toast.success(`Session ID copied: ${sessionId}`);
+    }
+  }, [toast]);
 
   const handlePlaidSync = async () => {
     setPlaidSyncing(true);
@@ -149,7 +201,6 @@ const Settings: React.FC = () => {
       const r = await plaidReset();
       toast.success(r.data.message || 'Plaid data cleared');
       setPlaidItems([]);
-      plaidCreateLinkToken().then(r2 => setPlaidLinkToken(r2.data.link_token)).catch(() => {});
     } catch (e: any) { toast.error(e?.response?.data?.detail || 'Reset failed'); }
     finally { setPlaidResetting(false); }
   };
@@ -467,10 +518,10 @@ const Settings: React.FC = () => {
                   style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
                   {plaidResetting ? 'Clearing…' : 'Reset & Start Fresh'}
                 </button>
-                <button onClick={() => { if (plaidLinkToken) sessionStorage.setItem('plaid_link_token', plaidLinkToken); openPlaidLink(); }} disabled={!plaidReady || !plaidLinkToken}
+                <button onClick={() => setPlaidLaunching(true)} disabled={plaidLaunching}
                   className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
-                  + Connect Bank
+                  {plaidLaunching ? 'Opening…' : '+ Connect Bank'}
                 </button>
               </div>
             </div>
@@ -561,6 +612,14 @@ const Settings: React.FC = () => {
 
         </div>
       </PageLayout>
+      {plaidLaunching && (
+        <PlaidLinkLauncher
+          onSuccess={handlePlaidSuccess}
+          onExit={handlePlaidExit}
+          onEvent={handlePlaidEvent}
+          onError={handlePlaidLaunchError}
+        />
+      )}
     </AppShell>
   );
 };

@@ -1,4 +1,4 @@
-const CACHE = 'fintrack-v3';
+const CACHE = 'fintrack-v4';
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', () => self.skipWaiting());
@@ -12,7 +12,7 @@ self.addEventListener('activate', e => {
   );
 });
 
-// ── Fetch: only cache static assets, never API calls ─────────────────────────
+// ── Fetch: only cache static assets, never API calls, never HTML ─────────────
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
@@ -20,6 +20,16 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (url.pathname.startsWith('/api/')) return;
   if (url.origin !== self.location.origin) return;
+
+  // Never cache navigation / HTML requests. Serving a stale index.html would
+  // pin the PWA to an old fingerprinted JS bundle even after we deploy new
+  // code — the reason the app can revert to the pre-redesign UI until the
+  // user force-closes and reopens the installed PWA.
+  const isDocument = e.request.mode === 'navigate' || e.request.destination === 'document';
+  if (isDocument) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
 
   e.respondWith(
     fetch(e.request)
