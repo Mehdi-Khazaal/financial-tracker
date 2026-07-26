@@ -37,7 +37,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'python -m uvicorn main:app --host 127.0.0.1 --port 8000 --app-dir ../backend',
+        'python -c "import os; [os.remove(f) for f in [\'e2e_test.db\'] if os.path.exists(f)]" && python -m uvicorn main:app --host 127.0.0.1 --port 8000 --app-dir ../backend',
       port: 8000,
       timeout: 60_000,
       reuseExistingServer: !process.env.CI,
@@ -46,6 +46,7 @@ export default defineConfig({
         SECRET_KEY: 'e2e-test-secret-key-0123456789abcdef',
         ENVIRONMENT: 'test',
         AUTO_PREPARE_DB: 'true',
+        RATE_LIMIT_ENABLED: 'false',
       },
     },
     {

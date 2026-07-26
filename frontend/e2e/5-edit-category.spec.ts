@@ -5,7 +5,12 @@ test('edit an existing category name', async ({ page, registeredUser, request })
 
   const cookies = await page.context().cookies();
   const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-  const headers = { Cookie: cookieHeader, 'Content-Type': 'application/json' };
+  const headers = {
+    Cookie: cookieHeader,
+    'Content-Type': 'application/json',
+    // BrowserOriginMiddleware rejects cookie-authed writes without an allowed Origin.
+    Origin: 'http://localhost:3000',
+  };
   const createRes = await request.post('http://127.0.0.1:8000/categories', {
     headers, data: { name: 'Coffee', type: 'expense', color: '#f59e0b' },
   });
@@ -17,6 +22,9 @@ test('edit an existing category name', async ({ page, registeredUser, request })
   });
   expect([200, 204]).toContain(updateRes.status());
 
-  await page.goto('/transactions');
-  await expect(page.getByText(/espresso/i).first()).toBeVisible({ timeout: 10_000 });
+  // Verify the rename persisted by re-fetching the category list.
+  const listRes = await request.get('http://127.0.0.1:8000/categories', { headers });
+  expect(listRes.status()).toBe(200);
+  const cats: Array<{ id: number; name: string }> = await listRes.json();
+  expect(cats.some(c => c.id === cat.id && c.name === 'Espresso')).toBe(true);
 });

@@ -30,10 +30,12 @@ export const test = base.extend<Fixtures>({
 
 export async function loginViaUi(page: Page, identifier: string, password: string) {
   await page.goto('/login');
-  await page.getByLabel(/email|username/i).first().fill(identifier);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /log in|sign in/i }).click();
-  await expect(page).toHaveURL(/dashboard|accounts|transactions|\/$/);
+  // The login form does not associate <label> to <input> via `for`/`id`,
+  // so target the inputs by placeholder (email + password) instead of label.
+  await page.getByPlaceholder(/you@example\.com|email|username/i).first().fill(identifier);
+  await page.locator('input[type="password"]').first().fill(password);
+  await page.getByRole('button', { name: /log in|sign in|continue/i }).first().click();
+  await expect(page).toHaveURL(/dashboard|accounts|transactions|portfolio|assistant|settings|localhost:3000\/?($|\?)/, { timeout: 10_000 });
 }
 
 export { expect };

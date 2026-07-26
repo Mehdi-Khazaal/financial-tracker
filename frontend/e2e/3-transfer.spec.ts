@@ -5,7 +5,12 @@ test('transfer moves money between accounts', async ({ page, registeredUser, req
 
   const cookies = await page.context().cookies();
   const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-  const headers = { Cookie: cookieHeader, 'Content-Type': 'application/json' };
+  const headers = {
+    Cookie: cookieHeader,
+    'Content-Type': 'application/json',
+    // BrowserOriginMiddleware rejects cookie-authed writes without an allowed Origin.
+    Origin: 'http://localhost:3000',
+  };
 
   const from = await request.post('http://127.0.0.1:8000/accounts', {
     headers, data: { name: 'From', type: 'checking', balance: 500, currency: 'USD' },

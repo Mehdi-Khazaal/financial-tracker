@@ -7,15 +7,23 @@ test('add a transaction from the transactions page', async ({ page, registeredUs
   const cookies = await page.context().cookies();
   const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
   const accountRes = await request.post('http://127.0.0.1:8000/accounts', {
-    headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
+    headers: {
+      Cookie: cookieHeader,
+      'Content-Type': 'application/json',
+      // BrowserOriginMiddleware rejects cookie-authed writes without an allowed Origin.
+      Origin: 'http://localhost:3000',
+    },
     data: { name: 'Checking', type: 'checking', balance: 1000, currency: 'USD' },
   });
   expect([200, 201]).toContain(accountRes.status());
 
   await page.goto('/transactions');
-  await page.getByRole('button', { name: /add|record|new.*transaction/i }).first().click();
-  await page.getByLabel(/amount/i).first().fill('12.50');
-  const desc = page.getByLabel(/description|memo|note/i).first();
+  // The "Add" header button opens a dropdown menu; then choose Expense to open
+  // the AddTransactionModal (which renders <input id="transaction-amount"/>).
+  await page.getByRole('button', { name: /^add$/i }).first().click();
+  await page.getByRole('menuitem', { name: /expense/i }).click();
+  await page.locator('#transaction-amount').fill('12.50');
+  const desc = page.locator('#transaction-note');
   if (await desc.count()) await desc.fill('Playwright coffee');
   await page.getByRole('button', { name: /save|add|record/i }).last().click();
 
