@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
@@ -14,6 +14,7 @@ from models.database import (
 from models.auth import User
 from models.schemas import AccountCreate, AccountUpdate, AccountResponse
 from utils.auth import get_current_user
+from utils.etag import check_etag, compute_user_etag, set_etag_headers
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -28,7 +29,11 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db), curren
 
 
 @router.get("/", response_model=List[AccountResponse])
-def get_accounts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_accounts(request: Request, response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    etag = compute_user_etag(db, current_user.id, [Account])
+    if check_etag(request, etag):
+        return Response(status_code=304, headers={"ETag": f'W/"{etag}"', "Cache-Control": "private, no-cache"})
+    set_etag_headers(response, etag)
     return db.query(Account).filter(Account.user_id == current_user.id).order_by(Account.created_at).all()
 
 

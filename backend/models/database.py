@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, create_engine
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -70,6 +70,7 @@ class Category(Base):
     color = Column(String(7), default="#5b8fff")
     is_system = Column(Boolean, default=False)
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     transactions = relationship("Transaction", back_populates="category")
 
@@ -86,6 +87,7 @@ class Transaction(Base):
     plaid_tx_id = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
@@ -166,6 +168,7 @@ class SavingsGoal(Base):
     target_amount = Column(Numeric(15, 2), nullable=False)
     deadline = Column(Date, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     account = relationship("Account", back_populates="savings_goals")
     allocations = relationship("SavingsGoalAllocation", back_populates="goal", cascade="all, delete-orphan")
@@ -224,3 +227,113 @@ class AssistantMemory(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=utc_now)
+
+
+class AccountBalanceSnapshot(Base):
+    """Materialized month-end closing balances per account.
+
+    The `/history/net-worth` endpoint used to re-sum every transaction on every
+    request in Python — O(months × N) per call, unusable once a user has years
+    of history. This table stores one row per (account, month-end) so the
+    endpoint becomes an indexed ORDER BY LIMIT scan. Refreshed nightly by the
+    cron worker and on-demand via the admin endpoint after bulk imports.
+
+    Deliberately month-granular: daily rows are 30× the volume for no user-
+    visible benefit — every chart in the app is monthly. Add a separate table
+    if daily granularity is ever needed.
+    """
+
+    __tablename__ = "account_balance_snapshots"
+    __table_args__ = (
+        UniqueConstraint("account_id", "snapshot_date", name="uq_snapshot_account_date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    snapshot_date = Column(Date, nullable=False, index=True)
+    closing_balance = Column(Numeric(15, 2), nullable=False)
+    computed_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class MerchantCanonical(Base):
+    """One row per canonical merchant name.
+
+    Plaid returns wildly inconsistent merchant strings — "AMZN Mktp US*A12BC",
+    "Amazon.com*ABC", "AMAZON MKTP" — which explodes the transaction list and
+    makes category auto-fill useless. This table stores the human-facing
+    canonical name plus the category this merchant is *usually* filed under.
+    """
+
+    __tablename__ = "merchants_canonical"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False, unique=True, index=True)
+    default_category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class MerchantAlias(Base):
+    """Maps a raw Plaid/user-typed merchant string → canonical merchant."""
+
+    __tablename__ = "merchant_aliases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_name = Column(String(200), nullable=False, unique=True, index=True)
+    canonical_id = Column(Integer, ForeignKey("merchants_canonical.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    canonical = relationship("MerchantCanonical")
+
+
+class IdempotencyKey(Base):
+    """Stores request/response fingerprints so retried writes are safe.
+
+    The client picks a UUID for each mutation and sends it as
+    `Idempotency-Key`. The middleware records the response the first time and
+    replays it on any repeat within `expires_at`. If the client resends the
+    same key with a *different* body we return 409 — that signals the client
+    generated a fresh operation but forgot to rotate the key.
+    """
+
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_idempotency_user_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key = Column(String(80), nullable=False, index=True)
+    method = Column(String(10), nullable=False)
+    path = Column(String(300), nullable=False)
+    request_hash = Column(String(64), nullable=False)
+    response_status = Column(Integer, nullable=False)
+    response_body = Column(Text, nullable=False, default="")
+    created_at = Column(DateTime, default=utc_now)
+    expires_at = Column(DateTime, nullable=False, index=True)
+
+
+class Job(Base):
+    """Postgres-backed background job.
+
+    Chosen over Redis / RQ / Celery because the app already depends on
+    Postgres and a single-writer worker is enough for the volume — nightly
+    Plaid refresh, snapshot rollup, weekly digest emails. Rows go through
+    pending → running → done|failed|dead; retries use exponential backoff
+    and cap at `MAX_TRIES` after which the job is marked dead for manual
+    review instead of looping forever.
+    """
+
+    __tablename__ = "jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kind = Column(String(80), nullable=False, index=True)
+    payload = Column(Text, nullable=False, default="{}")
+    run_at = Column(DateTime, nullable=False, default=utc_now, index=True)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    tries = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    locked_until = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

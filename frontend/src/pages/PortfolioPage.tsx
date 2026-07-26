@@ -8,6 +8,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import ProgressBar from '../components/ProgressBar';
 import EmptyState from '../components/EmptyState';
 import LoadErrorBanner from '../components/LoadErrorBanner';
+import { Skeleton, AccountCardSkeleton } from '../components/Skeleton';
 import { useToast } from '../context/ToastContext';
 import { downloadCSV, printPDF } from '../utils/export';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -231,11 +232,20 @@ const PortfolioPage: React.FC = () => {
       <AppShell>
         <PageLayout>
           <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
-            <div className="skeleton h-7 w-28 rounded-xl" />
-            <div className="skeleton h-10 w-full rounded-xl" />
-            <div className="skeleton h-36 w-full rounded-xl" />
+            <div
+              className="rounded-xl p-5 space-y-3"
+              style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}
+              aria-hidden="true"
+            >
+              <Skeleton h={9} w={110} />
+              <Skeleton h={32} w="55%" />
+              <div className="flex gap-6 pt-1">
+                <div className="space-y-1.5"><Skeleton h={8} w={70} /><Skeleton h={12} w={80} /></div>
+                <div className="space-y-1.5"><Skeleton h={8} w={70} /><Skeleton h={12} w={70} /></div>
+              </div>
+            </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {[0,1,2,3].map(i => <div key={i} className="skeleton h-36 rounded-xl" />)}
+              {[0, 1, 2, 3].map(i => <AccountCardSkeleton key={i} />)}
             </div>
           </div>
         </PageLayout>

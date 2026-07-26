@@ -106,6 +106,7 @@ body::after {
   --font-serif:   -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Geist', system-ui, sans-serif;
   --font-mono:    'DM Mono', monospace;
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Geist', system-ui, sans-serif;
+  --font-money:   'DM Serif Display', ui-serif, Georgia, 'Times New Roman', serif;
 
   /* Radii */
   --radius-sm:   10px;

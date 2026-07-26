@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
@@ -11,6 +11,7 @@ from models.schemas import (
     TransactionResponse,
 )
 from utils.auth import get_current_user
+from utils.etag import check_etag, compute_user_etag, set_etag_headers
 from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/savings-goals", tags=["savings"])
@@ -66,7 +67,13 @@ def create_goal(goal: SavingsGoalCreate, db: Session = Depends(get_db), current_
 
 
 @router.get("/", response_model=List[SavingsGoalResponse])
-def get_goals(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_goals(request: Request, response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Include SavingsGoalAllocation in the digest so allocation changes also
+    # invalidate the cached response — the payload embeds current allocations.
+    etag = compute_user_etag(db, current_user.id, [SavingsGoal, SavingsGoalAllocation])
+    if check_etag(request, etag):
+        return Response(status_code=304, headers={"ETag": f'W/"{etag}"', "Cache-Control": "private, no-cache"})
+    set_etag_headers(response, etag)
     goals = (
         db.query(SavingsGoal)
         .options(joinedload(SavingsGoal.allocations).joinedload(SavingsGoalAllocation.account))

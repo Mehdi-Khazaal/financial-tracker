@@ -21,6 +21,8 @@ import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
 import LoadErrorBanner from '../components/LoadErrorBanner';
+import Money from '../components/Money';
+import { AccountsPageSkeleton } from '../components/Skeleton';
 
 type Tab = 'wallet' | 'cards' | 'loans';
 
@@ -314,14 +316,7 @@ const AccountsPage: React.FC = () => {
     return (
       <AppShell>
         <PageLayout>
-          <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
-            <div className="skeleton h-7 w-32 rounded-xl" />
-            <div className="skeleton h-10 w-full rounded-xl" />
-            <div className="skeleton h-32 w-full rounded-xl" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {[0,1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
-            </div>
-          </div>
+          <AccountsPageSkeleton />
         </PageLayout>
       </AppShell>
     );
@@ -445,13 +440,16 @@ const AccountsPage: React.FC = () => {
               <div className="rounded-xl p-5 relative overflow-hidden"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <p className="label mb-1">Spendable Balance</p>
-                <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.2rem', letterSpacing: '-1px' }}>
-                  ${fmt(spendable)}
-                </p>
+                <Money
+                  value={spendable}
+                  decimals={2}
+                  size="xl"
+                  color="var(--fg)"
+                />
                 <div className="flex gap-6 mt-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--accent)' }}>Total Accounts</p>
-                    <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalAssets)}</p>
+                    <Money value={totalAssets} decimals={2} size="sm" color="var(--fg)" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--muted)' }}>Count</p>

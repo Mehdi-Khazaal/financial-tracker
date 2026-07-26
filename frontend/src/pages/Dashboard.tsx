@@ -16,7 +16,7 @@ import TransferModal from '../components/modals/TransferModal';
 import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import ProgressBar from '../components/ProgressBar';
-import CountUp from '../components/CountUp';
+import Money from '../components/Money';
 import Sparkline from '../components/Sparkline';
 import { ACCOUNT_TYPE_META, AccountTypeIcon, DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
@@ -362,7 +362,13 @@ const Dashboard: React.FC = () => {
                       )}
                     </div>
                     <p className="value-display" style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)' }}>
-                      $<CountUp value={netWorth} duration={1100} />
+                      <Money
+                        value={netWorth}
+                        decimals={0}
+                        size="hero"
+                        color={netWorth < 0 ? 'var(--neg)' : 'var(--fg)'}
+                        style={{ fontSize: 'inherit', lineHeight: 'inherit', letterSpacing: 'inherit' }}
+                      />
                     </p>
 
                     {sparkValues.length > 1 && (

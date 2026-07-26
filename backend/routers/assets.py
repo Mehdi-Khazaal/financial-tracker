@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from models.database import get_db, Asset
 from models.auth import User
 from models.schemas import AssetCreate, AssetUpdate, AssetResponse
 from utils.auth import get_current_user
+from utils.etag import check_etag, compute_user_etag, set_etag_headers
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -20,10 +21,19 @@ def create_asset(asset: AssetCreate, db: Session = Depends(get_db), current_user
 
 @router.get("/", response_model=List[AssetResponse])
 def get_assets(
+    request: Request,
+    response: Response,
     asset_class: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Fold the filter into the ETag so /assets and /assets?asset_class=investment
+    # get distinct cache entries.
+    base_etag = compute_user_etag(db, current_user.id, [Asset])
+    etag = base_etag if not asset_class else f"{base_etag}-{asset_class}"
+    if check_etag(request, etag):
+        return Response(status_code=304, headers={"ETag": f'W/"{etag}"', "Cache-Control": "private, no-cache"})
+    set_etag_headers(response, etag)
     q = db.query(Asset).filter(Asset.user_id == current_user.id)
     if asset_class:
         q = q.filter(Asset.asset_class == asset_class)

@@ -11,6 +11,36 @@ const api = axios.create({
 // in HttpOnly cookies so page scripts cannot read or exfiltrate the session.
 localStorage.removeItem('access_token');
 
+// ── Idempotency-Key on writes ────────────────────────────────────────────────
+// The server caches every (user, key) → response for 24h. If the same POST /
+// PUT / PATCH / DELETE is retried — network flake, offline queue drain, double
+// tap on Save — the response is replayed instead of executing the write again.
+// Callers can override by setting `Idempotency-Key` in the config, which is
+// how the offline queue keeps the same key across retries.
+const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+function newIdempotencyKey(): string {
+  const g: Crypto | undefined = (typeof crypto !== 'undefined' ? crypto : undefined);
+  if (g && typeof g.randomUUID === 'function') return g.randomUUID();
+  // RFC 4122 v4 fallback for environments without crypto.randomUUID.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+api.interceptors.request.use(config => {
+  const method = String(config.method || 'get').toLowerCase();
+  if (WRITE_METHODS.has(method)) {
+    config.headers = config.headers || {};
+    if (!config.headers['Idempotency-Key']) {
+      config.headers['Idempotency-Key'] = newIdempotencyKey();
+    }
+  }
+  return config;
+});
+
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
 

@@ -5,6 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from models.database import Account, Category, Transaction
+from services import merchants
 
 
 class LedgerResourceNotFound(Exception):
@@ -27,6 +28,22 @@ class LedgerService:
         try:
             account = self._get_accounts(user_id, [values["account_id"]])[values["account_id"]]
             self._validate_category(user_id, values.get("category_id"))
+
+            values = dict(values)
+            description = values.get("description")
+            if description:
+                # Register alias so this merchant string participates in
+                # future majority-vote category suggestions. Silent failure:
+                # normalization should never block a write.
+                try:
+                    merchants.resolve_or_create(self._session, description)
+                    if values.get("category_id") is None:
+                        suggested = merchants.suggest_category_id(self._session, user_id, description)
+                        if suggested is not None:
+                            self._validate_category(user_id, suggested)
+                            values["category_id"] = suggested
+                except Exception:
+                    pass
 
             transaction = Transaction(**values, user_id=user_id)
             self._session.add(transaction)

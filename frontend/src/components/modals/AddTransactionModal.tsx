@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
-import { createTransaction, getAccounts, getCategories, createCategory } from '../../utils/api';
+import { getAccounts, getCategories, createCategory } from '../../utils/api';
+import { enqueue } from '../../utils/mutationQueue';
 import { Account, Category } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
@@ -64,18 +65,49 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return;
     setLoading(true);
+    const finalAmount = type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
+    const payload = {
+      account_id: parseInt(accountId),
+      category_id: categoryId ? parseInt(categoryId) : null,
+      amount: finalAmount,
+      description: description || null,
+      transaction_date: date,
+    };
+
+    // Optimistic snapshot rendered in the transaction list until the server
+    // confirms. Uses a negative id so it never collides with server ids;
+    // pages can filter it out by `id < 0` and add a "syncing" indicator.
+    const snapshot = {
+      id: -Date.now(),
+      user_id: 0,
+      ...payload,
+      created_at: new Date().toISOString(),
+      _pending: true as const,
+    };
+
     try {
-      const finalAmount = type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
-      await createTransaction({
-        account_id: parseInt(accountId),
-        category_id: categoryId ? parseInt(categoryId) : null,
-        amount: finalAmount,
-        description: description || null,
-        transaction_date: date,
+      await enqueue({
+        kind: 'transaction.create',
+        method: 'POST',
+        path: '/transactions',
+        payload,
+        snapshot,
+        onSuccess: () => {
+          // Server confirmed — pull fresh data so the pending row is replaced
+          // by the real one (with the true id, category defaults, etc).
+          onSuccess();
+        },
+        onError: (message) => {
+          toast.error(`Save failed: ${message}`);
+        },
       });
-      onSuccess(); onClose();
+      // Close immediately; the pending row shows in the list via the queue.
+      toast.success(navigator.onLine ? 'Saved' : 'Queued — will sync when back online');
+      onClose();
       setAmount(''); setDescription(''); setDate(localDateStr());
-    } catch { toast.error('Failed to save transaction'); }
+    } catch {
+      toast.error('Could not queue transaction');
+    }
     finally { setLoading(false); }
   };
 

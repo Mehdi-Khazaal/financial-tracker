@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 import calendar
 
-from models.database import get_db, Account, Transaction
+from models.database import get_db, Account, AccountBalanceSnapshot, Transaction
 from models.auth import User
 from utils.auth import get_current_user
 
@@ -51,35 +51,72 @@ def net_worth_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Monthly net-worth snapshots.
+
+    Reads from the materialized `account_balance_snapshots` table (refreshed
+    nightly by `/cron/refresh-balance-snapshots`) for constant-time O(months)
+    performance. Falls back to on-the-fly computation for any month with no
+    snapshot yet — so the endpoint stays correct before the first cron run
+    and immediately after a big backfill.
+
+    Investment accounts are excluded (user treats them as separate).
     """
-    Returns monthly net worth snapshots.
-    Strategy: current_account_balances - sum(transactions after month_end) per month.
-    """
-    # Exclude investment accounts — user treats them as hidden/separate
     accounts = db.query(Account).filter(
         Account.user_id == current_user.id,
         Account.type != "investment",
     ).all()
-    account_ids = {a.id for a in accounts}
-    transactions = db.query(Transaction).filter(
-        Transaction.user_id == current_user.id,
-        Transaction.account_id.in_(account_ids),
-    ).all()
+    if not accounts:
+        return []
 
-    current_accounts_total = sum((Decimal(str(a.balance)) for a in accounts), Decimal("0"))
+    account_ids = {a.id for a in accounts}
+    month_targets = [(_end_of_month(y, m), f"{y}-{m:02d}") for (y, m) in _month_range(months)]
+    target_dates = {d for d, _ in month_targets}
+
+    # Pre-computed month-end snapshots — one row per (account, date). Use the
+    # LAST snapshot on or before each target date to be resilient to accounts
+    # created after the earliest snapshot window.
+    snapshot_rows = (
+        db.query(
+            AccountBalanceSnapshot.account_id,
+            AccountBalanceSnapshot.snapshot_date,
+            AccountBalanceSnapshot.closing_balance,
+        )
+        .filter(
+            AccountBalanceSnapshot.user_id == current_user.id,
+            AccountBalanceSnapshot.account_id.in_(account_ids),
+            AccountBalanceSnapshot.snapshot_date.in_(target_dates),
+        )
+        .all()
+    )
+    snap_by_date: dict[date, dict[int, Decimal]] = {}
+    for account_id, snap_date, closing in snapshot_rows:
+        snap_by_date.setdefault(snap_date, {})[account_id] = Decimal(str(closing))
+
+    # Fallback for months not yet snapshotted — reuse the historical algorithm.
+    needs_fallback = any(target not in snap_by_date or len(snap_by_date[target]) < len(account_ids) for target in target_dates)
+    if needs_fallback:
+        transactions = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.account_id.in_(account_ids),
+        ).all()
+        current_accounts_total = sum((Decimal(str(a.balance)) for a in accounts), Decimal("0"))
 
     result = []
-    for year, month in _month_range(months):
-        end = _end_of_month(year, month)
-        future_tx_sum = sum(
-            (Decimal(str(t.amount)) for t in transactions if t.transaction_date > end),
-            Decimal("0"),
-        )
-        account_total_at_month = current_accounts_total - future_tx_sum
+    for month_end, label in month_targets:
+        snap_for_month = snap_by_date.get(month_end, {})
+        if len(snap_for_month) == len(account_ids):
+            total = sum(snap_for_month.values(), Decimal("0"))
+        else:
+            # Fall back to on-the-fly compute for this month.
+            future_tx_sum = sum(
+                (Decimal(str(t.amount)) for t in transactions if t.transaction_date > month_end),
+                Decimal("0"),
+            )
+            total = current_accounts_total - future_tx_sum
         result.append({
-            "month": f"{year}-{month:02d}",
-            "net_worth": round(float(account_total_at_month), 2),
-            "accounts": round(float(account_total_at_month), 2),
+            "month": label,
+            "net_worth": round(float(total), 2),
+            "accounts": round(float(total), 2),
         })
     return result
 

@@ -26,8 +26,9 @@ from sqlalchemy.orm import sessionmaker
 
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
-from routers import accounts, assistant, auth, cron, history, recurring_transactions, stocks, transactions
+from routers import accounts, assets, assistant, auth, categories, cron, history, recurring_transactions, savings_goals, stocks, transactions
 from utils import auth as auth_utils
+from utils.idempotency import IdempotencyMiddleware
 from utils.limiter import limiter
 
 
@@ -49,9 +50,13 @@ def override_get_db():
 app = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(IdempotencyMiddleware, session_factory=TestingSessionLocal)
 app.include_router(auth.router)
 app.include_router(accounts.router)
+app.include_router(categories.router)
 app.include_router(transactions.router)
+app.include_router(assets.router)
+app.include_router(savings_goals.router)
 app.include_router(history.router)
 app.include_router(recurring_transactions.router)
 app.include_router(cron.router)

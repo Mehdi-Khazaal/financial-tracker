@@ -1,23 +1,8 @@
 import React from 'react';
+import { DashboardOverviewSkeleton } from '../Skeleton';
 
-export const DashboardSkeleton: React.FC = () => (
-  <div>
-    <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5">
-      <div className="skeleton h-48 w-full rounded-xl" />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">{[0, 1, 2, 3, 4].map(i => <div key={i} className="skeleton h-12" />)}</div>
-      <div className="grid md:grid-cols-[3fr_2fr] gap-6">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="skeleton h-28" />)}</div>
-          <div className="skeleton h-64 w-full" />
-        </div>
-        <div className="space-y-4">
-          <div className="skeleton h-32 w-full" />
-          <div className="skeleton h-48 w-full" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
+// Re-export under the historical name so existing imports keep working.
+export const DashboardSkeleton = DashboardOverviewSkeleton;
 
 export const ACCOUNT_TYPE_META: Record<string, { iconPath: string; iconColor: string; label: string; group: string }> = {
   checking:    { iconPath: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z', iconColor: 'var(--accent)', label: 'Checking', group: 'Spending' },

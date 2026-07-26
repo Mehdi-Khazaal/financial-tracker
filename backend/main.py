@@ -13,6 +13,9 @@ from routers import admin, assistant, cron, history, loans, plaid_router, push, 
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 from utils.security import BrowserOriginMiddleware
+from utils.idempotency import IdempotencyMiddleware
+# Registers background job handlers with the dispatcher at import time.
+from services import job_handlers  # noqa: F401
 
 
 logger = get_logger(__name__)
@@ -49,6 +52,12 @@ def _prepare_database() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_plaid_tx_id ON transactions (plaid_tx_id) WHERE plaid_tx_id IS NOT NULL",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plaid_account_id VARCHAR(200)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_plaid_account_id ON accounts (plaid_account_id) WHERE plaid_account_id IS NOT NULL",
+        # `updated_at` on hot tables lets the ETag helper detect edits (not just
+        # inserts/deletes) so /accounts, /transactions, /categories, and
+        # /savings-goals can safely short-circuit to 304 on repeat reads.
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        "ALTER TABLE categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        "ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
     ]
     with engine.begin() as conn:
         for sql in migrations:
@@ -126,6 +135,7 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(NoCacheMiddleware)
+app.add_middleware(IdempotencyMiddleware)
 
 
 @app.get("/")

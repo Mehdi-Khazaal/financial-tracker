@@ -18,7 +18,9 @@ import TransactionCard from '../components/transactions/TransactionCard';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { useQueuedMutations } from '../hooks/useQueuedMutations';
 import LoadErrorBanner from '../components/LoadErrorBanner';
+import { TransactionListSkeleton } from '../components/Skeleton';
 
 type Tab = 'transactions' | 'list' | 'recurring';
 
@@ -326,8 +328,7 @@ const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts]         = useState<Account[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [loadError, setLoadError]       = useState(false);
+  const [loading, setLoading]           = useState(true);  const [loadError, setLoadError]       = useState(false);
   const [failedSources, setFailedSources] = useState<string[]>([]);
 
   const [showTx, setShowTx]             = useState(false);
@@ -436,10 +437,17 @@ const Transactions: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [showMonthPicker, showAddMenu, showExportMenu]);
 
-  const monthTransactions = useMemo(() =>
-    transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth)),
-    [transactions, selectedMonth],
-  );
+  const pendingCreates = useQueuedMutations<Transaction>('transaction.create');
+
+  const monthTransactions = useMemo(() => {
+    const server = transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth));
+    // Merge in-flight optimistic rows so the user sees them the moment they
+    // hit Save, before the server round-trip has finished.
+    const pending = pendingCreates
+      .map(m => m.snapshot)
+      .filter((t): t is Transaction => Boolean(t?.transaction_date?.startsWith?.(selectedMonth)));
+    return [...pending, ...server];
+  }, [transactions, selectedMonth, pendingCreates]);
 
   const uncategorized = useMemo(() =>
     monthTransactions.filter(t => !t.category_id),
@@ -761,13 +769,7 @@ const Transactions: React.FC = () => {
     return (
       <AppShell>
         <PageLayout>
-          <div className="p-5 space-y-4">
-            <div className="skeleton h-8 w-48 rounded-xl" />
-            <div className="skeleton h-6 w-full rounded-xl" />
-            <div className="flex gap-3 mt-4">
-              {[0, 1, 2, 3].map(i => <div key={i} className="skeleton rounded-2xl w-44" style={{ minHeight: 140 }} />)}
-            </div>
-          </div>
+          <TransactionListSkeleton />
         </PageLayout>
       </AppShell>
     );

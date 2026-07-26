@@ -1,0 +1,17 @@
+// audit-ci config — see https://github.com/IBM/audit-ci
+// Runs against production deps only in CI.
+{
+  "$schema": "https://raw.githubusercontent.com/IBM/audit-ci/main/docs/schema.json",
+  "high": true,
+  "package-manager": "npm",
+  "output-format": "text",
+  "skip-dev": true,
+  "allowlist": [
+    // GHSA-qwww-vcr4-c8h2 — react-router RSC-mode CSRF bypass.
+    // Not applicable: this app is a client-only SPA using BrowserRouter with
+    // no React Server Components, no server actions, no data-router server
+    // framework. The vulnerability requires RSC mode to be reachable.
+    // Re-evaluate when react-router-dom ships a patched 7.x release.
+    "GHSA-qwww-vcr4-c8h2"
+  ]
+}
