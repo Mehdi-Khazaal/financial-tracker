@@ -26,6 +26,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False, nullable=False, server_default="false")
     is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
     session_version = Column(Integer, default=0, nullable=False, server_default="0")
+    # IANA zone reported by the browser. The server runs in UTC, so without this
+    # the assistant's idea of "today" is wrong for anyone east or west of it.
+    timezone = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 # ============ PYDANTIC SCHEMAS ============

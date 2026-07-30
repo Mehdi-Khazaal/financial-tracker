@@ -186,20 +186,57 @@ export interface AssistantVisualBlock {
   metrics?: AssistantMetric[];
   rows?: AssistantVisualRow[];
 }
+export interface AssistantSource { url: string; title: string; page_age?: string | null; }
+/** Reasoning depth chosen for a turn: quick (Haiku), standard, or deep. */
+export type AssistantTier = 'quick' | 'standard' | 'deep';
+export interface AssistantUsage {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  web_searches: number;
+  /** Share of input served from cache. If this collapses, the prefix is being invalidated. */
+  cache_hit_rate_pct: number;
+  estimated_cost_usd: number;
+}
 export interface AssistantChatResponse {
   conversation_id: number;
   title: string;
   reply: string;
   pending_actions: AssistantPendingAction[];
   visual_blocks: AssistantVisualBlock[];
+  /** Web pages the assistant consulted for live data (prices, rates, news). */
+  sources?: AssistantSource[];
+  tier?: AssistantTier;
+  usage?: AssistantUsage;
 }
+
+/** The server runs in UTC, so it needs the browser's zone to date things correctly. */
+const browserTimezone = (): string | undefined => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export const assistantListConversations = () => api.get<AssistantConversation[]>('/assistant/conversations');
 export const assistantGetConversation   = (id: number) => api.get<{ id: number; title: string; messages: AssistantMessage[] }>(`/assistant/conversations/${id}`);
 export const assistantDeleteConversation = (id: number) => api.delete(`/assistant/conversations/${id}`);
-export const assistantGetBriefing = () => api.get<{ as_of: string; blocks: AssistantVisualBlock[] }>('/assistant/briefing');
+export const assistantGetBriefing = () => {
+  const tz = browserTimezone();
+  return api.get<{ as_of: string; blocks: AssistantVisualBlock[] }>(
+    '/assistant/briefing',
+    { params: tz ? { tz } : undefined },
+  );
+};
 export const assistantChat = (message: string, conversation_id?: number | null, signal?: AbortSignal) =>
-  api.post<AssistantChatResponse>('/assistant/chat', { message, conversation_id: conversation_id ?? null }, { signal });
+  api.post<AssistantChatResponse>(
+    '/assistant/chat',
+    { message, conversation_id: conversation_id ?? null, timezone: browserTimezone() },
+    { signal },
+  );
 export const assistantExecute = (action: AssistantPendingAction, conversation_id?: number | null) =>
   api.post<{ success: boolean; message: string }>('/assistant/execute', {
     tool: action.tool,

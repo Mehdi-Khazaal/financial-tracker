@@ -58,6 +58,8 @@ def _prepare_database() -> None:
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
         "ALTER TABLE categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
         "ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        # The assistant resolves "today" in the user's own zone; the server is UTC.
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)",
     ]
     with engine.begin() as conn:
         for sql in migrations:

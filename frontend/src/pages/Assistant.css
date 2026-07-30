@@ -186,6 +186,33 @@
 .assistant-message.is-user { align-items: flex-end; }
 .assistant-message-name { margin: 0 0 5px 3px; font: 10px var(--font-mono); color: var(--dim); }
 .assistant-bubble { max-width: min(78%, 610px); padding: 11px 14px; border-radius: 14px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
+
+/* Per-turn reasoning depth and cost, so expensive questions are visible. */
+.assistant-message-name { display: inline-flex; align-items: center; gap: 7px; }
+.assistant-tier {
+  padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line);
+  font-style: normal; font-size: 9px; letter-spacing: 0.02em; color: var(--muted); cursor: help;
+}
+.assistant-tier.is-quick { color: var(--muted); }
+.assistant-tier.is-deep { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+
+/* Running spend for the conversation, above the composer. */
+.assistant-spend {
+  width: min(100%, 800px); margin: 0 auto 7px; text-align: right;
+  font: 10px var(--font-mono); color: var(--dim);
+}
+
+/* Provenance for anything the assistant looked up on the web. */
+.assistant-sources { max-width: min(78%, 610px); margin: 7px 0 0 3px; }
+.assistant-sources > span { display: block; margin-bottom: 4px; font: 10px var(--font-mono); color: var(--dim); }
+.assistant-sources ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.assistant-sources li { max-width: 100%; }
+.assistant-sources a {
+  display: block; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--elev-sub); color: var(--muted); font-size: 11px; text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.assistant-sources a:hover { color: var(--accent); border-color: var(--accent); }
 .assistant-message.is-assistant .assistant-bubble { background: var(--elev-1); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
 .assistant-message.is-user .assistant-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 5px; white-space: pre-wrap; }
 .assistant-message.is-assistant .assistant-bubble > :first-child { margin-top: 0; }

@@ -13,13 +13,29 @@ import {
   assistantGetBriefing,
   assistantGetConversation,
   assistantListConversations,
+  type AssistantSource,
+  type AssistantTier,
+  type AssistantUsage,
 } from '../utils/api';
 import './Assistant.css';
 
 interface ChatMessage extends AssistantMessage {
   id: string;
   blocks?: AssistantVisualBlock[];
+  sources?: AssistantSource[];
+  tier?: AssistantTier;
+  usage?: AssistantUsage;
 }
+
+const TIER_LABELS: Record<AssistantTier, string> = {
+  quick: 'Quick',
+  standard: 'Standard',
+  deep: 'Deep',
+};
+
+/** Turns cost a fraction of a cent, so show cents until a conversation gets pricey. */
+const formatCost = (usd: number): string =>
+  usd >= 0.01 ? `$${usd.toFixed(2)}` : `${(usd * 100).toFixed(2)}¢`;
 
 type RequestError = { message: string; kind: 'error' | 'offline' | 'stopped' } | null;
 
@@ -318,6 +334,9 @@ const Assistant: React.FC = () => {
         role: 'assistant',
         content: data.reply,
         blocks: data.visual_blocks ?? [],
+        sources: data.sources ?? [],
+        tier: data.tier,
+        usage: data.usage,
       }]);
       setPending(data.pending_actions ?? []);
       loadConversations();
@@ -371,6 +390,25 @@ const Assistant: React.FC = () => {
 
   const isEmpty = messages.length === 0;
   const statusText = useMemo(() => loading ? 'Fin is reviewing your ledger' : online ? 'Connected to your ledger' : 'Offline', [loading, online]);
+
+  /** Running spend for this conversation. Only covers turns from this session —
+   *  reloading a saved chat starts the tally over, since usage is not persisted. */
+  const conversationSpend = useMemo(() => {
+    let cost = 0, searches = 0, turns = 0, cacheRead = 0, fullInput = 0;
+    for (const message of messages) {
+      if (!message.usage) continue;
+      turns += 1;
+      cost += message.usage.estimated_cost_usd;
+      searches += message.usage.web_searches;
+      cacheRead += message.usage.cache_read_tokens;
+      fullInput += message.usage.input_tokens;
+    }
+    const billed = cacheRead + fullInput;
+    return {
+      turns, cost, searches,
+      cacheHitPct: billed ? Math.round((cacheRead / billed) * 100) : 0,
+    };
+  }, [messages]);
 
   return (
     <AppShell>
@@ -430,11 +468,40 @@ const Assistant: React.FC = () => {
 
                 {messages.map(message => (
                   <article className={`assistant-message is-${message.role}`} key={message.id} aria-label={`${message.role === 'user' ? 'You' : 'Fin'} said`}>
-                    {message.role === 'assistant' && <span className="assistant-message-name">Fin</span>}
+                    {message.role === 'assistant' && (
+                      <span className="assistant-message-name">
+                        Fin
+                        {message.usage && message.tier && (
+                          <em
+                            className={`assistant-tier is-${message.tier}`}
+                            title={
+                              `${TIER_LABELS[message.tier]} · ${message.usage.model}\n` +
+                              `${message.usage.input_tokens} in / ${message.usage.output_tokens} out\n` +
+                              `${message.usage.cache_read_tokens} from cache (${message.usage.cache_hit_rate_pct}% hit)` +
+                              (message.usage.web_searches ? `\n${message.usage.web_searches} web search(es)` : '')
+                            }
+                          >
+                            {TIER_LABELS[message.tier]} · {formatCost(message.usage.estimated_cost_usd)}
+                          </em>
+                        )}
+                      </span>
+                    )}
                     <div className="assistant-bubble">
                       {message.role === 'assistant' ? <AssistantReply content={message.content} /> : message.content}
                     </div>
                     {message.blocks?.map((block, index) => <VisualBlock block={block} onFollowUp={send} key={`${message.id}-${block.type}-${index}`} />)}
+                    {!!message.sources?.length && (
+                      <footer className="assistant-sources" aria-label="Sources">
+                        <span>Sources</span>
+                        <ul>
+                          {message.sources.map(source => (
+                            <li key={source.url}>
+                              <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      </footer>
+                    )}
                   </article>
                 ))}
 
@@ -461,6 +528,14 @@ const Assistant: React.FC = () => {
 
             <footer className="assistant-composer-shell">
               {!online && <div className="assistant-offline-banner" role="status">Offline. Your message stays here until you reconnect.</div>}
+              {conversationSpend.turns > 0 && (
+                <div className="assistant-spend" role="status">
+                  {conversationSpend.turns} {conversationSpend.turns === 1 ? 'reply' : 'replies'} this chat
+                  {' · '}{formatCost(conversationSpend.cost)}
+                  {conversationSpend.searches > 0 && ` · ${conversationSpend.searches} search${conversationSpend.searches === 1 ? '' : 'es'}`}
+                  {' · '}{conversationSpend.cacheHitPct}% served from cache
+                </div>
+              )}
               <div className="assistant-composer">
                 <textarea
                   ref={inputRef}
