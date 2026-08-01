@@ -249,32 +249,40 @@ const Dashboard: React.FC = () => {
   const monthVsAvgRows = useMemo(() => {
     if (baselineMonths.length === 0) return [];
     const baseline = new Set(baselineMonths);
-    const spend = new Map<number, { current: number; past: number }>();
+    const spend = new Map<number, { current: number; previous: number; past: number }>();
     transactions.forEach(t => {
       const amount = Number(t.amount);
       if (amount >= 0 || !t.category_id) return;
       const m = t.transaction_date.slice(0, 7);
       const isCurrent = m === insightMonthKey;
       if (!isCurrent && !baseline.has(m)) return;
-      const rec = spend.get(t.category_id) ?? { current: 0, past: 0 };
+      const rec = spend.get(t.category_id) ?? { current: 0, previous: 0, past: 0 };
       if (isCurrent) rec.current += Math.abs(amount);
-      else rec.past += Math.abs(amount);
+      else {
+        rec.past += Math.abs(amount);
+        if (m === previousInsightMonthKey) rec.previous += Math.abs(amount);
+      }
       spend.set(t.category_id, rec);
     });
     return categories
       .filter(c => c.type === 'expense')
       .map(c => {
-        const rec = spend.get(c.id) ?? { current: 0, past: 0 };
+        const rec = spend.get(c.id) ?? { current: 0, previous: 0, past: 0 };
         const average = rec.past / baselineMonths.length;
-        return { id: c.id, name: c.name, color: c.color, current: rec.current, average, delta: rec.current - average };
+        return {
+          id: c.id, name: c.name, color: c.color,
+          current: rec.current, previous: rec.previous, average,
+          delta: rec.current - average,
+        };
       })
-      .filter(r => (r.current > 0 || r.average > 0) && Math.abs(r.delta) >= 0.01)
+      .filter(r => (r.current > 0 || r.previous > 0 || r.average > 0) && Math.abs(r.delta) >= 0.01)
       .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
       .slice(0, 8);
-  }, [transactions, categories, insightMonthKey, baselineMonths]);
+  }, [transactions, categories, insightMonthKey, previousInsightMonthKey, baselineMonths]);
 
-  const monthVsAvgScale = Math.max(...monthVsAvgRows.map(r => Math.max(r.current, r.average)), 1);
+  const monthVsAvgScale = Math.max(...monthVsAvgRows.map(r => Math.max(r.current, r.previous, r.average)), 1);
   const monthVsAvgCurrentTotal = monthVsAvgRows.reduce((s, r) => s + r.current, 0);
+  const monthVsAvgPreviousTotal = monthVsAvgRows.reduce((s, r) => s + r.previous, 0);
   const monthVsAvgAverageTotal = monthVsAvgRows.reduce((s, r) => s + r.average, 0);
   const monthVsAvgTotalDelta = monthVsAvgCurrentTotal - monthVsAvgAverageTotal;
 
@@ -820,11 +828,12 @@ const Dashboard: React.FC = () => {
 
                 {monthVsAvgRows.length > 0 ? (
                   <div className="overflow-x-auto -mx-1 px-1">
-                    <table className="w-full min-w-[340px] border-collapse">
+                    <table className="w-full min-w-[420px] border-collapse">
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--line)' }}>
                           <th className="label text-left font-normal pb-2">Category</th>
                           <th className="label text-right font-normal pb-2 pl-3">{formatMonth(insightMonthKey)}</th>
+                          <th className="label text-right font-normal pb-2 pl-3">{formatMonth(previousInsightMonthKey)}</th>
                           <th className="label text-right font-normal pb-2 pl-3">Avg / mo</th>
                         </tr>
                       </thead>
@@ -858,6 +867,11 @@ const Dashboard: React.FC = () => {
                               </td>
                               <td className="py-2.5 pl-3 text-right align-middle">
                                 <p className="font-mono text-xs" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                  ${fmt(row.previous)}
+                                </p>
+                              </td>
+                              <td className="py-2.5 pl-3 text-right align-middle">
+                                <p className="font-mono text-xs" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
                                   ${fmt(row.average)}
                                 </p>
                               </td>
@@ -872,6 +886,9 @@ const Dashboard: React.FC = () => {
                           </td>
                           <td className="pt-2.5 pl-3 text-right">
                             <p className="font-mono text-xs font-bold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>${fmt(monthVsAvgCurrentTotal)}</p>
+                          </td>
+                          <td className="pt-2.5 pl-3 text-right">
+                            <p className="font-mono text-xs font-bold" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>${fmt(monthVsAvgPreviousTotal)}</p>
                           </td>
                           <td className="pt-2.5 pl-3 text-right">
                             <p className="font-mono text-xs font-bold" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>${fmt(monthVsAvgAverageTotal)}</p>
