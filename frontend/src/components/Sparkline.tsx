@@ -41,7 +41,11 @@ const Sparkline: React.FC<Props> = ({ data, width = 480, height = 72, color = '#
 
   if (!linePath) return null;
 
+  // Guard the method as well as `window` — `matchMedia` is absent in jsdom and
+  // in some embedded webviews, and an unguarded call throws during render.
+  // Matches the check already used in `Money.tsx`.
   const reduce = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const drawIn = animate && !reduce;
 

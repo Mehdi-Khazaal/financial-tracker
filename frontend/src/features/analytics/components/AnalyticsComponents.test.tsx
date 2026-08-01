@@ -1,8 +1,13 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { CategoryComparison, Insight, PeriodMetrics, SavingsMetrics } from '../types';
+import type { Account, Category, Transaction } from '../../../types';
+import type {
+  CategoryComparison, CategoryDetail, Insight, PeriodMetrics, SavingsMetrics,
+} from '../types';
 import { resolvePeriod } from '../period';
+import { buildClassificationContext } from '../calculations/transactions';
+import CategoryDetailDrawer from './CategoryDetailDrawer';
 import RecommendedInsights from './RecommendedInsights';
 import SavingsOverviewCard from './SavingsOverviewCard';
 import AnalyticsMetricGrid from './AnalyticsMetricGrid';
@@ -229,6 +234,97 @@ describe('AnalyticsMetricGrid', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Left over = income − expenses');
     // And says plainly that this is not money that moved into a savings account.
     expect(screen.getByRole('tooltip')).toHaveTextContent(/does not mean money moved into a savings account/);
+  });
+});
+
+describe('CategoryDetailDrawer', () => {
+  const accounts: Account[] = [
+    { id: 1, user_id: 1, name: 'Everyday', type: 'checking', balance: 100, credit_limit: null, currency: 'USD', created_at: '', updated_at: '' },
+  ];
+  const categories: Category[] = [
+    { id: 10, user_id: 1, name: 'Motorcycle', type: 'expense', color: '#F97316', is_system: false, created_at: '' },
+  ];
+  const ctx = buildClassificationContext(accounts, categories);
+
+  const tx = (id: number, amount: number, date = '2026-07-04'): Transaction => ({
+    id, user_id: 1, account_id: 1, category_id: 10, amount,
+    description: `Purchase ${id}`, transaction_date: date, created_at: '',
+  });
+
+  const detail = (over: Partial<CategoryDetail> = {}): CategoryDetail => ({
+    id: 10, name: 'Motorcycle', color: '#F97316',
+    current: 1000, previous: 400, average: 300, baselineMonths: 4,
+    confidence: 'medium', deltaVsPrevious: 600, deltaVsAverage: 700,
+    pctVsPrevious: 1.5, pctVsAverage: 2.33, share: 0.5, transactionCount: 3,
+    largestTransaction: tx(1, -800), drivenByOneTransaction: true,
+    transactions: [tx(1, -800), tx(2, -150), tx(3, -50)],
+    averageTransaction: 333.33,
+    topMerchants: [{ key: 'dealer', name: 'City Dealer', total: 800, count: 1, average: 800, largest: 800 }],
+    monthlyTrend: [
+      { month: '2026-02', label: 'Feb 2026', value: 0 },
+      { month: '2026-03', label: 'Mar 2026', value: 250 },
+      { month: '2026-04', label: 'Apr 2026', value: 300 },
+      { month: '2026-05', label: 'May 2026', value: 280 },
+      { month: '2026-06', label: 'Jun 2026', value: 400 },
+      { month: '2026-07', label: 'Jul 2026', value: 1000 },
+    ],
+    ...over,
+  });
+
+  const renderDrawer = (over: Partial<CategoryDetail> = {}, periodOver?: typeof PERIOD) =>
+    render(
+      <CategoryDetailDrawer
+        detail={detail(over)}
+        period={periodOver ?? PERIOD}
+        accounts={accounts}
+        ctx={ctx}
+        onClose={jest.fn()}
+        onNavigate={jest.fn()}
+      />,
+    );
+
+  it('shows what share of the category the largest transaction represents', () => {
+    renderDrawer();
+    // $800 of $1,000 — the fastest way to see a total is one event, not a habit.
+    expect(screen.getByText('80% of the total')).toBeInTheDocument();
+  });
+
+  it('explains rather than shrugging when there is no earlier period', () => {
+    const noPrevious = { ...PERIOD, previous: null };
+    renderDrawer({}, noPrevious);
+    expect(screen.getByText(/earliest period with data/)).toBeInTheDocument();
+    expect(screen.queryByText('No earlier period to compare')).not.toBeInTheDocument();
+  });
+
+  it('explains a missing typical figure instead of showing a bare dash', () => {
+    renderDrawer({ baselineMonths: 0, average: 0 });
+    expect(screen.getByText(/needs at least one completed month/)).toBeInTheDocument();
+  });
+
+  it('draws a trend when two or more months have spending', () => {
+    renderDrawer();
+    expect(screen.getByText(/low \$250 · high \$1,000/)).toBeInTheDocument();
+    expect(screen.queryByText(/trend line appears once/)).not.toBeInTheDocument();
+  });
+
+  it('replaces the trend with an explanation when only one month has spending', () => {
+    renderDrawer({
+      monthlyTrend: [
+        { month: '2026-06', label: 'Jun 2026', value: 0 },
+        { month: '2026-07', label: 'Jul 2026', value: 1000 },
+      ],
+    });
+    expect(screen.getByText(/Motorcycle has spending in one month so far/)).toBeInTheDocument();
+  });
+
+  it('labels how each transaction was counted', () => {
+    renderDrawer();
+    expect(screen.getAllByText('Expense').length).toBe(3);
+  });
+
+  it('names the category in its empty state rather than saying "this category"', () => {
+    renderDrawer({ transactions: [], transactionCount: 0 });
+    expect(screen.getByText(/Nothing recorded in Motorcycle for the selected period/)).toBeInTheDocument();
   });
 });
 
