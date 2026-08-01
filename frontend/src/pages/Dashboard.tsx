@@ -30,6 +30,8 @@ const previousMonthKey = (ym: string) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const AVG_WINDOW_MONTHS = 12;
+
 const PERIODS = ['This month', 'Last 3 months', 'Last 6 months', 'All time', 'Custom'] as const;
 type Period = typeof PERIODS[number];
 
@@ -233,6 +235,48 @@ const Dashboard: React.FC = () => {
   const movementBalance = higherSpendCount + lowerSpendCount > 0
     ? Math.round((lowerSpendCount / (higherSpendCount + lowerSpendCount)) * 100)
     : 0;
+
+  // Baseline for "month vs average": up to 12 months of history before the selected month
+  const baselineMonths = useMemo(() => {
+    const months = new Set<string>();
+    transactions.forEach(t => {
+      const m = t.transaction_date.slice(0, 7);
+      if (m < insightMonthKey) months.add(m);
+    });
+    return Array.from(months).sort().slice(-AVG_WINDOW_MONTHS);
+  }, [transactions, insightMonthKey]);
+
+  const monthVsAvgRows = useMemo(() => {
+    if (baselineMonths.length === 0) return [];
+    const baseline = new Set(baselineMonths);
+    const spend = new Map<number, { current: number; past: number }>();
+    transactions.forEach(t => {
+      const amount = Number(t.amount);
+      if (amount >= 0 || !t.category_id) return;
+      const m = t.transaction_date.slice(0, 7);
+      const isCurrent = m === insightMonthKey;
+      if (!isCurrent && !baseline.has(m)) return;
+      const rec = spend.get(t.category_id) ?? { current: 0, past: 0 };
+      if (isCurrent) rec.current += Math.abs(amount);
+      else rec.past += Math.abs(amount);
+      spend.set(t.category_id, rec);
+    });
+    return categories
+      .filter(c => c.type === 'expense')
+      .map(c => {
+        const rec = spend.get(c.id) ?? { current: 0, past: 0 };
+        const average = rec.past / baselineMonths.length;
+        return { id: c.id, name: c.name, color: c.color, current: rec.current, average, delta: rec.current - average };
+      })
+      .filter(r => (r.current > 0 || r.average > 0) && Math.abs(r.delta) >= 0.01)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 8);
+  }, [transactions, categories, insightMonthKey, baselineMonths]);
+
+  const monthVsAvgScale = Math.max(...monthVsAvgRows.map(r => Math.max(r.current, r.average)), 1);
+  const monthVsAvgCurrentTotal = monthVsAvgRows.reduce((s, r) => s + r.current, 0);
+  const monthVsAvgAverageTotal = monthVsAvgRows.reduce((s, r) => s + r.average, 0);
+  const monthVsAvgTotalDelta = monthVsAvgCurrentTotal - monthVsAvgAverageTotal;
 
   const monthlyData = (() => {
     const months: Record<string, { income: number; expenses: number }> = {};
@@ -747,6 +791,105 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Month vs average spending by category */}
+              <div className="ledger-panel p-4 md:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div>
+                    <p className="label mb-1">Month vs average</p>
+                    <p className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
+                      {formatMonth(insightMonthKey)} against your usual month
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                      {baselineMonths.length > 0
+                        ? `Average across the ${baselineMonths.length} month${baselineMonths.length === 1 ? '' : 's'} before it`
+                        : 'No earlier months to average yet'}
+                    </p>
+                  </div>
+                  {monthVsAvgRows.length > 0 && (
+                    <div className="font-mono text-[10px] px-2.5 py-1 rounded-full self-start tabular-nums"
+                      style={{
+                        color: monthVsAvgTotalDelta <= 0 ? 'var(--pos)' : 'var(--neg)',
+                        backgroundColor: monthVsAvgTotalDelta <= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
+                      }}>
+                      {monthVsAvgTotalDelta <= 0 ? '−' : '+'}${fmt(Math.abs(monthVsAvgTotalDelta))} vs average
+                    </div>
+                  )}
+                </div>
+
+                {monthVsAvgRows.length > 0 ? (
+                  <div className="overflow-x-auto -mx-1 px-1">
+                    <table className="w-full min-w-[340px] border-collapse">
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                          <th className="label text-left font-normal pb-2">Category</th>
+                          <th className="label text-right font-normal pb-2 pl-3">{formatMonth(insightMonthKey)}</th>
+                          <th className="label text-right font-normal pb-2 pl-3">Avg / mo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthVsAvgRows.map(row => {
+                          const isUp = row.delta > 0;
+                          const currentPct = Math.min((row.current / monthVsAvgScale) * 100, 100);
+                          const averagePct = Math.min((row.average / monthVsAvgScale) * 100, 100);
+                          return (
+                            <tr key={row.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td className="py-2.5 pr-3 align-middle" style={{ minWidth: 132 }}>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                                  <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>{row.name}</p>
+                                </div>
+                                <div className="relative h-1 mt-1.5 ml-4 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+                                  <div className="h-full rounded-full" style={{ width: `${currentPct}%`, backgroundColor: row.color }} />
+                                  <span className="absolute top-0 h-full"
+                                    style={{ left: `${averagePct}%`, width: 2, backgroundColor: 'var(--muted)', transform: 'translateX(-1px)' }}
+                                    aria-hidden="true" />
+                                </div>
+                              </td>
+                              <td className="py-2.5 pl-3 text-right align-middle">
+                                <p className="font-mono text-xs font-semibold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
+                                  ${fmt(row.current)}
+                                </p>
+                                <p className="font-mono text-[10px] mt-0.5" style={{ color: isUp ? 'var(--neg)' : 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
+                                  {isUp ? '+' : '−'}${fmt(Math.abs(row.delta))}
+                                  {row.average > 0 && ` (${isUp ? '+' : '−'}${Math.abs((row.delta / row.average) * 100).toFixed(0)}%)`}
+                                </p>
+                              </td>
+                              <td className="py-2.5 pl-3 text-right align-middle">
+                                <p className="font-mono text-xs" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                                  ${fmt(row.average)}
+                                </p>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td className="pt-2.5">
+                            <p className="label">Total shown</p>
+                          </td>
+                          <td className="pt-2.5 pl-3 text-right">
+                            <p className="font-mono text-xs font-bold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>${fmt(monthVsAvgCurrentTotal)}</p>
+                          </td>
+                          <td className="pt-2.5 pl-3 text-right">
+                            <p className="font-mono text-xs font-bold" style={{ color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>${fmt(monthVsAvgAverageTotal)}</p>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <p className="text-[10px] mt-3" style={{ color: 'var(--dim)' }}>
+                      Bar shows {formatMonth(insightMonthKey)}; the tick marks the monthly average.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm py-6 text-center" style={{ color: 'var(--muted)' }}>
+                    {baselineMonths.length === 0
+                      ? 'Not enough history yet — come back after another month of transactions.'
+                      : 'No category is meaningfully off its average this month.'}
+                  </p>
+                )}
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
