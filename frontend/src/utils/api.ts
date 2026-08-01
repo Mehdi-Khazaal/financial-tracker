@@ -109,6 +109,34 @@ export const deleteCategory  = (id: number) => api.delete(`/categories/${id}`);
 // ── Transactions ──────────────────────────────────────────────────────────────
 export const getTransactions   = (params?: Record<string, any>) =>
   api.get('/transactions', { params });
+
+/**
+ * Every transaction, not just the first page.
+ *
+ * `GET /transactions` defaults to 500 rows and caps at 1000, so any caller
+ * that needs complete history — analytics totals, monthly averages, recurring
+ * detection — has to page through. Without this, a user past 500 transactions
+ * silently gets truncated arithmetic rather than an error.
+ *
+ * Pages are fetched sequentially and stop as soon as a short page comes back.
+ * `maxPages` bounds the worst case at 20,000 rows.
+ */
+export const PAGE_SIZE = 1000;
+export const fetchAllTransactions = async (
+  params: Record<string, any> = {},
+  maxPages = 20,
+): Promise<any[]> => {
+  const all: any[] = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const res = await api.get('/transactions', {
+      params: { ...params, limit: PAGE_SIZE, skip: page * PAGE_SIZE },
+    });
+    const batch = Array.isArray(res.data) ? res.data : [];
+    all.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return all;
+};
 export const createTransaction = (data: any) => api.post('/transactions', data);
 export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);
 export const deleteTransaction = (id: number) => api.delete(`/transactions/${id}`);
