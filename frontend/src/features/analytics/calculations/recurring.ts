@@ -12,6 +12,9 @@ import type { Account, Category, RecurringTransaction, Transaction } from '../..
 import type {
   ClassificationContext,
   DetectedSubscription,
+  RecurringCharge,
+  RecurringGroup,
+  RecurringKind,
   RecurringOutlook,
   SubscriptionInsight,
   UpcomingBill,
@@ -35,6 +38,20 @@ const MONTHLY_FACTOR: Record<RecurringTransaction['period'], number> = {
 
 export const monthlyEquivalent = (amount: number, period: RecurringTransaction['period']): number =>
   Math.abs(amount) * (MONTHLY_FACTOR[period] ?? 1);
+
+/** Active recurring expenses only — income schedules are not a cost. */
+export const activeRecurringExpenses = (recurring: RecurringTransaction[]): RecurringTransaction[] =>
+  recurring.filter(r => r.is_active && Number(r.amount) < 0);
+
+/**
+ * Monthly-normalised total of every declared recurring expense.
+ *
+ * Shared by the recurring card, the health score and the forecast — three
+ * places that must never quote different figures for the same commitment.
+ */
+export const monthlyRecurringExpense = (recurring: RecurringTransaction[]): number =>
+  activeRecurringExpenses(recurring)
+    .reduce((sum, r) => sum + monthlyEquivalent(Number(r.amount), r.period), 0);
 
 /** Advance a recurring date by one cycle, matching the backend's `_next_date`. */
 function nextOccurrence(iso: string, period: RecurringTransaction['period']): string {
@@ -224,6 +241,65 @@ function findPossibleDuplicates(names: string[]): SubscriptionInsight['possibleD
   return out.slice(0, 2);
 }
 
+/**
+ * Group declared recurring charges into bills, subscriptions and everything
+ * else.
+ *
+ * The split uses fields the user actually set — `is_variable` and `period` —
+ * rather than pattern-matching merchant names, which would misfile anything
+ * unusual and could not explain itself. A charge whose amount changes every
+ * cycle is a bill; a fixed amount on a regular cycle is a subscription.
+ */
+export function groupRecurringCharges(
+  recurring: RecurringTransaction[],
+  categories: Category[],
+): RecurringGroup[] {
+  const categoryById = new Map(categories.map(c => [c.id, c]));
+
+  const charges: RecurringCharge[] = recurring
+    .filter(r => r.is_active && Number(r.amount) < 0)
+    .map(r => {
+      const category = r.category_id != null ? categoryById.get(r.category_id) : undefined;
+      const amount = Math.abs(Number(r.amount));
+      const regularCycle = r.period === 'weekly' || r.period === 'monthly'
+        || r.period === 'quarterly' || r.period === 'yearly';
+      const kind: RecurringKind = r.is_variable
+        ? 'bill'
+        : regularCycle ? 'subscription' : 'other';
+      return {
+        id: r.id,
+        name: r.description || category?.name || 'Recurring charge',
+        kind,
+        amount,
+        monthlyAmount: monthlyEquivalent(amount, r.period),
+        period: r.period,
+        isVariable: r.is_variable,
+        categoryName: category?.name ?? null,
+        categoryColor: category?.color ?? 'var(--muted)',
+        nextDate: r.next_date.slice(0, 10),
+      };
+    });
+
+  const definitions: { kind: RecurringKind; label: string; description: string }[] = [
+    { kind: 'bill', label: 'Bills', description: 'Amount changes each cycle' },
+    { kind: 'subscription', label: 'Subscriptions', description: 'Same amount every cycle' },
+    { kind: 'other', label: 'Other recurring charges', description: 'Irregular cycle' },
+  ];
+
+  return definitions
+    .map(definition => {
+      const matching = charges
+        .filter(c => c.kind === definition.kind)
+        .sort((a, b) => b.monthlyAmount - a.monthlyAmount);
+      return {
+        ...definition,
+        charges: matching,
+        monthlyTotal: matching.reduce((s, c) => s + c.monthlyAmount, 0),
+      };
+    })
+    .filter(group => group.charges.length > 0);
+}
+
 export function buildRecurringOutlook(options: {
   recurring: RecurringTransaction[];
   transactions: Transaction[];
@@ -237,11 +313,8 @@ export function buildRecurringOutlook(options: {
   const upcoming = upcomingBills(recurring, { accounts, categories, today });
   const within30 = upcoming.filter(b => b.daysUntil >= 0 && b.daysUntil <= 30);
 
-  const activeExpenses = recurring.filter(r => r.is_active && Number(r.amount) < 0);
-  const monthlyTotal = activeExpenses.reduce(
-    (s, r) => s + monthlyEquivalent(Number(r.amount), r.period),
-    0,
-  );
+  const activeExpenses = activeRecurringExpenses(recurring);
+  const monthlyTotal = monthlyRecurringExpense(recurring);
 
   const declaredKeys = new Set<string>();
   activeExpenses.forEach(r => {
@@ -260,6 +333,7 @@ export function buildRecurringOutlook(options: {
     previousMonthlyTotal,
     annualized: monthlyTotal * 12,
     count: activeExpenses.length,
+    groups: groupRecurringCharges(recurring, categories),
     increased,
     possibleDuplicates: findPossibleDuplicates(
       activeExpenses.map(r => r.description ?? '').filter(Boolean),

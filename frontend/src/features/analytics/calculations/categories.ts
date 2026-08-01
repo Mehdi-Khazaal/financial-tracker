@@ -20,6 +20,7 @@ import type {
 } from '../types';
 import { confidenceFor } from '../period';
 import { shortMonthLabel } from '../format';
+import { transactionsInRange } from './metrics';
 import {
   categorySpendDelta,
   classifyTransaction,
@@ -47,11 +48,11 @@ function spendByCategory(
   return out;
 }
 
+// Range filtering lives in `metrics.ts`; duplicating the boundary logic here
+// is how two parts of a page start disagreeing about what "in the period"
+// means.
 const inRangeFilter = (transactions: Transaction[], range: PeriodRange) =>
-  transactions.filter(t => {
-    const day = t.transaction_date.slice(0, 10);
-    return day >= range.start && day <= range.end;
-  });
+  transactionsInRange(transactions, range);
 
 export interface CategoryComparisonOptions {
   transactions: Transaction[];

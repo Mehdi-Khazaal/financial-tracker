@@ -451,9 +451,69 @@ body::after {
     .tx-row:hover { background: rgba(255,255,255,0.025); }
   }
 
+  /* ── Sheets / modals ──────────────────────────────────────────────────────
+     The root is portalled to <body>, so it is never trapped inside a
+     transformed ancestor (a `transform` on any ancestor makes that element
+     the containing block for `position: fixed`, which silently breaks
+     full-screen overlays). Panels are flex columns: the header never
+     scrolls, only the body does. */
+  .sheet-root {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+  }
+
   .bottom-sheet-panel {
+    position: relative;
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    max-height: 92dvh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     overscroll-behavior: contain;
+  }
+
+  .sheet-header {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  .sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    /* Vertical scrolling only — a stray wide child must never make the whole
+       sheet pan sideways. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--safe-bottom);
+  }
+
+  @supports not (height: 100dvh) {
+    .bottom-sheet-panel { max-height: 92vh; }
+  }
+
+  @media (min-width: 768px) {
+    .sheet-root {
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    .bottom-sheet-panel {
+      border-radius: var(--radius-lg);
+      max-height: min(88dvh, 920px);
+    }
+
+    /* Default width matches every existing modal; `lg` is for data-dense
+       drawers that would otherwise wrap every number onto its own line. */
+    .sheet-panel--md { max-width: 28rem; }
+    .sheet-panel--lg { max-width: 46rem; }
   }
 
   .topbar-safe {

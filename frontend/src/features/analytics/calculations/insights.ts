@@ -23,7 +23,7 @@ import type {
   ResolvedPeriod,
   SavingsMetrics,
 } from '../types';
-import { dollars, percent, plural, signedPercent } from '../format';
+import { dollars, percent, plural, signedPercent, verbFor } from '../format';
 import { merchantDisplayName } from './transactions';
 
 export interface InsightContext {
@@ -53,7 +53,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
       body: `It last charged ${dollars(topIncrease.from)} and now charges ${dollars(topIncrease.to)}. Worth checking the plan is still the one you want.`,
       tone: 'warning',
       score: 80 + Math.min(20, topIncrease.delta),
-      action: { label: 'Review subscriptions', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
     });
   }
 
@@ -93,8 +93,8 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
     if (savings.saved > avgRateProxy * 1.2 && savings.saved - avgRateProxy >= MATERIAL_DOLLARS) {
       candidates.push({
         id: 'savings-above',
-        title: `You saved more than usual ${periodWord}`,
-        body: `${dollars(savings.saved)} put aside at a ${percent(savings.savingsRate)} savings rate, against a typical ${dollars(avgRateProxy)} a month. A good moment to move some of it toward a goal.`,
+        title: `You kept more than usual ${periodWord}`,
+        body: `${dollars(savings.saved)} left after expenses at a ${percent(savings.savingsRate)} savings rate, against a typical ${dollars(avgRateProxy)} a month. A good moment to move some of it into a savings goal.`,
         tone: 'positive',
         score: 70,
         action: { label: 'View savings', to: '/portfolio', tab: 'savings' },
@@ -102,8 +102,8 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
     } else if (savings.saved < avgRateProxy * 0.5 && avgRateProxy - savings.saved >= MATERIAL_DOLLARS) {
       candidates.push({
         id: 'savings-below',
-        title: `Saving is behind your recent pace`,
-        body: `${dollars(savings.saved)} ${periodWord} against a typical ${dollars(avgRateProxy)} a month. Income and spending both feed this — the cash-flow breakdown above shows which moved.`,
+        title: 'Less left over than your recent pace',
+        body: `${dollars(savings.saved)} left after expenses ${periodWord}, against a typical ${dollars(avgRateProxy)} a month. Income and spending both feed this — the cash-flow breakdown above shows which moved.`,
         tone: 'warning',
         score: 74,
       });
@@ -172,11 +172,11 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
     const total = detected.reduce((s, d) => s + d.monthlyAmount, 0);
     candidates.push({
       id: 'detected-subscriptions',
-      title: `${plural(detected.length, 'charge')} look like subscriptions`,
-      body: `${detected.slice(0, 2).map(d => d.name).join(' and ')} charge on a regular cycle — about ${dollars(total)} a month in total — but are not set up as recurring yet.`,
+      title: `${plural(detected.length, 'possible recurring charge')} not set up yet`,
+      body: `${detected.slice(0, 2).map(d => d.name).join(' and ')} ${verbFor(detected.length, 'charge')} on a regular cycle — about ${dollars(total)} a month in total. Fintrack has not confirmed what they are.`,
       tone: 'action',
       score: 64,
-      action: { label: 'Review recurring', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
     });
   }
 
@@ -185,11 +185,11 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
   if (duplicate) {
     candidates.push({
       id: 'duplicate-subscriptions',
-      title: 'Two subscriptions look similar',
+      title: 'Two recurring charges look similar',
       body: `${duplicate.names.join(' and ')} may be the same service billed twice. Worth confirming before either renews.`,
       tone: 'action',
       score: 66,
-      action: { label: 'Review subscriptions', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
     });
   }
 

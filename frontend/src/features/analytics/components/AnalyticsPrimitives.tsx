@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { MINUS, signedDollars, signedPercent } from '../format';
+import { MINUS, percentagePoints, signedDollars, signedPercent } from '../format';
 
 /**
  * Shared building blocks for the Analytics page.
@@ -21,24 +21,62 @@ interface SectionHeaderProps {
   /** Heading level for the document outline. Defaults to h2. */
   as?: 'h2' | 'h3';
   id?: string;
+  /**
+   * Makes the whole section collapsible. The heading becomes the toggle, so
+   * there is one obvious control rather than a separate chevron competing
+   * with the title for attention.
+   */
+  toggle?: { open: boolean; onToggle: () => void; controls: string };
+  /** Shown beside the title when collapsed — keeps the headline value visible. */
+  collapsedSummary?: React.ReactNode;
 }
 
 export const SectionHeader: React.FC<SectionHeaderProps> = ({
-  eyebrow, title, description, hint, right, as = 'h2', id,
+  eyebrow, title, description, hint, right, as = 'h2', id, toggle, collapsedSummary,
 }) => {
   const Heading = as;
+
+  const heading = (
+    <Heading id={id} className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
+      {title}
+    </Heading>
+  );
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-      <div className="min-w-0">
+    <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${toggle && !toggle.open ? '' : 'mb-4'}`}>
+      <div className="min-w-0 flex-1">
         <p className="label mb-1">{eyebrow}</p>
-        <div className="flex items-center gap-1.5">
-          <Heading id={id} className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
-            {title}
-          </Heading>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {toggle ? (
+            <button
+              type="button"
+              onClick={toggle.onToggle}
+              aria-expanded={toggle.open}
+              aria-controls={toggle.controls}
+              className="flex items-center gap-1.5 min-w-0 text-left pressable"
+              style={{ minHeight: 32 }}
+            >
+              {heading}
+              <svg
+                viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+                className="w-4 h-4 shrink-0"
+                style={{
+                  color: 'var(--muted)',
+                  transform: toggle.open ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 180ms var(--ease-out)',
+                }}
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ) : heading}
           {hint && <InfoHint label={`How ${title} is calculated`} text={hint} />}
         </div>
-        {description && (
+        {description && (toggle ? toggle.open : true) && (
           <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
+        )}
+        {toggle && !toggle.open && collapsedSummary && (
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{collapsedSummary}</p>
         )}
       </div>
       {right && <div className="shrink-0 self-start">{right}</div>}
@@ -122,8 +160,12 @@ export const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
 
 interface DeltaBadgeProps {
   value: number;
-  /** `dollars` renders ±$x, `percent` renders ±x%. */
-  format?: 'dollars' | 'percent';
+  /**
+   * `dollars` renders ±$x, `percent` renders ±x%, `points` renders ±x pp.
+   * Use `points` for the gap between two rates — a savings rate going from
+   * 27.2% to 79.1% moved 51.9 points, and calling that "+191%" overstates it.
+   */
+  format?: 'dollars' | 'percent' | 'points';
   /**
    * Which direction is good. `down-good` is the default for spending, where
    * less is an improvement. Use `neutral` when neither direction is a verdict.
@@ -142,7 +184,11 @@ export const DeltaBadge: React.FC<DeltaBadgeProps> = ({
   const background = good === null
     ? 'var(--elev-sub)'
     : good ? 'var(--pos-dim)' : 'var(--neg-dim)';
-  const text = format === 'percent' ? signedPercent(value) : signedDollars(value);
+  const text = format === 'percent'
+    ? signedPercent(value)
+    : format === 'points'
+      ? percentagePoints(value)
+      : signedDollars(value);
   // The arrow gives direction without relying on colour alone.
   const arrow = value === 0 ? '' : value > 0 ? '↑ ' : '↓ ';
 

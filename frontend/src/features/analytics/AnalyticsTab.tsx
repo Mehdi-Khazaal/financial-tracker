@@ -6,7 +6,7 @@ import { TabContext } from '../../context/TabContext';
 import { cleanDescription } from '../../utils/api';
 import { downloadCSV, printPDF } from '../../utils/export';
 import { monthKeyOf } from './period';
-import { buildClassificationContext, classifyTransaction } from './calculations/transactions';
+import { classifyTransaction } from './calculations/transactions';
 import { buildCategoryDetail } from './calculations/categories';
 import { dollars, percent } from './format';
 import { useAnalyticsModel, useToday } from './useAnalyticsModel';
@@ -22,7 +22,7 @@ import CategoryDetailDrawer from './components/CategoryDetailDrawer';
 import NetWorthTrendCard from './components/NetWorthTrendCard';
 import PeriodComparisonTable from './components/PeriodComparisonTable';
 import RecurringBillsPreview from './components/RecurringBillsPreview';
-import SubscriptionSummary from './components/SubscriptionSummary';
+import RecurringChargesCard from './components/RecurringChargesCard';
 import RecentActivity from './components/RecentActivity';
 import FinancialHealthCard from './components/FinancialHealthCard';
 import ForecastCard from './components/ForecastCard';
@@ -93,10 +93,9 @@ const AnalyticsTab: React.FC<Props> = ({
     today,
   );
 
-  const ctx = useMemo(
-    () => buildClassificationContext(accounts, categories),
-    [accounts, categories],
-  );
+  // The model already builds this; rebuilding it here would be a second
+  // source of truth for what counts as income.
+  const { ctx } = model;
 
   const handlePeriodChange = useCallback((id: PeriodId) => {
     setPeriodId(id);
@@ -252,7 +251,7 @@ const AnalyticsTab: React.FC<Props> = ({
 
       <div className="grid lg:grid-cols-2 gap-5 md:gap-6 items-start">
         <RecurringBillsPreview outlook={model.recurring} onNavigate={handleNavigate} />
-        <SubscriptionSummary
+        <RecurringChargesCard
           subscriptions={model.recurring.subscriptions}
           onNavigate={handleNavigate}
         />
@@ -278,6 +277,7 @@ const AnalyticsTab: React.FC<Props> = ({
         detail={categoryDetail}
         period={model.period}
         accounts={accounts}
+        ctx={ctx}
         onClose={() => setOpenCategoryId(null)}
         onNavigate={handleNavigate}
       />

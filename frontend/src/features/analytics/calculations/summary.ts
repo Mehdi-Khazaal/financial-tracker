@@ -20,7 +20,9 @@ import type {
   ResolvedPeriod,
   SavingsMetrics,
 } from '../types';
-import { dollars, monthLabel, percent, signedPercent } from '../format';
+import {
+  dollars, monthLabel, percent, percentagePoints, rateTransition, signedPercent,
+} from '../format';
 import { pctChange } from './transactions';
 
 const MATERIAL_DOLLARS = 25;
@@ -77,10 +79,13 @@ export function buildPeriodSummary(ctx: SummaryContext): PeriodSummaryData {
     else verdict = 'steady';
   }
 
+  // "May – Jul 2026 was a strong month" would be wrong, so the noun follows
+  // the shape of the range.
+  const unit = period.isSingleMonth ? 'month' : 'period';
   const headline = verdict === 'stronger'
-    ? `${name} was a strong month.`
+    ? `${name} was a strong ${unit}.`
     : verdict === 'weaker'
-      ? `${name} was tighter than usual.`
+      ? `${name} was a tighter ${unit} than usual.`
       : verdict === 'steady'
         ? `${name} tracked close to ${versus}.`
         : `Here is how ${name} looked.`;
@@ -134,16 +139,20 @@ export function buildPeriodSummary(ctx: SummaryContext): PeriodSummaryData {
 
   // ── Savings ─────────────────────────────────────────────────────────────────
   if (metrics.savingsRate != null) {
-    const rateText = `Your savings rate was ${percent(metrics.savingsRate)}`;
-    if (savings.rateDelta != null && Math.abs(savings.rateDelta) >= 0.03) {
+    const left = `leaving ${dollars(metrics.net)} after expenses`;
+    // A rate change is reported in percentage points, never as a percentage of
+    // itself — 27.2% to 79.1% is a 51.9-point rise, not a 191% one.
+    if (savings.rateDelta != null && savings.previousRate != null && Math.abs(savings.rateDelta) >= 0.03) {
       sentences.push(
-        `${rateText}, ${savings.rateDelta > 0 ? 'up' : 'down'} ${percent(Math.abs(savings.rateDelta))} on ${versus}, keeping ${dollars(metrics.net)}.`,
+        `Your savings rate was ${percent(metrics.savingsRate)}, ${savings.rateDelta > 0 ? 'up' : 'down'} `
+        + `${percentagePoints(Math.abs(savings.rateDelta), 1)} compared with ${versus} `
+        + `(${rateTransition(savings.previousRate, metrics.savingsRate)}), ${left}.`,
       );
     } else {
-      sentences.push(`${rateText}, keeping ${dollars(metrics.net)}.`);
+      sentences.push(`Your savings rate was ${percent(metrics.savingsRate)}, ${left}.`);
     }
   } else if (metrics.expenses > 0) {
-    sentences.push(`No income was recorded in this period, so a savings rate is not meaningful yet.`);
+    sentences.push('No income was recorded in this period, so a savings rate cannot be calculated.');
   }
 
   // ── Net worth ───────────────────────────────────────────────────────────────

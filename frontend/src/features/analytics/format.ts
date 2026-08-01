@@ -47,6 +47,42 @@ export const signedPercent = (value: number, decimals = 0, alreadyPercent = fals
   return `${n < 0 ? MINUS : '+'}${Math.abs(n).toFixed(decimals)}%`;
 };
 
+/**
+ * The difference between two percentages, in percentage points.
+ *
+ * A savings rate moving 27.2% → 79.1% has risen by 51.9 *points*, not by 191%.
+ * Reporting the relative change of a rate is the classic way to make a modest
+ * improvement look like a miracle, so rate movements always use this.
+ */
+export const percentagePoints = (delta: number, decimals = 1, alreadyPercent = false): string => {
+  const n = alreadyPercent ? delta : delta * 100;
+  return `${n < 0 ? MINUS : '+'}${Math.abs(n).toFixed(decimals)} pp`;
+};
+
+/** `0.272, 0.791` → `"27.2% → 79.1%"`. The unambiguous form when space allows. */
+export const rateTransition = (from: number, to: number, decimals = 1): string =>
+  `${percent(from, decimals)} → ${percent(to, decimals)}`;
+
+/**
+ * Plural of the last word in a phrase, covering the English cases that show
+ * up in this feature: `category` → `categories`, `charge` → `charges`,
+ * `day` → `days`.
+ */
+export const pluralize = (phrase: string): string => {
+  const parts = phrase.split(' ');
+  const last = parts[parts.length - 1];
+  let pluralForm: string;
+  if (/[^aeiou]y$/i.test(last)) pluralForm = `${last.slice(0, -1)}ies`;
+  else if (/(s|x|z|ch|sh)$/i.test(last)) pluralForm = `${last}es`;
+  else pluralForm = `${last}s`;
+  parts[parts.length - 1] = pluralForm;
+  return parts.join(' ');
+};
+
+/** Subject-verb agreement helper: `verbFor(1, 'repeat')` → `"repeats"`. */
+export const verbFor = (count: number, verb: string): string =>
+  (count === 1 ? pluralize(verb) : verb);
+
 /** `"2026-07"` → `"July 2026"`. */
 export const monthLabel = (ym: string): string => {
   const [y, m] = ym.split('-').map(Number);
@@ -91,6 +127,6 @@ export const relativeDays = (days: number): string => {
   return `${Math.abs(days)} days ago`;
 };
 
-/** Pluralise without a dependency: `plural(1, 'category')` → `"1 category"`. */
+/** `plural(1, 'category')` → `"1 category"`, `plural(3, 'category')` → `"3 categories"`. */
 export const plural = (count: number, singular: string, pluralForm?: string): string =>
-  `${count} ${count === 1 ? singular : pluralForm ?? `${singular}s`}`;
+  `${count} ${count === 1 ? singular : pluralForm ?? pluralize(singular)}`;

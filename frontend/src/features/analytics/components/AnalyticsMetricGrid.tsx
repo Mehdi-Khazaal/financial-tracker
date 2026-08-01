@@ -1,6 +1,6 @@
 import React from 'react';
 import type { NetWorthAnalysis, PeriodMetrics, ResolvedPeriod, SavingsMetrics } from '../types';
-import { dollars, percent } from '../format';
+import { dollars, percent, rateTransition } from '../format';
 import { SAVINGS_DEFINITION } from '../calculations/savings';
 import { DeltaBadge, InfoHint } from './AnalyticsPrimitives';
 import { pctChange } from '../calculations/transactions';
@@ -83,7 +83,7 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
     },
     {
       key: 'saved',
-      label: 'Saved',
+      label: 'Left over',
       value: `${metrics.net < 0 ? '−' : ''}${dollars(Math.abs(metrics.net))}`,
       color: metrics.net >= 0 ? 'var(--pos)' : 'var(--neg)',
       accent: 'var(--accent)',
@@ -101,16 +101,23 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
         ? 'var(--muted)'
         : metrics.savingsRate >= 0.2 ? 'var(--pos)' : metrics.savingsRate >= 0 ? '#f59e0b' : 'var(--neg)',
       accent: '#f59e0b',
-      hint: 'The share of income you kept. Shown as a dash when no income was recorded in this period, because there is nothing to take a share of.',
+      hint: 'The share of income left after expenses. Changes are shown in percentage points — the gap between two rates — because expressing a rate change as a percentage of itself overstates it. Shown as a dash when no income was recorded, since there is nothing to take a share of.',
+      // Percentage points, not percent change. See the hint above.
       delta: savings.rateDelta != null
-        ? <DeltaBadge value={savings.rateDelta} format="percent" polarity="up-good" />
+        ? <DeltaBadge value={savings.rateDelta} format="points" polarity="up-good" />
         : undefined,
-      footnote: metrics.savingsRate == null ? 'No income recorded' : undefined,
+      footnote: metrics.savingsRate == null
+        ? 'No income recorded'
+        : savings.previousRate != null && savings.rateDelta != null
+          ? rateTransition(savings.previousRate, metrics.savingsRate)
+          : undefined,
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 md:gap-3">
+    // Five tiles: 2 up on phones, 3 on tablets, one row on desktop. Going
+    // straight from 2 to 5 left a lone orphan tile on every tablet width.
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
       {tiles.map(tile => (
         <div
           key={tile.key}

@@ -19,6 +19,7 @@ import type {
 } from '../../types';
 import type {
   CategoryComparison,
+  ClassificationContext,
   FinancialHealth,
   Forecast,
   Insight,
@@ -42,7 +43,8 @@ import { buildRecurringOutlook } from './calculations/recurring';
 import { generateDeterministicInsights } from './calculations/insights';
 import { buildPeriodSummary } from './calculations/summary';
 import { calculateFinancialHealth } from './calculations/health';
-import { calculateForecast, monthlyRecurringExpense } from './calculations/forecast';
+import { calculateForecast } from './calculations/forecast';
+import { monthlyRecurringExpense } from './calculations/recurring';
 
 export interface AnalyticsSources {
   transactions: Transaction[];
@@ -56,6 +58,8 @@ export interface AnalyticsSources {
 
 export interface AnalyticsModel {
   period: ResolvedPeriod;
+  /** Built once here; components reuse it rather than rebuilding their own. */
+  ctx: ClassificationContext;
   availableMonths: string[];
   metrics: PeriodMetrics;
   previousMetrics: PeriodMetrics | null;
@@ -216,6 +220,7 @@ export function useAnalyticsModel(
 
     return {
       period,
+      ctx,
       availableMonths,
       metrics,
       previousMetrics,

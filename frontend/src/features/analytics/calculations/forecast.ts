@@ -26,7 +26,7 @@ import type {
   ResolvedPeriod,
 } from '../types';
 import { monthLabel, plural } from '../format';
-import { dateKey, daysBetween } from '../period';
+import { dateKey } from '../period';
 import { fixedCostKeys } from './cashflow';
 import { calculatePeriodMetrics, transactionsInRange } from './metrics';
 import {
@@ -35,7 +35,7 @@ import {
   median,
   normalizeMerchantName,
 } from './transactions';
-import { monthlyEquivalent } from './recurring';
+import { activeRecurringExpenses } from './recurring';
 
 const MIN_DAYS_ELAPSED = 5;
 const MIN_MONTHS = 3;
@@ -92,8 +92,7 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
 
   // ── Spending already committed by a schedule ────────────────────────────────
   const keys = fixedCostKeys(recurring);
-  const scheduledRemaining = recurring
-    .filter(r => r.is_active && Number(r.amount) < 0)
+  const scheduledRemaining = activeRecurringExpenses(recurring)
     .reduce((sum, r) => {
       const due = r.next_date.slice(0, 10);
       return due > todayKey && due <= period.end ? sum + Math.abs(Number(r.amount)) : sum;
@@ -166,7 +165,9 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
     available: true,
     reason: null,
     confidence,
-    basis: `Based on spending through ${asOf}, ${plural(daysBetween(period.start, todayKey) + 1, 'day')} into the period, and your previous ${plural(monthly.length, 'month')}.${incomeIsRegular ? '' : ' Income has varied month to month, so only income already received or scheduled is counted.'}`,
+    // `period.daysElapsed` is the single source for "how far in are we" — the
+    // progress bar and this sentence must never quote different numbers.
+    basis: `Based on spending through ${asOf}, ${plural(period.daysElapsed, 'day')} into the period, and your previous ${plural(monthly.length, 'month')}.${incomeIsRegular ? '' : ' Income has varied month to month, so only income already received or scheduled is counted.'}`,
     monthLabel: period.isSingleMonth ? monthLabel(period.months[0]) : period.label,
     daysElapsed: period.daysElapsed,
     daysTotal: period.daysTotal,
@@ -184,11 +185,4 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
     savingsRate: projectedIncome > 0 ? projectedSavings / projectedIncome : null,
     categoryRisks,
   };
-}
-
-/** Monthly-normalised recurring expense total — shared with the health score. */
-export function monthlyRecurringExpense(recurring: RecurringTransaction[]): number {
-  return recurring
-    .filter(r => r.is_active && Number(r.amount) < 0)
-    .reduce((s, r) => s + monthlyEquivalent(Number(r.amount), r.period), 0);
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { CashFlowData, ResolvedPeriod } from '../types';
 import { compactDollars, dollars, percent } from '../format';
@@ -11,36 +11,58 @@ interface Props {
   period: ResolvedPeriod;
 }
 
+const CHART_HEIGHT = 210;
+/**
+ * Bars top out at 86% of the plot so the value label above the tallest one
+ * still has room inside the box. Without it the label sits outside the
+ * container and either gets clipped or extends the page.
+ */
+const HEADROOM = 0.86;
+
 /**
  * Cash flow, shaped to the question the range is asking.
  *
- * A single month becomes a waterfall — income at the top, costs stepping down,
- * what survived at the bottom — because for one month the useful question is
- * *where did it go*. Several months become a trend, because then the question
- * is *which way is this heading*. The previous chart drew two bars for one
- * month and answered neither.
+ * A single month is a true waterfall: income sets the level, each cost steps
+ * down from where the last one ended, and the final bar rises from zero to
+ * what survived. Connector lines carry the running total across, so the
+ * descent reads as one continuous story rather than four unrelated bars.
  *
- * Expenses are drawn as downward steps rather than negative numbers, so no
- * axis ever reads "−$2,400" for money that was simply spent.
+ * It is drawn directly rather than through the chart library. The earlier
+ * version faked the steps with a stacked transparent spacer bar, which is
+ * exactly the kind of trick that produces a chart nobody can quite read — and
+ * it could not draw connectors at all.
+ *
+ * Several months become a grouped income-vs-expense trend, because then the
+ * question is direction rather than composition.
  */
 const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
   const isWaterfall = cashFlow.mode === 'waterfall';
   const hasData = cashFlow.income > 0 || cashFlow.fixed > 0 || cashFlow.variable > 0
     || cashFlow.series.some(p => p.Income > 0 || p.Expenses > 0);
 
-  const waterfallData = cashFlow.steps.map(step => ({
-    label: step.label,
-    base: step.base,
-    magnitude: Math.abs(step.value),
-    signed: step.value,
-    color: step.color,
-    hint: step.hint,
-    kind: step.kind,
-  }));
-
   const savingsRate = cashFlow.income > 0 ? cashFlow.remaining / cashFlow.income : null;
 
-  // Plain-text equivalent of the chart for screen readers.
+  // Waterfall geometry. Every bar spans [base, base + |value|]; the axis is
+  // stretched to cover a shortfall dipping below zero.
+  const axisMin = Math.min(0, ...cashFlow.steps.map(s => s.base));
+  const axisMax = Math.max(1, ...cashFlow.steps.map(s => s.base + Math.abs(s.value)));
+  const span = axisMax - axisMin || 1;
+  const toPct = (value: number) => ((value - axisMin) / span) * 100 * HEADROOM;
+
+  const bars = cashFlow.steps.map(step => {
+    const magnitude = Math.abs(step.value);
+    // The running total after this step — where the connector to the next
+    // column sits. Income tops out at its own height; costs land at their base.
+    const running = step.kind === 'income' ? step.base + magnitude : step.base;
+    return {
+      ...step,
+      magnitude,
+      bottomPct: toPct(step.base),
+      heightPct: (magnitude / span) * 100 * HEADROOM,
+      connectorPct: toPct(running),
+    };
+  });
+
   const chartSummary = isWaterfall
     ? `Cash flow for ${period.label}. Income ${dollars(cashFlow.income)}. `
       + (cashFlow.hasFixedBreakdown
@@ -67,7 +89,7 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
         hint="Transfers between your own accounts and credit-card payments are excluded from both sides. Refunds reduce spending rather than adding to income."
         right={savingsRate != null ? (
           <div className="text-right">
-            <p className="label mb-1">Kept</p>
+            <p className="label mb-1">Left over</p>
             <p
               className="font-mono tabular-nums text-sm font-bold"
               style={{ color: cashFlow.remaining >= 0 ? 'var(--pos)' : 'var(--neg)' }}
@@ -87,58 +109,83 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
         <>
           <p className="sr-only">{chartSummary}</p>
 
-          <div style={{ width: '100%', height: 240 }} role="img" aria-label={chartSummary}>
-            <ResponsiveContainer width="100%" height="100%">
-              {isWaterfall ? (
-                <BarChart data={waterfallData} margin={{ top: 8, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 10, fill: 'var(--dim)' }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: 'var(--dim)' }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={52}
-                    tickFormatter={(v: number) => compactDollars(v)}
-                  />
-                  <Tooltip
-                    {...chartTooltipProps}
-                    content={({ active, payload }) => {
-                      if (!active || !payload || payload.length === 0) return null;
-                      const row = payload[payload.length - 1].payload as typeof waterfallData[number];
-                      return (
-                        <div
-                          className="p-3 rounded-xl"
-                          style={{
-                            backgroundColor: 'var(--elev-sub)',
-                            border: '1px solid var(--line-strong)',
-                            boxShadow: 'var(--shadow-modal)',
-                            maxWidth: 230,
-                          }}
-                        >
-                          <p className="text-xs font-semibold mb-1" style={{ color: 'var(--fg)' }}>{row.label}</p>
-                          <p className="font-mono tabular-nums text-sm font-bold mb-1.5" style={{ color: row.color }}>
-                            {row.kind === 'cost' ? '−' : ''}{dollars(row.magnitude)}
-                          </p>
-                          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>{row.hint}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  {/* Invisible spacer bar lifts each step to where the previous one ended. */}
-                  <Bar dataKey="base" stackId="flow" fill="transparent" isAnimationActive={false} />
-                  <Bar dataKey="magnitude" stackId="flow" radius={[4, 4, 0, 0]}>
-                    {waterfallData.map(entry => (
-                      <Cell key={entry.label} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              ) : (
+          {isWaterfall ? (
+            <div role="img" aria-label={chartSummary}>
+              {/* Clipped so a long value label can never push the page sideways. */}
+              <div
+                className="flex items-stretch gap-2 sm:gap-4"
+                style={{ height: CHART_HEIGHT, overflow: 'hidden' }}
+              >
+                {bars.map((bar, index) => (
+                  <div key={bar.key} className="flex-1 relative min-w-0" style={{ overflow: 'visible' }}>
+                    {/* Zero line, so a shortfall is legible as below-zero. */}
+                    {axisMin < 0 && (
+                      <span
+                        className="absolute left-0 right-0"
+                        style={{ bottom: `${toPct(0)}%`, height: 1, backgroundColor: 'var(--line-strong)' }}
+                        aria-hidden="true"
+                      />
+                    )}
+
+                    {/* Connector carrying the running total into the next column. */}
+                    {index < bars.length - 1 && (
+                      <span
+                        className="absolute"
+                        style={{
+                          bottom: `${bar.connectorPct}%`,
+                          left: '8%',
+                          width: '108%',
+                          height: 0,
+                          borderTop: '1px dashed var(--line-strong)',
+                        }}
+                        aria-hidden="true"
+                      />
+                    )}
+
+                    <span
+                      className="absolute rounded-t"
+                      style={{
+                        left: '8%',
+                        right: '8%',
+                        bottom: `${bar.bottomPct}%`,
+                        height: `${Math.max(bar.heightPct, 0.6)}%`,
+                        backgroundColor: bar.color,
+                        borderRadius: bar.kind === 'cost' ? '0 0 4px 4px' : '4px 4px 0 0',
+                      }}
+                      title={`${bar.label}: ${bar.kind === 'cost' ? '−' : ''}${dollars(bar.magnitude)}`}
+                    />
+
+                    {/* Value sits above its bar. Hidden on the narrowest
+                        screens, where four columns leave no room for it — the
+                        summary grid below carries the exact figures. */}
+                    <span
+                      className="hidden sm:block absolute left-0 right-0 text-center font-mono tabular-nums text-[11px] font-semibold whitespace-nowrap"
+                      style={{
+                        bottom: `calc(${bar.bottomPct + Math.max(bar.heightPct, 0.6)}% + 4px)`,
+                        color: bar.color,
+                      }}
+                    >
+                      {bar.kind === 'cost' ? '−' : ''}{dollars(bar.magnitude, 0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-start gap-2 sm:gap-4 mt-2">
+                {bars.map(bar => (
+                  <p
+                    key={bar.key}
+                    className="flex-1 min-w-0 text-center text-[10px] sm:text-xs leading-snug"
+                    style={{ color: 'var(--muted)' }}
+                  >
+                    {bar.label}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ width: '100%', height: 240 }} role="img" aria-label={chartSummary}>
+              <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashFlow.series} margin={{ top: 8, right: 4, bottom: 0, left: 4 }} barCategoryGap="28%">
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--dim)' }} axisLine={false} tickLine={false} />
@@ -160,21 +207,21 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
                   <Bar dataKey="Income" fill="var(--pos)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Expenses" fill="var(--neg)" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              )}
-            </ResponsiveContainer>
-          </div>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {isWaterfall && (
             <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
               {cashFlow.steps.map(step => (
-                <div key={step.key} className="ledger-cell p-3">
+                <div key={step.key} className="ledger-cell p-3 min-w-0">
                   <dt className="label mb-1.5 flex items-center gap-1.5">
                     <span
                       className="w-1.5 h-1.5 rounded-full shrink-0"
                       style={{ backgroundColor: step.color }}
                       aria-hidden="true"
                     />
-                    {step.label}
+                    <span className="truncate">{step.label}</span>
                   </dt>
                   <dd>
                     <Amount

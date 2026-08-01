@@ -10,7 +10,12 @@ import { calculateCategoryComparisons } from './categories';
 import { calculateSavingsMetrics, selectPrimaryGoal } from './savings';
 import { calculateNetWorthChange } from './netWorth';
 import { buildCashFlow } from './cashflow';
-import { buildRecurringOutlook, detectRecurringTransactions, monthlyEquivalent } from './recurring';
+import {
+  buildRecurringOutlook, detectRecurringTransactions, groupRecurringCharges,
+  monthlyEquivalent, monthlyRecurringExpense,
+} from './recurring';
+import { KIND_LABELS } from './transactions';
+import { percentagePoints, plural, pluralize, rateTransition } from '../format';
 import { calculateFinancialHealth } from './health';
 import { calculateForecast } from './forecast';
 import { baselineMonths, resolvePeriod } from '../period';
@@ -719,6 +724,138 @@ describe('monthlyMetrics', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].metrics.income).toBe(0);
     expect(rows[1].metrics.income).toBe(100);
+  });
+});
+
+// ── Cross-surface consistency ─────────────────────────────────────────────────
+
+describe('definitions agree across surfaces', () => {
+  const transactions = [
+    tx('2026-07-01', 4000, SALARY),
+    tx('2026-07-02', -900, GROCERIES),
+    tx('2026-07-03', -300, FUEL),
+    tx('2026-07-04', 100, GROCERIES),   // refund
+    tx('2026-07-05', -250),             // uncategorized spend
+    tx('2026-07-06', -400, GROCERIES, CARD),
+    tx('2026-07-07', 400, null, CARD),  // card payment
+  ];
+  const p = period('this-month');
+  const metrics = calculatePeriodMetrics(transactionsInRange(transactions, p), ctx);
+
+  it('reconciles category totals with the period expense total', () => {
+    const rows = calculateCategoryComparisons({
+      transactions, categories, period: p, baseline: [], ctx,
+    });
+    const categorised = rows.reduce((s, r) => s + r.current, 0);
+    // Everything spent is either in a category or explicitly called out as
+    // uncategorized. Nothing may quietly vanish between the two.
+    expect(categorised + metrics.uncategorizedSpend).toBeCloseTo(metrics.expenses, 6);
+  });
+
+  it('gives the savings card the same figures as the period metrics', () => {
+    const savingsMetrics = calculateSavingsMetrics({
+      transactions, goals: [], period: p, baseline: [], ctx, today: TODAY,
+    });
+    expect(savingsMetrics.saved).toBe(metrics.net);
+    expect(savingsMetrics.savingsRate).toBe(metrics.savingsRate);
+  });
+
+  it('gives the cash-flow chart the same income and expense totals', () => {
+    const flow = buildCashFlow({ transactions, recurring: [], period: p, ctx });
+    expect(flow.income).toBe(metrics.income);
+    expect(flow.fixed + flow.variable).toBeCloseTo(metrics.expenses, 6);
+    expect(flow.remaining).toBe(metrics.net);
+  });
+
+  it('quotes one recurring monthly total everywhere it appears', () => {
+    const recurringRows: RecurringTransaction[] = [
+      {
+        id: 1, user_id: 1, account_id: CHECKING, category_id: GROCERIES,
+        amount: -30, description: 'Streamflix', period: 'monthly',
+        next_date: '2026-08-04', is_active: true, is_variable: false, created_at: '',
+      },
+      {
+        id: 2, user_id: 1, account_id: CHECKING, category_id: null,
+        amount: -120, description: 'Insurance', period: 'yearly',
+        next_date: '2026-12-01', is_active: true, is_variable: false, created_at: '',
+      },
+    ];
+    const outlook = buildRecurringOutlook({
+      recurring: recurringRows, transactions: [], accounts, categories, ctx, today: TODAY,
+    });
+    // 30/month + 120/year → 30 + 10 = 40.
+    expect(outlook.subscriptions.monthlyTotal).toBeCloseTo(40, 6);
+    expect(monthlyRecurringExpense(recurringRows)).toBe(outlook.subscriptions.monthlyTotal);
+    // And the grouped view must add up to the same number.
+    const grouped = outlook.subscriptions.groups.reduce((s, g) => s + g.monthlyTotal, 0);
+    expect(grouped).toBeCloseTo(outlook.subscriptions.monthlyTotal, 6);
+  });
+
+  it('excludes the card payment from income on every surface', () => {
+    expect(metrics.income).toBe(4000);
+    expect(metrics.cardPayments).toBe(400);
+    const flow = buildCashFlow({ transactions, recurring: [], period: p, ctx });
+    expect(flow.income).toBe(4000);
+  });
+});
+
+describe('groupRecurringCharges', () => {
+  const make = (over: Partial<RecurringTransaction>): RecurringTransaction => ({
+    id: 1, user_id: 1, account_id: CHECKING, category_id: null, amount: -20,
+    description: 'Thing', period: 'monthly', next_date: '2026-08-01',
+    is_active: true, is_variable: false, created_at: '', ...over,
+  });
+
+  it('files a varying amount as a bill and a fixed one as a subscription', () => {
+    const groups = groupRecurringCharges([
+      make({ id: 1, description: 'Electricity', is_variable: true }),
+      make({ id: 2, description: 'Streamflix', is_variable: false }),
+    ], categories);
+
+    expect(groups.find(g => g.kind === 'bill')?.charges[0].name).toBe('Electricity');
+    expect(groups.find(g => g.kind === 'subscription')?.charges[0].name).toBe('Streamflix');
+  });
+
+  it('files an irregular cadence as other', () => {
+    const groups = groupRecurringCharges([make({ period: 'biweekly' })], categories);
+    expect(groups.map(g => g.kind)).toEqual(['other']);
+  });
+
+  it('leaves out income schedules and inactive rows', () => {
+    const groups = groupRecurringCharges([
+      make({ id: 1, amount: 3000, description: 'Payday' }),
+      make({ id: 2, is_active: false, description: 'Cancelled' }),
+    ], categories);
+    expect(groups).toHaveLength(0);
+  });
+});
+
+// ── Wording ───────────────────────────────────────────────────────────────────
+
+describe('formatting language', () => {
+  it('pluralises irregular nouns instead of appending s', () => {
+    expect(pluralize('category')).toBe('categories');
+    expect(plural(3, 'category')).toBe('3 categories');
+    expect(plural(1, 'category')).toBe('1 category');
+    expect(plural(3, 'smaller category')).toBe('3 smaller categories');
+    expect(plural(2, 'charge')).toBe('2 charges');
+    expect(plural(5, 'day')).toBe('5 days');
+    expect(plural(2, 'completed month')).toBe('2 completed months');
+  });
+
+  it('reports a rate movement in percentage points, not percent', () => {
+    // 27.2% → 79.1% is +51.9 points. As a percent change it would read +191%.
+    expect(percentagePoints(0.791 - 0.272)).toBe('+51.9 pp');
+    expect(percentagePoints(-0.12)).toBe('−12.0 pp');
+    expect(rateTransition(0.272, 0.791)).toBe('27.2% → 79.1%');
+  });
+
+  it('labels every transaction kind explicitly', () => {
+    // A salary must read as Income wherever it appears.
+    expect(KIND_LABELS.income).toBe('Income');
+    expect(KIND_LABELS.expense).toBe('Expense');
+    expect(KIND_LABELS.refund).toBe('Refund');
+    expect(KIND_LABELS['card-payment']).toBe('Card payment');
   });
 });
 

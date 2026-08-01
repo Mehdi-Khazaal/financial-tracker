@@ -77,10 +77,45 @@ describe('RecommendedInsights', () => {
 });
 
 describe('SavingsOverviewCard', () => {
-  it('prompts to create a goal when none exists, without hiding what was saved', () => {
+  it('prompts to create a goal when none exists, without hiding what was left over', () => {
     render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={jest.fn()} />);
-    expect(screen.getByText(/You saved \$2,800\.00 this month\./)).toBeInTheDocument();
+    expect(screen.getByText(/You had \$2,800\.00 left after expenses this month\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create a goal/i })).toBeInTheDocument();
+  });
+
+  it('reports a savings-rate change in percentage points, not percent', () => {
+    render(
+      <SavingsOverviewCard
+        period={PERIOD}
+        onNavigate={jest.fn()}
+        savings={savings({ savingsRate: 0.791, previousRate: 0.272, rateDelta: 0.519 })}
+      />,
+    );
+    // 27.2% → 79.1% is a 51.9-point rise. Calling it "+191%" would overstate it.
+    expect(screen.getByText(/\+51\.9 pp/)).toBeInTheDocument();
+    expect(screen.queryByText(/191/)).not.toBeInTheDocument();
+  });
+
+  it('explains how the featured goal relates to the total set aside', () => {
+    render(
+      <SavingsOverviewCard
+        period={PERIOD}
+        onNavigate={jest.fn()}
+        savings={savings({
+          goalCount: 3,
+          allocatedTotal: 16000,
+          primaryGoal: {
+            id: 1, name: 'House', target: 20000, current: 0,
+            progress: 0, remaining: 20000, deadline: '2027-01-01',
+            projectedCompletion: null, monthsToCompletion: null, basis: 'deadline',
+          },
+        })}
+      />,
+    );
+    // The old card showed "$0 of $20,000" beside "$16,000 across 3 goals" with
+    // nothing tying them together.
+    expect(screen.getByText(/\$0 of your \$16,000 total set aside is on this goal/)).toBeInTheDocument();
+    expect(screen.getByText(/\$16,000 sits on your 2 other goals/)).toBeInTheDocument();
   });
 
   it('shows one goal with its remaining amount and projected completion', () => {
@@ -158,9 +193,24 @@ describe('AnalyticsMetricGrid', () => {
         period={PERIOD}
       />,
     );
-    ['Net worth', 'Income', 'Expenses', 'Saved', 'Savings rate'].forEach(label => {
+    ['Net worth', 'Income', 'Expenses', 'Left over', 'Savings rate'].forEach(label => {
       expect(screen.getByRole('button', { name: `How ${label} is calculated` })).toBeInTheDocument();
     });
+  });
+
+  it('shows a savings-rate change in points, with the two rates spelled out', () => {
+    render(
+      <AnalyticsMetricGrid
+        metrics={metrics({ savingsRate: 0.791 })}
+        previousMetrics={metrics({ savingsRate: 0.272 })}
+        savings={savings({ savingsRate: 0.791, previousRate: 0.272, rateDelta: 0.519 })}
+        netWorth={emptyNetWorth}
+        currentNetWorth={5000}
+        period={PERIOD}
+      />,
+    );
+    expect(screen.getByText(/\+51\.9 pp/)).toBeInTheDocument();
+    expect(screen.getByText('27.2% → 79.1%')).toBeInTheDocument();
   });
 
   it('opens the savings explanation on click', () => {
@@ -174,9 +224,11 @@ describe('AnalyticsMetricGrid', () => {
         period={PERIOD}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'How Saved is calculated' }));
+    fireEvent.click(screen.getByRole('button', { name: 'How Left over is calculated' }));
     // Uses the real minus sign (U+2212), not a hyphen.
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Saved = income − expenses');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Left over = income − expenses');
+    // And says plainly that this is not money that moved into a savings account.
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/does not mean money moved into a savings account/);
   });
 });
 

@@ -27,7 +27,7 @@ import { monthLabel } from '../format';
 import { clamp } from './transactions';
 
 export const SAVINGS_DEFINITION =
-  'Saved = income − expenses for the selected period. Transfers between your own accounts and credit-card payments are excluded, and refunds reduce the category they came from. Money allocated to goals is shown separately — that labels balances you already hold rather than money saved this period.';
+  'Left over = income − expenses for the selected period. Transfers between your own accounts and credit-card payments are excluded, and refunds reduce the category they came from. This measures what your income did not get spent — it does not mean money moved into a savings account. Amounts set aside against goals are shown separately, because those label balances you already hold.';
 
 /**
  * Pick the goal to feature on Analytics.

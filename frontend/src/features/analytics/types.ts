@@ -251,14 +251,48 @@ export interface DetectedSubscription {
   lastSeen: string;
 }
 
+/**
+ * How a declared recurring charge is grouped. Derived from fields the user
+ * actually set, never from guessing at merchant names:
+ *   • `bill`         — the amount varies each cycle (utilities, phone)
+ *   • `subscription` — a fixed amount on a regular cycle
+ *   • `other`        — anything that fits neither cleanly
+ */
+export type RecurringKind = 'bill' | 'subscription' | 'other';
+
+export interface RecurringCharge {
+  id: number;
+  name: string;
+  kind: RecurringKind;
+  /** Positive dollar amount per cycle. */
+  amount: number;
+  /** Monthly-normalised equivalent. */
+  monthlyAmount: number;
+  period: RecurringTransaction['period'];
+  isVariable: boolean;
+  categoryName: string | null;
+  categoryColor: string;
+  nextDate: string;
+}
+
+export interface RecurringGroup {
+  kind: RecurringKind;
+  label: string;
+  description: string;
+  charges: RecurringCharge[];
+  monthlyTotal: number;
+}
+
 export interface SubscriptionInsight {
-  /** Monthly-normalised total of declared recurring expenses. */
+  /** Monthly-normalised total of every declared recurring expense. */
   monthlyTotal: number;
   previousMonthlyTotal: number | null;
   annualized: number;
   count: number;
+  groups: RecurringGroup[];
   increased: { name: string; from: number; to: number; delta: number }[];
   possibleDuplicates: { names: string[]; note: string }[];
+  /** Repeating charges found in history that the user has not confirmed. */
   detected: DetectedSubscription[];
 }
 

@@ -22,16 +22,42 @@ const SORTS: { id: CategorySort; label: string }[] = [
 ];
 
 /**
- * The month-versus-average table, rebuilt for scanning.
+ * Two bars per row: what this period spent, against what a typical period
+ * spends. Both are drawn on the same scale, so the gap between them *is* the
+ * story and you can scan the column without reading a single number.
  *
- * Kept because it is the most informative thing on the page, but the old
- * version made you read four columns of raw dollars to find the story. Now the
- * change leads, the average carries its own confidence, and the whole thing
- * collapses to six rows until you ask for more.
- *
- * On mobile the table becomes a card list rather than a horizontal scroll —
- * four numeric columns never fit a phone legibly.
+ * This replaced a single bar with a tick mark on it, which left most of the
+ * row empty and made the comparison something you had to work out from four
+ * columns of dollars.
  */
+const ComparisonBars: React.FC<{
+  current: number;
+  typical: number;
+  scale: number;
+  color: string;
+  hasBaseline: boolean;
+}> = ({ current, typical, scale, color, hasBaseline }) => (
+  <span className="block space-y-1" aria-hidden="true">
+    <span className="block h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+      <span
+        className="block h-full rounded-full"
+        style={{ width: `${Math.min(100, (current / scale) * 100)}%`, backgroundColor: color }}
+      />
+    </span>
+    {hasBaseline && (
+      <span className="block h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--line)' }}>
+        <span
+          className="block h-full rounded-full"
+          style={{
+            width: `${Math.min(100, (typical / scale) * 100)}%`,
+            backgroundColor: 'var(--line-strong)',
+          }}
+        />
+      </span>
+    )}
+  </span>
+);
+
 const PeriodComparisonTable: React.FC<Props> = ({
   categories, period, baselineLabel, baselineCount, onOpenCategory,
 }) => {
@@ -44,7 +70,7 @@ const PeriodComparisonTable: React.FC<Props> = ({
   );
 
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
-  const scale = Math.max(...rows.map(r => Math.max(r.current, r.previous, r.average)), 1);
+  const scale = Math.max(...rows.map(r => Math.max(r.current, r.average)), 1);
 
   const decreased = rows.filter(r => r.deltaVsAverage < 0).length;
   const increased = rows.filter(r => r.deltaVsAverage > 0).length;
@@ -106,16 +132,37 @@ const PeriodComparisonTable: React.FC<Props> = ({
         />
       ) : (
         <>
+          {/* Legend for the paired bars — colour alone must not carry it. */}
+          {baselineCount > 0 && (
+            <div className="hidden md:flex items-center gap-4 mb-2.5 pb-2.5" style={{ borderBottom: '1px solid var(--line)' }}>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent)' }} aria-hidden="true" />
+                <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{period.shortLabel}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-full" style={{ backgroundColor: 'var(--line-strong)' }} aria-hidden="true" />
+                <span className="text-[10px]" style={{ color: 'var(--muted)' }}>Typical period</span>
+              </span>
+            </div>
+          )}
+
           {/* ── Desktop table ── */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="hidden md:block">
+            <table className="w-full border-collapse table-fixed">
               <caption className="sr-only">
                 Spending by category for {period.label}, compared with {previousLabel ?? 'no earlier period'} and with the {baselineLabel.toLowerCase()}.
               </caption>
+              <colgroup>
+                <col style={{ width: '38%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
+              </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--line)' }}>
                   <th scope="col" className="label text-left font-normal pb-2.5">Category</th>
-                  <th scope="col" className="label text-right font-normal pb-2.5 pl-3">Change vs average</th>
+                  <th scope="col" className="label text-right font-normal pb-2.5 pl-3">Change vs typical</th>
                   <th scope="col" className="label text-right font-normal pb-2.5 pl-3">{period.shortLabel}</th>
                   <th scope="col" className="label text-right font-normal pb-2.5 pl-3">
                     {previousLabel ? previousLabel.replace(/ \d{4}$/, '') : 'Previous'}
@@ -126,14 +173,14 @@ const PeriodComparisonTable: React.FC<Props> = ({
               <tbody>
                 {visible.map(row => (
                   <tr key={row.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <td className="py-3 pr-3 align-middle" style={{ minWidth: 160 }}>
+                    <td className="py-3 pr-4 align-middle">
                       <button
                         type="button"
                         onClick={() => onOpenCategory(row.id)}
-                        className="text-left w-full group"
+                        className="text-left w-full"
                         aria-label={`Open details for ${row.name}`}
                       >
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-2 mb-2 min-w-0">
                           <span
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: row.color }}
@@ -144,28 +191,13 @@ const PeriodComparisonTable: React.FC<Props> = ({
                           </span>
                           <ConfidenceChip months={row.baselineMonths} />
                         </span>
-                        {/* Bar shows this period; the tick marks the typical level. */}
-                        <span
-                          className="relative block h-1 mt-2 ml-4 rounded-full overflow-hidden"
-                          style={{ backgroundColor: 'var(--line)' }}
-                          aria-hidden="true"
-                        >
-                          <span
-                            className="absolute inset-y-0 left-0 rounded-full"
-                            style={{ width: `${Math.min(100, (row.current / scale) * 100)}%`, backgroundColor: row.color }}
-                          />
-                          {row.average > 0 && (
-                            <span
-                              className="absolute top-0 h-full"
-                              style={{
-                                left: `${Math.min(100, (row.average / scale) * 100)}%`,
-                                width: 2,
-                                backgroundColor: 'var(--fg)',
-                                transform: 'translateX(-1px)',
-                              }}
-                            />
-                          )}
-                        </span>
+                        <ComparisonBars
+                          current={row.current}
+                          typical={row.average}
+                          scale={scale}
+                          color={row.color}
+                          hasBaseline={row.baselineMonths > 0}
+                        />
                       </button>
                     </td>
                     <td className="py-3 pl-3 text-right align-middle whitespace-nowrap">
@@ -230,7 +262,7 @@ const PeriodComparisonTable: React.FC<Props> = ({
                   className="ledger-cell p-3.5 w-full text-left"
                   aria-label={`Open details for ${row.name}`}
                 >
-                  <div className="flex items-center justify-between gap-3 mb-2">
+                  <span className="flex items-center justify-between gap-3 mb-2">
                     <span className="flex items-center gap-2 min-w-0">
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
@@ -244,8 +276,17 @@ const PeriodComparisonTable: React.FC<Props> = ({
                     <span className="font-mono tabular-nums text-sm font-semibold shrink-0" style={{ color: 'var(--fg)' }}>
                       {dollars(row.current)}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
+                  </span>
+
+                  <ComparisonBars
+                    current={row.current}
+                    typical={row.average}
+                    scale={scale}
+                    color={row.color}
+                    hasBaseline={row.baselineMonths > 0}
+                  />
+
+                  <span className="flex items-center justify-between gap-2 mt-2.5">
                     {row.baselineMonths > 0 ? (
                       <DeltaBadge value={row.deltaVsAverage} polarity="down-good" suffix="vs typical" />
                     ) : (
@@ -259,7 +300,7 @@ const PeriodComparisonTable: React.FC<Props> = ({
                         </span>
                       )}
                     </span>
-                  </div>
+                  </span>
                 </button>
               </li>
             ))}
@@ -273,14 +314,12 @@ const PeriodComparisonTable: React.FC<Props> = ({
               className="w-full mt-3 pt-3 text-xs font-semibold pressable"
               style={{ borderTop: '1px solid var(--line)', color: 'var(--accent)', minHeight: 44 }}
             >
-              {expanded
-                ? 'Show fewer categories'
-                : `Show all ${rows.length} categories`}
+              {expanded ? 'Show fewer categories' : `Show all ${rows.length} categories`}
             </button>
           )}
 
           <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--dim)' }}>
-            The bar shows {period.label}; the marker on it is the typical level. {baselineLabel}.
+            The upper bar is {period.label}; the lower bar is a typical period. {baselineLabel}.
           </p>
         </>
       )}

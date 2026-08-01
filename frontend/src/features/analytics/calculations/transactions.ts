@@ -56,6 +56,30 @@ export function categorySpendDelta(tx: Transaction, kind: TransactionKind): numb
   return 0;
 }
 
+/**
+ * The label shown against a transaction anywhere in Analytics.
+ *
+ * Every row states what it was counted as, so a salary never reads as
+ * anything but "Income". Transfers are absent by construction — Fintrack
+ * stores them in their own table, so they never reach a transaction list.
+ */
+export const KIND_LABELS: Record<TransactionKind, string> = {
+  income: 'Income',
+  expense: 'Expense',
+  refund: 'Refund',
+  'card-payment': 'Card payment',
+  excluded: 'Not counted',
+};
+
+/** Semantic colour for a kind label. Expenses stay neutral — spending is not a verdict. */
+export const KIND_COLORS: Record<TransactionKind, string> = {
+  income: 'var(--pos)',
+  expense: 'var(--muted)',
+  refund: 'var(--pos)',
+  'card-payment': 'var(--muted)',
+  excluded: 'var(--dim)',
+};
+
 /** Human-readable explanation of a classification, for tooltips. */
 export const KIND_EXPLANATIONS: Record<TransactionKind, string> = {
   income: 'Money received from outside your accounts.',

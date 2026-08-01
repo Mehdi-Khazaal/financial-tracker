@@ -28,8 +28,10 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
       <SectionHeader
         id="analytics-bills-heading"
         eyebrow="Coming up"
-        title="Bills in the next 30 days"
-        hint="Taken from the recurring transactions you have set up. Variable bills use your most recent amount as an estimate, so the total is indicative rather than exact."
+        // Every recurring expense appears here, not only bills — the card is
+        // about timing, so calling it "bills" would misdescribe it.
+        title="Charges due in the next 30 days"
+        hint="Taken from the recurring charges you have set up. Charges whose amount varies use your most recent amount as an estimate, so the total is indicative rather than exact."
         right={
           <button
             type="button"
@@ -44,7 +46,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
 
       {upcoming.length === 0 ? (
         <PanelEmpty
-          title="No bills scheduled"
+          title="Nothing scheduled"
           body="Set up your recurring bills and subscriptions to see what is due, and to split spending into fixed and variable on the cash-flow chart."
           action={
             <button
@@ -52,7 +54,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
               onClick={() => onNavigate('/transactions', 'recurring')}
               className="btn-gradient px-5 py-2.5 text-sm mt-1"
             >
-              Set up recurring bills
+              Set up recurring charges
             </button>
           }
         />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FinancialHealth } from '../types';
 import { plural } from '../format';
 import { Collapsible, SectionHeader } from './AnalyticsPrimitives';
@@ -23,6 +23,10 @@ const LABEL_COLOR: Record<string, string> = {
  * a composite score like this earns any trust.
  */
 const FinancialHealthCard: React.FC<Props> = ({ health }) => {
+  // Open by default — the score is the point of the card. Collapsing is
+  // offered so a long page can be shortened, not to hide the headline.
+  const [open, setOpen] = useState(true);
+
   if (!health.available) {
     return (
       <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-health-heading">
@@ -62,8 +66,11 @@ const FinancialHealthCard: React.FC<Props> = ({ health }) => {
         title="Your overall position"
         description="A weighted summary of your own numbers. Not financial advice."
         hint="Each factor below is scored 0–100 against a stated band, then weighted. Weights are renormalised when a factor does not apply to you, so the total is always out of 100."
+        toggle={{ open, onToggle: () => setOpen(v => !v), controls: 'analytics-health-body' }}
+        collapsedSummary={`${score} out of 100 — ${health.label}`}
       />
 
+      <div id="analytics-health-body" hidden={!open}>
       <div className="grid gap-5 sm:grid-cols-[160px_1fr] items-center">
         <div className="mx-auto" style={{ width: 140 }}>
           <svg viewBox="0 0 130 78" className="w-full" role="img" aria-label={`Financial health score ${score} out of 100, rated ${health.label}`}>
@@ -173,6 +180,7 @@ const FinancialHealthCard: React.FC<Props> = ({ health }) => {
             summary of your own data, not professional financial advice.
           </p>
         </Collapsible>
+      </div>
       </div>
     </section>
   );
