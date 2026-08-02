@@ -16,6 +16,7 @@ import AddAssetModal from '../components/modals/AddAssetModal';
 import AddSavingsGoalModal from '../components/modals/AddSavingsGoalModal';
 import ManageAllocationsModal from '../components/modals/ManageAllocationsModal';
 import SpendFromGoalModal from '../components/modals/SpendFromGoalModal';
+import { describeGoal } from '../features/overview/calculations/goals';
 
 type Tab = 'investments' | 'assets' | 'savings';
 
@@ -638,9 +639,12 @@ const PortfolioPage: React.FC = () => {
                       {goals.map(goal => {
                         const current = Number(goal.current_amount);
                         const target  = Number(goal.target_amount);
-                        const progress = Math.min((current / target) * 100, 100);
+                        // Shared with the Overview goal list, so a completed
+                        // goal reads the same green in both places.
+                        const status = describeGoal(goal, new Date());
+                        const progress = status.progress;
                         const remaining = Math.max(target - current, 0);
-                        const isComplete = progress >= 100;
+                        const isComplete = status.status === 'complete';
                         const daysLeft = getDaysLeft(goal.deadline ?? null);
                         return (
                           <div key={goal.id} className="card p-4 group">
@@ -670,9 +674,9 @@ const PortfolioPage: React.FC = () => {
                             <div className="mb-3">
                               <div className="flex justify-between text-xs mb-1.5">
                                 <span className="text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(current)} of ${fmt(target)}</span>
-                                <span className="font-mono font-semibold" style={{ color: isComplete ? 'var(--pos)' : 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{progress.toFixed(0)}%</span>
+                                <span className="font-mono font-semibold" style={{ color: status.color, fontVariantNumeric: 'tabular-nums' }}>{progress.toFixed(0)}%</span>
                               </div>
-                              <ProgressBar value={progress} colorAuto height={6} showLabel={false} />
+                              <ProgressBar value={progress} colorAuto semantics="progress" height={6} showLabel={false} />
                             </div>
                             <div className="flex justify-between items-center">
                               <p className="text-xs text-muted">{isComplete ? 'Goal reached' : `$${fmt(remaining)} remaining`}</p>

@@ -1077,4 +1077,6 @@ select.input-dark option {
     transform: none;
   }
   [style*="sparkDraw"], .spark-path { animation: none !important; stroke-dashoffset: 0 !important; }
+  /* Progress bars settle at their value instead of sweeping into it. */
+  .progress-track > * { transition: background-color 150ms ease, box-shadow 150ms ease; }
 }

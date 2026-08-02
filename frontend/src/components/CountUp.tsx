@@ -20,7 +20,12 @@ const CountUp: React.FC<Props> = ({ value, format = defaultFormat, duration = 10
   const rafRef = useRef(0);
 
   useEffect(() => {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Guard the method as well as `window`: `matchMedia` is absent in jsdom and
+    // in some embedded webviews, and an unguarded call throws during the
+    // effect. Matches the check already used in `Sparkline.tsx` and `Money.tsx`.
+    const reduce = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) { fromRef.current = value; setShown(value); return; }
 
     const from = fromRef.current;

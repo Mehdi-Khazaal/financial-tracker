@@ -438,7 +438,8 @@ const AccountsPage: React.FC = () => {
               {/* Hero */}
               <div className="rounded-xl p-5 relative overflow-hidden"
                 style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                <p className="label mb-1">Spendable Balance</p>
+                {/* Same definition and same words as the Overview hero. */}
+                <p className="label mb-1">Available to spend</p>
                 <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.2rem', letterSpacing: '-1px' }}>
                   ${fmt(spendable)}
                 </p>

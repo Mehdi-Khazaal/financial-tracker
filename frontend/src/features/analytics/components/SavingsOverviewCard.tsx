@@ -114,7 +114,15 @@ const SavingsOverviewCard: React.FC<Props> = ({ savings, period, onNavigate }) =
             <span style={{ color: 'var(--dim)' }}> of {dollars(goal.target, 0)} set aside</span>
           </p>
 
-          <ProgressBar value={goal.progress} colorAuto={false} color="var(--accent)" height={5} showLabel={false} />
+          {/* Matches the percentage above it, and the goal bars on Overview and
+              Savings — a reached goal is green on all three. */}
+          <ProgressBar
+            value={goal.progress}
+            colorAuto={false}
+            color={goal.progress >= 100 ? 'var(--pos)' : 'var(--accent)'}
+            height={5}
+            showLabel={false}
+          />
 
           <div className="flex items-end justify-between gap-3 mt-3">
             <div>
