@@ -1,8 +1,8 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { TabContext } from '../../../context/TabContext';
 import { plural, verbFor } from '../../analytics/format';
 import type { ImportReview } from '../calculations/review';
+import { linkToReview } from '../../../lib/deepLinks';
 
 /**
  * Compact when there is nothing to do, expanded when there is.
@@ -22,9 +22,6 @@ interface Props {
 }
 
 const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
-  const { setRouteTab } = useContext(TabContext);
-  const goToReview = () => setRouteTab('/transactions', 'transactions');
-
   if (review.isComplete) {
     return (
       <section className="ledger-panel px-4 py-3" aria-labelledby="overview-review-heading">
@@ -50,8 +47,7 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
             )}
           </div>
           <Link
-            to="/transactions"
-            onClick={goToReview}
+            to={linkToReview()}
             className="shrink-0 text-xs font-medium flex items-center px-1"
             style={{ color: 'var(--accent)', minHeight: 36 }}
           >
@@ -64,8 +60,7 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
 
   return (
     <Link
-      to="/transactions"
-      onClick={goToReview}
+      to={linkToReview()}
       className="block rounded-xl px-4 py-4 pressable"
       style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', border: '1px solid oklch(72% 0.17 55 / 0.28)' }}
       aria-label={`Review imported transactions. ${review.unreviewed} of ${review.total} transactions in ${monthName} need a category.`}

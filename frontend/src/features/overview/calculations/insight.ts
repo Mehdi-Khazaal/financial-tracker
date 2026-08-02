@@ -20,6 +20,9 @@ import { dollars, monthLabel, plural, verbFor } from '../../analytics/format';
 import { selectPrimaryGoal } from '../../analytics/calculations/savings';
 import type { MonthActivity, StatusInsight } from '../types';
 import { cardUtilization, totalCardDebt } from './accounts';
+import {
+  linkToBanking, linkToCards, linkToGoal, linkToRecurring, linkToReview,
+} from '../../../lib/deepLinks';
 
 /** Utilisation at or above this is worth mentioning; below it is unremarkable. */
 export const HIGH_UTILIZATION = 80;
@@ -87,7 +90,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
       tone: 'attention',
       title: `${plural(unreviewedCount, 'imported transaction')} still ${verbFor(unreviewedCount, 'need')} a category`,
       detail: 'Categorizing them keeps spending totals and category trends accurate.',
-      action: { label: 'Review imports', to: '/transactions', tab: 'transactions' },
+      action: { label: 'Review imports', to: linkToReview() },
     });
   }
 
@@ -102,7 +105,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
         ? `${overdrawn[0].name} is overdrawn`
         : `${plural(overdrawn.length, 'account')} are overdrawn`,
       detail: `${dollars(overdrawn.reduce((s, a) => s + Math.abs(Number(a.balance)), 0))} below zero in total.`,
-      action: { label: 'Open accounts', to: '/accounts', tab: 'wallet' },
+      action: { label: 'Open accounts', to: linkToBanking() },
     });
   }
 
@@ -114,7 +117,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
       tone: 'attention',
       title: `Credit use is at ${utilization.toFixed(0)}% of your limit`,
       detail: 'Balances this close to the limit can affect available credit.',
-      action: { label: 'Open cards', to: '/accounts', tab: 'cards' },
+      action: { label: 'Open cards', to: linkToCards() },
     });
   }
 
@@ -126,7 +129,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
       tone: 'neutral',
       title: `${plural(undeclaredRecurringCount, 'possible recurring charge')} to confirm`,
       detail: 'Confirming them improves upcoming-bill estimates.',
-      action: { label: 'Review recurring', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring', to: linkToRecurring() },
     });
   }
 
@@ -143,7 +146,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
           ? `Your ${primary.name} goal is complete`
           : 'Every savings goal is complete',
         detail: null,
-        action: { label: 'Open goals', to: '/portfolio', tab: 'savings' },
+        action: { label: 'Open goals', to: linkToGoal(primary.id) },
       }
       : {
         id: 'goal-next',
@@ -151,7 +154,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
         tone: 'neutral',
         title: `${dollars(primary.remaining)} to go on ${primary.name}`,
         detail: primary.deadline ? `Target date ${targetDateLabel(primary.deadline)}.` : null,
-        action: { label: 'Open goals', to: '/portfolio', tab: 'savings' },
+        action: { label: 'Open goals', to: linkToGoal(primary.id) },
       });
   }
 
@@ -165,8 +168,8 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
       title: activity.headline ?? 'No posted activity yet',
       detail: activity.detail,
       action: activity.state === 'no-data'
-        ? { label: 'Add an account', to: '/accounts', tab: 'wallet' }
-        : { label: 'View transactions', to: '/transactions', tab: 'list' },
+        ? { label: 'Add an account', to: linkToBanking() }
+        : { label: 'View transactions', to: '/transactions' },
     });
   }
 
@@ -179,7 +182,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
       tone: 'neutral',
       title: `${dollars(cardDebt)} outstanding on your cards`,
       detail: null,
-      action: { label: 'Open cards', to: '/accounts', tab: 'cards' },
+      action: { label: 'Open cards', to: linkToCards() },
     });
   }
 
@@ -193,7 +196,7 @@ export function statusInsightCandidates(options: StatusInsightOptions): StatusIn
         ? `${dollars(lastCompleted.net)} left after expenses in ${monthLabel(lastCompleted.month)}`
         : `Spending exceeded income by ${dollars(Math.abs(lastCompleted.net))} in ${monthLabel(lastCompleted.month)}`,
       detail: 'Nothing is waiting for your review.',
-      action: { label: 'See analytics', to: '/', tab: 'analytics' },
+      action: { label: 'See analytics', to: '/?tab=analytics' },
     }
     : {
       id: 'all-clear',

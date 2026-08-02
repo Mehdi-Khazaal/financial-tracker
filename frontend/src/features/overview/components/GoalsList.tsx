@@ -1,10 +1,10 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import type { SavingsGoal } from '../../../types';
 import ProgressBar from '../../../components/ProgressBar';
-import { TabContext } from '../../../context/TabContext';
 import { dollars } from '../../analytics/format';
 import { describeGoal } from '../calculations/goals';
+import { linkToGoal, linkToSavings } from '../../../lib/deepLinks';
 
 /**
  * Savings goals on Overview.
@@ -19,9 +19,6 @@ interface Props {
 }
 
 const GoalsList: React.FC<Props> = ({ goals, today }) => {
-  const { setRouteTab } = useContext(TabContext);
-  const openGoals = () => setRouteTab('/portfolio', 'savings');
-
   if (goals.length === 0) {
     return (
       <div
@@ -29,7 +26,7 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
         style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}
       >
         <p className="text-sm" style={{ color: 'var(--muted)' }}>No savings goals yet</p>
-        <Link to="/portfolio" onClick={openGoals} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+        <Link to={linkToSavings()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
           Add a goal →
         </Link>
       </div>
@@ -40,7 +37,7 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="label">Savings Goals</p>
-        <Link to="/portfolio" onClick={openGoals} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+        <Link to={linkToSavings()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
           View all →
         </Link>
       </div>
@@ -52,7 +49,14 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
           const current = Number(goal.current_amount) || 0;
 
           return (
-            <div key={goal.id} className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)' }}>
+            // Opens the Savings tab scrolled to this goal, not the top of it.
+            <Link
+              key={goal.id}
+              to={linkToGoal(goal.id)}
+              aria-label={`${goal.name}: ${status.statusLabel}, ${status.rawProgress.toFixed(0)} percent funded. Open goal.`}
+              className="card-hover rounded-lg p-4 block"
+              style={{ backgroundColor: 'var(--elev-1)' }}
+            >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="text-sm font-medium truncate min-w-0" style={{ color: 'var(--fg)' }}>{goal.name}</p>
                 <p className="font-mono tabular-nums text-xs font-bold shrink-0" style={{ color: status.color }}>
@@ -76,9 +80,8 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
                 semantics="progress"
                 height={4}
                 showLabel={false}
-                label={`${goal.name}: ${status.statusLabel}, ${status.rawProgress.toFixed(0)} percent funded`}
               />
-            </div>
+            </Link>
           );
         })}
       </div>

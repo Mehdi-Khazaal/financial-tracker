@@ -1,12 +1,21 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useRouteTab } from '../context/TabContext';
 import { localDateStr } from '../utils/date';
 import { Transaction, Account, Category, RecurringTransaction } from '../types';
 import {
-  getTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription,
+  fetchAllTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription,
   getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring,
   updateTransaction,
 } from '../utils/api';
+import {
+  buildClassificationContext, categorySpendDelta, classifyTransaction,
+} from '../features/analytics/calculations/transactions';
+import { calculatePeriodMetrics } from '../features/analytics/calculations/metrics';
+import { monthlyEquivalent } from '../features/analytics/calculations/recurring';
+import type { ClassificationContext } from '../features/analytics/types';
+import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
+import { DEEP_LINK_KEYS, linkToCategoryAnalytics, parseIdParam } from '../lib/deepLinks';
 import { downloadCSV, printPDF } from '../utils/export';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import BottomSheet from '../components/BottomSheet';
@@ -15,6 +24,7 @@ import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import AddRecurringModal from '../components/modals/AddRecurringModal';
 import TransactionCard from '../components/transactions/TransactionCard';
+import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -39,159 +49,18 @@ const formatMonth = (ym: string) => {
   return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 };
 
-// ── Transaction row (inbox + column variants) ─────────────────────────────────
-interface TxCardProps {
-  tx: Transaction;
-  accounts: Account[];
-  isDragging: boolean;
-  compact?: boolean;
-  noDrag?: boolean;
-  mobileCard?: boolean;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
-  onClick: () => void;
-  onDelete: () => void;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const TxCard: React.FC<TxCardProps> = ({
-  tx, accounts, isDragging, compact = false, noDrag = false, mobileCard = false, onDragStart, onDragEnd, onClick, onDelete,
-}) => {
-  const pos = Number(tx.amount) >= 0;
-  const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
-  const shortDate   = new Date(tx.transaction_date + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric',
-  });
-  const amountStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(tx.amount)))}`;
-
-  if (compact) {
-    // ── Compact row inside a category column ──
-    return (
-      <div
-        draggable={!noDrag}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onClick={onClick}
-        className={`group flex items-center gap-2 px-3 py-2.5 select-none transition-colors ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
-        style={{
-          borderBottom: '1px solid var(--line)',
-          opacity: isDragging ? 0.25 : 1,
-        }}
-        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
-        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-      >
-        <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
-            {cleanDescription(tx.description)}
-          </p>
-          <p className="text-[11px] mt-0.5 leading-none" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>{shortDate}</p>
-        </div>
-        <div className="flex flex-col items-end shrink-0">
-          <p className="text-[11px] font-bold"
-            style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-            {amountStr}
-          </p>
-          {!noDrag && (
-            <button
-              onClick={e => { e.stopPropagation(); onDelete(); }}
-              className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: 'var(--neg)' }}
-            >
-              del
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Full row for the uncategorized inbox ──
-  return (
-    <div
-      draggable={!noDrag}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={`group flex items-start gap-2.5 select-none transition-colors ${mobileCard ? 'px-4 py-4 rounded-lg' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
-      style={mobileCard ? {
-        borderRadius: 14,
-        backgroundColor: 'var(--elev-1)',
-        border: '1px solid var(--line)',
-        opacity: isDragging ? 0.25 : 1,
-      } : {
-        borderBottom: '1px solid var(--line)',
-        opacity: isDragging ? 0.25 : 1,
-      }}
-      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--elev-sub)')}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = mobileCard ? 'var(--elev-1)' : 'transparent')}
-    >
-      {/* Drag handle — hidden on mobile card */}
-      {!mobileCard && (
-        <div className="mt-[3px] shrink-0 opacity-0 group-hover:opacity-30 transition-opacity" style={{ color: 'var(--muted)' }}>
-          <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
-            <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-            <circle cx="2" cy="6.5" r="1.2"/><circle cx="6" cy="6.5" r="1.2"/>
-            <circle cx="2" cy="11" r="1.2"/><circle cx="6" cy="11" r="1.2"/>
-          </svg>
-        </div>
-      )}
-
-      {/* Color accent dot — mobile card only */}
-      {mobileCard && (
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-          style={{ backgroundColor: pos ? 'oklch(78% 0.16 150 / 0.12)' : 'oklch(70% 0.17 25 / 0.1)' }}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"
-            style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-            {pos
-              ? <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              : <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            }
-          </svg>
-        </div>
-      )}
-
-      <div className="flex-1 min-w-0">
-        <p className={`${mobileCard ? 'text-sm' : 'text-[11px]'} font-semibold leading-snug truncate`} style={{ color: 'var(--fg)' }}>
-          {cleanDescription(tx.description)}
-        </p>
-        <p className={`${mobileCard ? 'text-xs' : 'text-[9px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
-          {accountName} · {shortDate}
-        </p>
-        {mobileCard && (
-          <p className="text-[10px] mt-1.5 font-medium" style={{ color: 'var(--accent)' }}>
-            Tap to categorize →
-          </p>
-        )}
-      </div>
-      <div className="shrink-0 flex flex-col items-end">
-        <p className={`${mobileCard ? 'text-base' : 'text-[11px]'} font-bold`}
-          style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
-          {amountStr}
-        </p>
-        {!noDrag && (
-          <button
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-            className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ color: 'var(--neg)' }}
-          >
-            delete
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ── Category detail modal ─────────────────────────────────────────────────────
 interface CatDetailProps {
   cat: Category | null;
   allTransactions: Transaction[];
   accounts: Account[];
+  /** Shared classifier, so this drawer agrees with the board behind it. */
+  classification: ClassificationContext;
   onClose: () => void;
   onEditTx: (tx: Transaction) => void;
   defaultMonth?: string;
 }
-const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, accounts, onClose, onEditTx, defaultMonth }) => {
+const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, accounts, classification, onClose, onEditTx, defaultMonth }) => {
   const [localMonth, setLocalMonth] = useState(defaultMonth ?? '');
 
   // Reset to the board's selected month each time a (new) category is opened
@@ -217,8 +86,12 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
     .filter(t => !effectiveMonth || t.transaction_date.startsWith(effectiveMonth))
     .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
 
-  const spent  = catTxs.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-  const income = catTxs.filter(t => Number(t.amount) >= 0).reduce((s, t) => s + Number(t.amount), 0);
+  // Net of refunds, and never counting a card payment as income — the same
+  // rules the category columns and every other screen apply.
+  const metrics = calculatePeriodMetrics(catTxs, classification);
+  const spent = metrics.expenses;
+  const income = metrics.income;
+  const refunds = metrics.refunds;
 
   return (
     <BottomSheet isOpen={!!cat} onClose={onClose}>
@@ -237,6 +110,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                   {catTxs.length} transaction{catTxs.length !== 1 ? 's' : ''}
                   {spent > 0 && <> · <span style={{ color: 'var(--neg)' }}>-${fmt(spent)}</span></>}
                   {income > 0 && <> · <span style={{ color: 'var(--pos)' }}>+${fmt(income)}</span></>}
+                  {refunds > 0 && <> · <span style={{ color: 'var(--pos)' }}>${fmt(refunds)} refunded</span></>}
                 </p>
               </div>
             </div>
@@ -247,6 +121,20 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
+          </div>
+
+          {/* Where this category goes next: the Analytics drawer for the same
+              category, which carries its trend and comparison against average. */}
+          <div className="px-5 py-2.5 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--line)' }}>
+            <p className="text-xs" style={{ color: 'var(--dim)' }}>Spending here over time</p>
+            <Link
+              to={linkToCategoryAnalytics(cat.id)}
+              onClick={onClose}
+              className="text-xs font-semibold shrink-0 flex items-center px-1"
+              style={{ color: 'var(--accent)', minHeight: 36 }}
+            >
+              Compare in Analytics →
+            </Link>
           </div>
 
           {/* Month pills */}
@@ -380,14 +268,19 @@ const Transactions: React.FC = () => {
     setLoadError(false);
     setFailedSources([]);
     try {
+      // `GET /transactions` defaults to 500 rows and caps at 1000, so a bare
+      // `getTransactions()` silently truncated this page — the Timeline, every
+      // filter, the month picker and the category detail all showed only the
+      // most recent 500 entries with no indication anything was missing.
       const results = await Promise.allSettled([
-        getTransactions(), getAccounts(), getCategories(), getRecurring(),
+        fetchAllTransactions(), getAccounts(), getCategories(), getRecurring(),
       ]);
       const labels = ['transactions', 'accounts', 'categories', 'recurring transactions'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const transactionsResult = results[0];
       if (transactionsResult.status === 'fulfilled') {
-        setTransactions(Array.isArray(transactionsResult.value.data) ? transactionsResult.value.data : []);
+        // `fetchAllTransactions` resolves to an array, not an Axios response.
+        setTransactions(Array.isArray(transactionsResult.value) ? transactionsResult.value : []);
       }
       const accountsResult = results[1];
       if (accountsResult.status === 'fulfilled') {
@@ -413,6 +306,26 @@ const Transactions: React.FC = () => {
   useEffect(() => { load(); }, [load]);
   const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
 
+  // Arriving from an account card, a category column, or an Analytics drawer.
+  // The filter is applied and shown in the Filters panel, so the user can see
+  // and change what the link did rather than wondering why the list is short.
+  useDeepLinkParams(params => {
+    const requestedTab = params.get(DEEP_LINK_KEYS.tab);
+    if (requestedTab === 'list' || requestedTab === 'transactions' || requestedTab === 'recurring') {
+      setTab(requestedTab);
+    }
+
+    const account = parseIdParam(params.get(DEEP_LINK_KEYS.account));
+    const category = parseIdParam(params.get(DEEP_LINK_KEYS.category));
+    if (account == null && category == null) return;
+
+    const accountValue = account == null ? '' : String(account);
+    const categoryValue = category == null ? '' : String(category);
+    setPendingAccount(accountValue);
+    setPendingCategory(categoryValue);
+    setAppliedFilters(prev => ({ ...prev, account: accountValue, category: categoryValue }));
+  });
+
   // ── Month derivations ────────────────────────────────────────────────────────
   const availableMonths = useMemo(() => {
     const s = new Set(transactions.map(t => t.transaction_date.slice(0, 7)));
@@ -421,7 +334,9 @@ const Transactions: React.FC = () => {
 
   useEffect(() => {
     if (availableMonths.length > 0 && !selectedMonth) {
-      const current = new Date().toISOString().slice(0, 7);
+      // Local month, not UTC. `toISOString()` rolls over a day early in every
+      // negative-offset timezone, so on the 1st it opened the previous month.
+      const current = localDateStr().slice(0, 7);
       setSelectedMonth(availableMonths.includes(current) ? current : availableMonths[0]);
     }
   }, [availableMonths, selectedMonth]);
@@ -454,9 +369,41 @@ const Transactions: React.FC = () => {
     [monthTransactions],
   );
 
-  const monthIncome = monthTransactions.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
-  const monthExpenses = monthTransactions.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-  const monthNet = monthIncome - monthExpenses;
+  // The same classifier Dashboard and Analytics use. Counting by raw sign made
+  // a credit-card payment read as income and a refund read as income, so this
+  // page quoted different totals from the rest of the app for the same month.
+  const classification = useMemo(
+    () => buildClassificationContext(accounts, categories),
+    [accounts, categories],
+  );
+
+  const monthMetrics = useMemo(
+    () => calculatePeriodMetrics(monthTransactions, classification),
+    [monthTransactions, classification],
+  );
+  const monthIncome = monthMetrics.income;
+  const monthExpenses = monthMetrics.expenses;
+  const monthNet = monthMetrics.net;
+
+  /**
+   * What a category column is worth this month.
+   *
+   * Expense categories report net spend, so a refund reduces the category it
+   * came from rather than inflating it. Income categories report money actually
+   * received, which excludes credit-card payments.
+   */
+  const categoryTotal = useCallback((txs: Transaction[], cat: Category): number => {
+    if (cat.type === 'income') {
+      return txs.reduce((sum, t) => (
+        classifyTransaction(t, classification) === 'income' ? sum + Number(t.amount) : sum
+      ), 0);
+    }
+    return txs.reduce(
+      (sum, t) => sum + categorySpendDelta(t, classifyTransaction(t, classification)),
+      0,
+    );
+  }, [classification]);
+
   const reviewedCount = Math.max(0, monthTransactions.length - uncategorized.length);
   const reviewRate = monthTransactions.length > 0 ? Math.round((reviewedCount / monthTransactions.length) * 100) : 100;
   const filteredList = useMemo(() => {
@@ -477,6 +424,11 @@ const Transactions: React.FC = () => {
     }).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
   }, [transactions, appliedFilters]);
 
+  const filteredMetrics = useMemo(
+    () => calculatePeriodMetrics(filteredList, classification),
+    [filteredList, classification],
+  );
+
   // Sort categories alphabetically A → Z
   const sortedCategories = useMemo(() =>
     [...categories].sort((a, b) => a.name.localeCompare(b.name)),
@@ -489,13 +441,13 @@ const Transactions: React.FC = () => {
       return {
         ...cat,
         count: txs.length,
-        total: txs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0),
+        total: categoryTotal(txs, cat),
       };
     })
     .filter(cat => cat.count > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 4),
-    [monthTransactions, sortedCategories],
+    [monthTransactions, sortedCategories, categoryTotal],
   );
 
   const visibleCategories = sortedCategories;
@@ -533,18 +485,27 @@ const Transactions: React.FC = () => {
     catch { toast.error('Failed to delete transaction'); }
   };
 
-  const handleCategorize = async (txId: number, categoryId: number | null) => {
+  /**
+   * Optimistically file a transaction. Resolves `true` on success.
+   *
+   * The caller needs the outcome, not just the side effect: the categorize
+   * sheet moves on to the next transaction immediately and has to be able to
+   * come back to this one if the write turns out to have failed.
+   */
+  const handleCategorize = async (txId: number, categoryId: number | null): Promise<boolean> => {
     const previousTx = transactions.find(t => t.id === txId);
-    if (!previousTx) return;
+    if (!previousTx) return false;
 
     setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category_id: categoryId } : t));
     try {
       const res = await updateTransaction(txId, { category_id: categoryId });
       setTransactions(prev => prev.map(t => t.id === txId ? { ...t, ...res.data } : t));
+      return true;
     } catch {
       setTransactions(prev => prev.map(t => t.id === txId ? previousTx : t));
       load();
       toast.error('Failed to update category');
+      return false;
     }
   };
 
@@ -656,11 +617,16 @@ const Transactions: React.FC = () => {
   const upcoming       = items.filter(i => i.is_active && i.next_date > today);
   const inactive       = items.filter(i => !i.is_active);
 
-  const PERIOD_MULTIPLIERS: Record<string, number> = {
-    weekly: 4.33, biweekly: 2.17, monthly: 1, quarterly: 0.33, yearly: 0.083,
-  };
-  const monthlyIncome  = items.filter(i => i.is_active && Number(i.amount) > 0).reduce((s, i) => s + Number(i.amount) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
-  const monthlyExpense = items.filter(i => i.is_active && Number(i.amount) < 0).reduce((s, i) => s + Math.abs(Number(i.amount)) * (PERIOD_MULTIPLIERS[i.period] ?? 1), 0);
+  // `monthlyEquivalent` is the same normalisation Analytics uses (52/12, 26/12,
+  // 1, 1/3, 1/12). The rounded table this page used to carry — 4.33, 2.17,
+  // 0.33, 0.083 — made the two screens quote different monthly costs for the
+  // same subscription.
+  const monthlyIncome  = items
+    .filter(i => i.is_active && Number(i.amount) > 0)
+    .reduce((s, i) => s + monthlyEquivalent(Number(i.amount), i.period), 0);
+  const monthlyExpense = items
+    .filter(i => i.is_active && Number(i.amount) < 0)
+    .reduce((s, i) => s + monthlyEquivalent(Number(i.amount), i.period), 0);
   const monthlyNet     = monthlyIncome - monthlyExpense;
 
   const formatNextDate = (d: string) => {
@@ -1174,7 +1140,7 @@ const Transactions: React.FC = () => {
                   >
                     {visibleCategories.map(cat => {
                       const catTxs      = monthTransactions.filter(t => t.category_id === cat.id);
-                      const total       = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                      const total       = categoryTotal(catTxs, cat);
                       const isDragOver  = dragOverTarget === cat.id;
                       const shownTxs    = catTxs.slice(0, MAX_TX_SHOWN);
                       const hiddenCount = catTxs.length - shownTxs.length;
@@ -1326,7 +1292,7 @@ const Transactions: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2.5">
                   {visibleCategories.map(cat => {
                     const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
-                    const total  = catTxs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+                    const total  = categoryTotal(catTxs, cat);
                     const shown  = catTxs.slice(0, MAX_TX_SHOWN);
                     const hidden = catTxs.length - shown.length;
                     return (
@@ -1501,14 +1467,20 @@ const Transactions: React.FC = () => {
               <div className="shrink-0 flex items-center gap-4 px-4 py-2 text-[11px]"
                 style={{ borderBottom: '1px solid var(--line)', backgroundColor: 'var(--elev-1)' }}>
                 <span style={{ color: 'var(--muted)' }}>{filteredList.length} transaction{filteredList.length !== 1 ? 's' : ''}</span>
-                {filteredList.some(t => Number(t.amount) > 0) && (
+                {filteredMetrics.income > 0 && (
                   <span className="font-mono font-semibold" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
-                    +${fmt(filteredList.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0))}
+                    +${fmt(filteredMetrics.income)}
                   </span>
                 )}
-                {filteredList.some(t => Number(t.amount) < 0) && (
+                {filteredMetrics.expenses > 0 && (
                   <span className="font-mono font-semibold" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-                    −${fmt(filteredList.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0))}
+                    −${fmt(filteredMetrics.expenses)}
+                  </span>
+                )}
+                {filteredMetrics.cardPayments > 0 && (
+                  <span className="font-mono" style={{ color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}
+                    title="Payments into a credit-card account. Excluded from income because the original purchases were already counted as spending.">
+                    ${fmt(filteredMetrics.cardPayments)} card payments
                   </span>
                 )}
               </div>
@@ -1626,77 +1598,16 @@ const Transactions: React.FC = () => {
       </PageLayout>
 
       {/* ── Categorize picker (mobile) ── */}
-      {categorizeTx && (() => {
-        const pos = Number(categorizeTx.amount) >= 0;
-        return (
-          <BottomSheet isOpen={!!categorizeTx} onClose={() => setCategorizeTx(null)}>
-            <div>
-              {/* Transaction summary */}
-              <div className="px-5 pt-5 pb-4 text-center" style={{ borderBottom: '1px solid var(--line)' }}>
-                <p className="text-3xl font-bold"
-                  style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
-                  {pos ? '+' : '-'}${fmt(Math.abs(Number(categorizeTx.amount)))}
-                </p>
-                <p className="text-sm font-medium mt-1.5 truncate" style={{ color: 'var(--muted)' }}>
-                  {cleanDescription(categorizeTx.description)}
-                </p>
-              </div>
-
-              {/* Category grid */}
-              <div className="px-4 pt-4 pb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--dim)' }}>
-                  Assign category
-                </p>
-                {topCategories.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent)' }}>
-                      Common this month
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {topCategories.map(cat => (
-                        <button
-                          key={cat.id}
-                          onClick={async () => { await handleCategorize(categorizeTx.id, cat.id); setCategorizeTx(null); }}
-                          className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-lg text-left transition-all active:scale-[0.97]"
-                          style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}38` }}>
-                          <span className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</span>
-                          <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--muted)' }}>{cat.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  {sortedCategories.map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={async () => { await handleCategorize(categorizeTx.id, cat.id); setCategorizeTx(null); }}
-                      className="flex items-center gap-2.5 px-3.5 py-3 rounded-lg text-left transition-all active:scale-[0.97]"
-                      style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}28` }}>
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                      <p className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</p>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2 mt-3 mb-1">
-                  <button
-                    onClick={() => { const t = categorizeTx; setCategorizeTx(null); handleDelete(t.id); }}
-                    className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                    style={{ color: 'var(--neg)', backgroundColor: 'oklch(70% 0.17 25 / 0.1)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => { setCategorizeTx(null); setEditTx(categorizeTx); }}
-                    className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                    style={{ color: 'var(--muted)', backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
-                    Edit details
-                  </button>
-                </div>
-              </div>
-            </div>
-          </BottomSheet>
-        );
-      })()}
+      <CategorizeSheet
+        initialTransaction={categorizeTx}
+        queue={uncategorized}
+        categories={sortedCategories}
+        suggestions={topCategories}
+        onAssign={handleCategorize}
+        onClose={() => setCategorizeTx(null)}
+        onDelete={tx => { setCategorizeTx(null); handleDelete(tx.id); }}
+        onEdit={tx => { setCategorizeTx(null); setEditTx(tx); }}
+      />
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
@@ -1706,6 +1617,7 @@ const Transactions: React.FC = () => {
         cat={detailCat}
         allTransactions={transactions}
         accounts={accounts}
+        classification={classification}
         onClose={() => setDetailCat(null)}
         onEditTx={tx => setEditTx(tx)}
         defaultMonth={selectedMonth}

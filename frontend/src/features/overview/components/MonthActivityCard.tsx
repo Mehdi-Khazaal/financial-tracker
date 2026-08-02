@@ -1,9 +1,9 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { TabContext } from '../../../context/TabContext';
 import { dollars, relativeDays } from '../../analytics/format';
 import type { UpcomingBill } from '../../analytics/types';
 import type { MonthActivity } from '../types';
+import { linkToRecurring } from '../../../lib/deepLinks';
 
 /**
  * Replaces the Transfer / Withdraw / Deposit buttons.
@@ -23,18 +23,11 @@ interface Props {
 }
 
 const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge }) => {
-  const { setRouteTab } = useContext(TabContext);
-
   return (
     <section className="ledger-panel p-4" aria-labelledby="overview-activity-heading">
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="label" id="overview-activity-heading">{activity.monthName} activity</p>
-        <Link
-          to="/transactions"
-          onClick={() => setRouteTab('/transactions', 'list')}
-          className="text-xs font-medium"
-          style={{ color: 'var(--accent)' }}
-        >
+        <Link to="/transactions" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
           View all →
         </Link>
       </div>
@@ -64,7 +57,10 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge }) => {
         {nextCharge && (
           <div className="flex items-baseline justify-between gap-3">
             <dt className="text-xs truncate min-w-0" style={{ color: 'var(--dim)' }}>
-              Next charge · {nextCharge.name}
+              {/* Straight to the recurring list, where this charge is editable. */}
+              <Link to={linkToRecurring()} style={{ color: 'inherit' }}>
+                Next charge · {nextCharge.name}
+              </Link>
             </dt>
             <dd className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--muted)' }}>
               {nextCharge.isVariable ? '~' : ''}{dollars(nextCharge.amount)} {relativeDays(nextCharge.daysUntil)}

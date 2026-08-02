@@ -114,9 +114,8 @@ export type InsightTone = 'attention' | 'neutral' | 'positive';
 
 export interface StatusInsightAction {
   label: string;
+  /** A deep link from `lib/deepLinks`, carrying the tab and any focus context. */
   to: string;
-  /** Context tab to select on arrival, matching `CONTEXT_TABS`. */
-  tab?: string;
 }
 
 export interface StatusInsight {

@@ -36,6 +36,8 @@ interface Props {
   snapshots: MonthSnapshot[];
   assets: Asset[];
   failedSources: string[];
+  /** Category drawer to open on mount, when arriving from a deep link. */
+  initialCategoryId?: number | null;
 }
 
 const PERIOD_STORAGE_KEY = 'ft_analytics_period';
@@ -66,6 +68,7 @@ const readStoredPeriod = (): PeriodId => {
  */
 const AnalyticsTab: React.FC<Props> = ({
   transactions, categories, accounts, goals, recurring, snapshots, assets, failedSources,
+  initialCategoryId = null,
 }) => {
   const navigate = useNavigate();
   const { setRouteTab } = useContext(TabContext);
@@ -80,7 +83,9 @@ const AnalyticsTab: React.FC<Props> = ({
     }
   });
   const [netWorthWindow, setNetWorthWindow] = useState(12);
-  const [openCategoryId, setOpenCategoryId] = useState<number | null>(null);
+  // Seeded when the user arrived from a category elsewhere in the app, so the
+  // drawer they asked for is already open on landing.
+  const [openCategoryId, setOpenCategoryId] = useState<number | null>(initialCategoryId);
 
   const sources = useMemo(
     () => ({ transactions, categories, accounts, goals, recurring, snapshots, assets }),

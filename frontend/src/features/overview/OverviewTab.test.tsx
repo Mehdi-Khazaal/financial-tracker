@@ -162,7 +162,8 @@ describe('OverviewTab — imported transaction review', () => {
   it('keeps a route into the review even when nothing is outstanding', () => {
     renderTab({ transactions: [tx('2026-08-01', -20)] });
 
-    expect(screen.getByText('Review →')).toHaveAttribute('href', '/transactions');
+    // Carries the tab, so the link lands on the review queue itself.
+    expect(screen.getByText('Review →')).toHaveAttribute('href', '/transactions?tab=transactions');
   });
 
   it('expands with a clear action when imports are unresolved', () => {
@@ -215,19 +216,29 @@ describe('OverviewTab — savings goals', () => {
     expect(screen.getByText('40%')).toBeInTheDocument();
   });
 
-  it('announces goal progress without relying on the bar colour', () => {
+  it('announces status and progress without relying on the bar colour', () => {
     renderTab({ transactions: [tx('2026-08-01', -20)], goals: [goal({ current_amount: 10000 })] });
 
-    const bar = screen.getByRole('progressbar', { name: /Education: Complete, 100 percent funded/ });
-    expect(bar).toHaveAttribute('aria-valuenow', '100');
-    expect(bar).toHaveAttribute('aria-valuemax', '100');
+    // The card is one link, and its name carries the whole status.
+    expect(
+      screen.getByRole('link', { name: /Education: Complete, 100 percent funded\. Open goal\./ }),
+    ).toBeInTheDocument();
   });
 
   it('caps the bar at full for an overfunded goal but reports the real figure', () => {
     renderTab({ transactions: [tx('2026-08-01', -20)], goals: [goal({ current_amount: 12500 })] });
 
     expect(screen.getByText('125%')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(
+      screen.getByRole('link', { name: /125 percent funded/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('opens the Savings tab scrolled to the goal that was clicked', () => {
+    renderTab({ transactions: [tx('2026-08-01', -20)], goals: [goal({ id: 7, current_amount: 4000 })] });
+
+    expect(screen.getByRole('link', { name: /Education/ }))
+      .toHaveAttribute('href', '/portfolio?tab=savings&focusGoal=7');
   });
 });
 
@@ -276,6 +287,6 @@ describe('OverviewTab — status insight', () => {
     renderTab({ transactions: [tx('2026-08-01', -20, { category_id: null })] });
 
     expect(screen.getByText('1 imported transaction still needs a category')).toBeInTheDocument();
-    expect(screen.getByText('Review imports')).toHaveAttribute('href', '/transactions');
+    expect(screen.getByText('Review imports')).toHaveAttribute('href', '/transactions?tab=transactions');
   });
 });

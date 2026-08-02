@@ -488,7 +488,8 @@ describe('status insight', () => {
 
     expect(insight.id).toBe('unreviewed-imports');
     expect(insight.title).toBe('3 imported transactions still need a category');
-    expect(insight.action).toEqual({ label: 'Review imports', to: '/transactions', tab: 'transactions' });
+    // A deep link, so the Review tab is already selected on arrival.
+    expect(insight.action).toEqual({ label: 'Review imports', to: '/transactions?tab=transactions' });
   });
 
   it('ranks an overdrawn account above a recurring-charge prompt', () => {

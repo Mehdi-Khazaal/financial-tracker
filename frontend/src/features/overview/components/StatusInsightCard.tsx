@@ -1,6 +1,5 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { TabContext } from '../../../context/TabContext';
 import type { StatusInsight } from '../types';
 
 /**
@@ -26,7 +25,6 @@ const ICONS: Record<StatusInsight['tone'], string> = {
 };
 
 const StatusInsightCard: React.FC<{ insight: StatusInsight }> = ({ insight }) => {
-  const { setRouteTab } = useContext(TabContext);
   const tone = TONE_STYLES[insight.tone];
 
   return (
@@ -56,9 +54,6 @@ const StatusInsightCard: React.FC<{ insight: StatusInsight }> = ({ insight }) =>
         {insight.action && (
           <Link
             to={insight.action.to}
-            onClick={() => {
-              if (insight.action?.tab) setRouteTab(insight.action.to, insight.action.tab);
-            }}
             className="shrink-0 self-center text-xs font-semibold rounded-lg px-3 flex items-center pressable"
             style={{ color: tone.color, border: `1px solid ${tone.border}`, minHeight: 36 }}
           >

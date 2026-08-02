@@ -8,6 +8,7 @@ import Sparkline from '../../../components/Sparkline';
 import { KIND_COLORS, KIND_LABELS, classifyTransaction } from '../calculations/transactions';
 import { ConfidenceChip, DeltaBadge } from './AnalyticsPrimitives';
 import CategoryIcon from './CategoryIcon';
+import { linkToCategoryTransactions } from '../../../lib/deepLinks';
 
 interface Props {
   detail: CategoryDetail | null;
@@ -299,7 +300,9 @@ const CategoryDetailDrawer: React.FC<Props> = ({
 
         <button
           type="button"
-          onClick={() => { onClose(); onNavigate('/transactions'); }}
+          // Carries the category through rather than dropping the user on an
+          // unfiltered list, which was the whole point of clicking from here.
+          onClick={() => { onClose(); onNavigate(linkToCategoryTransactions(detail.id)); }}
           className="btn-gradient w-full py-3 text-sm"
         >
           View all transactions

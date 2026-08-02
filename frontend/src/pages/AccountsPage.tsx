@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useRouteTab } from '../context/TabContext';
+import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
+import { DEEP_LINK_KEYS, linkToAccountTransactions, parseIdParam } from '../lib/deepLinks';
 import { Account, Loan, MonthSnapshot, Transaction } from '../types';
 import {
   getAccounts, deleteAccount, getAccountHistories,
@@ -172,6 +175,7 @@ const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepay
 const AccountsPage: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/accounts');
+  const [focusAccountId, setFocusAccountId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [failedSources, setFailedSources] = useState<string[]>([]);
@@ -232,6 +236,26 @@ const AccountsPage: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
   const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
+
+  // Arriving from an account named elsewhere. Waits for the accounts to load,
+  // otherwise the element to scroll to does not exist yet.
+  useDeepLinkParams(params => {
+    const requestedTab = params.get(DEEP_LINK_KEYS.tab);
+    if (requestedTab === 'wallet' || requestedTab === 'cards' || requestedTab === 'loans') {
+      setTab(requestedTab);
+    }
+    setFocusAccountId(parseIdParam(params.get(DEEP_LINK_KEYS.focusAccount)));
+  }, accounts.length > 0);
+
+  // Scroll the named account into view and mark it, then release the mark so a
+  // highlight from an old link never sticks to the page.
+  useEffect(() => {
+    if (focusAccountId == null) return;
+    const node = document.getElementById(`account-${focusAccountId}`);
+    node?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const timer = window.setTimeout(() => setFocusAccountId(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [focusAccountId, tab]);
 
   const handleDeleteAccount = useCallback(async (id: number, name: string) => {
     const ok = await toast.confirm(`Delete "${name}"? All linked transactions will also be deleted.`, { danger: true });
@@ -483,8 +507,17 @@ const AccountsPage: React.FC = () => {
                             ? (balanceChange <= 0 ? 'var(--pos)' : 'var(--neg)')
                             : (balanceChange >= 0 ? 'var(--pos)' : 'var(--neg)');
 
+                          const isFocused = focusAccountId === account.id;
                           return (
-                            <div key={account.id} className="card card-hover p-4 group transition-all">
+                            <div
+                              key={account.id}
+                              id={`account-${account.id}`}
+                              className="card card-hover p-4 group transition-all"
+                              style={isFocused ? {
+                                borderColor: 'var(--accent)',
+                                boxShadow: 'var(--edge-light), 0 0 0 1px var(--accent-glow)',
+                              } : undefined}
+                            >
                               {/* Top row: icon + name + action buttons */}
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -532,6 +565,18 @@ const AccountsPage: React.FC = () => {
                                   <ProgressBar value={utilized} colorAuto />
                                 </div>
                               )}
+
+                              {/* "Where is my money" leads to "what happened to
+                                  it" — the timeline, already filtered here. */}
+                              <Link
+                                to={linkToAccountTransactions(account.id)}
+                                className="mt-3 pt-3 flex items-center justify-between text-xs font-medium"
+                                style={{ borderTop: '1px solid var(--line)', color: 'var(--accent)', minHeight: 40 }}
+                                aria-label={`View transactions for ${account.name}`}
+                              >
+                                <span>View transactions</span>
+                                <span aria-hidden="true">→</span>
+                              </Link>
                             </div>
                           );
                         })}

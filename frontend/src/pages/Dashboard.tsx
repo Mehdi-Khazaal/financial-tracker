@@ -18,6 +18,8 @@ import AnalyticsTab from '../features/analytics/AnalyticsTab';
 import AnalyticsSkeleton from '../features/analytics/components/AnalyticsSkeleton';
 import OverviewTab from '../features/overview/OverviewTab';
 import { useToday } from '../features/overview/useOverviewModel';
+import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
+import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
 
 type Tab = 'overview' | 'analytics';
 
@@ -37,8 +39,17 @@ const Dashboard: React.FC = () => {
   const [showTx, setShowTx]                   = useState(false);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
+  const [initialCategoryId, setInitialCategoryId] = useState<number | null>(null);
 
   const today = useToday();
+
+  // Arriving from a category elsewhere in the app: open Analytics with that
+  // category's drawer already showing, rather than the top of the page.
+  useDeepLinkParams(params => {
+    if (params.get(DEEP_LINK_KEYS.tab) === 'analytics') setTab('analytics');
+    else if (params.get(DEEP_LINK_KEYS.tab) === 'overview') setTab('overview');
+    setInitialCategoryId(parseIdParam(params.get(DEEP_LINK_KEYS.category)));
+  });
 
   const SOURCES = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets', 'recurring'];
 
@@ -186,6 +197,7 @@ const Dashboard: React.FC = () => {
               snapshots={netWorthSnapshots}
               assets={assetsList}
               failedSources={failedSources}
+              initialCategoryId={initialCategoryId}
             />
           )}
 

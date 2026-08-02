@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouteTab } from '../context/TabContext';
+import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
+import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
 import { Account, Asset, SavingsGoal } from '../types';
 import { getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
 import { getStockPrice } from '../utils/stockApi';
@@ -58,6 +60,7 @@ const TYPE_COLORS: Record<string, string> = {
 const PortfolioPage: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/portfolio');
+  const [focusGoalId, setFocusGoalId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [failedSources, setFailedSources] = useState<string[]>([]);
@@ -153,6 +156,23 @@ const PortfolioPage: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
   const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
+
+  // Arriving from a goal named on Overview. Waits for the goals to load so the
+  // element being scrolled to actually exists.
+  useDeepLinkParams(params => {
+    const requestedTab = params.get(DEEP_LINK_KEYS.tab);
+    if (requestedTab === 'investments' || requestedTab === 'assets' || requestedTab === 'savings') {
+      setTab(requestedTab);
+    }
+    setFocusGoalId(parseIdParam(params.get(DEEP_LINK_KEYS.focusGoal)));
+  }, goals.length > 0);
+
+  useEffect(() => {
+    if (focusGoalId == null) return;
+    document.getElementById(`goal-${focusGoalId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const timer = window.setTimeout(() => setFocusGoalId(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [focusGoalId, tab]);
 
   const handleDeleteInv = async (id: number, name: string) => {
     const ok = await toast.confirm(`Delete "${name}"?`, { danger: true });
@@ -646,8 +666,17 @@ const PortfolioPage: React.FC = () => {
                         const remaining = Math.max(target - current, 0);
                         const isComplete = status.status === 'complete';
                         const daysLeft = getDaysLeft(goal.deadline ?? null);
+                        const isFocused = focusGoalId === goal.id;
                         return (
-                          <div key={goal.id} className="card p-4 group">
+                          <div
+                            key={goal.id}
+                            id={`goal-${goal.id}`}
+                            className="card p-4 group"
+                            style={isFocused ? {
+                              borderColor: 'var(--accent)',
+                              boxShadow: 'var(--edge-light), 0 0 0 1px var(--accent-glow)',
+                            } : undefined}
+                          >
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
