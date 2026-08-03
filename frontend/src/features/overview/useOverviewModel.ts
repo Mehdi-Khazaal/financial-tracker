@@ -18,19 +18,25 @@ import type {
   SavingsGoal,
   Transaction,
 } from '../../types';
-import type { PeriodMetrics, UpcomingBill } from '../analytics/types';
+import type { Forecast, PeriodMetrics, UpcomingBill } from '../analytics/types';
 import {
   buildClassificationContext,
   normalizeMerchantName,
 } from '../analytics/calculations/transactions';
-import { calculatePeriodMetrics } from '../analytics/calculations/metrics';
+import { calculatePeriodMetrics, monthlyMetrics } from '../analytics/calculations/metrics';
 import { detectRecurringTransactions, upcomingBills } from '../analytics/calculations/recurring';
-import { addMonths, monthKeyOf } from '../analytics/period';
-import type { MonthActivity, SpendingComparison, StatusInsight } from './types';
+import { calculateCategoryComparisons } from '../analytics/calculations/categories';
+import { calculateForecast } from '../analytics/calculations/forecast';
+import { calculateSavingsMetrics } from '../analytics/calculations/savings';
+import { addMonths, baselineMonths, dateKey, monthKeyOf, resolvePeriod } from '../analytics/period';
+import type { MonthActivity, SpendingComparison } from './types';
 import { buildMonthActivity } from './calculations/activity';
 import { buildSpendingComparison } from './calculations/comparison';
 import { buildImportReview, type ImportReview } from './calculations/review';
-import { buildStatusInsight } from './calculations/insight';
+import {
+  RECENT_WINDOW_DAYS, buildMorningBrief, calculateSpendingPace,
+  type BriefItem, type SpendingPace,
+} from './calculations/brief';
 import { cardUtilization, totalCardDebt, totalCreditLimit } from './calculations/accounts';
 
 export interface OverviewSources {
@@ -67,7 +73,13 @@ export interface OverviewModel {
   activity: MonthActivity;
   comparison: SpendingComparison;
   review: ImportReview;
-  insight: StatusInsight;
+  /** The Morning Brief — today-anchored, capped, possibly empty. */
+  brief: BriefItem[];
+  /** Metrics over the trailing week, for "what happened recently". */
+  recentMetrics: PeriodMetrics;
+  /** Month spend against a typical month, null without enough history. */
+  pace: SpendingPace | null;
+  forecast: Forecast;
   netWorth: NetWorthTrend;
   /** Checking + cash. Money that can be spent without moving anything first. */
   availableToSpend: number;
@@ -183,15 +195,85 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       ? { month: previousMonth, net: calculatePeriodMetrics(previousTx, ctx).net }
       : null;
 
-    const insight = buildStatusInsight({
+    // ── Morning Brief inputs ────────────────────────────────────────────────
+    // Everything below reuses the analytics calculations rather than growing a
+    // second set. The cost is one extra pass over the same arrays, inside the
+    // memo that already runs once per data change.
+
+    const todayKey = dateKey(today);
+    const windowStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (RECENT_WINDOW_DAYS - 1));
+    const windowStartKey = dateKey(windowStart);
+    const recentTransactions = transactions.filter(t => {
+      const day = t.transaction_date.slice(0, 10);
+      return day >= windowStartKey && day <= todayKey;
+    });
+    const recentMetrics = calculatePeriodMetrics(recentTransactions, ctx);
+
+    const availableMonths = Array.from(
+      new Set(transactions.map(t => t.transaction_date.slice(0, 7))),
+    ).sort();
+
+    const period = resolvePeriod('this-month', {
+      today,
+      customMonth: monthKey,
+      earliestMonth: availableMonths[0] ?? null,
+    });
+
+    const completedMonths = availableMonths.filter(m => m < monthKey);
+    const monthly = monthlyMetrics(transactions, completedMonths, ctx);
+
+    const pace = calculateSpendingPace({
+      monthExpenses: metrics.expenses,
+      elapsedFraction: period.elapsed,
+      completedMonthExpenses: monthly.map(m => m.metrics.expenses),
+    });
+
+    const categoryRows = calculateCategoryComparisons({
+      transactions,
+      categories,
+      period,
+      baseline: baselineMonths(period, availableMonths, today),
+      ctx,
+    });
+
+    // The same savings figures Analytics quotes — average monthly saved, the
+    // featured goal, and its projected completion — rather than a second
+    // average computed for the brief alone.
+    const savings = calculateSavingsMetrics({
+      transactions,
+      goals: failedSources.includes('savings goals') ? [] : goals,
+      period,
+      baseline: completedMonths,
+      ctx,
+      today,
+    });
+
+    const forecast = calculateForecast({
+      period,
+      transactions,
+      recurring,
+      categories: categoryRows,
+      monthly,
+      ctx,
+      today,
+    });
+
+    const brief = buildMorningBrief({
       today,
       activity,
       dataIncomplete,
       unreviewedCount: review.unreviewed,
       accounts,
-      goals: failedSources.includes('savings goals') ? [] : goals,
-      undeclaredRecurringCount,
+      primaryGoal: savings.primaryGoal,
+      savingsMonths: savings.averageMonths,
+      recentMetrics,
+      recentTransactions,
+      declaredRecurringKeys: declaredKeys,
+      pace,
+      forecast,
+      upcoming: bills,
       lastCompleted,
+      undeclaredRecurringCount,
       heroShowsActivityContext: activity.headline != null,
     });
 
@@ -201,7 +283,10 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       activity,
       comparison,
       review,
-      insight,
+      brief,
+      recentMetrics,
+      pace,
+      forecast,
       netWorth,
       availableToSpend: accounts
         .filter(a => a.type === 'checking' || a.type === 'cash')

@@ -2,18 +2,20 @@ import React from 'react';
 import CountUp from '../../../components/CountUp';
 import Sparkline from '../../../components/Sparkline';
 import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
-import { MINUS, dollars, signedPercent } from '../../analytics/format';
+import { dollars, signedPercent } from '../../analytics/format';
 import type { MonthActivity, SpendingComparison } from '../types';
 import type { NetWorthTrend } from '../useOverviewModel';
 
 /**
  * The net-worth hero.
  *
- * It stays the loudest thing on the page, but it now says what it is measuring.
- * Three things were previously implied and are now stated: the timeframe behind
- * the change badge, that "available to spend" is checking and cash only, and
- * that the Assets and Investments tiles sit *outside* the net-worth figure
- * rather than inside it.
+ * The loudest thing on the page, and now the only thing in this card: what you
+ * are worth, how that has moved, and what you can actually spend today.
+ *
+ * The month totals and the asset pools that used to share this card moved out
+ * to the metric band. They were secondary questions competing with the primary
+ * one, and worse, assets and investments are *excluded* from net worth — sitting
+ * them inside a card headed "Net Worth" implied the opposite of the truth.
  */
 
 export const NET_WORTH_DEFINITION =
@@ -25,15 +27,8 @@ export const AVAILABLE_DEFINITION =
 interface Props {
   netWorth: NetWorthTrend;
   availableToSpend: number;
-  income: number;
-  expenses: number;
-  physicalAssets: number;
-  investments: number;
   activity: MonthActivity;
   comparison: SpendingComparison;
-  /** Hides the Assets/Investments tiles when that source failed. */
-  showAssets: boolean;
-  monthName: string;
 }
 
 const toneColor: Record<SpendingComparison['tone'], string> = {
@@ -43,8 +38,7 @@ const toneColor: Record<SpendingComparison['tone'], string> = {
 };
 
 const OverviewHero: React.FC<Props> = ({
-  netWorth, availableToSpend, income, expenses, physicalAssets, investments,
-  activity, comparison, showAssets, monthName,
+  netWorth, availableToSpend, activity, comparison,
 }) => {
   const sparkValues = netWorth.points.map(p => p.value);
 
@@ -53,25 +47,17 @@ const OverviewHero: React.FC<Props> = ({
     ? `Net worth over ${netWorth.timeframeLabel.toLowerCase()}: ${dollars(netWorth.start)} in ${netWorth.points[0].label}, ${dollars(netWorth.current)} now, a change of ${netWorth.change < 0 ? 'minus ' : ''}${dollars(Math.abs(netWorth.change))}.`
     : '';
 
-  const stats = [
-    { label: 'Income', value: `+${dollars(income)}`, color: 'var(--pos)', dot: '#22C55E', note: `${monthName} so far` },
-    { label: 'Expenses', value: `${MINUS}${dollars(expenses)}`, color: 'var(--neg)', dot: '#EF4444', note: `${monthName} so far` },
-    ...(showAssets ? [
-      { label: 'Assets', value: dollars(physicalAssets), color: 'var(--fg)', dot: 'rgba(241,241,243,0.45)', note: 'Not in net worth' },
-      { label: 'Investments', value: dollars(investments), color: '#a855f7', dot: '#a855f7', note: 'Not in net worth' },
-    ] : []),
-  ];
-
   return (
     <section
       className="hero-card rounded-xl p-6 md:p-8"
       aria-labelledby="overview-net-worth-label"
       style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}
     >
-      <div className="relative flex flex-col md:flex-row md:items-start md:gap-12" style={{ zIndex: 1 }}>
-
-        {/* Left: the number and its trajectory */}
-        <div className="flex-1 min-w-0">
+      {/* One card, one question: what am I worth, and what can I spend. The
+          month totals and the excluded pools moved to the metric band below —
+          printing them here implied they were part of this figure. */}
+      <div className="relative" style={{ zIndex: 1 }}>
+        <div className="min-w-0">
           <div className="flex items-center gap-1.5 mb-3">
             <p className="label" id="overview-net-worth-label">Net Worth</p>
             <InfoHint label="How net worth is calculated" text={NET_WORTH_DEFINITION} />
@@ -141,23 +127,6 @@ const OverviewHero: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right: this month's totals plus the two excluded pools */}
-        <div className="grid grid-cols-2 gap-2.5 mt-5 md:mt-0 md:min-w-[280px]">
-          {stats.map(s => (
-            <div
-              key={s.label}
-              className="rounded-lg"
-              style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light)', padding: '10px 12px' }}
-            >
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.dot, boxShadow: `0 0 5px ${s.dot}` }} aria-hidden="true" />
-                <p className="label truncate">{s.label}</p>
-              </div>
-              <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--dim)' }}>{s.note}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Why the numbers above look the way they do. Only when they need saying. */}

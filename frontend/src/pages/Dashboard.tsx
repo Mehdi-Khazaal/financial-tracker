@@ -151,13 +151,30 @@ const Dashboard: React.FC = () => {
 
           {/* ── Desktop tab bar ── */}
           <div className="hidden md:block sticky z-20 py-2 -mx-8 px-8" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
-            <div className="flex p-1 rounded-xl gap-0.5 max-w-xs" style={{ backgroundColor: 'var(--elev-1)' }}>
+            {/* The track was `--elev-1` with an active pill of `--bg`, which made
+                the selected tab *darker* than its own container and left the whole
+                control almost invisible against the page. Recessed track, raised
+                pill — the conventional reading, and the same two-step separation
+                the mobile segmented control already uses. */}
+            <div
+              className="flex p-1 rounded-xl gap-0.5 max-w-xs"
+              style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}
+              role="tablist"
+              aria-label="Dashboard views"
+            >
               {(['overview', 'analytics'] as Tab[]).map(t => (
                 <button key={t} onClick={() => setTab(t)}
+                  role="tab"
+                  aria-selected={tab === t}
                   className="flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all"
                   style={tab === t
-                    ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-                    : { color: 'var(--muted)' }}>
+                    ? {
+                      backgroundColor: 'var(--elev-2)',
+                      color: 'var(--fg)',
+                      border: '1px solid var(--line-strong)',
+                      boxShadow: 'var(--edge-light), 0 1px 4px rgba(0,0,0,0.45)',
+                    }
+                    : { color: 'var(--muted)', border: '1px solid transparent' }}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
               ))}

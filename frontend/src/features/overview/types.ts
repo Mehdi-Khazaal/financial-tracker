@@ -107,23 +107,3 @@ export interface GoalPresentation {
   /** Design token for the bar and percentage. */
   color: string;
 }
-
-// ── Status insight ────────────────────────────────────────────────────────────
-
-export type InsightTone = 'attention' | 'neutral' | 'positive';
-
-export interface StatusInsightAction {
-  label: string;
-  /** A deep link from `lib/deepLinks`, carrying the tab and any focus context. */
-  to: string;
-}
-
-export interface StatusInsight {
-  id: string;
-  /** Lower sorts first. Only the winner is rendered. */
-  priority: number;
-  tone: InsightTone;
-  title: string;
-  detail: string | null;
-  action: StatusInsightAction | null;
-}

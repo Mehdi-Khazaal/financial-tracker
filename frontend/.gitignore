@@ -25,4 +25,6 @@ yarn-error.log*
 # Playwright
 test-results/
 playwright-report/
+# Regenerated on demand by `npx playwright test dashboard-screenshots`.
+e2e/__screenshots__/
 

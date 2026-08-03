@@ -88,12 +88,14 @@ describe('OverviewTab — beginning of month', () => {
     expect(screen.getByText(/Last posted transaction: Jul 31/)).toBeInTheDocument();
   });
 
-  it('keeps the income and expense values on screen rather than hiding them', () => {
+  it('keeps the spending value on screen rather than hiding it', () => {
     renderTab({ transactions: julyOnly });
 
-    expect(screen.getByText('Income')).toBeInTheDocument();
-    expect(screen.getByText('+$0.00')).toBeInTheDocument();
+    // The month totals now live in the secondary metric band, out of the
+    // net-worth card, but they are still shown rather than suppressed.
+    expect(screen.getByText('August spending')).toBeInTheDocument();
     expect(screen.getByText('−$0.00')).toBeInTheDocument();
+    expect(screen.getByText('+$0.00 in')).toBeInTheDocument();
   });
 
   it('quotes last month as a labelled prior total, not a signed difference', () => {
@@ -111,10 +113,10 @@ describe('OverviewTab — beginning of month', () => {
     expect(screen.queryByText('No transactions yet')).not.toBeInTheDocument();
   });
 
-  it('qualifies the status insight when any source failed', () => {
+  it('qualifies the brief when any source failed', () => {
     renderTab({ transactions: [], failedSources: ['recurring'] });
 
-    expect(screen.getByText('Showing partial data')).toBeInTheDocument();
+    expect(screen.getByText('Some information could not be loaded')).toBeInTheDocument();
     // A failed recurring fetch says nothing about whether the month has
     // activity, so the hero is not falsely marked unknown.
     expect(screen.queryByText('Activity may be incomplete')).not.toBeInTheDocument();
@@ -192,7 +194,9 @@ describe('OverviewTab — credit cards', () => {
       transactions: [tx('2026-08-01', -20)],
     });
 
-    expect(screen.getByText('Paid off')).toBeInTheDocument();
+    // Once on the account tile, once on the Cards metric — both correct.
+    expect(screen.getAllByText('Paid off').length).toBeGreaterThan(0);
+    expect(screen.getByText('Nothing outstanding')).toBeInTheDocument();
   });
 });
 
@@ -264,7 +268,7 @@ describe('OverviewTab — net worth hero', () => {
     expect(screen.getByLabelText('What available to spend means')).toBeInTheDocument();
   });
 
-  it('says that assets and investments sit outside net worth', () => {
+  it('keeps holdings out of the net-worth card entirely', () => {
     renderTab({
       transactions: [tx('2026-08-01', -20)],
       assets: [
@@ -272,21 +276,48 @@ describe('OverviewTab — net worth hero', () => {
       ],
     });
 
-    expect(screen.getAllByText('Not in net worth').length).toBe(2);
+    // They are secondary metrics with their own destination, not tiles inside
+    // a card whose headline figure excludes them.
+    const investments = screen.getByText('Investments').closest('a');
+    expect(investments).toHaveAttribute('href', '/portfolio');
+    expect(screen.getByText('+ $8,000.00 in assets')).toBeInTheDocument();
   });
 });
 
-describe('OverviewTab — status insight', () => {
-  it('shows exactly one insight at a time', () => {
-    renderTab({ transactions: [tx('2026-08-01', -20, { category_id: null })] });
+describe('OverviewTab — morning brief', () => {
+  it('is the first thing on the page', () => {
+    const { container } = renderTab({ transactions: [tx('2026-08-01', -20)] });
 
-    expect(screen.getAllByLabelText('Status').length).toBe(1);
+    const sections = container.querySelectorAll('section');
+    expect(sections[0]).toHaveAttribute('aria-labelledby', 'morning-brief-heading');
   });
 
   it('leads with unresolved imports and links to the review', () => {
     renderTab({ transactions: [tx('2026-08-01', -20, { category_id: null })] });
 
     expect(screen.getByText('1 imported transaction still needs a category')).toBeInTheDocument();
-    expect(screen.getByText('Review imports')).toHaveAttribute('href', '/transactions?tab=transactions');
+    expect(screen.getByText('Review')).toHaveAttribute('href', '/transactions?tab=transactions');
+  });
+
+  it('admits a quiet morning instead of manufacturing an observation', () => {
+    // A single categorized transaction, no goals, no bills, no history to
+    // compare against — genuinely nothing to report.
+    renderTab({ transactions: [tx('2026-08-01', -20)], accounts: [accounts[0]] });
+
+    expect(screen.getByText('Nothing needs your attention this morning.')).toBeInTheDocument();
+  });
+
+  it('shows at most four lines', () => {
+    const { container } = renderTab({
+      transactions: [tx('2026-08-01', -20, { category_id: null })],
+      failedSources: ['recurring'],
+      goals: [{
+        id: 1, user_id: 1, name: 'Education', target_amount: 10000,
+        deadline: null, created_at: '', allocations: [], current_amount: 3000,
+      }],
+    });
+
+    const brief = container.querySelector('section[aria-labelledby="morning-brief-heading"]');
+    expect(brief?.querySelectorAll('li').length).toBeLessThanOrEqual(4);
   });
 });

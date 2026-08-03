@@ -20,9 +20,15 @@ interface Props {
   activity: MonthActivity;
   /** Next declared recurring charge, when one is due. */
   nextCharge: UpcomingBill | null;
+  /**
+   * False when the brief is already naming this charge. The brief is read
+   * first and says it better; repeating it here is the same fact twice on one
+   * screen.
+   */
+  showNextCharge?: boolean;
 }
 
-const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge }) => {
+const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, showNextCharge = true }) => {
   return (
     <section className="ledger-panel p-4" aria-labelledby="overview-activity-heading">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -54,7 +60,7 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge }) => {
           </dd>
         </div>
 
-        {nextCharge && (
+        {nextCharge && showNextCharge && (
           <div className="flex items-baseline justify-between gap-3">
             <dt className="text-xs truncate min-w-0" style={{ color: 'var(--dim)' }}>
               {/* Straight to the recurring list, where this charge is editable. */}
