@@ -9,7 +9,7 @@ import {
   updateTransaction,
 } from '../utils/api';
 import {
-  buildClassificationContext, categorySpendDelta, classifyTransaction,
+  buildClassificationContext, classifyTransaction,
 } from '../features/analytics/calculations/transactions';
 import { calculatePeriodMetrics } from '../features/analytics/calculations/metrics';
 import { monthlyEquivalent } from '../features/analytics/calculations/recurring';
@@ -25,6 +25,10 @@ import TransferModal from '../components/modals/TransferModal';
 import AddRecurringModal from '../components/modals/AddRecurringModal';
 import TransactionCard from '../components/transactions/TransactionCard';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
+import CategoryBoard from '../features/transactions/components/CategoryBoard';
+import DayHeader from '../features/transactions/components/DayHeader';
+import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
+import { groupByDay } from '../features/transactions/calculations/timeline';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -161,7 +165,10 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
           {/* Transaction list */}
           {catTxs.length === 0 ? (
             <div className="py-14 text-center">
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>No transactions this month</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>Nothing in this month</p>
+              <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                Pick another month above, or drag a transaction onto this category.
+              </p>
             </div>
           ) : (
             <div className="pb-6">
@@ -257,9 +264,6 @@ const Transactions: React.FC = () => {
   const MAX_TX_SHOWN = 3;
 
   // refs for the scrollable category grid and the mirrored top scrollbar
-  const catScrollRef    = useRef<HTMLDivElement>(null);
-  const topScrollRef    = useRef<HTMLDivElement>(null);
-  const isSyncing       = useRef(false);
   const monthPickerRef  = useRef<HTMLDivElement>(null);
   const addMenuRef      = useRef<HTMLDivElement>(null);
   const exportMenuRef   = useRef<HTMLDivElement>(null);
@@ -385,25 +389,6 @@ const Transactions: React.FC = () => {
   const monthExpenses = monthMetrics.expenses;
   const monthNet = monthMetrics.net;
 
-  /**
-   * What a category column is worth this month.
-   *
-   * Expense categories report net spend, so a refund reduces the category it
-   * came from rather than inflating it. Income categories report money actually
-   * received, which excludes credit-card payments.
-   */
-  const categoryTotal = useCallback((txs: Transaction[], cat: Category): number => {
-    if (cat.type === 'income') {
-      return txs.reduce((sum, t) => (
-        classifyTransaction(t, classification) === 'income' ? sum + Number(t.amount) : sum
-      ), 0);
-    }
-    return txs.reduce(
-      (sum, t) => sum + categorySpendDelta(t, classifyTransaction(t, classification)),
-      0,
-    );
-  }, [classification]);
-
   const reviewedCount = Math.max(0, monthTransactions.length - uncategorized.length);
   const reviewRate = monthTransactions.length > 0 ? Math.round((reviewedCount / monthTransactions.length) * 100) : 100;
   const filteredList = useMemo(() => {
@@ -441,41 +426,24 @@ const Transactions: React.FC = () => {
       return {
         ...cat,
         count: txs.length,
-        total: categoryTotal(txs, cat),
+        total: categoryTotal(txs, cat, classification),
       };
     })
     .filter(cat => cat.count > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 4),
-    [monthTransactions, sortedCategories, categoryTotal],
+    [monthTransactions, sortedCategories, classification],
   );
 
-  const visibleCategories = sortedCategories;
+  const board = useMemo(
+    () => buildBoard(sortedCategories, monthTransactions, classification),
+    [sortedCategories, monthTransactions, classification],
+  );
 
-  // Width of the top scroll mirror — matches the CSS grid maths:
-  // gridAutoColumns: 240px, gap: 8px, padding: 12px each side → 248*cols + 16
-  // 3 rows → ceil(cats/3) columns
-  const numGridCols     = Math.max(1, Math.ceil(visibleCategories.length / 3));
-  const catContentWidth = 248 * numGridCols + 16;
-
-  // Keep top scrollbar ↔ category grid in perfect sync
-  const handleTopScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncing.current) return;
-    if (catScrollRef.current) {
-      isSyncing.current = true;
-      catScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
-      requestAnimationFrame(() => { isSyncing.current = false; });
-    }
-  }, []);
-
-  const handleCatScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncing.current) return;
-    if (topScrollRef.current) {
-      isSyncing.current = true;
-      topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
-      requestAnimationFrame(() => { isSyncing.current = false; });
-    }
-  }, []);
+  const timelineDays = useMemo(
+    () => groupByDay(filteredList, classification, new Date()),
+    [filteredList, classification],
+  );
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
@@ -979,10 +947,13 @@ const Transactions: React.FC = () => {
           availableMonths.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <p className="font-semibold text-text mb-1">No imported transactions yet</p>
-                <p className="text-sm text-muted mb-5">Connect or sync accounts first. Manual entry stays available for rare cash corrections.</p>
-                <button onClick={() => setShowTransfer(true)} className="btn-ghost px-6 py-2.5 text-sm">
-                  Rare manual action
+                <p className="font-semibold text-text mb-1">No transactions to review yet</p>
+                <p className="text-sm text-muted mb-5 max-w-sm mx-auto leading-relaxed">
+                  Linked accounts import their activity automatically, so this fills up on its own.
+                  Nothing is wrong — there is simply nothing here yet.
+                </p>
+                <button onClick={() => setShowTx(true)} className="btn-ghost px-6 py-2.5 text-sm">
+                  Add one manually
                 </button>
               </div>
             </div>
@@ -1084,7 +1055,10 @@ const Transactions: React.FC = () => {
                         className="w-7 h-7 mx-auto mb-2" style={{ color: 'var(--pos)' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <p className="text-[10px]" style={{ color: 'var(--pos)' }}>All done</p>
+                      <p className="text-[10px] font-semibold" style={{ color: 'var(--pos)' }}>Inbox clear</p>
+                      <p className="text-[10px] mt-1 px-3 leading-relaxed" style={{ color: 'var(--dim)' }}>
+                        Newly imported transactions land here.
+                      </p>
                     </div>
                   ) : (
                     uncategorized.map(tx => (
@@ -1095,144 +1069,22 @@ const Transactions: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Category area: top scrollbar + grid ── */}
-              <div className="flex-1 flex flex-col overflow-hidden">
-
-                {/* Scrollbar track — sits above the grid, aligned to category columns only */}
-                {sortedCategories.length > 0 && (
-                  <div
-                    ref={topScrollRef}
-                    className="app-scrollbar shrink-0 overflow-x-scroll overflow-y-hidden"
-                    style={{ height: '10px', borderBottom: '1px solid var(--line)' }}
-                    onScroll={handleTopScroll}
-                  >
-                    <div style={{ width: catContentWidth, height: '1px' }} />
-                  </div>
-                )}
-
-                {/* Grid clip wrapper */}
-                <div className="flex-1 overflow-hidden">
-                <div
-                  ref={catScrollRef}
-                  className="overflow-y-hidden"
-                  style={{ overflowX: 'scroll', height: 'calc(100% + 20px)' }}
-                  onScroll={handleCatScroll}
-                >
-                {sortedCategories.length === 0 ? (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>No categories yet</p>
-                      <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>Add categories in Settings first</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateRows: 'repeat(3, auto)',
-                      gridAutoFlow: 'column',
-                      gridAutoColumns: '240px',
-                      alignItems: 'start',
-                      minWidth: 'max-content',
-                      gap: '8px',
-                      padding: '10px 12px 30px',
-                    }}
-                  >
-                    {visibleCategories.map(cat => {
-                      const catTxs      = monthTransactions.filter(t => t.category_id === cat.id);
-                      const total       = categoryTotal(catTxs, cat);
-                      const isDragOver  = dragOverTarget === cat.id;
-                      const shownTxs    = catTxs.slice(0, MAX_TX_SHOWN);
-                      const hiddenCount = catTxs.length - shownTxs.length;
-
-                      return (
-                        <div
-                          key={cat.id}
-                          className="flex flex-col overflow-hidden"
-                          style={{
-                            borderRadius: '12px',
-                            backgroundColor: isDragOver ? `${cat.color}14` : `${cat.color}07`,
-                            border: `1px solid ${isDragOver ? cat.color + '50' : cat.color + '28'}`,
-                            transition: 'background-color 0.12s, border-color 0.12s',
-                          }}
-                          onDragOver={handleDragOver(cat.id)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={handleDrop(cat.id)}
-                        >
-                          {/* Column header — click to open full detail modal */}
-                          <button
-                            type="button"
-                            className="w-full cursor-pointer text-left transition-colors"
-                            style={{
-                              borderBottom: `1px solid ${cat.color}20`,
-                              padding: '10px 12px',
-                            }}
-                            onClick={() => setDetailCat(cat)}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}0d`)}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
-                                <p className="text-[12px] font-semibold truncate" style={{ color: 'var(--fg)' }}>
-                                  {cat.name}
-                                </p>
-                              </div>
-                              {catTxs.length > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0"
-                                  style={{ backgroundColor: `${cat.color}22`, color: cat.color }}>
-                                  {catTxs.length}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[16px] font-bold leading-tight"
-                              style={{ fontFamily: 'var(--font-mono)', color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
-                              ${fmt(total)}
-                            </p>
-                          </button>
-
-                          {/* Transaction rows — natural height, no scroll */}
-                          <div>
-                            {shownTxs.map(tx => (
-                              <TransactionCard key={tx.id} tx={tx} accounts={accounts} compact
-                                isDragging={draggingTxId === tx.id} {...makeDragHandlers(tx)} />
-                            ))}
-                            {catTxs.length === 0 && !isDragOver && (
-                              <div className="mx-2.5 my-3 border border-dashed rounded-xl py-4 text-center"
-                                style={{ borderColor: `${cat.color}30` }}>
-                                <p className="text-[10px] font-medium" style={{ color: `${cat.color}` , opacity: 0.5 }}>Drop to categorize</p>
-                              </div>
-                            )}
-                            {isDragOver && (
-                              <div className="mx-2.5 my-2 rounded-xl py-4 text-center"
-                                style={{ border: `2px dashed ${cat.color}80`, backgroundColor: `${cat.color}0a` }}>
-                                <p className="text-[10px] font-bold" style={{ color: cat.color }}>Drop here</p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Footer: "view more" or color accent */}
-                          {hiddenCount > 0 ? (
-                            <button
-                              onClick={() => setDetailCat(cat)}
-                              className="w-full py-2.5 text-[10px] font-semibold transition-colors"
-                              style={{ color: cat.color, borderTop: `1px solid ${cat.color}25`, backgroundColor: `${cat.color}08` }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${cat.color}14`)}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${cat.color}08`)}
-                            >
-                              +{hiddenCount} more →
-                            </button>
-                          ) : catTxs.length > 0 ? (
-                            <div style={{ height: '2px', backgroundColor: cat.color, opacity: 0.25 }} />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              {/* ── Category area: wrapping grid ── */}
+              <div className="app-scrollbar flex-1 overflow-y-auto">
+                <div className="pt-3">
+                  <CategoryBoard
+                    layout={board}
+                    maxPreview={MAX_TX_SHOWN}
+                    draggingTxId={draggingTxId}
+                    dragOverTarget={dragOverTarget}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onOpenCategory={setDetailCat}
+                    makeDragHandlers={makeDragHandlers}
+                  />
+                </div>
               </div>
-              </div> {/* /grid clip */}
-              </div> {/* /category area */}
 
             </div>
 
@@ -1274,8 +1126,17 @@ const Transactions: React.FC = () => {
                         className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--pos)' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <p className="font-semibold" style={{ color: 'var(--pos)' }}>All categorized!</p>
-                      <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Tap "By Category" to review</p>
+                      <p className="font-semibold" style={{ color: 'var(--pos)' }}>Nothing left to review</p>
+                      <p className="text-sm mt-1 max-w-xs mx-auto" style={{ color: 'var(--muted)' }}>
+                        Every imported transaction this month has a category.
+                      </p>
+                      <button
+                        onClick={() => setMobileView('categories')}
+                        className="mt-4 px-4 text-xs font-semibold rounded-lg"
+                        style={{ minHeight: 40, color: 'var(--accent)', border: '1px solid var(--line)' }}
+                      >
+                        Review by category
+                      </button>
                     </div>
                   ) : uncategorized.map(tx => (
                     <TransactionCard key={tx.id} tx={tx} accounts={accounts} isDragging={false} noDrag mobileCard
@@ -1286,70 +1147,21 @@ const Transactions: React.FC = () => {
                 </div>
               )}
 
-              {/* By-category list */}
+              {/* By-category list — the same board, one or two columns wide */}
               {mobileView === 'categories' && (
-                <div className="app-scrollbar flex-1 overflow-y-auto p-3 mobile-tabs-spacer md:pb-4">
-                  <div className="grid grid-cols-2 gap-2.5">
-                  {visibleCategories.map(cat => {
-                    const catTxs = monthTransactions.filter(t => t.category_id === cat.id);
-                    const total  = categoryTotal(catTxs, cat);
-                    const shown  = catTxs.slice(0, MAX_TX_SHOWN);
-                    const hidden = catTxs.length - shown.length;
-                    return (
-                      <div key={cat.id} className="rounded-lg overflow-hidden"
-                        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                        {/* Category header — taps open detail modal */}
-                        <div
-                          className="px-3 py-2.5 cursor-pointer active:opacity-70 transition-opacity"
-                          style={{ borderBottom: catTxs.length > 0 ? '1px solid var(--line)' : 'none' }}
-                          onClick={() => setDetailCat(cat)}
-                        >
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--muted)' }}>{cat.name}</p>
-                          </div>
-                          <p className="font-mono font-bold text-base leading-tight"
-                            style={{ color: cat.color, fontVariantNumeric: 'tabular-nums' }}>
-                            ${fmt(total)}
-                          </p>
-                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>{catTxs.length} transactions</p>
-                        </div>
-                        {/* Preview: first MAX_TX_SHOWN transactions */}
-                        {shown.map((tx, i) => {
-                          const pos = Number(tx.amount) >= 0;
-                          const shortDate = new Date(tx.transaction_date + 'T00:00:00')
-                            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          return (
-                            <div key={tx.id}
-                              onClick={() => setEditTx(tx)}
-                              className="flex items-center gap-2 px-3 py-2 cursor-pointer active:opacity-60 transition-opacity"
-                              style={{ borderBottom: (i < shown.length - 1 || hidden > 0) ? '1px solid var(--line)' : 'none' }}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>
-                                  {cleanDescription(tx.description)}
-                                </p>
-                                <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>{shortDate}</p>
-                              </div>
-                              <p className="font-mono font-bold text-xs shrink-0"
-                                style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-                                {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
-                              </p>
-                            </div>
-                          );
-                        })}
-                        {hidden > 0 && (
-                          <button
-                            onClick={() => setDetailCat(cat)}
-                            className="w-full py-2.5 text-xs font-semibold transition-colors active:opacity-70"
-                            style={{ color: cat.color, backgroundColor: `${cat.color}08` }}
-                          >
-                            +{hidden} more transactions
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  </div> {/* /grid */}
+                <div className="app-scrollbar flex-1 overflow-y-auto pt-3 mobile-tabs-spacer md:pb-4">
+                  <CategoryBoard
+                    layout={board}
+                    maxPreview={MAX_TX_SHOWN}
+                    draggingTxId={null}
+                    dragOverTarget={null}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onOpenCategory={setDetailCat}
+                    makeDragHandlers={makeDragHandlers}
+                    compact={false}
+                  />
                 </div>
               )}
             </div>
@@ -1486,28 +1298,54 @@ const Transactions: React.FC = () => {
               </div>
             )}
 
-            {/* Transaction list */}
+            {/* Transaction list, grouped by day */}
             <div className="flex-1 overflow-y-auto app-scrollbar mobile-tabs-spacer md:pb-4">
               {filteredList.length === 0 ? (
-                <div className="py-16 text-center">
-                  <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
-                    {hasActiveFilters ? 'No transactions match' : 'No transactions yet'}
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>
+                <div className="py-16 px-6 text-center">
+                  <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
                     {hasActiveFilters
-                      ? 'Try adjusting your filters'
+                      ? 'No transactions match these filters'
                       : transactions.length === 0
-                        ? 'Add your first transaction to get started'
-                        : 'Tap Filters to search your transactions'}
+                        ? 'No transactions yet'
+                        : 'Nothing to show'}
                   </p>
+                  <p className="text-xs mt-1.5 max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--muted)' }}>
+                    {hasActiveFilters
+                      ? `${activeFilterCount} ${activeFilterCount === 1 ? 'filter is' : 'filters are'} active. Widen the date range or clear them to see more.`
+                      : transactions.length === 0
+                        ? 'Linked accounts import their activity automatically. Anything imported will appear here.'
+                        : 'Every transaction is outside the current filters.'}
+                  </p>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      className="mt-4 px-4 text-xs font-semibold rounded-lg"
+                      style={{ minHeight: 40, color: 'var(--accent)', border: '1px solid var(--line)' }}
+                    >
+                      Clear filters
+                    </button>
+                  )}
                 </div>
               ) : (
-                filteredList.map(tx => (
-                  <TransactionCard key={tx.id} tx={tx} accounts={accounts}
-                    isDragging={false} noDrag
-                    onDragStart={() => {}} onDragEnd={() => {}}
-                    onClick={() => setEditTx(tx)}
-                    onDelete={() => handleDelete(tx.id)} />
+                timelineDays.map(day => (
+                  <section key={day.date} aria-label={day.label}>
+                    <DayHeader day={day} />
+                    {day.transactions.map(tx => (
+                      <TransactionCard
+                        key={tx.id}
+                        tx={tx}
+                        accounts={accounts}
+                        isDragging={false}
+                        noDrag
+                        kind={classifyTransaction(tx, classification)}
+                        categoryName={getCategory(tx.category_id)?.name ?? null}
+                        onDragStart={() => {}}
+                        onDragEnd={() => {}}
+                        onClick={() => setEditTx(tx)}
+                        onDelete={() => handleDelete(tx.id)}
+                      />
+                    ))}
+                  </section>
                 ))
               )}
             </div>
@@ -1544,9 +1382,12 @@ const Transactions: React.FC = () => {
 
               {items.length === 0 ? (
                 <div className="card py-14 text-center">
-                  <p className="text-4xl mb-3">🔄</p>
-                  <p className="font-semibold text-text mb-1">No recurring transactions</p>
-                  <p className="text-sm text-muted mb-5">Track rent, salary, subscriptions and more</p>
+                  <p className="font-semibold text-text mb-1">No recurring transactions yet</p>
+                  <p className="text-sm text-muted mb-5 max-w-sm mx-auto leading-relaxed">
+                    Declaring rent, salary and subscriptions lets Fintrack show what is due next
+                    and forecast the month. Imported activity works without this — it just cannot
+                    be predicted ahead of time.
+                  </p>
                   <button onClick={() => setShowAddRecurring(true)} className="btn-gradient px-6 py-2.5 text-sm">Add First Recurring</button>
                 </div>
               ) : (

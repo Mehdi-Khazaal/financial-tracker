@@ -139,7 +139,10 @@ body::after {
   --dock-edge-gap: 8px;
   --dock-height: calc(var(--dock-shell-height) + 14px);
   --context-tabs-height: 52px;
-  --context-tabs-gap: 8px;
+  /* Two floating dark pills 8px apart read as one control with a seam. 14px is
+     enough daylight to separate them without eating usable viewport — the
+     bottom reserve below is derived from this, so content clearance follows. */
+  --context-tabs-gap: 14px;
   --mobile-context-bottom: calc(var(--safe-bottom) + var(--dock-height) + var(--context-tabs-gap));
   --mobile-dock-reserve: calc(var(--safe-bottom) + var(--dock-height) + 16px);
   --mobile-tabs-reserve: calc(var(--mobile-dock-reserve) + var(--context-tabs-height) + var(--context-tabs-gap));

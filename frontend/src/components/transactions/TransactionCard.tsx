@@ -1,6 +1,17 @@
 import React from 'react';
 import { Account, Transaction } from '../../types';
 import { cleanDescription } from '../../utils/api';
+import type { TransactionKind } from '../../features/analytics/types';
+import { KIND_COLORS, KIND_LABELS } from '../../features/analytics/calculations/transactions';
+
+/**
+ * A label only when the sign alone would mislead.
+ *
+ * A negative amount already reads as spending and a positive one as money in,
+ * so tagging those adds noise. A refund and a card payment are the two that
+ * look like income and are not, so those — and only those — say what they are.
+ */
+const NEEDS_LABEL: TransactionKind[] = ['refund', 'card-payment'];
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,6 +27,10 @@ export interface TransactionCardProps {
   onDragEnd: () => void;
   onClick: () => void;
   onDelete: () => void;
+  /** Classification, when the caller has already computed it. */
+  kind?: TransactionKind;
+  /** Shown beside the account on the timeline row. */
+  categoryName?: string | null;
 }
 
 const TransactionCard: React.FC<TransactionCardProps> = ({
@@ -29,6 +44,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
   onDragEnd,
   onClick,
   onDelete,
+  kind,
+  categoryName,
 }) => {
   const pos = Number(tx.amount) >= 0;
   const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
@@ -37,6 +54,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
     day: 'numeric',
   });
   const amountStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(tx.amount)))}`;
+  const description = cleanDescription(tx.description);
+  const showKind = kind != null && NEEDS_LABEL.includes(kind);
 
   if (compact) {
     return (
@@ -49,8 +68,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         style={{ borderBottom: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1 }}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }}>
-            {cleanDescription(tx.description)}
+          <p className="text-[12px] font-medium truncate leading-snug" style={{ color: 'var(--fg)' }} title={description}>
+            {description}
           </p>
           <p className="text-[11px] mt-0.5 leading-none" style={{ fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
             {shortDate}
@@ -130,12 +149,27 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
       )}
 
       <div className="flex-1 min-w-0">
-        <p className={`${mobileCard ? 'text-sm' : 'text-[11px]'} font-semibold leading-snug truncate`} style={{ color: 'var(--fg)' }}>
-          {cleanDescription(tx.description)}
+        {/* `min-w-0` above plus `truncate` here is what stops a long merchant
+            name from pushing the amount off the right edge. The full string
+            stays reachable through the title, and through the editor. */}
+        <p
+          className={`${mobileCard ? 'text-sm' : 'text-[13px]'} font-semibold leading-snug truncate`}
+          style={{ color: 'var(--fg)' }}
+          title={description}
+        >
+          {description}
         </p>
-        <p className={`${mobileCard ? 'text-xs' : 'text-[9px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
-          {accountName} · {shortDate}
+        <p className={`${mobileCard ? 'text-xs' : 'text-[11px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
+          {[accountName, categoryName, shortDate].filter(Boolean).join(' · ')}
         </p>
+        {showKind && (
+          <span
+            className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none"
+            style={{ color: KIND_COLORS[kind], backgroundColor: 'var(--elev-sub)' }}
+          >
+            {KIND_LABELS[kind]}
+          </span>
+        )}
         {mobileCard && (
           <div className="mt-2 flex items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
