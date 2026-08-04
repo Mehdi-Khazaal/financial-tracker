@@ -151,7 +151,8 @@ describe('credit cards', () => {
     const { onRecordPayment } = renderCard(card(-213.37));
 
     // The action writes a transfer between two Fintrack accounts; it contacts
-    // no bank, so it must not be labelled as though it does.
+    // no bank, so neither this trigger nor the modal's confirm button may be
+    // labelled as though it does. `TransferModal` carries the matching test.
     expect(screen.queryByText('Pay Card')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Record a payment'));
     expect(onRecordPayment).toHaveBeenCalled();

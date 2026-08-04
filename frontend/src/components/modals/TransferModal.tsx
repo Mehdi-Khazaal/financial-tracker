@@ -10,7 +10,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  preselectedFromId?: number;   // e.g. for "Pay Card" flow
+  preselectedFromId?: number;   // e.g. for the record-a-card-payment flow
   preselectedToId?: number;
 }
 
@@ -107,7 +107,11 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
 
         <button type="submit" disabled={loading || !amount || fromId === toId}
           className="btn-gradient w-full py-3.5 disabled:opacity-40">
-          {loading ? 'Processing…' : isPayCard ? 'Pay Card' : 'Transfer'}
+          {/* "Record payment", not "Pay Card". This writes a transfer between
+              two Fintrack accounts and contacts no bank, so the button the user
+              actually presses must not claim otherwise — the trigger on the
+              account card was relabelled for the same reason. */}
+          {loading ? 'Processing…' : isPayCard ? 'Record payment' : 'Transfer'}
         </button>
       </form>
     </BottomSheet>
