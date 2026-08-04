@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
-import { DEEP_LINK_KEYS, linkToAccountTransactions, parseIdParam } from '../lib/deepLinks';
+import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
 import { Account, Loan, MonthSnapshot, Transaction } from '../types';
 import {
   getAccounts, deleteAccount, getAccountHistories,
   getLoans, updateLoan, deleteLoan,
-  getTransactions, cleanDescription,
+  fetchAllTransactions, cleanDescription,
 } from '../utils/api';
-import { localDateStr } from '../utils/date';
 import { downloadCSV, printPDF } from '../utils/export';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
@@ -23,153 +21,17 @@ import WithdrawModal from '../components/modals/WithdrawModal';
 import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
+import { calculateAccountTotals } from '../features/accounts/calculations/totals';
+import { calculateLoanTotals } from '../features/accounts/calculations/loans';
+import AccountCard from '../features/accounts/components/AccountCard';
+import AccountsSummary from '../features/accounts/components/AccountsSummary';
+import LoanCard from '../features/accounts/components/LoanCard';
 import LoadErrorBanner from '../components/LoadErrorBanner';
 import { AccountsPageSkeleton } from '../components/Skeleton';
 
 type Tab = 'wallet' | 'cards' | 'loans';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const formatDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-const getDueStatus = (loan: Loan): 'overdue' | 'soon' | 'ok' | null => {
-  if (!loan.due_date || loan.status !== 'active') return null;
-  const today = localDateStr();
-  if (loan.due_date < today) return 'overdue';
-  const days = Math.ceil((new Date(loan.due_date).getTime() - new Date(today).getTime()) / 86400000);
-  return days <= 7 ? 'soon' : 'ok';
-};
-
-const Sparkline: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
-  if (data.length < 2) return null;
-  const w = 72; const h = 28;
-  const min = Math.min(...data); const max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - 2 - ((v - min) / range) * (h - 4);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="opacity-70">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
-interface LoanCardProps {
-  loan: Loan; repayInput: string; repaying: boolean;
-  onRepayChange: (id: number, val: string) => void;
-  onRepayment: (loan: Loan) => void;
-  onMarkRepaid: (id: number) => void;
-  onWriteOff: (id: number) => void;
-  onDelete: (loan: Loan) => void;
-}
-
-const LoanCard: React.FC<LoanCardProps> = ({ loan, repayInput, repaying, onRepayChange, onRepayment, onMarkRepaid, onWriteOff, onDelete }) => {
-  const outstanding = Number(loan.amount) - Number(loan.amount_repaid);
-  const progress    = Number(loan.amount) > 0 ? (Number(loan.amount_repaid) / Number(loan.amount)) * 100 : 0;
-  const dueStatus   = getDueStatus(loan);
-  const isActive    = loan.status === 'active';
-
-  return (
-    <div className="card overflow-hidden group">
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-base shrink-0"
-              style={{ backgroundColor: 'var(--elev-sub)', color: isActive ? '#f59e0b' : 'var(--pos)', border: '1px solid var(--line)' }}>
-              {loan.borrower_name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <p className="font-semibold text-sm text-text">{loan.borrower_name}</p>
-              <p className="text-xs text-muted">{formatDate(loan.loan_date)}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <div className="text-right">
-              <p className="font-mono font-bold text-base" style={{ color: isActive ? '#f59e0b' : 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>
-                ${fmt(isActive ? outstanding : Number(loan.amount))}
-              </p>
-              {isActive && Number(loan.amount_repaid) > 0 && (
-                <p className="text-[10px] text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>of ${fmt(Number(loan.amount))}</p>
-              )}
-              {loan.status === 'repaid' && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Repaid</span>
-              )}
-              {loan.status === 'written_off' && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>Written off</span>
-              )}
-            </div>
-            <button onClick={() => onDelete(loan)}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
-              aria-label={`Delete loan for ${loan.borrower_name}`}
-              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        {loan.note && <p className="text-xs text-muted mb-3 italic">"{loan.note}"</p>}
-        {loan.due_date && isActive && (
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
-              style={{
-                backgroundColor: dueStatus === 'overdue' ? 'oklch(70% 0.17 25 / 0.15)' : dueStatus === 'soon' ? 'rgba(245,158,11,.15)' : 'oklch(72% 0.17 55 / 0.1)',
-                color: dueStatus === 'overdue' ? 'var(--neg)' : dueStatus === 'soon' ? '#f59e0b' : 'var(--accent)',
-              }}>
-              {dueStatus === 'overdue' ? 'Overdue - ' : 'Due '}{formatDate(loan.due_date)}
-            </span>
-          </div>
-        )}
-        {isActive && Number(loan.amount_repaid) > 0 && (
-          <div className="mb-3">
-            <div className="flex justify-between text-[10px] text-muted mb-1.5">
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>Repaid ${fmt(Number(loan.amount_repaid))}</span>
-              <span>{progress.toFixed(0)}%</span>
-            </div>
-            <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--line)' }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: 'var(--pos)' }} />
-            </div>
-          </div>
-        )}
-      </div>
-      {isActive && (
-        <div className="px-4 pb-4 pt-0 space-y-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-muted text-xs">$</span>
-              <input type="number" step="0.01" min="0.01" value={repayInput}
-                onChange={e => onRepayChange(loan.id, e.target.value)}
-                className="input-dark pl-6 text-sm py-2.5"
-                placeholder={`Amount received (of $${fmt(outstanding)} left)`} />
-            </div>
-            <button onClick={() => onRepayment(loan)}
-              disabled={repaying || !repayInput || parseFloat(repayInput) <= 0}
-              className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
-              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-              {repaying ? '...' : '+ Got paid'}
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => onMarkRepaid(loan.id)}
-              className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95"
-              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.08)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.15)' }}>
-              Mark fully repaid
-            </button>
-            <button onClick={() => onWriteOff(loan.id)}
-              className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all active:scale-95"
-              style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
-              Write off
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // Accounts page
 const AccountsPage: React.FC = () => {
@@ -204,7 +66,12 @@ const AccountsPage: React.FC = () => {
     setLoadError(false);
     setFailedSources([]);
     try {
-      const results = await Promise.allSettled([getAccounts(), getTransactions(), getLoans(), getAccountHistories(6)]);
+      // Paginated, not the API's default first 500 rows. The Cards tab slices
+      // per-card activity out of this list, so a bare fetch meant a card whose
+      // recent charges fell outside the newest 500 transactions showed nothing
+      // — or worse, an older card's charges — with no indication anything was
+      // missing.
+      const results = await Promise.allSettled([getAccounts(), fetchAllTransactions(), getLoans(), getAccountHistories(6)]);
       const labels = ['accounts', 'transactions', 'loans', 'history'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const accountsResult = results[0];
@@ -214,7 +81,8 @@ const AccountsPage: React.FC = () => {
       }
       const transactionsResult = results[1];
       if (transactionsResult.status === 'fulfilled') {
-        setTransactions(Array.isArray(transactionsResult.value.data) ? transactionsResult.value.data : []);
+        // `fetchAllTransactions` resolves to an array, not an Axios response.
+        setTransactions(Array.isArray(transactionsResult.value) ? transactionsResult.value : []);
       }
       const loansResult = results[2];
       if (loansResult.status === 'fulfilled') {
@@ -298,13 +166,15 @@ const AccountsPage: React.FC = () => {
     catch { toast.error('Failed to update'); }
   }, [toast, load]);
 
-  // Derived
+  // Derived — every figure below comes from the canonical definitions in
+  // `features/accounts/calculations/totals`, which Overview, Analytics and the
+  // backend's net-worth series all share. This page used to compute its own,
+  // and quietly disagreed with them about credit-card debt.
   const ccAccounts   = accounts.filter(a => a.type === 'credit_card');
-  const spendable    = accounts.filter(a => a.type === 'checking' || a.type === 'cash').reduce((s, a) => s + Number(a.balance), 0);
-  const totalAssets  = accounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + Number(a.balance), 0);
-  const totalOwed    = ccAccounts.reduce((s, a) => s + Math.abs(Number(a.balance)), 0);
-  const totalLimit   = ccAccounts.reduce((s, a) => s + (Number(a.credit_limit) || 0), 0);
-  const totalUtil    = totalLimit > 0 ? (totalOwed / totalLimit) * 100 : 0;
+  const totals       = calculateAccountTotals(accounts);
+  const totalOwed    = totals.cardDebt;
+  const totalLimit   = totals.creditLimit;
+  const totalUtil    = totals.utilization;
   const groups       = ['Spending', 'Savings', 'Credit', 'Other'];
   const grouped      = groups.reduce<Record<string, Account[]>>((acc, g) => {
     acc[g] = accounts.filter(a => (ACCOUNT_TYPE_META[a.type]?.group ?? 'Other') === g);
@@ -314,9 +184,12 @@ const AccountsPage: React.FC = () => {
   const activeLoans  = loans.filter(l => l.status === 'active');
   const repaidLoans  = loans.filter(l => l.status === 'repaid');
   const writtenOff   = loans.filter(l => l.status === 'written_off');
-  const totalOutstanding = activeLoans.reduce((s, l) => s + Number(l.amount) - Number(l.amount_repaid), 0);
-  const totalLent    = loans.reduce((s, l) => s + Number(l.amount), 0);
-  const totalRecovered = loans.reduce((s, l) => s + Number(l.amount_repaid), 0);
+  // Shared with the loan cards, so the summary and the rows agree about
+  // overpayment and written-off loans.
+  const loanTotals   = calculateLoanTotals(loans);
+  const totalOutstanding = loanTotals.outstanding;
+  const totalLent    = loanTotals.lent;
+  const totalRecovered = loanTotals.recovered;
 
   const exportLoans = (format: 'csv' | 'pdf') => {
     const headers = ['Borrower', 'Amount', 'Repaid', 'Outstanding', 'Note', 'Loan Date', 'Due Date', 'Status'];
@@ -459,25 +332,7 @@ const AccountsPage: React.FC = () => {
           {/* Wallet tab */}
           {tab === 'wallet' && !failedSources.includes('accounts') && (
             <>
-              {/* Hero */}
-              <div className="rounded-xl p-5 relative overflow-hidden"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                {/* Same definition and same words as the Overview hero. */}
-                <p className="label mb-1">Available to spend</p>
-                <p className="font-bold text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: '2.2rem', letterSpacing: '-1px' }}>
-                  ${fmt(spendable)}
-                </p>
-                <div className="flex gap-6 mt-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--accent)' }}>Total Accounts</p>
-                    <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalAssets)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--muted)' }}>Count</p>
-                    <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)' }}>{accounts.length}</p>
-                  </div>
-                </div>
-              </div>
+              <AccountsSummary totals={totals} />
 
               {accounts.length === 0 ? (
                 <div className="card py-12 text-center">
@@ -486,104 +341,34 @@ const AccountsPage: React.FC = () => {
                   <button onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add First Account</button>
                 </div>
               ) : (
-                groups.map(group => {
+                // Groups flow into columns rather than stacking full-width.
+                // Stacked, a group holding one account left three quarters of a
+                // 1440 viewport empty and squeezed the card into a quarter-width
+                // column that truncated its own name.
+                <div className="lg:columns-2 xl:columns-3 gap-4 space-y-5 lg:space-y-0">
+                {groups.map(group => {
                   const list = grouped[group];
                   if (!list || list.length === 0) return null;
                   return (
-                    <div key={group}>
+                    <div key={group} className="break-inside-avoid mb-5">
                       <p className="label mb-3">{group}</p>
-                      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        {list.map(account => {
-                          const meta = ACCOUNT_TYPE_META[account.type] ?? ACCOUNT_TYPE_META.checking;
-                          const isCreditCard = account.type === 'credit_card';
-                          const owed = isCreditCard ? Math.abs(Number(account.balance)) : 0;
-                          const limit = Number(account.credit_limit) || 0;
-                          const utilized = limit > 0 ? (owed / limit) * 100 : 0;
-                          const available = limit > 0 ? limit - owed : 0;
-                          const hist = histories[account.id] ?? [];
-                          const sparkData = hist.map(h => h.balance ?? 0);
-                          const balanceChange = sparkData.length >= 2 ? sparkData[sparkData.length - 1] - sparkData[0] : 0;
-                          const sparkColor = isCreditCard
-                            ? (balanceChange <= 0 ? 'var(--pos)' : 'var(--neg)')
-                            : (balanceChange >= 0 ? 'var(--pos)' : 'var(--neg)');
-
-                          const isFocused = focusAccountId === account.id;
-                          return (
-                            <div
-                              key={account.id}
-                              id={`account-${account.id}`}
-                              className="card card-hover p-4 group transition-all"
-                              style={isFocused ? {
-                                borderColor: 'var(--accent)',
-                                boxShadow: 'var(--edge-light), 0 0 0 1px var(--accent-glow)',
-                              } : undefined}
-                            >
-                              {/* Top row: icon + name + action buttons */}
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <AccountTypeIcon type={account.type} className="w-9 h-9" iconClassName="w-[18px] h-[18px]" />
-                                  <div className="min-w-0">
-                                    <p className="font-semibold text-sm text-text leading-snug">{account.name}</p>
-                                    <p className="text-xs text-muted">{meta.label}</p>
-                                  </div>
-                                </div>
-                                <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-                                  <button onClick={() => setEditAccount(account)}
-                                    className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
-                                    aria-label={`Edit ${account.name}`}
-                                    style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
-                                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
-                                  </button>
-                                  <button onClick={() => handleDeleteAccount(account.id, account.name)}
-                                    className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
-                                    aria-label={`Delete ${account.name}`}
-                                    style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-                                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                                  </button>
-                                </div>
-                              </div>
-                              {/* Bottom row: balance + sparkline */}
-                              <div className="flex items-end justify-between">
-                                <div>
-                                  <p className="font-bold text-lg" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: Number(account.balance) < 0 ? 'var(--neg)' : 'var(--fg)' }}>
-                                    {Number(account.balance) < 0 ? '-' : ''}${fmt(Number(account.balance))}
-                                  </p>
-                                  {sparkData.length >= 2 && balanceChange !== 0 && (
-                                    <p className="text-[10px] mt-0.5" style={{ fontFamily: 'var(--font-mono)', color: isCreditCard ? (balanceChange <= 0 ? 'var(--pos)' : 'var(--neg)') : (balanceChange >= 0 ? 'var(--pos)' : 'var(--neg)') }}>
-                                      {balanceChange >= 0 ? '+' : ''}{fmt(balanceChange)} <span className="text-muted">6mo</span>
-                                    </p>
-                                  )}
-                                </div>
-                                {sparkData.length >= 2 && <Sparkline data={sparkData} color={sparkColor} />}
-                              </div>
-                              {isCreditCard && limit > 0 && (
-                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-                                  <div className="flex justify-between text-xs text-muted mb-2">
-                                    <span>Used ${fmt(owed)} of ${fmt(limit)}</span>
-                                    <span style={{ color: available > 0 ? 'var(--pos)' : 'var(--neg)' }}>${fmt(available)} available</span>
-                                  </div>
-                                  <ProgressBar value={utilized} colorAuto />
-                                </div>
-                              )}
-
-                              {/* "Where is my money" leads to "what happened to
-                                  it" — the timeline, already filtered here. */}
-                              <Link
-                                to={linkToAccountTransactions(account.id)}
-                                className="mt-3 pt-3 flex items-center justify-between text-xs font-medium"
-                                style={{ borderTop: '1px solid var(--line)', color: 'var(--accent)', minHeight: 40 }}
-                                aria-label={`View transactions for ${account.name}`}
-                              >
-                                <span>View transactions</span>
-                                <span aria-hidden="true">→</span>
-                              </Link>
-                            </div>
-                          );
-                        })}
+                      <div className="grid sm:grid-cols-2 lg:grid-cols-1 gap-3">
+                        {list.map(account => (
+                          <AccountCard
+                            key={account.id}
+                            account={account}
+                            history={histories[account.id]}
+                            isFocused={focusAccountId === account.id}
+                            onEdit={setEditAccount}
+                            onDelete={a => handleDeleteAccount(a.id, a.name)}
+                            onRecordPayment={setPayCard}
+                          />
+                        ))}
                       </div>
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </>
           )}
@@ -600,7 +385,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {totalLimit > 0 && (
+                  {totalUtil != null && (
                     <div className="card p-5">
                       <div className="flex justify-between items-center mb-3">
                         <div>
@@ -618,65 +403,43 @@ const AccountsPage: React.FC = () => {
                   )}
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {ccAccounts.map(card => {
-                      const owed = Math.abs(Number(card.balance));
-                      const limit = Number(card.credit_limit) || 0;
-                      const available = limit > 0 ? limit - owed : 0;
-                      const utilized = limit > 0 ? (owed / limit) * 100 : 0;
                       const cardTxs = transactions.filter(t => t.account_id === card.id).slice(0, 5);
                       return (
-                        <div key={card.id} className="card overflow-hidden">
-                          <div className="relative p-5 overflow-hidden" style={{ backgroundColor: 'var(--elev-1)', borderBottom: '1px solid var(--line)' }}>
-                            <div className="flex justify-between items-start mb-6">
-                              <div>
-                                <p className="font-bold text-text">{card.name}</p>
-                                <p className="text-xs text-muted mt-0.5">Credit Card</p>
-                              </div>
-                              <AccountTypeIcon type="credit_card" className="w-9 h-9" iconClassName="w-[18px] h-[18px]" />
-                            </div>
-                            <div className="flex justify-between items-end">
-                              <div>
-                                <p className="text-[10px] uppercase tracking-widest text-muted mb-1">Balance Owed</p>
-                                <p className="font-bold text-2xl" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--neg)' }}>${fmt(owed)}</p>
-                              </div>
-                              {limit > 0 && (
-                                <div className="text-right">
-                                  <p className="text-[10px] uppercase tracking-widest text-muted mb-1">Available</p>
-                                  <p className="font-bold text-lg" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--pos)' }}>${fmt(available)}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {limit > 0 && (
-                            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--line)' }}>
-                              <div className="flex justify-between text-xs text-muted mb-2">
-                                <span>Used: ${fmt(owed)}</span><span>Limit: ${fmt(limit)}</span>
-                              </div>
-                              <ProgressBar value={utilized} colorAuto height={6} />
-                            </div>
-                          )}
-                          <div className="px-5 py-3 flex gap-2" style={{ borderBottom: cardTxs.length > 0 ? '1px solid var(--line)' : 'none' }}>
-                            <button onClick={() => setPayCard(card)}
-                              className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                              style={{ backgroundColor: 'var(--accent)', color: 'white' }}>Pay Card</button>
-                            <button onClick={() => setEditAccount(card)}
-                              className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                              style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>Edit</button>
-                            <button onClick={() => handleDeleteAccount(card.id, card.name)}
-                              className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>Delete</button>
-                          </div>
+                        <div key={card.id} className="flex flex-col gap-3">
+                          {/* The same card component the Wallet tab uses — one
+                              implementation of owed / available / utilisation,
+                              so the two tabs cannot drift apart again. */}
+                          <AccountCard
+                            account={card}
+                            history={histories[card.id]}
+                            isFocused={focusAccountId === card.id}
+                            onEdit={setEditAccount}
+                            onDelete={a => handleDeleteAccount(a.id, a.name)}
+                            onRecordPayment={setPayCard}
+                          />
+
+                          {/* Tab-specific detail, not a second account card. */}
                           {cardTxs.length > 0 && (
-                            <div className="px-5 py-3">
-                              <p className="label mb-3">Recent Transactions</p>
+                            <div className="card px-4 py-3">
+                              <p className="label mb-2.5">Recent on this card</p>
                               {cardTxs.map((tx, i) => {
                                 const pos = Number(tx.amount) >= 0;
                                 return (
-                                  <div key={tx.id} className={`flex items-center justify-between py-2.5 ${i !== cardTxs.length - 1 ? 'border-b border-border' : ''}`}>
-                                    <div>
-                                      <p className="text-sm font-medium text-text">{cleanDescription(tx.description)}</p>
-                                      <p className="text-xs text-muted">{tx.transaction_date}</p>
+                                  <div
+                                    key={tx.id}
+                                    className="flex items-center justify-between gap-3 py-2"
+                                    style={{ borderBottom: i !== cardTxs.length - 1 ? '1px solid var(--line)' : 'none' }}
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }} title={cleanDescription(tx.description)}>
+                                        {cleanDescription(tx.description)}
+                                      </p>
+                                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>{tx.transaction_date}</p>
                                     </div>
-                                    <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}>
+                                    <p
+                                      className="font-mono tabular-nums font-semibold text-xs shrink-0"
+                                      style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}
+                                    >
                                       {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                                     </p>
                                   </div>

@@ -112,6 +112,28 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
 
   await page.screenshot({ path: 'e2e/__screenshots__/probe-phone-bottom-390.png', fullPage: false });
 
+  // ── Accounts and Portfolio, across the full range ───────────────────────────
+  // Horizontal overflow is the failure that a full-page capture hides, so it is
+  // measured rather than eyeballed at every width.
+  const overflow: Record<string, unknown>[] = [];
+  for (const route of ['/accounts', '/portfolio']) {
+    for (const [w, h] of [[320, 568], [375, 667], [390, 844], [740, 360], [768, 1024], [1024, 768], [1440, 900], [1920, 1080]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto(route);
+      await page.waitForTimeout(500);
+      const result = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      overflow.push({ route, w, h, ...result, overflows: result.scrollWidth > result.clientWidth + 1 });
+    }
+  }
+  // eslint-disable-next-line no-console
+  console.log('OVERFLOW', JSON.stringify(overflow.filter(r => r.overflows)));
+  // eslint-disable-next-line no-console
+  console.log('OVERFLOW_CHECKED', overflow.length);
+  expect(overflow.filter(r => r.overflows)).toEqual([]);
+
   // The last card must finish above the floating controls, not behind them.
   expect(clearance.gapAboveTabs === null || clearance.gapAboveTabs >= 0).toBeTruthy();
 });

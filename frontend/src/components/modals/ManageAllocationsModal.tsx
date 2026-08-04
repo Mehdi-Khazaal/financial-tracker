@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
+import { ALLOCATABLE_TYPES } from '../../features/accounts/calculations/totals';
 import { setGoalAllocations } from '../../utils/api';
 import { SavingsGoal, Account } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -61,7 +62,10 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
 
   // Spendable accounts only (exclude credit cards since they have negative balances)
   const eligibleAccounts = accounts
-    .filter(a => (a.type !== 'credit_card' && Number(a.balance) > 0) || (inputs[a.id] && parseFloat(inputs[a.id]) > 0))
+    // The named population, not an inline rule — the Portfolio savings total is
+    // built from `ALLOCATABLE_TYPES`, and the list of accounts you can allocate
+    // against has to be the same set or the two disagree.
+    .filter(a => (ALLOCATABLE_TYPES.includes(a.type) && Number(a.balance) > 0) || (inputs[a.id] && parseFloat(inputs[a.id]) > 0))
     .sort((a, b) => Number(b.balance) - Number(a.balance));
 
   const handleChange = (accountId: number, value: string) => {

@@ -140,6 +140,41 @@ test('capture the dashboard across breakpoints', async ({ page, request, registe
   await page.waitForTimeout(800);
   await page.screenshot({ path: 'e2e/__screenshots__/dashboard-07-desktop-top-viewport.png', fullPage: false });
 
+  // ── Accounts, the Phase B surface ───────────────────────────────────────────
+  for (const vp of [
+    { name: '08-accounts-desktop-1440', width: 1440, height: 1100 },
+    { name: '09-accounts-phone-390', width: 390, height: 1200 },
+  ]) {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/accounts');
+    await expect(page.getByText('Net worth').first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `e2e/__screenshots__/dashboard-${vp.name}.png`, fullPage: true });
+  }
+
+  // Cards tab, where two implementations became one.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/accounts');
+  await page.getByRole('button', { name: /^Cards$/ }).first().click();
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: 'e2e/__screenshots__/dashboard-10-accounts-cards-1440.png', fullPage: true });
+
+  // ── Portfolio, the Phase C surface ──────────────────────────────────────────
+  for (const [name, tab] of [['11-portfolio-investments', 'Investments'], ['12-portfolio-savings', 'Savings']] as const) {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto('/portfolio');
+    await expect(page.getByText('Net worth over time')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: new RegExp(`^${tab}$`) }).first().click();
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: `e2e/__screenshots__/dashboard-${name}-1440.png`, fullPage: true });
+  }
+
+  await page.setViewportSize({ width: 390, height: 1400 });
+  await page.goto('/portfolio');
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: 'e2e/__screenshots__/dashboard-13-portfolio-phone-390.png', fullPage: true });
+
+  await page.goto('/');
   // Landscape, the tightest vertical case on mobile.
   await page.setViewportSize({ width: 740, height: 360 });
   await page.waitForTimeout(800);

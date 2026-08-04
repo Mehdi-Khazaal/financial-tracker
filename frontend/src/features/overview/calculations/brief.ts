@@ -26,7 +26,7 @@ import { dollars, monthLabel, plural, relativeDays, signedPercent, verbFor } fro
 import { merchantDisplayName, normalizeMerchantName } from '../../analytics/calculations/transactions';
 import { dateKey, daysBetween } from '../../analytics/period';
 import type { MonthActivity } from '../types';
-import { cardUtilization, totalCardDebt } from './accounts';
+import { HIGH_UTILIZATION, cardUtilization, totalCardDebt } from './accounts';
 import {
   linkToBanking, linkToCards, linkToGoal, linkToRecurring, linkToReview,
 } from '../../../lib/deepLinks';
@@ -205,7 +205,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
   }
 
   const utilization = cardUtilization(accounts);
-  if (utilization != null && utilization >= 80) {
+  if (utilization != null && utilization >= HIGH_UTILIZATION) {
     items.push({
       id: 'high-utilization',
       priority: 4,

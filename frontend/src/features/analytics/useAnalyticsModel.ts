@@ -45,6 +45,11 @@ import { buildPeriodSummary } from './calculations/summary';
 import { calculateFinancialHealth } from './calculations/health';
 import { calculateForecast } from './calculations/forecast';
 import { monthlyRecurringExpense } from './calculations/recurring';
+import {
+  LIQUID_TYPES,
+  netWorthFromAccounts,
+  sumByTypes,
+} from '../accounts/calculations/totals';
 
 export interface AnalyticsSources {
   transactions: Transaction[];
@@ -192,9 +197,8 @@ export function useAnalyticsModel(
     const completedMonths = ascendingMonths.filter(m => m < currentMonth);
     const monthly = monthlyMetrics(transactions, completedMonths, ctx);
 
-    const liquidBalance = accounts
-      .filter(a => a.type === 'checking' || a.type === 'savings' || a.type === 'cash')
-      .reduce((s, a) => s + Number(a.balance), 0);
+    // Canonical populations, shared with Accounts and Overview.
+    const liquidBalance = sumByTypes(accounts, LIQUID_TYPES);
     const cards = accounts.filter(a => a.type === 'credit_card');
     const creditCardDebt = cards.reduce((s, a) => s + Math.max(0, -Number(a.balance)), 0);
     const creditLimit = cards.reduce((s, a) => s + (Number(a.credit_limit) || 0), 0);
@@ -236,9 +240,7 @@ export function useAnalyticsModel(
       forecast,
       baseline,
       baselineLabel: baselineDescription(baseline.length),
-      currentNetWorth: accounts
-        .filter(a => a.type !== 'investment')
-        .reduce((s, a) => s + Number(a.balance), 0),
+      currentNetWorth: netWorthFromAccounts(accounts),
       periodTransactions,
     };
   }, [

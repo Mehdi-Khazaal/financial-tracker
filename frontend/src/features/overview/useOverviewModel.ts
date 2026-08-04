@@ -37,7 +37,8 @@ import {
   RECENT_WINDOW_DAYS, buildMorningBrief, calculateSpendingPace,
   type BriefItem, type SpendingPace,
 } from './calculations/brief';
-import { cardUtilization, totalCardDebt, totalCreditLimit } from './calculations/accounts';
+import { calculateAccountTotals } from '../accounts/calculations/totals';
+import { valuePortfolio } from '../portfolio/calculations/investments';
 
 export interface OverviewSources {
   accounts: Account[];
@@ -140,12 +141,11 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
 
     const review = buildImportReview(transactions, monthKey);
 
-    // Net worth is account balances excluding investments — the same definition
-    // the backend's /history/net-worth uses and the same one Analytics reports,
-    // so the three can never quote different figures.
-    const currentNetWorth = accounts
-      .filter(a => a.type !== 'investment')
-      .reduce((s, a) => s + Number(a.balance), 0);
+    // Every account figure below comes from the canonical definitions in
+    // `features/accounts/calculations/totals`. These used to be inline reduces
+    // that happened to agree; a shared call cannot drift.
+    const accountTotals = calculateAccountTotals(accounts);
+    const currentNetWorth = accountTotals.netWorth;
 
     const points = snapshots
       .slice(-12)
@@ -288,18 +288,19 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       pace,
       forecast,
       netWorth,
-      availableToSpend: accounts
-        .filter(a => a.type === 'checking' || a.type === 'cash')
-        .reduce((s, a) => s + Number(a.balance), 0),
-      physicalAssets: assets
-        .filter(a => a.asset_class === 'physical')
-        .reduce((s, a) => s + Number(a.total_value), 0),
-      investments: assets
-        .filter(a => a.asset_class === 'investment')
-        .reduce((s, a) => s + Number(a.total_value), 0),
-      cardDebt: totalCardDebt(accounts),
-      creditLimit: totalCreditLimit(accounts),
-      cardUtilization: cardUtilization(accounts),
+      availableToSpend: accountTotals.availableToSpend,
+      physicalAssets: valuePortfolio(
+        assets.filter(a => a.asset_class === 'physical'), {},
+      ).total,
+      // The same valuation Portfolio runs, with an empty price map — Overview
+      // makes no market calls, so every holding contributes its recorded
+      // value. One function, two inputs, no second definition.
+      investments: valuePortfolio(
+        assets.filter(a => a.asset_class === 'investment'), {},
+      ).total,
+      cardDebt: accountTotals.cardDebt,
+      creditLimit: accountTotals.creditLimit,
+      cardUtilization: accountTotals.utilization,
       nextCharge,
       undeclaredRecurringCount,
     };

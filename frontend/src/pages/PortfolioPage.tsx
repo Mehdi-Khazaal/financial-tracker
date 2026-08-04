@@ -1,13 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
-import { Account, Asset, SavingsGoal } from '../types';
-import { getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal } from '../utils/api';
+import { Account, Asset, Category, MonthSnapshot, SavingsGoal, Transaction } from '../types';
+import {
+  getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal,
+  fetchAllTransactions, getCategories, getNetWorthHistory,
+} from '../utils/api';
 import { getStockPrice } from '../utils/stockApi';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
-import ProgressBar from '../components/ProgressBar';
 import EmptyState from '../components/EmptyState';
 import LoadErrorBanner from '../components/LoadErrorBanner';
 import { Skeleton, AccountCardSkeleton } from '../components/Skeleton';
@@ -18,7 +20,19 @@ import AddAssetModal from '../components/modals/AddAssetModal';
 import AddSavingsGoalModal from '../components/modals/AddSavingsGoalModal';
 import ManageAllocationsModal from '../components/modals/ManageAllocationsModal';
 import SpendFromGoalModal from '../components/modals/SpendFromGoalModal';
-import { describeGoal } from '../features/overview/calculations/goals';
+import GoalCard from '../features/portfolio/components/GoalCard';
+import NetWorthTrend from '../features/portfolio/components/NetWorthTrend';
+import { summariseGoals } from '../features/portfolio/calculations/goals';
+import { calculateSavingsMetrics } from '../features/analytics/calculations/savings';
+import { buildClassificationContext } from '../features/analytics/calculations/transactions';
+import { monthKeyOf, resolvePeriod } from '../features/analytics/period';
+import {
+  CHANGE_SINCE_RECORDED_DEFINITION,
+  PORTFOLIO_TOTAL_DEFINITION,
+  valuePortfolio,
+} from '../features/portfolio/calculations/investments';
+import { calculateAccountTotals } from '../features/accounts/calculations/totals';
+import { InfoHint } from '../features/analytics/components/AnalyticsPrimitives';
 
 type Tab = 'investments' | 'assets' | 'savings';
 
@@ -71,6 +85,7 @@ const PortfolioPage: React.FC = () => {
   const [fetchingPrices, setFetchingPrices] = useState(false);
   const [invFilter, setInvFilter] = useState('all');
   const [showAddInv, setShowAddInv] = useState(false);
+  const [editAsset, setEditAsset] = useState<Asset | null>(null);
   const [showInvExport, setShowInvExport] = useState(false);
 
   // Assets
@@ -80,6 +95,9 @@ const PortfolioPage: React.FC = () => {
   // Savings
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [snapshots, setSnapshots] = useState<MonthSnapshot[]>([]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
   const [spendGoal, setSpendGoal] = useState<SavingsGoal | null>(null);
@@ -119,13 +137,20 @@ const PortfolioPage: React.FC = () => {
     setLoadError(false);
     setFailedSources([]);
     try {
+      // Transactions and categories feed `calculateSavingsMetrics`, which is
+      // what turns a goal from a balance into a pace. Fetched in the same
+      // parallel batch, and a failure only costs the projection — every other
+      // figure on the page still renders.
       const results = await Promise.allSettled([
         getAssets({ asset_class: 'investment' }),
         getAssets({ asset_class: 'physical' }),
         getAccounts(),
         getSavingsGoals(),
+        fetchAllTransactions(),
+        getCategories(),
+        getNetWorthHistory(24),
       ]);
-      const labels = ['investments', 'assets', 'accounts', 'savings goals'];
+      const labels = ['investments', 'assets', 'accounts', 'savings goals', 'transactions', 'categories', 'net worth history'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const investmentsResult = results[0];
       if (investmentsResult.status === 'fulfilled') {
@@ -144,6 +169,19 @@ const PortfolioPage: React.FC = () => {
       const goalsResult = results[3];
       if (goalsResult.status === 'fulfilled') {
         setGoals(Array.isArray(goalsResult.value.data) ? goalsResult.value.data : []);
+      }
+      const transactionsResult = results[4];
+      if (transactionsResult.status === 'fulfilled') {
+        // `fetchAllTransactions` resolves to an array, not an Axios response.
+        setTransactions(Array.isArray(transactionsResult.value) ? transactionsResult.value : []);
+      }
+      const categoriesResult = results[5];
+      if (categoriesResult.status === 'fulfilled') {
+        setCategories(Array.isArray(categoriesResult.value.data) ? categoriesResult.value.data : []);
+      }
+      const snapshotsResult = results[6];
+      if (snapshotsResult.status === 'fulfilled') {
+        setSnapshots(Array.isArray(snapshotsResult.value.data) ? snapshotsResult.value.data : []);
       }
       setFailedSources(failed);
       setLoadError(failed.length > 0);
@@ -195,20 +233,17 @@ const PortfolioPage: React.FC = () => {
     catch { toast.error('Failed to delete goal'); }
   };
 
-  // Investment derived
-  const getLivePrice    = (a: Asset) => { const sym = getSymbol(a.name); return (sym && stockPrices[sym] != null) ? stockPrices[sym] : null; };
-  const getCurrentPrice = (a: Asset) => getLivePrice(a) ?? Number(a.value_per_unit ?? 0);
-  const hasLivePrice    = (a: Asset) => getLivePrice(a) != null;
-  const getCurrentValue = (a: Asset) => getCurrentPrice(a) * Number(a.quantity ?? 1);
-  const getGainLoss     = (a: Asset) => hasLivePrice(a) ? getCurrentValue(a) - Number(a.total_value) : null;
-  const getGainLossPct  = (a: Asset) => { const cost = Number(a.total_value); const gl = getGainLoss(a); return (gl != null && cost > 0) ? (gl / cost) * 100 : null; };
+  // Investment derived — one valuation pass, shared definitions. The page used
+  // to headline only the live-priced subset while showing the cost of every
+  // holding beside it, so an untickered holding vanished from the total.
+  const valuation = valuePortfolio(investments, stockPrices);
+  const byAssetId = new Map(valuation.holdings.map(h => [h.asset.id, h]));
 
   const types = ['all', ...Array.from(new Set(investments.map(a => a.type)))];
   const filteredInv = invFilter === 'all' ? investments : investments.filter(a => a.type === invFilter);
-  const totalCost = investments.reduce((s, a) => s + Number(a.total_value), 0);
-  const priceKnown = investments.filter(a => hasLivePrice(a));
-  const totalCurrent = priceKnown.reduce((s, a) => s + getCurrentValue(a), 0);
-  const totalGain = priceKnown.length > 0 ? totalCurrent - priceKnown.reduce((s, a) => s + Number(a.total_value), 0) : null;
+  const totalCost = valuation.recordedTotal;
+  const totalCurrent = valuation.total;
+  const totalGain = valuation.changeSinceRecorded;
 
   // Asset derived
   const totalAssetValue = assets.reduce((s, a) => s + Number(a.total_value), 0);
@@ -218,20 +253,56 @@ const PortfolioPage: React.FC = () => {
   // Savings derived
   const allocatedPerAccount: Record<number, number> = {};
   goals.forEach(g => { g.allocations.forEach(a => { allocatedPerAccount[a.account_id] = (allocatedPerAccount[a.account_id] ?? 0) + Number(a.amount); }); });
-  const totalBalance = accounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + Number(a.balance), 0);
+  // The base is what a goal can actually be earmarked against — every account
+  // but a credit card, brokerage included. Deliberately not net worth: this
+  // answers "how much of my money is spoken for", not "what am I worth", and
+  // it must match the account list rendered below it.
+  const totalBalance = calculateAccountTotals(accounts).allocatable;
   const totalAllocated = Object.values(allocatedPerAccount).reduce((s, v) => s + v, 0);
   const totalUnallocated = Math.max(0, totalBalance - totalAllocated);
-  const getDaysLeft = (deadline: string | null) => {
-    if (!deadline) return null;
-    return Math.ceil((new Date(deadline + 'T00:00:00').getTime() - Date.now()) / 86400000);
-  };
+
+  // Pace comes from the shared savings metrics — the same average the Analytics
+  // savings card and the Morning Brief quote. Nothing here recomputes it.
+  const savingsToday = useMemo(() => new Date(), []);
+  const savings = useMemo(() => {
+    const ctx = buildClassificationContext(accounts, categories);
+    const months = Array.from(new Set(transactions.map(t => t.transaction_date.slice(0, 7)))).sort();
+    const period = resolvePeriod('this-month', {
+      today: savingsToday,
+      customMonth: monthKeyOf(savingsToday),
+      earliestMonth: months[0] ?? null,
+    });
+    return calculateSavingsMetrics({
+      transactions,
+      goals,
+      period,
+      baseline: months.filter(m => m < monthKeyOf(savingsToday)),
+      ctx,
+      today: savingsToday,
+    });
+  }, [transactions, categories, accounts, goals, savingsToday]);
+
+  const historyUnavailable = failedSources.includes('transactions');
+  const goalSummary = useMemo(() => summariseGoals(goals, {
+    today: savingsToday,
+    averageMonthlySaved: savings.averageMonthlySaved,
+    averageMonths: savings.averageMonths,
+    historyUnavailable,
+  }), [goals, savings.averageMonthlySaved, savings.averageMonths, savingsToday, historyUnavailable]);
+
+  const goalProgress = useMemo(
+    () => new Map(goalSummary.goals.map(g => [g.goal.id, g])),
+    [goalSummary],
+  );
 
   const exportInvestments = (format: 'csv' | 'pdf') => {
-    const headers = ['Name', 'Type', 'Quantity', 'Cost Basis', 'Current Value', 'Gain/Loss', 'Currency', 'Purchase Date'];
+    // "Recorded value", not "Cost basis" — the figure was captured when the
+    // holding was added, and is not a verified purchase price.
+    const headers = ['Name', 'Type', 'Quantity', 'Recorded Value', 'Current Value', 'Change Since Recorded', 'Currency', 'Purchase Date'];
     const rows = investments.map(a => {
-      const live = getLivePrice(a);
-      const currVal = live != null ? getCurrentValue(a) : Number(a.total_value);
-      const gl = live != null ? currVal - Number(a.total_value) : null;
+      const h = byAssetId.get(a.id);
+      const currVal = h ? h.currentValue : Number(a.total_value);
+      const gl = h ? h.changeSinceRecorded : null;
       return [
         a.name,
         a.type,
@@ -357,6 +428,24 @@ const PortfolioPage: React.FC = () => {
 
           {loadError && <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />}
 
+          {/* Portfolio's overview sits above the tabs: the question the whole
+              page answers is how wealth is changing, and that is not specific
+              to investments, assets or goals. */}
+          {failedSources.includes('net worth history') ? (
+            <section
+              className="hero-card rounded-xl p-5 md:p-6"
+              style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}
+            >
+              <p className="label mb-1">Net worth over time</p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                The net-worth history could not be loaded, so the trend is unavailable. Everything
+                below is unaffected.
+              </p>
+            </section>
+          ) : (
+            <NetWorthTrend snapshots={snapshots} />
+          )}
+
           {/* Investments tab */}
           {tab === 'investments' && !failedSources.includes('investments') && (
             <>
@@ -364,10 +453,22 @@ const PortfolioPage: React.FC = () => {
               <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="label mb-1">Portfolio Value</p>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <p className="label">Portfolio Value</p>
+                      <InfoHint label="How portfolio value is calculated" text={PORTFOLIO_TOTAL_DEFINITION} />
+                    </div>
                     <p className="value-display" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
-                      {priceKnown.length > 0 ? `$${fmt(totalCurrent)}` : `$${fmt(totalCost)}`}
+                      ${fmt(totalCurrent)}
                     </p>
+                    {valuation.count > 0 && (
+                      <p className="text-[11px] mt-1" style={{ color: 'var(--dim)' }}>
+                        {valuation.unpricedCount === 0
+                          ? 'All holdings priced live'
+                          : valuation.pricedCount === 0
+                            ? 'Recorded values — no holding has a live price'
+                            : `${valuation.pricedCount} of ${valuation.count} priced live · the rest at their recorded value`}
+                      </p>
+                    )}
                   </div>
                   {fetchingPrices ? (
                     <span className="text-xs text-muted flex items-center gap-1.5 mt-1">
@@ -391,11 +492,14 @@ const PortfolioPage: React.FC = () => {
                 </div>
                 <div className="flex gap-6 mt-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Invested</p>
+                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Recorded</p>
                     <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalCost)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Gain / Loss</p>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-[10px] uppercase tracking-widest text-muted">Change since recorded</p>
+                      <InfoHint label="What change since recorded means" text={CHANGE_SINCE_RECORDED_DEFINITION} />
+                    </div>
                     {totalGain != null ? (
                       <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: totalGain >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
                         {totalGain >= 0 ? '+' : '-'}${fmt(Math.abs(totalGain))}
@@ -433,12 +537,13 @@ const PortfolioPage: React.FC = () => {
               ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredInv.map(inv => {
-                    const gainLoss = getGainLoss(inv);
-                    const gainPct  = getGainLossPct(inv);
-                    const livePx   = getLivePrice(inv);
-                    const curVal   = getCurrentValue(inv);
+                    const holding  = byAssetId.get(inv.id);
+                    const gainLoss = holding?.changeSinceRecorded ?? null;
+                    const gainPct  = holding?.changePct != null ? holding.changePct * 100 : null;
+                    const hasPx    = holding?.hasLivePrice ?? false;
+                    const livePx   = hasPx ? holding!.pricePerUnit : null;
+                    const curVal   = holding?.currentValue ?? Number(inv.total_value);
                     const isGain   = (gainLoss ?? 0) >= 0;
-                    const hasPx    = hasLivePrice(inv);
                     return (
                       <div key={inv.id} className="card card-hover p-4 group">
                         <div className="flex items-start justify-between mb-3">
@@ -549,26 +654,36 @@ const PortfolioPage: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-mono font-bold text-lg text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(Number(asset.total_value))}</p>
-                            <button onClick={() => handleDeleteAsset(asset.id, asset.name)}
-                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
-                              style={{ color: 'var(--dim)' }}
-                              onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--neg)'}
-                              onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--dim)'}>
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                            </button>
+                          <div className="flex items-start gap-2 shrink-0">
+                            <div className="text-right">
+                              <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(Number(asset.total_value))}</p>
+                              <p className="text-[10px]" style={{ color: 'var(--dim)' }}>Recorded value</p>
+                            </div>
+                            <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
+                              <button onClick={() => setEditAsset(asset)}
+                                aria-label={`Edit ${asset.name}`}
+                                className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center"
+                                style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                              </button>
+                              <button onClick={() => handleDeleteAsset(asset.id, asset.name)}
+                                aria-label={`Delete ${asset.name}`}
+                                className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center"
+                                style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                              </button>
+                            </div>
                           </div>
                         </div>
                         {(asset.quantity || asset.value_per_unit) && (
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             {asset.quantity && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Quantity</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>{Number(asset.quantity).toLocaleString()}</p></div>}
-                            {asset.value_per_unit && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Value / Unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(asset.value_per_unit).toFixed(2)}</p></div>}
+                            {asset.value_per_unit && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Recorded / unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(asset.value_per_unit).toFixed(2)}</p></div>}
                           </div>
                         )}
                         {asset.purchase_date && (
                           <div className="pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-                            <p className="text-xs text-muted">Acquired {asset.purchase_date}</p>
+                            <p className="text-xs text-muted">Recorded {asset.purchase_date}</p>
                           </div>
                         )}
                       </div>
@@ -582,19 +697,44 @@ const PortfolioPage: React.FC = () => {
           {/* Savings tab */}
           {tab === 'savings' && !failedSources.some(source => source === 'accounts' || source === 'savings goals') && (
             <>
+              {/* Progress, not balance. "How much money do I have" is the
+                  Dashboard's question; this one is "am I getting there". */}
               <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                <p className="label mb-1">Total Balance</p>
-                <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
-                  ${fmt(totalBalance)}
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="label">Set aside across goals</p>
+                  <InfoHint
+                    label="What set aside means"
+                    text="Money in your accounts that you have labelled against a goal. It is a label on a balance you already hold, not a separate pot, and it is not the same as income minus expenses."
+                  />
+                </div>
+                <p className="value-display mb-1" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
+                  ${fmt(goalSummary.totalSetAside)}
                 </p>
-                <div className="flex gap-6 flex-wrap">
+                {goalSummary.overallProgress != null && (
+                  <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+                    <span className="tabular-nums">{goalSummary.overallProgress.toFixed(0)}%</span> of
+                    {' '}<span className="tabular-nums">${fmt(goalSummary.totalTarget)}</span> across
+                    {' '}{goals.length === 1 ? '1 goal' : `${goals.length} goals`}
+                  </p>
+                )}
+                <div className="flex gap-6 flex-wrap pt-3" style={{ borderTop: '1px solid var(--line)' }}>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Allocated</p>
-                    <p className="font-mono text-sm font-semibold" style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalAllocated)}</p>
+                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Still to find</p>
+                    <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--fg)' }}>${fmt(goalSummary.totalRemaining)}</p>
                   </div>
                   <div>
+                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Complete</p>
+                    <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--pos)' }}>{goalSummary.completeCount}</p>
+                  </div>
+                  {goalSummary.behindCount > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Behind schedule</p>
+                      <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: '#f59e0b' }}>{goalSummary.behindCount}</p>
+                    </div>
+                  )}
+                  <div>
                     <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Unallocated</p>
-                    <p className="font-mono text-sm font-semibold" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalUnallocated)}</p>
+                    <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--muted)' }}>${fmt(totalUnallocated)}</p>
                   </div>
                 </div>
               </div>
@@ -657,60 +797,23 @@ const PortfolioPage: React.FC = () => {
                   ) : (
                     <div className="space-y-3">
                       {goals.map(goal => {
-                        const current = Number(goal.current_amount);
-                        const target  = Number(goal.target_amount);
-                        // Shared with the Overview goal list, so a completed
-                        // goal reads the same green in both places.
-                        const status = describeGoal(goal, new Date());
-                        const progress = status.progress;
-                        const remaining = Math.max(target - current, 0);
-                        const isComplete = status.status === 'complete';
-                        const daysLeft = getDaysLeft(goal.deadline ?? null);
-                        const isFocused = focusGoalId === goal.id;
+                        const progress = goalProgress.get(goal.id);
+                        if (!progress) return null;
+                        const allocationAccounts = goal.allocations.map(a => ({
+                          id: a.account_id,
+                          name: a.account_name,
+                          amount: Number(a.amount) || 0,
+                        }));
                         return (
-                          <div
+                          <GoalCard
                             key={goal.id}
-                            id={`goal-${goal.id}`}
-                            className="card p-4 group"
-                            style={isFocused ? {
-                              borderColor: 'var(--accent)',
-                              boxShadow: 'var(--edge-light), 0 0 0 1px var(--accent-glow)',
-                            } : undefined}
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-semibold text-sm text-text">{goal.name}</p>
-                                  {isComplete && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>Complete</span>}
-                                </div>
-                                {daysLeft !== null && (
-                                  <p className="text-xs mt-0.5" style={{ color: daysLeft < 30 ? 'var(--neg)' : 'var(--muted)' }}>
-                                    {daysLeft > 0 ? `${daysLeft} days left` : daysLeft === 0 ? 'Due today' : 'Overdue'}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {goal.allocations.length > 0 && (
-                                  <button onClick={() => setSpendGoal(goal)} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>Spend</button>
-                                )}
-                                <button onClick={() => setEditGoal(goal)} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>Allocate</button>
-                                <button onClick={() => handleDeleteGoal(goal.id, goal.name)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all" style={{ color: 'var(--dim)' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--neg)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--dim)')}>
-                                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <div className="flex justify-between text-xs mb-1.5">
-                                <span className="text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(current)} of ${fmt(target)}</span>
-                                <span className="font-mono font-semibold" style={{ color: status.color, fontVariantNumeric: 'tabular-nums' }}>{progress.toFixed(0)}%</span>
-                              </div>
-                              <ProgressBar value={progress} colorAuto semantics="progress" height={6} showLabel={false} />
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <p className="text-xs text-muted">{isComplete ? 'Goal reached' : `$${fmt(remaining)} remaining`}</p>
-                            </div>
-                          </div>
+                            progress={progress}
+                            isFocused={focusGoalId === goal.id}
+                            allocationAccounts={allocationAccounts}
+                            onManageAllocations={() => setEditGoal(goal)}
+                            onSpend={() => setSpendGoal(goal)}
+                            onDelete={() => handleDeleteGoal(goal.id, goal.name)}
+                          />
                         );
                       })}
                     </div>
@@ -726,8 +829,28 @@ const PortfolioPage: React.FC = () => {
 
 
 
-      <AddAssetModal isOpen={showAddInv} onClose={() => setShowAddInv(false)} onSuccess={() => { localStorage.removeItem('stock_prices_cache'); localStorage.removeItem('stock_prices_cache_time'); load(); }} mode="investment" />
-      <AddAssetModal isOpen={showAddAsset} onClose={() => setShowAddAsset(false)} onSuccess={load} mode="physical" />
+      {/* One modal, two jobs. Editing reuses the add form rather than
+          duplicating it, so validation and wording cannot diverge. */}
+      <AddAssetModal
+        isOpen={showAddInv || (editAsset?.asset_class === 'investment')}
+        onClose={() => { setShowAddInv(false); setEditAsset(null); }}
+        onSuccess={() => {
+          // A recorded value changed, so any cached live price comparison is
+          // stale — drop the cache and refetch alongside the reload.
+          localStorage.removeItem('stock_prices_cache');
+          localStorage.removeItem('stock_prices_cache_time');
+          load();
+        }}
+        mode="investment"
+        asset={editAsset?.asset_class === 'investment' ? editAsset : null}
+      />
+      <AddAssetModal
+        isOpen={showAddAsset || (editAsset?.asset_class === 'physical')}
+        onClose={() => { setShowAddAsset(false); setEditAsset(null); }}
+        onSuccess={load}
+        mode="physical"
+        asset={editAsset?.asset_class === 'physical' ? editAsset : null}
+      />
       <AddSavingsGoalModal isOpen={showAddGoal} onClose={() => setShowAddGoal(false)} onSuccess={load} />
       <SpendFromGoalModal isOpen={!!spendGoal} onClose={() => setSpendGoal(null)} onSuccess={load} goal={spendGoal} />
       <ManageAllocationsModal isOpen={!!editGoal} onClose={() => setEditGoal(null)} onSuccess={load} goal={editGoal} allGoals={goals} accounts={accounts} />
