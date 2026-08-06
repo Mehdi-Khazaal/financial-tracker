@@ -7,7 +7,9 @@ python-dotenv>=1.0.0
 pydantic>=2.0.0
 PyJWT==2.13.0
 bcrypt>=4.0.0
-cryptography==48.0.1
+# 50.0.0 is the floor that clears PYSEC-2026-3552/3553/3554. Pinned exactly
+# because Render installs from wheels; bump deliberately, not by range.
+cryptography==50.0.0
 email-validator>=2.0.0
 python-multipart>=0.0.20
 requests>=2.31.0
