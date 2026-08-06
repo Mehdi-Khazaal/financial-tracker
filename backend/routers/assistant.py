@@ -19,7 +19,6 @@ from decimal import Decimal, InvalidOperation
 from threading import Lock
 from time import monotonic
 from typing import Optional
-from zoneinfo import ZoneInfo, available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -42,7 +41,9 @@ from models.database import (
     get_db,
     utc_now,
 )
+from services.recurring_schedule import UnsupportedPeriodError, occurrences_per_year
 from utils.auth import get_current_user
+from utils.dates import clean_timezone, user_now, user_today
 from utils.logging import get_logger, kv
 from utils.limiter import limiter
 
@@ -99,29 +100,12 @@ _pending_actions_lock = Lock()
 
 
 # ─── Time ────────────────────────────────────────────────────────────────────
-# The API process runs in UTC. Resolving "today" there is wrong for any user in
-# another zone for part of every day, which is why the assistant used to report
-# the wrong date. Everything user-facing resolves through the helpers below.
-_VALID_ZONES = available_timezones()
-
-
-def _clean_timezone(value) -> Optional[str]:
-    """Accept only a real IANA zone name; anything else is ignored, not fatal."""
-    if not isinstance(value, str):
-        return None
-    candidate = value.strip()
-    return candidate if candidate in _VALID_ZONES else None
-
-
-def _user_now(user: User) -> datetime:
-    zone_name = _clean_timezone(getattr(user, "timezone", None))
-    if zone_name:
-        return datetime.now(ZoneInfo(zone_name))
-    return datetime.now(ZoneInfo("UTC"))
-
-
-def _user_today(user: User) -> date:
-    return _user_now(user).date()
+# These now delegate to `utils.dates`, the single date rule for the backend, so
+# the assistant and the recurring scheduler cannot disagree about what day it
+# is. Thin aliases are kept because this module references them ~10 times.
+_clean_timezone = clean_timezone
+_user_now = user_now
+_user_today = user_today
 
 
 # ─── JSON helpers ────────────────────────────────────────────────────────────
@@ -146,7 +130,7 @@ def _date_scope(tool_input: dict, *, as_of: Optional[date] = None) -> str:
         return f"Since {start}"
     if end:
         return f"Through {end}"
-    return f"As of {(as_of or date.today()).isoformat()}"
+    return f"As of {(as_of or utc_now().date()).isoformat()}"
 
 
 def _visual_block_for_tool(name: str, tool_input: dict, result, *, as_of: Optional[date] = None) -> Optional[dict]:
@@ -188,7 +172,7 @@ def _visual_block_for_tool(name: str, tool_input: dict, result, *, as_of: Option
         return {"type": "transaction_list", "title": "Transactions", "scope": scope, "source": source, "rows": rows}
 
     if name == "cashflow_trend" and isinstance(result, list):
-        scope = f"Last {len(result)} months through {(as_of or date.today()).isoformat()}"
+        scope = f"Last {len(result)} months through {(as_of or utc_now().date()).isoformat()}"
         rows = [
             {
                 "label": row.get("month"),
@@ -843,13 +827,17 @@ def _t_find_recurring_waste(db: Session, user: User, **_) -> dict:
         .filter(RecurringTransaction.user_id == user.id, RecurringTransaction.is_active.is_(True))
         .all()
     )
-    per_year = {"daily": 365, "weekly": 52, "biweekly": 26, "monthly": 12, "quarterly": 4, "yearly": 1}
     cutoff = today - timedelta(days=75)
 
     items, annual_total = [], Decimal("0")
     for entry in recurring:
         amount = abs(entry.amount or Decimal("0"))
-        occurrences = per_year.get((entry.period or "monthly").lower(), 12)
+        # Annualisation comes from the shared schedule module so the assistant
+        # cannot quote a cadence the scheduler does not support.
+        try:
+            occurrences = occurrences_per_year((entry.period or "monthly").lower())
+        except UnsupportedPeriodError:
+            occurrences = 12
         annualised = amount * occurrences
         # Outgoing only; salary and other inflows are not waste.
         if (entry.amount or Decimal("0")) < 0:

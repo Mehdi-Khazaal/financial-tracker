@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, create_engine
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -76,7 +76,24 @@ class Category(Base):
 
 
 class Transaction(Base):
+    """A single ledger entry.
+
+    The `plaid_*` columns preserve enrichment that used to be read and thrown
+    away during sync. They exist to answer two questions the old schema could
+    not: *which merchant is this really* (across every string variant a bank
+    might emit), and *does this charge look scheduled*. All are nullable —
+    manual entries have none of them, and rows imported before this migration
+    have none either.
+    """
+
     __tablename__ = "transactions"
+    __table_args__ = (
+        # Every merchant lookup is user-scoped: "what has *this user* filed
+        # this merchant under before". A composite index serves that directly;
+        # a bare index on the key alone would still scan across tenants.
+        Index("ix_transactions_user_merchant_key", "user_id", "merchant_key"),
+        Index("ix_transactions_user_merchant_entity", "user_id", "plaid_merchant_entity_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -86,6 +103,55 @@ class Transaction(Base):
     description = Column(Text)
     plaid_tx_id = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
+
+    # ── Merchant identity ────────────────────────────────────────────────────
+    # Plaid's stable merchant identifier. When present this *is* the merchant;
+    # no string matching is attempted. Null for manual entries and for Plaid
+    # rows Plaid did not enrich.
+    plaid_merchant_entity_id = Column(String(64), nullable=True)
+    # Plaid's cleaned merchant name ("Netflix"). Kept separately from
+    # `description` so we can tell an enriched name from a raw bank string —
+    # `description` collapses both and the distinction is unrecoverable after.
+    plaid_merchant_name = Column(String(200), nullable=True)
+    # Plaid's raw `name` field, exactly as the bank sent it. Retained so
+    # normalization can be improved and re-run over history without needing to
+    # re-fetch from Plaid. Null for manual entries, where `description` is
+    # already the original.
+    original_description = Column(Text, nullable=True)
+    # Fallback identity: the normalized merchant string. Populated at write
+    # time by `services.merchants.merchant_key` for *both* ingestion paths.
+    merchant_key = Column(String(120), nullable=True)
+
+    # ── Categorization signals ───────────────────────────────────────────────
+    # Plaid's taxonomy, kept raw. Never written straight into `category_id` —
+    # it is a different vocabulary from the user's own categories and is only
+    # consulted through an explicit mapping table.
+    personal_finance_category_primary = Column(String(60), nullable=True)
+    personal_finance_category_detailed = Column(String(100), nullable=True)
+    # How `category_id` came to hold its current value: "user",
+    # "merchant_history", "plaid_pfc", or null for uncategorized. Makes an
+    # automatic assignment explainable and, critically, lets sync tell an
+    # inferred category from one the user chose so it never overwrites a
+    # deliberate choice.
+    category_source = Column(String(20), nullable=True)
+
+    # ── Recurrence signals ───────────────────────────────────────────────────
+    # "online" / "in store" / "other". A subscription is almost never charged
+    # in store, so this cheaply separates a monthly membership from a shop the
+    # user happens to visit monthly.
+    payment_channel = Column(String(20), nullable=True)
+    # "direct debit", "bill payment", "ach"… Near-definitive scheduled-payment
+    # markers when a bank populates them.
+    transaction_code = Column(String(40), nullable=True)
+    # When the charge was initiated, as opposed to when it settled. Posted
+    # dates slip across weekends and holidays, which adds noise to interval
+    # measurement; the authorized date is the stable one for cadence.
+    authorized_date = Column(Date, nullable=True)
+    # A foreign-currency charge converts to a slightly different amount every
+    # cycle. Recording the currency explains an amount that fails a stability
+    # check for a reason other than a price change.
+    iso_currency_code = Column(String(8), nullable=True)
+
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

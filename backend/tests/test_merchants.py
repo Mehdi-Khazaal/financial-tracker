@@ -7,12 +7,13 @@ from models.database import Category, MerchantAlias, MerchantCanonical, Transact
 from services import merchants
 
 
-def test_normalize_collapses_variants():
-    a = merchants.normalize("AMZN Mktp US*A12BC")
-    b = merchants.normalize("AMAZON MKTP #98765")
-    # Both should shed the noise codes and produce a mostly-shared key.
-    assert "amzn" in a or "amazon" in a
-    assert "mktp" in a and "mktp" in b
+def test_normalize_sheds_reference_codes():
+    # "AMZN" and "AMAZON" are different words, so these do *not* collapse —
+    # normalization never guesses that two spellings are the same business.
+    # What it must do is shed the trailing reference codes, so repeat charges
+    # from each spelling group with themselves.
+    assert merchants.normalize("AMAZON MKTP #98765") == merchants.normalize("AMAZON MKTP #11122")
+    assert merchants.normalize("AMZN Mktp US*A12BC") == merchants.normalize("AMZN Mktp US*Z98YX")
 
 
 def test_resolve_or_create_dedupes_aliases(db_session):
@@ -28,18 +29,34 @@ def test_resolve_or_create_dedupes_aliases(db_session):
 
 
 def test_create_transaction_auto_fills_category(client, db_session, user, auth_headers, account):
-    # Seed a category and a prior transaction so history exists.
+    # Seed a category and prior transactions so history exists.
+    #
+    # Two observations, not one: category suggestion now requires
+    # `MIN_HISTORY_OBSERVATIONS` before it will assign anything, because a
+    # single prior transaction is as likely to be a one-off miscategorization
+    # as an established habit. These rows are inserted directly and so carry no
+    # `merchant_key`, which also exercises the legacy-description fallback tier.
     cat = Category(user_id=user.id, name="Coffee", type="expense")
     db_session.add(cat)
     db_session.commit()
-    db_session.add(Transaction(
-        user_id=user.id,
-        account_id=account.id,
-        category_id=cat.id,
-        amount=Decimal("-4.50"),
-        description="STARBUCKS #123",
-        transaction_date=date(2026, 1, 1),
-    ))
+    db_session.add_all([
+        Transaction(
+            user_id=user.id,
+            account_id=account.id,
+            category_id=cat.id,
+            amount=Decimal("-4.50"),
+            description="STARBUCKS #123",
+            transaction_date=date(2026, 1, 1),
+        ),
+        Transaction(
+            user_id=user.id,
+            account_id=account.id,
+            category_id=cat.id,
+            amount=Decimal("-5.10"),
+            description="STARBUCKS #456",
+            transaction_date=date(2026, 1, 8),
+        ),
+    ])
     # Register the alias for the raw description.
     merchants.resolve_or_create(db_session, "STARBUCKS #123")
     db_session.commit()

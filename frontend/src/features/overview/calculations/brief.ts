@@ -23,7 +23,11 @@
 import type { Account, Transaction } from '../../../types';
 import type { Forecast, PeriodMetrics, PrimaryGoal, UpcomingBill } from '../../analytics/types';
 import { dollars, monthLabel, plural, relativeDays, signedPercent, verbFor } from '../../analytics/format';
-import { merchantDisplayName, normalizeMerchantName } from '../../analytics/calculations/transactions';
+import {
+  merchantDisplayName,
+  merchantKeyOf,
+  normalizeMerchantName,
+} from '../../analytics/calculations/transactions';
 import { dateKey, daysBetween } from '../../analytics/period';
 import type { MonthActivity } from '../types';
 import { HIGH_UTILIZATION, cardUtilization, totalCardDebt } from './accounts';
@@ -243,7 +247,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
   const dueKey = nextBill ? normalizeMerchantName(nextBill.name) : '';
   const renewed = recentTransactions.find(tx => {
     if (Number(tx.amount) >= 0) return false;
-    const key = normalizeMerchantName(tx.description);
+    const key = merchantKeyOf(tx);
     return key !== '' && key !== dueKey && declaredRecurringKeys.has(key);
   });
   if (renewed) {

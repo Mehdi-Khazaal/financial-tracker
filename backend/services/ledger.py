@@ -5,7 +5,11 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from models.database import Account, Category, Transaction
-from services import merchants
+from services.transaction_enrichment import (
+    SOURCE_USER,
+    enrich_transaction_input,
+    resolve_transaction_merchant,
+)
 
 
 class LedgerResourceNotFound(Exception):
@@ -29,21 +33,21 @@ class LedgerService:
             account = self._get_accounts(user_id, [values["account_id"]])[values["account_id"]]
             self._validate_category(user_id, values.get("category_id"))
 
-            values = dict(values)
-            description = values.get("description")
-            if description:
-                # Register alias so this merchant string participates in
-                # future majority-vote category suggestions. Silent failure:
-                # normalization should never block a write.
+            # One shared enrichment step for both ingestion paths — see
+            # `services.transaction_enrichment`. Resolves merchant identity,
+            # registers the alias, and suggests a category only when the
+            # caller did not supply one.
+            suggested_category = values.get("category_id")
+            values = enrich_transaction_input(self._session, user_id, values)
+            if values.get("category_id") != suggested_category:
+                # A suggested category still has to be one this user may use.
+                # If it is not, drop the suggestion rather than failing the
+                # write — the transaction is fine, the guess was not.
                 try:
-                    merchants.resolve_or_create(self._session, description)
-                    if values.get("category_id") is None:
-                        suggested = merchants.suggest_category_id(self._session, user_id, description)
-                        if suggested is not None:
-                            self._validate_category(user_id, suggested)
-                            values["category_id"] = suggested
-                except Exception:
-                    pass
+                    self._validate_category(user_id, values["category_id"])
+                except LedgerResourceNotFound:
+                    values["category_id"] = suggested_category
+                    values.pop("category_source", None)
 
             transaction = Transaction(**values, user_id=user_id)
             self._session.add(transaction)
@@ -65,6 +69,22 @@ class LedgerService:
             transaction = self._get_transaction(user_id, transaction_id)
             changes = dict(changes)
             self._validate_category_change(user_id, changes)
+
+            # A category the user set by hand is marked as theirs, so a later
+            # Plaid sync can tell a deliberate choice from an inferred one and
+            # leave it alone.
+            if "category_id" in changes:
+                changes["category_source"] = (
+                    SOURCE_USER if changes["category_id"] is not None else None
+                )
+            # Re-derive merchant identity when the description changes, so the
+            # stored key never drifts from the text it was derived from.
+            if "description" in changes:
+                identity = resolve_transaction_merchant(
+                    changes["description"],
+                    plaid_merchant_entity_id=transaction.plaid_merchant_entity_id,
+                )
+                changes["merchant_key"] = identity.key or None
 
             old_account_id = transaction.account_id
             new_account_id = changes.get("account_id", old_account_id)

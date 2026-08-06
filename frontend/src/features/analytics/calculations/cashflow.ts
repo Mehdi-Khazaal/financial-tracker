@@ -21,7 +21,12 @@ import type {
 } from '../types';
 import { monthTick } from '../format';
 import { calculatePeriodMetrics, monthlyMetrics, transactionsInRange } from './metrics';
-import { categorySpendDelta, classifyTransaction, normalizeMerchantName } from './transactions';
+import {
+  categorySpendDelta,
+  classifyTransaction,
+  merchantKeyOf,
+  normalizeMerchantName,
+} from './transactions';
 
 /** Normalised descriptions of active recurring expenses — the "fixed" set. */
 export function fixedCostKeys(recurring: RecurringTransaction[]): Set<string> {
@@ -53,7 +58,7 @@ export function buildCashFlow(options: {
     const kind = classifyTransaction(tx, ctx);
     const delta = categorySpendDelta(tx, kind);
     if (delta === 0) return;
-    const key = normalizeMerchantName(tx.description);
+    const key = merchantKeyOf(tx);
     if (key && keys.has(key)) fixed += delta;
   });
   fixed = Math.max(0, Math.min(fixed, metrics.expenses));

@@ -33,7 +33,7 @@ import {
   categorySpendDelta,
   classifyTransaction,
   median,
-  normalizeMerchantName,
+  merchantKeyOf,
 } from './transactions';
 import { activeRecurringExpenses } from './recurring';
 
@@ -104,7 +104,7 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
     const kind = classifyTransaction(tx, ctx);
     const delta = categorySpendDelta(tx, kind);
     if (delta === 0) return;
-    const key = normalizeMerchantName(tx.description);
+    const key = merchantKeyOf(tx);
     if (!key || !keys.has(key)) variableSoFar += delta;
   });
 

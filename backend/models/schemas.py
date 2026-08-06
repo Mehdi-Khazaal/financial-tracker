@@ -4,6 +4,13 @@ from decimal import Decimal
 from datetime import datetime, date
 
 
+# The one definition of a recurring cadence. Create and update must share it —
+# when update accepted a bare `str`, a PATCH could set a period no scheduler
+# understood, `_next_date` returned the date unchanged, and `process-due`
+# re-materialized the same transaction (and re-adjusted the balance) on every
+# run. Anything that widens this set must widen `services.recurring_schedule`
+# in the same change.
+RecurringPeriod = Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
 
 
 # ─── Account ─────────────────────────────────────────────────────────────────
@@ -80,6 +87,16 @@ class TransactionResponse(TransactionBase):
     user_id: int
     created_at: datetime
 
+    # Merchant identity, so the client groups on the same answer the backend
+    # computed instead of re-deriving it from the description. Only these
+    # three are exposed: the rest of the Plaid metadata is not needed for
+    # rendering and would bloat a list response that can carry 1000 rows.
+    # Null on rows written before Phase 5A, until the backfill has run — the
+    # client falls back to local normalization for those.
+    merchant_key: Optional[str] = None
+    plaid_merchant_entity_id: Optional[str] = None
+    category_source: Optional[str] = None
+
 
 # ─── Transfer ─────────────────────────────────────────────────────────────────
 class TransferBase(BaseModel):
@@ -155,7 +172,7 @@ class RecurringTransactionBase(BaseModel):
     category_id: Optional[int] = None
     amount: Decimal
     description: Optional[str] = None
-    period: Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
+    period: RecurringPeriod
     next_date: date
     is_variable: bool = False
 
@@ -167,7 +184,7 @@ class RecurringTransactionUpdate(BaseModel):
     category_id: Optional[int] = None
     amount: Optional[Decimal] = None
     description: Optional[str] = None
-    period: Optional[str] = None
+    period: Optional[RecurringPeriod] = None
     next_date: Optional[date] = None
     is_active: Optional[bool] = None
     is_variable: Optional[bool] = None

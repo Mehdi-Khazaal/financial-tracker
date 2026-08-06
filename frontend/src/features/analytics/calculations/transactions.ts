@@ -90,11 +90,18 @@ export const KIND_EXPLANATIONS: Record<TransactionKind, string> = {
 };
 
 /**
- * Merchant name normalisation, mirroring `backend/services/merchants.py`.
+ * Legacy merchant normalisation — a *compatibility fallback*, not the rule.
  *
- * Deliberately conservative: it strips transaction noise and long digit runs,
- * but never fuzzy-matches. Two merchants merge only when their cleaned strings
- * are identical, so unrelated businesses with similar names stay separate.
+ * The authoritative implementation is `backend/services/merchants.py`, and its
+ * answer arrives on each transaction as `merchant_key`. Prefer
+ * `merchantIdentity` below, which uses the stored value and only falls back to
+ * this function for rows written before the Phase 5A migration or not yet
+ * reached by the backfill.
+ *
+ * This copy is deliberately frozen: it must not gain new rules. The two
+ * implementations diverging is exactly the bug the stored key removes, so
+ * improvements belong in the backend normalizer. Once the backfill has run and
+ * no null keys remain, this can be deleted outright.
  */
 const PLAID_PREFIX = /^\[plaid:[^\]]+\]\s*/;
 const NOISE_TOKENS = /\b(purchase|pos|debit|credit|payment|pmt|autopay|recurring|online|web|mobile|card|visa|mc|mastercard|amex|check|chk|ach|xfer|transfer|deposit|withdrawal|fee|inc|llc|ltd|corp|co)\b/gi;
@@ -112,6 +119,36 @@ export function normalizeMerchantName(raw: string | null | undefined): string {
     .replace(NOISE_TOKENS, ' ')
     .replace(WHITESPACE, ' ')
     .trim();
+}
+
+/**
+ * The grouping key for a transaction's merchant, in precedence order:
+ *
+ *   1. `plaid_merchant_entity_id` — Plaid's stable id, prefixed so it can
+ *      never collide with a normalized string.
+ *   2. `merchant_key` — computed by the backend at write time.
+ *   3. Local normalization of the description — legacy rows only.
+ *
+ * Every calculation that groups by merchant should use this rather than
+ * calling `normalizeMerchantName` directly, so a row with a stored identity is
+ * grouped by the backend's answer and not by a second opinion.
+ */
+export function merchantIdentity(tx: Transaction): string {
+  if (tx.plaid_merchant_entity_id) return `plaid:${tx.plaid_merchant_entity_id}`;
+  if (tx.merchant_key) return tx.merchant_key;
+  return normalizeMerchantName(tx.description);
+}
+
+/**
+ * The transaction's merchant as a *normalized string*, never an entity id.
+ *
+ * Declared `RecurringTransaction` rows carry only a description, so matching a
+ * transaction to one has to happen in string space. The backend populates
+ * `merchant_key` on every row it writes — including rows that also have an
+ * entity id — so this stays comparable with `normalizeMerchantName(rec.description)`.
+ */
+export function merchantKeyOf(tx: Transaction): string {
+  return tx.merchant_key || normalizeMerchantName(tx.description);
 }
 
 /** Display form of a merchant: title-cased, or the raw description if nothing survives. */

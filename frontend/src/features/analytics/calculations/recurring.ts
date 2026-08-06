@@ -24,6 +24,8 @@ import {
   classifyTransaction,
   median,
   merchantDisplayName,
+  merchantIdentity,
+  merchantKeyOf,
   normalizeMerchantName,
 } from './transactions';
 
@@ -131,12 +133,15 @@ export function detectRecurringTransactions(
   const groups = new Map<string, { name: string; dates: string[]; amounts: number[] }>();
   transactions.forEach(tx => {
     if (classifyTransaction(tx, ctx) !== 'expense') return;
-    const key = normalizeMerchantName(tx.description);
-    if (!key || declared.has(key)) return;
-    const rec = groups.get(key) ?? { name: merchantDisplayName(tx.description), dates: [], amounts: [] };
+    // Group on the strongest identity available — Plaid's entity id merges
+    // string variants a regex never could. Suppression is checked against the
+    // string key, because a declared row has only a description to offer.
+    const identity = merchantIdentity(tx);
+    if (!identity || declared.has(merchantKeyOf(tx))) return;
+    const rec = groups.get(identity) ?? { name: merchantDisplayName(tx.description), dates: [], amounts: [] };
     rec.dates.push(tx.transaction_date.slice(0, 10));
     rec.amounts.push(Math.abs(Number(tx.amount)));
-    groups.set(key, rec);
+    groups.set(identity, rec);
   });
 
   const detected: DetectedSubscription[] = [];
@@ -203,7 +208,7 @@ function findIncreases(
     const key = normalizeMerchantName(rec.description);
     if (!key) return;
     const charges = transactions
-      .filter(t => classifyTransaction(t, ctx) === 'expense' && normalizeMerchantName(t.description) === key)
+      .filter(t => classifyTransaction(t, ctx) === 'expense' && merchantKeyOf(t) === key)
       .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date));
     if (charges.length < 2) return;
 

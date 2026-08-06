@@ -19,6 +19,11 @@ from starlette.concurrency import run_in_threadpool
 
 from models.database import get_db, Base, Transaction, Account, SessionLocal, utc_now
 from models.auth import User
+from services.transaction_enrichment import (
+    enrich_transaction_input,
+    resolve_transaction_merchant,
+    suggest_transaction_category,
+)
 from utils.auth import get_current_user
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
@@ -44,6 +49,21 @@ _BASE_URLS = {
     "development": "https://development.plaid.com",
     "production":  "https://production.plaid.com",
 }
+
+# How much history to request when a *new* Item is linked. Plaid's documented
+# maximum for `transactions.days_requested` is 730 days.
+#
+# Raised from 90 because recurring detection is bounded by it: three
+# occurrences of a monthly charge need ~90 days with no margin, and a
+# quarterly charge needs ~270. At 90 days a quarterly subscription is not
+# detectable at all, by us or by Plaid.
+#
+# This applies only to Items linked from now on. Plaid fixes the history
+# window when an Item is created, so **existing connections keep their 90-day
+# window** and gain nothing until they are re-linked. Institutions also vary:
+# many return less than the requested window, and some return as little as 30
+# days regardless. Treat 730 as a ceiling, not a guarantee.
+PLAID_DAYS_REQUESTED = 730
 
 PLAID_TO_ACCOUNT_TYPE = {
     "checking":    "checking",
@@ -122,6 +142,45 @@ def _plaid_description(tx: dict, fallback: Optional[str] = None) -> str:
     return tx.get("merchant_name") or tx.get("name") or fallback or "Transaction"
 
 
+def _optional_date(value) -> Optional[date]:
+    """Parse a Plaid ISO date, tolerating null and malformed values."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
+
+
+def _plaid_metadata(tx: dict) -> dict:
+    """Extract the enrichment fields worth persisting from a Plaid transaction.
+
+    Only what carries merchant identity or recurrence signal. Location, logo,
+    website and the counterparty array are deliberately not read: none of them
+    is needed to identify a merchant once `merchant_entity_id` is stored, and
+    they are the bulkiest and most personal parts of the payload.
+    """
+    pfc = tx.get("personal_finance_category")
+    if not isinstance(pfc, dict):
+        pfc = {}
+    return {
+        "plaid_merchant_entity_id": tx.get("merchant_entity_id") or None,
+        "plaid_merchant_name": tx.get("merchant_name") or None,
+        # Plaid's `name` is the raw bank string. `description` collapses it
+        # with `merchant_name`, so keeping it separately is the only way to
+        # re-derive a merchant key later without re-fetching from Plaid.
+        "original_description": tx.get("name") or None,
+        "personal_finance_category_primary": pfc.get("primary") or None,
+        "personal_finance_category_detailed": pfc.get("detailed") or None,
+        "payment_channel": tx.get("payment_channel") or None,
+        "transaction_code": tx.get("transaction_code") or None,
+        "authorized_date": _optional_date(tx.get("authorized_date")),
+        "iso_currency_code": tx.get("iso_currency_code")
+        or tx.get("unofficial_currency_code")
+        or None,
+    }
+
+
 def _apply_pending_replacement(db: Session, tx: dict, user_id: int, local_acct: Account) -> bool:
     """Update a categorized pending transaction when Plaid replaces it with the posted one."""
     pending_tx_id = tx.get("pending_transaction_id")
@@ -139,13 +198,19 @@ def _apply_pending_replacement(db: Session, tx: dict, user_id: int, local_acct: 
         Transaction.user_id == user_id,
         Transaction.plaid_tx_id == tx["transaction_id"],
     ).first()
+    metadata = _plaid_metadata(tx)
+
     if posted:
+        # Carry the pending row's category across so a categorization the user
+        # made while the charge was pending is not lost when it settles.
         if posted.category_id is None:
             posted.category_id = existing.category_id
+            posted.category_source = existing.category_source
         posted.account_id = local_acct.id
         posted.amount = _plaid_amount(tx)
         posted.description = _plaid_description(tx, posted.description)
         posted.transaction_date = date.fromisoformat(tx["date"])
+        _apply_metadata(posted, metadata)
         db.delete(existing)
         return True
 
@@ -154,7 +219,23 @@ def _apply_pending_replacement(db: Session, tx: dict, user_id: int, local_acct: 
     existing.description = _plaid_description(tx, existing.description)
     existing.transaction_date = date.fromisoformat(tx["date"])
     existing.plaid_tx_id = tx["transaction_id"]
+    _apply_metadata(existing, metadata)
     return True
+
+
+def _apply_metadata(row: Transaction, metadata: dict) -> None:
+    """Write Plaid metadata onto a row and re-derive its merchant key.
+
+    Leaves `category_id` alone — replacement and modification must never
+    disturb a category the user is looking at.
+    """
+    for field, value in metadata.items():
+        setattr(row, field, value)
+    identity = resolve_transaction_merchant(
+        row.description,
+        plaid_merchant_entity_id=row.plaid_merchant_entity_id,
+    )
+    row.merchant_key = identity.key or None
 
 
 # ─── Sync logic ───────────────────────────────────────────────────────────────
@@ -218,15 +299,23 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 continue
             if _apply_pending_replacement(db, tx, user_id, local_acct):
                 continue
-            rows_to_add.append({
+            description = _plaid_description(tx)
+            row = {
                 "user_id":          user_id,
                 "account_id":       local_acct.id,
                 "category_id":      None,
                 "amount":           _plaid_amount(tx),  # Plaid positive = debit; we store debits as negative
-                "description":      _plaid_description(tx),
+                "description":      description,
                 "plaid_tx_id":      tx["transaction_id"],
                 "transaction_date": date.fromisoformat(tx["date"]),
-            })
+                **_plaid_metadata(tx),
+            }
+            # Same enrichment step manual entry uses, so a bank-imported row
+            # gets a merchant key and a category suggestion instead of landing
+            # permanently uncategorized. It stages only — the bulk insert below
+            # still owns the write, so ON CONFLICT DO NOTHING and the per-page
+            # cursor commit are untouched.
+            rows_to_add.append(enrich_transaction_input(db, user_id, row))
         if rows_to_add:
             result = db.execute(pg_insert(Transaction).values(rows_to_add).on_conflict_do_nothing())
             added_count += result.rowcount
@@ -241,6 +330,26 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 existing.amount           = _plaid_amount(tx)
                 existing.description      = _plaid_description(tx, existing.description)
                 existing.transaction_date = date.fromisoformat(tx["date"])
+                for field, value in _plaid_metadata(tx).items():
+                    setattr(existing, field, value)
+                identity = resolve_transaction_merchant(
+                    existing.description,
+                    plaid_merchant_entity_id=existing.plaid_merchant_entity_id,
+                )
+                existing.merchant_key = identity.key or None
+                # Only fill a category that is still empty. A category the
+                # user set — or one we inferred and they left in place — is
+                # never overwritten by a later sync.
+                if existing.category_id is None:
+                    category_id, source = suggest_transaction_category(
+                        db,
+                        user_id,
+                        identity,
+                        pfc_primary=existing.personal_finance_category_primary,
+                    )
+                    if category_id is not None:
+                        existing.category_id = category_id
+                        existing.category_source = source
 
         # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
         for tx in data.get("removed", []):
@@ -292,7 +401,7 @@ def create_link_token(current_user: User = Depends(get_current_user)):
         "products":      ["transactions"],
         "country_codes": ["US"],
         "language":      "en",
-        "transactions":  {"days_requested": 90},
+        "transactions":  {"days_requested": PLAID_DAYS_REQUESTED},
     }
     if PLAID_WEBHOOK_URL:
         body["webhook"] = PLAID_WEBHOOK_URL
@@ -468,6 +577,141 @@ def reset_plaid_data(
 
     db.commit()
     return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}
+
+
+# ─── Recurring add-on capability probe ────────────────────────────────────────
+# `/transactions/recurring/get` is an **optional add-on**. Holding the
+# Transactions product does not imply access to it, so nothing may assume it
+# works. This probe answers "is it available on this account, in this
+# environment" without persisting anything — persisting streams is Phase 5B.
+#
+# Deliberately isolated from `_sync_item`: normal transaction sync must keep
+# working unchanged when the add-on is absent.
+
+# Plaid error codes that mean "not entitled", as distinct from a transient
+# failure. Treated as a definitive "unavailable" answer rather than an error.
+_RECURRING_UNAVAILABLE_CODES = {
+    "PRODUCT_NOT_ENABLED",
+    "PRODUCTS_NOT_SUPPORTED",
+    "INVALID_PRODUCT",
+    "ADDITION_LIMIT",
+    "INSUFFICIENT_CREDENTIALS",
+    "NOT_ENTITLED",
+}
+
+CAPABILITY_AVAILABLE = "available"
+CAPABILITY_UNAVAILABLE = "unavailable"
+CAPABILITY_NO_STREAMS = "available_no_streams"
+CAPABILITY_ERROR = "error"
+CAPABILITY_NOT_CONFIGURED = "not_configured"
+
+
+def _probe_recurring_for_item(access_token: str) -> dict:
+    """One raw call to `/transactions/recurring/get`, classified.
+
+    Returns a plain dict with no token or secret in it. Never raises — the
+    caller is a diagnostic endpoint, and "Plaid is down" is a result, not a
+    failure of the probe.
+    """
+    url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + "/transactions/recurring/get"
+    body = {"access_token": access_token, "client_id": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
+    try:
+        resp = requests.post(url, json=body, timeout=30)
+    except requests.RequestException as exc:
+        return {"status": CAPABILITY_ERROR, "detail": f"Network error contacting Plaid: {type(exc).__name__}"}
+
+    try:
+        payload = resp.json()
+    except ValueError:
+        return {"status": CAPABILITY_ERROR, "detail": f"Non-JSON response (HTTP {resp.status_code})"}
+
+    error_code = payload.get("error_code")
+    if error_code:
+        if error_code in _RECURRING_UNAVAILABLE_CODES:
+            return {
+                "status": CAPABILITY_UNAVAILABLE,
+                "detail": "The recurring transactions add-on is not enabled for this Plaid account.",
+                "plaid_error_code": error_code,
+            }
+        return {
+            "status": CAPABILITY_ERROR,
+            "detail": "Plaid returned an error. This may be transient.",
+            "plaid_error_code": error_code,
+        }
+
+    if not resp.ok:
+        return {"status": CAPABILITY_ERROR, "detail": f"HTTP {resp.status_code} from Plaid"}
+
+    inflow = payload.get("inflow_streams") or []
+    outflow = payload.get("outflow_streams") or []
+    if not inflow and not outflow:
+        return {
+            "status": CAPABILITY_NO_STREAMS,
+            "detail": "The add-on is enabled, but Plaid has not identified any recurring streams for this Item yet.",
+            "inflow_streams": 0,
+            "outflow_streams": 0,
+        }
+
+    return {
+        "status": CAPABILITY_AVAILABLE,
+        "detail": "The recurring transactions add-on is enabled and returning streams.",
+        "inflow_streams": len(inflow),
+        "outflow_streams": len(outflow),
+    }
+
+
+@router.get("/recurring-capability")
+def check_recurring_capability(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Report whether the recurring add-on is usable, per connected bank.
+
+    Diagnostic only — nothing is stored. Returns the institution name and a
+    classified status per Item; access tokens and Plaid credentials never
+    appear in the response.
+    """
+    if not PLAID_CLIENT_ID or not PLAID_SECRET:
+        return {
+            "environment": PLAID_ENV,
+            "overall": CAPABILITY_NOT_CONFIGURED,
+            "detail": "Plaid credentials are not configured in this environment.",
+            "items": [],
+        }
+
+    items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
+    if not items:
+        return {
+            "environment": PLAID_ENV,
+            "overall": CAPABILITY_NOT_CONFIGURED,
+            "detail": "No banks are connected, so the add-on cannot be probed.",
+            "items": [],
+        }
+
+    results = []
+    for item in items:
+        try:
+            outcome = _probe_recurring_for_item(_item_access_token(db, item))
+        except Exception as exc:
+            outcome = {"status": CAPABILITY_ERROR, "detail": f"Probe failed: {type(exc).__name__}"}
+        results.append({"institution_name": item.institution_name, **outcome})
+    db.commit()  # `_item_access_token` may re-encrypt a legacy plaintext token.
+
+    statuses = {row["status"] for row in results}
+    if CAPABILITY_AVAILABLE in statuses:
+        overall = CAPABILITY_AVAILABLE
+    elif CAPABILITY_NO_STREAMS in statuses:
+        overall = CAPABILITY_NO_STREAMS
+    elif CAPABILITY_UNAVAILABLE in statuses:
+        overall = CAPABILITY_UNAVAILABLE
+    else:
+        overall = CAPABILITY_ERROR
+
+    logger.info(
+        "plaid_recurring_capability_probe %s",
+        kv(user_id=current_user.id, environment=PLAID_ENV, overall=overall, items=len(results)),
+    )
+    return {"environment": PLAID_ENV, "overall": overall, "items": results}
 
 
 # ─── Webhook ──────────────────────────────────────────────────────────────────

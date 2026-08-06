@@ -2,17 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import date, timedelta
 from decimal import Decimal
-import calendar
 
 from models.database import get_db, RecurringTransaction, Transaction, Account, Category
 from models.auth import User
 from models.schemas import RecurringTransactionCreate, RecurringTransactionUpdate, RecurringTransactionResponse, TransactionResponse, LogVariableRecurringRequest
+from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
 from utils.auth import get_current_user
+from utils.dates import user_today
+from utils.logging import get_logger, kv
 from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/recurring", tags=["recurring"])
+logger = get_logger(__name__)
 
 
 def _owned_account(db: Session, account_id: int, user_id: int) -> Account:
@@ -40,29 +42,6 @@ def _owned_category(db: Session, category_id: int | None, user_id: int) -> Categ
     return category
 
 
-def _next_date(current: date, period: str) -> date:
-    if period == "weekly":
-        return current + timedelta(weeks=1)
-    if period == "biweekly":
-        return current + timedelta(weeks=2)
-    if period == "monthly":
-        month = current.month + 1
-        year  = current.year
-        if month > 12: month, year = 1, year + 1
-        day = min(current.day, calendar.monthrange(year, month)[1])
-        return date(year, month, day)
-    if period == "quarterly":
-        month = current.month + 3
-        year  = current.year
-        while month > 12: month -= 12; year += 1
-        day = min(current.day, calendar.monthrange(year, month)[1])
-        return date(year, month, day)
-    if period == "yearly":
-        try:
-            return date(current.year + 1, current.month, current.day)
-        except ValueError:
-            return date(current.year + 1, current.month, 28)
-    return current
 
 
 @router.get("/", response_model=List[RecurringTransactionResponse])
@@ -114,8 +93,13 @@ def delete_recurring(rec_id: int, db: Session = Depends(get_db), current_user: U
 
 @router.post("/process-due", response_model=List[TransactionResponse])
 def process_due(background: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Create transactions for all overdue FIXED recurring entries. Variable ones are skipped."""
-    today = date.today()
+    """Create transactions for all overdue FIXED recurring entries. Variable ones are skipped.
+
+    Due-ness is judged against the user's own calendar day, not the server's —
+    see `utils.dates`. A bill due "today" must not fire early for a user west
+    of UTC.
+    """
+    today = user_today(current_user)
     due = (
         db.query(RecurringTransaction)
         .filter(
@@ -134,6 +118,19 @@ def process_due(background: BackgroundTasks, db: Session = Depends(get_db), curr
         category = _find_owned_category(db, rec.category_id, rec.user_id) if rec.category_id is not None else None
         if rec.category_id is not None and not category:
             continue
+        # Work out the next date *before* writing anything. A row whose period
+        # this build cannot schedule (legacy data, direct DB edit) is skipped
+        # entirely rather than materialized: creating the transaction and then
+        # failing to advance `next_date` is exactly the loop that produced
+        # duplicate transactions and balance drift on every subsequent call.
+        try:
+            advanced = next_occurrence(rec.next_date, rec.period)
+        except UnsupportedPeriodError:
+            logger.warning(
+                "recurring_skipped_unsupported_period %s",
+                kv(recurring_id=rec.id, user_id=current_user.id, period=rec.period),
+            )
+            continue
         tx = Transaction(
             user_id=current_user.id,
             account_id=rec.account_id,
@@ -144,7 +141,7 @@ def process_due(background: BackgroundTasks, db: Session = Depends(get_db), curr
         )
         db.add(tx)
         account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
-        rec.next_date = _next_date(rec.next_date, rec.period)
+        rec.next_date = advanced
         created.append(tx)
     db.commit()
     for tx in created:
@@ -178,7 +175,17 @@ def log_variable(
     account = _owned_account(db, rec.account_id, current_user.id)
     category = _owned_category(db, rec.category_id, current_user.id)
 
-    tx_date = data.transaction_date or rec.next_date
+    # Resolve the next date before writing anything — an unschedulable period
+    # must fail before any transaction exists or any balance moves, so the
+    # request is a clean 422 rather than a half-applied write. The charge is
+    # still dated to the cycle being logged, not to the advanced date.
+    due_date = rec.next_date
+    try:
+        advanced = next_occurrence(due_date, rec.period)
+    except UnsupportedPeriodError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    tx_date = data.transaction_date or due_date
     tx = Transaction(
         user_id=current_user.id,
         account_id=rec.account_id,
@@ -191,7 +198,7 @@ def log_variable(
     account.balance = Decimal(str(account.balance)) + Decimal(str(data.amount))
     # Save this amount as the new estimate for next time
     rec.amount = data.amount
-    rec.next_date = _next_date(rec.next_date, rec.period)
+    rec.next_date = advanced
     db.commit()
     db.refresh(tx)
     return tx

@@ -25,7 +25,7 @@ import {
   categorySpendDelta,
   classifyTransaction,
   merchantDisplayName,
-  normalizeMerchantName,
+  merchantIdentity,
   pctChange,
 } from './transactions';
 
@@ -163,7 +163,7 @@ export function topMerchants(
     const kind = classifyTransaction(tx, ctx);
     const delta = categorySpendDelta(tx, kind);
     if (delta === 0) return;
-    const key = normalizeMerchantName(tx.description) || '__unlabelled__';
+    const key = merchantIdentity(tx) || '__unlabelled__';
     const rec = groups.get(key) ?? {
       name: key === '__unlabelled__' ? 'No description' : merchantDisplayName(tx.description),
       total: 0,

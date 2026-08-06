@@ -29,6 +29,16 @@ export interface Transaction {
   description: string | null;
   transaction_date: string;
   created_at: string;
+  /**
+   * Merchant identity resolved by the backend. Null on rows written before
+   * the Phase 5A migration and on any row the backfill has not reached, which
+   * is why `merchantIdentity` still falls back to local normalization.
+   */
+  merchant_key?: string | null;
+  /** Plaid's stable merchant id. Takes precedence over `merchant_key`. */
+  plaid_merchant_entity_id?: string | null;
+  /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
+  category_source?: string | null;
 }
 
 export interface Transfer {
