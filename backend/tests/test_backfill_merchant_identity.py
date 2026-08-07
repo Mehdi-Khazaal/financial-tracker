@@ -7,7 +7,7 @@ import pytest
 
 from models.auth import User
 from models.database import Account, Category, MerchantAlias, Transaction
-from scripts.backfill_merchant_identity import run_backfill
+from scripts.backfill_merchant_identity import main as backfill_main, run_backfill
 from services.transaction_enrichment import SOURCE_MERCHANT_HISTORY, SOURCE_USER
 from utils import auth as auth_utils
 
@@ -248,3 +248,77 @@ def test_backfill_does_not_borrow_another_users_categories(db_session, user, acc
 
     db_session.expire_all()
     assert db_session.get(Transaction, mine.id).category_id is None
+
+
+# ─── Production write guard ───────────────────────────────────────────────────
+def test_apply_in_production_requires_confirm_flag(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    with pytest.raises(SystemExit) as excinfo:
+        backfill_main(["--apply"])
+    assert excinfo.value.code != 0
+
+
+def test_dry_run_in_production_needs_no_confirmation(monkeypatch, db_session, user, account):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    _add(db_session, user, account, "NETFLIX")
+    # Must not raise: reading is always allowed.
+    assert backfill_main(["--dry-run"]) == 0
+
+
+def test_apply_outside_production_needs_no_confirmation(monkeypatch, db_session, user, account):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    _add(db_session, user, account, "NETFLIX")
+    assert backfill_main(["--apply"]) == 0
+
+
+def test_confirm_production_permits_the_write(monkeypatch, db_session, user, account):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    tx = _add(db_session, user, account, "NETFLIX")
+    assert backfill_main(["--apply", "--confirm-production"]) == 0
+    db_session.expire_all()
+    assert db_session.get(Transaction, tx.id).merchant_key == "netflix"
+
+
+# ─── Reconciliation summary ───────────────────────────────────────────────────
+def test_reconciliation_reports_actual_database_state(db_session, user, account, category):
+    for day in (1, 2):
+        _add(db_session, user, account, "NETFLIX", category=category, day=day, merchant_key="netflix")
+    _add(db_session, user, account, "NETFLIX.COM", day=3)
+    _add(db_session, user, account, "ACH DEBIT PAYMENT", day=4)  # unresolvable
+
+    report = run_backfill(db_session, dry_run=False)
+    summary = report.reconcile(db_session)
+
+    assert "Transactions in scope" in summary
+    assert "With a merchant key" in summary
+    assert "category_source breakdown" in summary
+    # 4 rows, 3 keyable (the all-noise one is not).
+    assert "4" in summary
+
+
+def test_reconciliation_scopes_to_one_user(db_session, user, account):
+    from models.auth import User as AuthUser
+
+    other = AuthUser(
+        email="recon@example.com", username="recon",
+        hashed_password=auth_utils.get_password_hash("Password123"), is_verified=True,
+    )
+    db_session.add(other)
+    db_session.commit()
+    other_account = Account(user_id=other.id, name="Theirs", type="checking", balance=0)
+    db_session.add(other_account)
+    db_session.commit()
+
+    _add(db_session, user, account, "NETFLIX")
+    _add(db_session, other, other_account, "SPOTIFY")
+    _add(db_session, other, other_account, "HULU")
+
+    report = run_backfill(db_session, dry_run=False, user_id=user.id)
+
+    def scope_count(summary: str) -> int:
+        line = next(l for l in summary.splitlines() if "Transactions in scope" in l)
+        return int(line.rsplit(maxsplit=1)[1].replace(",", ""))
+
+    # Only this user's single row is in scope; unscoped sees all three.
+    assert scope_count(report.reconcile(db_session, user_id=user.id)) == 1
+    assert scope_count(report.reconcile(db_session)) == 3
