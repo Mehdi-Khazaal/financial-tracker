@@ -60,26 +60,6 @@ def _prepare_database() -> None:
         "ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
         # The assistant resolves "today" in the user's own zone; the server is UTC.
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)",
-        # ── Transaction intelligence (Phase 5A) ──────────────────────────────
-        # Merchant identity and the Plaid enrichment sync used to discard.
-        # `create_all` above adds missing *tables* but never adds columns to a
-        # table that already exists, so these have to be listed explicitly —
-        # without them every query touching `transactions` selects columns the
-        # database does not have and returns a 500. Mirrors Alembic revision
-        # 20260805_000009; both must be updated together.
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_merchant_entity_id VARCHAR(64)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_merchant_name VARCHAR(200)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS original_description TEXT",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS merchant_key VARCHAR(120)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_finance_category_primary VARCHAR(60)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_finance_category_detailed VARCHAR(100)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_source VARCHAR(20)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_channel VARCHAR(20)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_code VARCHAR(40)",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS authorized_date DATE",
-        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS iso_currency_code VARCHAR(8)",
-        "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_key ON transactions (user_id, merchant_key)",
-        "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_entity ON transactions (user_id, plaid_merchant_entity_id)",
     ]
     with engine.begin() as conn:
         for sql in migrations:
