@@ -11,7 +11,7 @@ import pytest
 from routers import plaid_router
 from routers.plaid_router import (
     CAPABILITY_AVAILABLE,
-    CAPABILITY_TRANSIENT_ERROR,
+    CAPABILITY_ERROR,
     CAPABILITY_NO_STREAMS,
     CAPABILITY_UNAVAILABLE,
 )
@@ -68,13 +68,13 @@ def test_entitlement_errors_report_unavailable(monkeypatch, code):
 
 def test_transient_error_is_not_reported_as_unavailable(monkeypatch):
     result = _probe_with(monkeypatch, {"error_code": "INTERNAL_SERVER_ERROR"})
-    assert result["status"] == CAPABILITY_TRANSIENT_ERROR
+    assert result["status"] == CAPABILITY_ERROR
     assert result["plaid_error_code"] == "INTERNAL_SERVER_ERROR"
 
 
 def test_non_json_response_is_an_error_not_a_crash(monkeypatch):
     result = _probe_with(monkeypatch, _INVALID, status_code=502)
-    assert result["status"] == CAPABILITY_TRANSIENT_ERROR
+    assert result["status"] == CAPABILITY_ERROR
 
 
 def test_network_failure_is_an_error_not_a_crash(monkeypatch):
@@ -86,7 +86,7 @@ def test_network_failure_is_an_error_not_a_crash(monkeypatch):
 
     monkeypatch.setattr(plaid_router.requests, "post", boom)
     result = plaid_router._probe_recurring_for_item("access-token")
-    assert result["status"] == CAPABILITY_TRANSIENT_ERROR
+    assert result["status"] == CAPABILITY_ERROR
 
 
 def test_probe_response_never_leaks_credentials(monkeypatch):

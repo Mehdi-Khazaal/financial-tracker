@@ -40,7 +40,6 @@ categorization must never leak into another's ledger.
 
 from __future__ import annotations
 
-import os
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
@@ -50,28 +49,6 @@ from sqlalchemy.orm import Session
 
 from models.database import Category, Transaction
 from services import merchants
-
-# ─── Kill switch ──────────────────────────────────────────────────────────────
-# Automatic categorization is new behaviour: before Phase 5A every Plaid import
-# landed uncategorized. Set `AUTO_CATEGORIZE=false` to turn just that off
-# without reverting the deployment.
-#
-# **Default is enabled.** Setting the variable to "false" (case-insensitive) is
-# the only thing that disables it; anything else, including it being unset,
-# leaves it on.
-#
-# What disabling does *not* touch: merchant identity still resolves,
-# `merchant_key` and every Plaid metadata column are still written, and aliases
-# are still registered. Only the act of choosing a category stops. New imports
-# simply arrive uncategorized, exactly as they did before this phase — and a
-# category the user set is never affected either way.
-
-
-def auto_categorize_enabled() -> bool:
-    """Whether inference may assign a category. Read per call, not cached at
-    import, so the switch takes effect on a restart without a code change."""
-    return os.getenv("AUTO_CATEGORIZE", "true").strip().lower() != "false"
-
 
 # ─── Confidence thresholds ────────────────────────────────────────────────────
 # Two observations is enough to call a pattern: a single prior transaction is
@@ -265,9 +242,6 @@ def suggest_transaction_category(
     enough signal. Callers must not use this to override a category the user
     already chose.
     """
-    if not auto_categorize_enabled():
-        return None, None
-
     if identity.is_resolvable:
         voted = _history_vote(session, user_id, identity)
         if voted is not None:

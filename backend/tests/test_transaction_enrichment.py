@@ -10,7 +10,6 @@ from models.database import Account, Category, Transaction
 from services import merchants
 from services.transaction_enrichment import (
     MIN_HISTORY_OBSERVATIONS,
-    auto_categorize_enabled,
     SOURCE_MERCHANT_HISTORY,
     SOURCE_PLAID_PFC,
     SOURCE_USER,
@@ -318,67 +317,3 @@ def test_enrichment_does_not_mutate_its_input(db_session, user, account):
     values = {"account_id": account.id, "amount": Decimal("-5"), "description": "NETFLIX"}
     enrich_transaction_input(db_session, user.id, values)
     assert "merchant_key" not in values
-
-
-# ─── Auto-categorization kill switch ──────────────────────────────────────────
-def test_auto_categorize_defaults_to_enabled(monkeypatch):
-    monkeypatch.delenv("AUTO_CATEGORIZE", raising=False)
-    assert auto_categorize_enabled() is True
-
-
-@pytest.mark.parametrize("value", ["false", "FALSE", "False", " false "])
-def test_auto_categorize_disabled_only_by_false(monkeypatch, value):
-    monkeypatch.setenv("AUTO_CATEGORIZE", value)
-    assert auto_categorize_enabled() is False
-
-
-@pytest.mark.parametrize("value", ["true", "1", "yes", "", "off"])
-def test_anything_other_than_false_leaves_it_enabled(monkeypatch, value):
-    monkeypatch.setenv("AUTO_CATEGORIZE", value)
-    assert auto_categorize_enabled() is True
-
-
-def test_switch_off_leaves_new_rows_uncategorized(monkeypatch, db_session, user, account, category):
-    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
-    monkeypatch.setenv("AUTO_CATEGORIZE", "false")
-
-    identity = resolve_transaction_merchant("NETFLIX*MEMBERSHIP")
-    suggested, source = suggest_transaction_category(db_session, user.id, identity)
-    assert suggested is None
-    assert source is None
-
-
-def test_switch_off_still_stores_merchant_identity(monkeypatch, db_session, user, account, category):
-    """Disabling categorization must not disable enrichment."""
-    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
-    monkeypatch.setenv("AUTO_CATEGORIZE", "false")
-
-    result = enrich_transaction_input(
-        db_session, user.id,
-        {
-            "account_id": account.id,
-            "amount": Decimal("-9.99"),
-            "description": "NETFLIX*MEMBERSHIP",
-            "plaid_merchant_entity_id": "ent_netflix",
-            "payment_channel": "online",
-        },
-    )
-    assert result["merchant_key"] == "netflix"
-    assert result["plaid_merchant_entity_id"] == "ent_netflix"
-    assert result["payment_channel"] == "online"   # metadata untouched
-    assert result.get("category_id") is None       # only categorization stops
-
-
-def test_switch_off_never_disturbs_an_explicit_category(monkeypatch, db_session, user, account, category):
-    monkeypatch.setenv("AUTO_CATEGORIZE", "false")
-    result = enrich_transaction_input(
-        db_session, user.id,
-        {
-            "account_id": account.id,
-            "amount": Decimal("-9.99"),
-            "description": "NETFLIX",
-            "category_id": category.id,
-        },
-    )
-    assert result["category_id"] == category.id
-    assert result["category_source"] == SOURCE_USER

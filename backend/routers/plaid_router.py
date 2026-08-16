@@ -599,19 +599,11 @@ _RECURRING_UNAVAILABLE_CODES = {
     "NOT_ENTITLED",
 }
 
-# The five states this probe can report. `transient_error` is deliberately
-# distinct from `unavailable`: "Plaid is briefly unhappy" and "you are not
-# entitled to this add-on" call for completely different responses, and
-# collapsing them would make a temporary outage look like a permanent block.
 CAPABILITY_AVAILABLE = "available"
-CAPABILITY_NO_STREAMS = "available_no_streams"
 CAPABILITY_UNAVAILABLE = "unavailable"
-CAPABILITY_TRANSIENT_ERROR = "transient_error"
+CAPABILITY_NO_STREAMS = "available_no_streams"
+CAPABILITY_ERROR = "error"
 CAPABILITY_NOT_CONFIGURED = "not_configured"
-
-# How long a single probe call may take. Bounded so a slow Plaid response
-# cannot hold a request open indefinitely.
-RECURRING_PROBE_TIMEOUT_SECONDS = 15
 
 
 def _probe_recurring_for_item(access_token: str) -> dict:
@@ -624,14 +616,14 @@ def _probe_recurring_for_item(access_token: str) -> dict:
     url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + "/transactions/recurring/get"
     body = {"access_token": access_token, "client_id": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
     try:
-        resp = requests.post(url, json=body, timeout=RECURRING_PROBE_TIMEOUT_SECONDS)
+        resp = requests.post(url, json=body, timeout=30)
     except requests.RequestException as exc:
-        return {"status": CAPABILITY_TRANSIENT_ERROR, "detail": f"Network error contacting Plaid: {type(exc).__name__}"}
+        return {"status": CAPABILITY_ERROR, "detail": f"Network error contacting Plaid: {type(exc).__name__}"}
 
     try:
         payload = resp.json()
     except ValueError:
-        return {"status": CAPABILITY_TRANSIENT_ERROR, "detail": f"Non-JSON response (HTTP {resp.status_code})"}
+        return {"status": CAPABILITY_ERROR, "detail": f"Non-JSON response (HTTP {resp.status_code})"}
 
     error_code = payload.get("error_code")
     if error_code:
@@ -642,13 +634,13 @@ def _probe_recurring_for_item(access_token: str) -> dict:
                 "plaid_error_code": error_code,
             }
         return {
-            "status": CAPABILITY_TRANSIENT_ERROR,
+            "status": CAPABILITY_ERROR,
             "detail": "Plaid returned an error. This may be transient.",
             "plaid_error_code": error_code,
         }
 
     if not resp.ok:
-        return {"status": CAPABILITY_TRANSIENT_ERROR, "detail": f"HTTP {resp.status_code} from Plaid"}
+        return {"status": CAPABILITY_ERROR, "detail": f"HTTP {resp.status_code} from Plaid"}
 
     inflow = payload.get("inflow_streams") or []
     outflow = payload.get("outflow_streams") or []
@@ -701,7 +693,7 @@ def check_recurring_capability(
         try:
             outcome = _probe_recurring_for_item(_item_access_token(db, item))
         except Exception as exc:
-            outcome = {"status": CAPABILITY_TRANSIENT_ERROR, "detail": f"Probe failed: {type(exc).__name__}"}
+            outcome = {"status": CAPABILITY_ERROR, "detail": f"Probe failed: {type(exc).__name__}"}
         results.append({"institution_name": item.institution_name, **outcome})
     db.commit()  # `_item_access_token` may re-encrypt a legacy plaintext token.
 
@@ -713,7 +705,7 @@ def check_recurring_capability(
     elif CAPABILITY_UNAVAILABLE in statuses:
         overall = CAPABILITY_UNAVAILABLE
     else:
-        overall = CAPABILITY_TRANSIENT_ERROR
+        overall = CAPABILITY_ERROR
 
     logger.info(
         "plaid_recurring_capability_probe %s",

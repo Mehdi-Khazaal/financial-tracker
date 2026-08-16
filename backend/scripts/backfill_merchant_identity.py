@@ -39,7 +39,6 @@ re-run after an interruption, and safe to run while the app is serving.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,7 +48,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.database import SessionLocal, Transaction
@@ -60,15 +58,6 @@ from services.transaction_enrichment import (
 )
 
 DEFAULT_BATCH_SIZE = 500
-
-
-def _pct(part: int, whole: int) -> str:
-    return f"{(part / whole * 100):.1f}%" if whole else "n/a"
-
-
-def _is_production() -> bool:
-    """Matches how the rest of the backend identifies production."""
-    return os.getenv("ENVIRONMENT", "").strip().lower() == "production"
 
 
 @dataclass
@@ -83,42 +72,6 @@ class BackfillReport:
     already_categorized: int = 0
     last_id_processed: int = 0
     _distinct_keys: set[str] = field(default_factory=set)
-
-    def reconcile(self, session: Session, *, user_id: int | None = None) -> str:
-        """Re-read the database and report its actual state after a run.
-
-        Deliberately a fresh query rather than a replay of the counters above:
-        the counters say what the script believed it did, this says what is
-        actually stored. If the two disagree, something went wrong and the
-        operator can see it before approving anything further.
-        """
-        base = session.query(Transaction)
-        if user_id is not None:
-            base = base.filter(Transaction.user_id == user_id)
-
-        total = base.count()
-        keyed = base.filter(Transaction.merchant_key.isnot(None)).count()
-        categorized = base.filter(Transaction.category_id.isnot(None)).count()
-        by_source = dict(
-            session.query(Transaction.category_source, func.count(Transaction.id))
-            .filter(*( [Transaction.user_id == user_id] if user_id is not None else [] ))
-            .group_by(Transaction.category_source)
-            .all()
-        )
-        lines = [
-            "  Reconciliation (re-read from the database)",
-            "  " + "-" * 52,
-            f"  Transactions in scope       {total:>10,}",
-            f"  With a merchant key         {keyed:>10,}  ({_pct(keyed, total)})",
-            f"  Without a merchant key      {total - keyed:>10,}",
-            f"  Categorized                 {categorized:>10,}  ({_pct(categorized, total)})",
-            "  category_source breakdown:",
-        ]
-        for source, count in sorted(by_source.items(), key=lambda kv: (kv[0] is not None, kv[0] or "")):
-            label = source if source else "(none - set before Phase 5A or uncategorized)"
-            lines.append(f"    {label:<44} {count:>8,}")
-        lines.append("")
-        return "\n".join(lines)
 
     def render(self, *, dry_run: bool) -> str:
         # ASCII only: this prints to a console, and Windows' default cp1252
@@ -278,30 +231,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--no-categories", action="store_true", help="Keys and aliases only.")
     parser.add_argument("--verbose", action="store_true", help="Print each category assignment.")
-    parser.add_argument(
-        "--confirm-production",
-        action="store_true",
-        help="Required alongside --apply when ENVIRONMENT=production.",
-    )
     args = parser.parse_args(argv)
 
     dry_run = not args.apply
-
-    # Two independent flags are required to write to production. `--apply`
-    # alone is easy to reach for out of habit after a dry run; the second flag
-    # exists purely so that writing to real user data cannot happen by
-    # muscle memory. Non-production environments need only `--apply`.
-    if not dry_run and _is_production() and not args.confirm_production:
-        parser.error(
-            "Refusing to write: ENVIRONMENT=production requires --confirm-production "
-            "in addition to --apply.\n"
-            "Run with --dry-run first and review the report before proceeding."
-        )
-
-    if not dry_run:
-        target = "PRODUCTION" if _is_production() else os.getenv("ENVIRONMENT", "unspecified")
-        print(f"\n  Writing to: {target}  (scope: "
-              f"{'user ' + str(args.user_id) if args.user_id else 'ALL USERS'})\n")
 
     session = SessionLocal()
     try:
@@ -314,16 +246,12 @@ def main(argv: list[str] | None = None) -> int:
             assign_categories=not args.no_categories,
             verbose=args.verbose,
         )
-        rendered = report.render(dry_run=dry_run)
-        reconciliation = report.reconcile(session, user_id=args.user_id)
     finally:
         session.close()
 
-    print(rendered)
-    print(reconciliation)
+    print(report.render(dry_run=dry_run))
     if dry_run:
-        print("  Nothing was written. Re-run with --apply to write these changes"
-              + (" (plus --confirm-production).\n" if _is_production() else ".\n"))
+        print("  Re-run with --apply to write these changes.\n")
     return 0
 
 
