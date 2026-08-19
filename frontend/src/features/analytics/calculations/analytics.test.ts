@@ -5,7 +5,9 @@ import {
   normalizeMerchantName,
   pctChange,
 } from './transactions';
-import { calculatePeriodMetrics, monthlyMetrics, transactionsInRange } from './metrics';
+import {
+  calculatePeriodMetrics, investedInYear, monthlyMetrics, transactionsInRange,
+} from './metrics';
 import { calculateCategoryComparisons } from './categories';
 import { calculateSavingsMetrics, selectPrimaryGoal } from './savings';
 import { calculateNetWorthChange } from './netWorth';
@@ -148,6 +150,39 @@ describe('investment purchases are kept out of spending', () => {
       tx('2026-07-20', 500, BULLION),
     ], ctx);
     expect(metrics.investments).toBe(1500);
+  });
+
+  it('tracks the year as a running total, across months', () => {
+    const invested = investedInYear([
+      tx('2026-02-10', -1000, BULLION),
+      tx('2026-07-04', -2000, BULLION),
+      tx('2026-11-01', -500, BULLION),
+    ], ctx, TODAY);
+    expect(invested).toBe(3500);
+  });
+
+  it('counts only the year asked for', () => {
+    const transactions = [
+      tx('2025-12-31', -900, BULLION),
+      tx('2026-01-01', -100, BULLION),
+      tx('2027-01-01', -700, BULLION),
+    ];
+    expect(investedInYear(transactions, ctx, TODAY)).toBe(100);
+    expect(investedInYear(transactions, ctx, new Date(2025, 5, 1))).toBe(900);
+  });
+
+  it('nets a sale against the year total rather than ignoring it', () => {
+    expect(investedInYear([
+      tx('2026-03-01', -2000, BULLION),
+      tx('2026-09-01', 800, BULLION),
+    ], ctx, TODAY)).toBe(1200);
+  });
+
+  it('is zero when nothing was filed as an investment', () => {
+    expect(investedInYear([
+      tx('2026-03-01', -2000, GROCERIES),
+      tx('2026-03-02', 4000, SALARY),
+    ], ctx, TODAY)).toBe(0);
   });
 
   it('never counts an investment purchase as the largest expense', () => {

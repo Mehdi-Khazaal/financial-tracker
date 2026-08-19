@@ -12,6 +12,10 @@ interface Props {
   netWorth: NetWorthAnalysis;
   currentNetWorth: number;
   period: ResolvedPeriod;
+  /** Net money into assets across the calendar year, for the running total. */
+  investedThisYear: number;
+  /** Calendar year the running total covers. */
+  year: number;
 }
 
 interface Tile {
@@ -35,6 +39,7 @@ interface Tile {
  */
 const AnalyticsMetricGrid: React.FC<Props> = ({
   metrics, previousMetrics, savings, netWorth, currentNetWorth, period,
+  investedThisYear, year,
 }) => {
   const comparisonName = period.previous
     ? (period.previous.months.length === 1 ? 'previous month' : 'previous period')
@@ -42,6 +47,16 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
 
   const incomeChange = previousMetrics ? pctChange(metrics.income, previousMetrics.income) : null;
   const expenseChange = previousMetrics ? pctChange(metrics.expenses, previousMetrics.expenses) : null;
+  const investedChange = previousMetrics
+    ? metrics.investments - previousMetrics.investments
+    : null;
+
+  // The tile earns its place only once there is something to report. A
+  // permanent "Invested $0" is noise for anyone who does not buy assets, and
+  // the year total keeps it visible in a month where nothing was bought.
+  const showInvested = metrics.investments !== 0
+    || (previousMetrics?.investments ?? 0) !== 0
+    || investedThisYear !== 0;
 
   const tiles: Tile[] = [
     {
@@ -87,7 +102,13 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       value: `${metrics.net < 0 ? '−' : ''}${dollars(Math.abs(metrics.net))}`,
       color: metrics.net >= 0 ? 'var(--pos)' : 'var(--neg)',
       accent: 'var(--accent)',
-      hint: SAVINGS_DEFINITION,
+      // Buying an asset is saving, not spending, so it does not reduce this
+      // figure — but it does leave the account, and a reader comparing this
+      // against their bank balance deserves to be told which part is no longer
+      // cash rather than left to find the gap themselves.
+      hint: metrics.investments > 0
+        ? `${SAVINGS_DEFINITION} Of this, ${dollars(metrics.investments)} went into assets rather than staying as cash.`
+        : SAVINGS_DEFINITION,
       delta: savings.savedDelta != null
         ? <DeltaBadge value={savings.savedDelta} polarity="up-good" />
         : undefined,
@@ -114,10 +135,34 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
     },
   ];
 
+  if (showInvested) {
+    tiles.push({
+      key: 'invested',
+      label: 'Invested',
+      // A period that sold more than it bought is negative, and says so rather
+      // than clamping to zero — money came back out of assets, which is a real
+      // and different event from having invested nothing.
+      value: `${metrics.investments < 0 ? '−' : ''}${dollars(Math.abs(metrics.investments))}`,
+      color: metrics.investments !== 0 ? 'var(--accent)' : 'var(--muted)',
+      accent: 'var(--accent)',
+      hint: 'Money moved into assets you hold, filed under an investment category — purchases less anything sold. '
+        + 'It is counted in neither income nor expenses, because it changed form rather than leaving, so it does not '
+        + 'reduce what is left over or your savings rate.',
+      delta: investedChange != null && investedChange !== 0
+        ? <DeltaBadge value={investedChange} polarity="up-good" />
+        : undefined,
+      footnote: `${dollars(investedThisYear)} in ${year}`,
+    });
+  }
+
+  // 2 up on phones, 3 on tablets, one row on desktop. Going straight from 2 to
+  // 5 left a lone orphan tile on every tablet width. The desktop count follows
+  // the tile count so adding Invested does not strand it on its own row —
+  // both class names are written out because Tailwind scans for literals.
+  const desktopColumns = tiles.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5';
+
   return (
-    // Five tiles: 2 up on phones, 3 on tablets, one row on desktop. Going
-    // straight from 2 to 5 left a lone orphan tile on every tablet width.
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
+    <div className={`grid grid-cols-2 md:grid-cols-3 ${desktopColumns} gap-2.5 md:gap-3`}>
       {tiles.map(tile => (
         <div
           key={tile.key}

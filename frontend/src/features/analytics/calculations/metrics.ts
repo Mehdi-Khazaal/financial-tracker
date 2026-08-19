@@ -92,6 +92,27 @@ export function calculatePeriodMetrics(
   };
 }
 
+/**
+ * Net money moved into assets across the calendar year containing `today`.
+ *
+ * A running total, deliberately whole-year rather than year-to-date: a
+ * forward-dated purchase is still money you have committed this year, and
+ * excluding it would make the figure shrink when you record something early.
+ * Reuses `calculatePeriodMetrics` so the definition of "invested" cannot drift
+ * from the one every other surface reads.
+ */
+export function investedInYear(
+  transactions: Transaction[],
+  ctx: ClassificationContext,
+  today: Date,
+): number {
+  const year = String(today.getFullYear());
+  return calculatePeriodMetrics(
+    transactions.filter(t => t.transaction_date.slice(0, 4) === year),
+    ctx,
+  ).investments;
+}
+
 /** Per-month metrics for every month in `months`, ascending. */
 export function monthlyMetrics(
   transactions: Transaction[],

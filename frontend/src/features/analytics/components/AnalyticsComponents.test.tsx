@@ -172,9 +172,57 @@ describe('SavingsOverviewCard', () => {
 });
 
 describe('AnalyticsMetricGrid', () => {
+  const grid = (props: Partial<React.ComponentProps<typeof AnalyticsMetricGrid>> = {}) => (
+    <AnalyticsMetricGrid
+      investedThisYear={0}
+      year={2026}
+      metrics={metrics()}
+      previousMetrics={null}
+      savings={savings()}
+      netWorth={emptyNetWorth}
+      currentNetWorth={5000}
+      period={PERIOD}
+      {...props}
+    />
+  );
+
+  it('hides the Invested tile when nothing has ever been invested', () => {
+    render(grid());
+    expect(screen.queryByText('Invested')).not.toBeInTheDocument();
+  });
+
+  it('shows the Invested tile once a purchase is filed', () => {
+    render(grid({ metrics: metrics({ investments: 2000 }), investedThisYear: 2000 }));
+    expect(screen.getByText('Invested')).toBeInTheDocument();
+    expect(screen.getByText('$2,000.00 in 2026')).toBeInTheDocument();
+  });
+
+  // A quiet month still has a year behind it — hiding the tile would read as
+  // though nothing had ever been invested.
+  it('keeps the tile in a month with no purchases when the year has some', () => {
+    render(grid({ metrics: metrics({ investments: 0 }), investedThisYear: 5000 }));
+    expect(screen.getByText('Invested')).toBeInTheDocument();
+    expect(screen.getByText('$5,000.00 in 2026')).toBeInTheDocument();
+  });
+
+  it('says so when money came back out of assets', () => {
+    render(grid({ metrics: metrics({ investments: -800 }), investedThisYear: 1200 }));
+    expect(screen.getByText('−$800.00')).toBeInTheDocument();
+  });
+
+  it('names how much of Left over stopped being cash', () => {
+    render(grid({ metrics: metrics({ net: 2800, investments: 2000 }), investedThisYear: 2000 }));
+    // The explanation is behind the hint button, so it has to be opened.
+    fireEvent.click(screen.getByLabelText('How Left over is calculated'));
+    expect(screen.getByText(/went into assets rather than staying as cash/))
+      .toHaveTextContent('$2,000.00');
+  });
+
   it('renders a dash and an explanation when there is no income', () => {
     render(
       <AnalyticsMetricGrid
+        investedThisYear={0}
+        year={2026}
         metrics={metrics({ income: 0, savingsRate: null, net: -300, expenses: 300 })}
         previousMetrics={null}
         savings={savings({ savingsRate: null, rateDelta: null, savedDelta: null })}
@@ -190,6 +238,8 @@ describe('AnalyticsMetricGrid', () => {
   it('exposes a calculation explanation for every metric', () => {
     render(
       <AnalyticsMetricGrid
+        investedThisYear={0}
+        year={2026}
         metrics={metrics()}
         previousMetrics={metrics({ income: 3000, expenses: 1500, net: 1500 })}
         savings={savings()}
@@ -206,6 +256,8 @@ describe('AnalyticsMetricGrid', () => {
   it('shows a savings-rate change in points, with the two rates spelled out', () => {
     render(
       <AnalyticsMetricGrid
+        investedThisYear={0}
+        year={2026}
         metrics={metrics({ savingsRate: 0.791 })}
         previousMetrics={metrics({ savingsRate: 0.272 })}
         savings={savings({ savingsRate: 0.791, previousRate: 0.272, rateDelta: 0.519 })}
@@ -221,6 +273,8 @@ describe('AnalyticsMetricGrid', () => {
   it('opens the savings explanation on click', () => {
     render(
       <AnalyticsMetricGrid
+        investedThisYear={0}
+        year={2026}
         metrics={metrics()}
         previousMetrics={null}
         savings={savings()}

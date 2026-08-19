@@ -197,6 +197,8 @@ const AnalyticsTab: React.FC<Props> = ({
         netWorth={model.netWorth}
         currentNetWorth={model.currentNetWorth}
         period={model.period}
+        investedThisYear={model.investedThisYear}
+        year={model.year}
       />
 
       <PeriodSummary summary={model.summary} />

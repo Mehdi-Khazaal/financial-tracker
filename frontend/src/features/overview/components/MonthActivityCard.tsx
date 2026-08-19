@@ -21,6 +21,11 @@ interface Props {
   /** Next declared recurring charge, when one is due. */
   nextCharge: UpcomingBill | null;
   /**
+   * Net money into assets this month. Shown only when non-zero — a permanent
+   * "Invested $0" row is noise for anyone who does not buy assets.
+   */
+  invested: number;
+  /**
    * False when the brief is already naming this charge. The brief is read
    * first and says it better; repeating it here is the same fact twice on one
    * screen.
@@ -28,7 +33,7 @@ interface Props {
   showNextCharge?: boolean;
 }
 
-const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, showNextCharge = true }) => {
+const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, invested, showNextCharge = true }) => {
   return (
     <section className="ledger-panel p-4" aria-labelledby="overview-activity-heading">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -59,6 +64,21 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, showNextChar
             {activity.lastPostedLabel ?? 'None yet'}
           </dd>
         </div>
+
+        {invested !== 0 && (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-xs" style={{ color: 'var(--dim)' }}>
+              <Link to="/portfolio" style={{ color: 'inherit' }}>
+                {invested > 0 ? 'Invested' : 'Sold from assets'}
+              </Link>
+            </dt>
+            {/* Not counted as spending — it bought something still held. The
+                Analytics tile carries the fuller explanation. */}
+            <dd className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--accent)' }}>
+              {dollars(Math.abs(invested))}
+            </dd>
+          </div>
+        )}
 
         {nextCharge && showNextCharge && (
           <div className="flex items-baseline justify-between gap-3">

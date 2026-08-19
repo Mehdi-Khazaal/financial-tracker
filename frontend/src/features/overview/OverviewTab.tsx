@@ -107,6 +107,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         <MonthActivityCard
           activity={model.activity}
           nextCharge={model.nextCharge}
+          invested={model.metrics.investments}
           showNextCharge={!model.brief.some(item => item.id === 'bill-due')}
         />
         <ImportReviewCard review={model.review} monthName={model.activity.monthName} />

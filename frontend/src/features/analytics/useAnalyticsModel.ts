@@ -34,7 +34,9 @@ import type {
 import type { CashFlowData } from './types';
 import { baselineDescription, baselineMonths, monthKeyOf, resolvePeriod } from './period';
 import { buildClassificationContext } from './calculations/transactions';
-import { calculatePeriodMetrics, monthlyMetrics, transactionsInRange } from './calculations/metrics';
+import {
+  calculatePeriodMetrics, investedInYear, monthlyMetrics, transactionsInRange,
+} from './calculations/metrics';
 import { calculateCategoryComparisons, spendingBreakdown } from './calculations/categories';
 import { calculateSavingsMetrics } from './calculations/savings';
 import { calculateNetWorthChange } from './calculations/netWorth';
@@ -83,6 +85,10 @@ export interface AnalyticsModel {
   /** Net worth as of now — sum of non-investment account balances. */
   currentNetWorth: number;
   periodTransactions: Transaction[];
+  /** Net money into assets across the whole calendar year. */
+  investedThisYear: number;
+  /** The calendar year `investedThisYear` covers. */
+  year: number;
 }
 
 export interface AnalyticsSelection {
@@ -242,6 +248,10 @@ export function useAnalyticsModel(
       baselineLabel: baselineDescription(baseline.length),
       currentNetWorth: netWorthFromAccounts(accounts),
       periodTransactions,
+      // A running total, so a month with no purchases still shows the year's
+      // contributions rather than reading as though nothing was ever invested.
+      investedThisYear: investedInYear(transactions, ctx, today),
+      year: today.getFullYear(),
     };
   }, [
     availableMonths, period, today, transactions, categories, accounts, goals,
