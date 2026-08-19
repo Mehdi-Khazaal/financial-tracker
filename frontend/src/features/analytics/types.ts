@@ -59,7 +59,8 @@ export interface ResolvedPeriod extends PeriodRange {
  *                   original purchase was already counted as an expense
  * - `excluded`    — zero-amount rows
  */
-export type TransactionKind = 'income' | 'expense' | 'refund' | 'card-payment' | 'excluded';
+export type TransactionKind =
+  | 'income' | 'expense' | 'refund' | 'card-payment' | 'investment' | 'excluded';
 
 export interface ClassificationContext {
   accountTypeById: Map<number, Account['type']>;
@@ -75,6 +76,13 @@ export interface PeriodMetrics {
   grossExpenses: number;
   refunds: number;
   cardPayments: number;
+  /**
+   * Net money moved into assets you hold: purchases positive, sales negative.
+   * Counted in neither `income` nor `expenses` — the money left the account
+   * but was not consumed. Reported so the exclusion is visible rather than
+   * silent.
+   */
+  investments: number;
   /** `income - expenses`. This is the app's definition of money saved. */
   net: number;
   /** `net / income`, or null when there was no income to save out of. */

@@ -5,6 +5,7 @@ import {
 } from './accounts/calculations/totals';
 import { totalCardDebt, cardUtilization } from './accounts/calculations/cards';
 import { valuePortfolio } from './portfolio/calculations/investments';
+import { totalWealth } from './portfolio/calculations/wealth';
 import { summariseGoals } from './portfolio/calculations/goals';
 import { buildNetWorthRange } from './portfolio/calculations/netWorthRange';
 import { buildClassificationContext } from './analytics/calculations/transactions';
@@ -38,6 +39,7 @@ const accounts: Account[] = [
 const categories: Category[] = [
   { id: 10, user_id: 1, name: 'Groceries', type: 'expense', color: '#e11', is_system: false, created_at: '' },
   { id: 11, user_id: 1, name: 'Salary', type: 'income', color: '#1e1', is_system: false, created_at: '' },
+  { id: 12, user_id: 1, name: 'Bullion', type: 'investment', color: '#f97', is_system: false, created_at: '' },
 ];
 
 const ctx = buildClassificationContext(accounts, categories);
@@ -56,6 +58,64 @@ const holdings: Asset[] = [
 const goals: SavingsGoal[] = [
   { id: 1, user_id: 1, name: 'Summer 2027', target_amount: 12000, deadline: null, created_at: '', current_amount: 3000, allocations: [{ id: 1, account_id: 2, account_name: 'Emergency', amount: 3000 }] },
 ];
+
+// ── Total wealth ──────────────────────────────────────────────────────────────
+
+describe('total wealth widens net worth without redefining it', () => {
+  it('reuses the net-worth definition rather than recomputing one', () => {
+    expect(totalWealth(accounts, holdings, {}).netWorth).toBe(netWorthFromAccounts(accounts));
+  });
+
+  it('is exactly net worth plus the portfolio valuation both screens already use', () => {
+    const wealth = totalWealth(accounts, holdings, {});
+    expect(wealth.total).toBe(
+      netWorthFromAccounts(accounts) + valuePortfolio(holdings, {}).total,
+    );
+  });
+
+  it('moves with prices only because the portfolio valuation does', () => {
+    const flat = totalWealth(accounts, holdings, {});
+    const priced = totalWealth(accounts, holdings, { VTI: 300 });
+    expect(priced.total - flat.total).toBe(
+      valuePortfolio(holdings, { VTI: 300 }).total - valuePortfolio(holdings, {}).total,
+    );
+    expect(priced.netWorth).toBe(flat.netWorth);
+  });
+});
+
+// ── Asset purchases ───────────────────────────────────────────────────────────
+
+describe('buying an asset is not spending on any screen', () => {
+  // The Costco-gold case: Overview and Analytics both route through
+  // `calculatePeriodMetrics`, so one classification rule has to serve both.
+  const groceries = tx(-120, { category_id: 10 });
+  const salary = tx(4000, { category_id: 11 });
+  const gold = tx(-2000, { category_id: 12 });
+
+  it('leaves expenses and income untouched', () => {
+    const withGold = calculatePeriodMetrics([groceries, salary, gold], ctx);
+    const without = calculatePeriodMetrics([groceries, salary], ctx);
+
+    expect(withGold.expenses).toBe(without.expenses);
+    expect(withGold.income).toBe(without.income);
+    expect(withGold.savingsRate).toBe(without.savingsRate);
+  });
+
+  it('is still reported, so the exclusion is visible rather than silent', () => {
+    expect(calculatePeriodMetrics([groceries, salary, gold], ctx).investments).toBe(2000);
+  });
+
+  it('is counted once in wealth — as the holding, never also as spending', () => {
+    const bought: Asset[] = [{
+      id: 3, user_id: 1, name: 'Costco gold', type: 'gold', asset_class: 'physical',
+      quantity: 1, value_per_unit: 2000, total_value: 2000, currency: 'USD',
+      purchase_date: null, created_at: '', updated_at: '',
+    }];
+    const wealth = totalWealth(accounts, bought, {});
+    expect(wealth.total).toBe(netWorthFromAccounts(accounts) + 2000);
+    expect(calculatePeriodMetrics([gold], ctx).expenses).toBe(0);
+  });
+});
 
 // ── Net worth ─────────────────────────────────────────────────────────────────
 

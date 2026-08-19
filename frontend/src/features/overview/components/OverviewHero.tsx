@@ -21,12 +21,20 @@ import type { NetWorthTrend } from '../useOverviewModel';
 export const NET_WORTH_DEFINITION =
   'The total of your account balances — checking, savings, cash and credit cards — with credit-card balances subtracting. Investments and physical assets are tracked separately and are not included here, which is the same definition Analytics and the net-worth chart use.';
 
+export const TOTAL_WEALTH_DEFINITION =
+  'Account balances plus the current value of everything you hold. Net worth above covers '
+  + 'accounts only, so converting cash into gold or shares lowers it by the price paid even '
+  + 'though you are no worse off — this figure is the one that stays flat. Holdings count at '
+  + 'their recorded value here; the Portfolio page prices tickers live.';
+
 export const AVAILABLE_DEFINITION =
   'Money in checking and cash accounts, which you can spend without moving anything first. Savings balances, investments and credit are excluded.';
 
 interface Props {
   netWorth: NetWorthTrend;
   availableToSpend: number;
+  /** Accounts plus holdings, or null when nothing is held. */
+  totalWealth: number | null;
   activity: MonthActivity;
   comparison: SpendingComparison;
 }
@@ -38,7 +46,7 @@ const toneColor: Record<SpendingComparison['tone'], string> = {
 };
 
 const OverviewHero: React.FC<Props> = ({
-  netWorth, availableToSpend, activity, comparison,
+  netWorth, availableToSpend, totalWealth, activity, comparison,
 }) => {
   const sparkValues = netWorth.points.map(p => p.value);
 
@@ -66,6 +74,18 @@ const OverviewHero: React.FC<Props> = ({
           <p className="value-display" style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)' }}>
             $<CountUp value={netWorth.current} duration={1100} />
           </p>
+
+          {/* The wider figure, stated once and next to the narrow one it is
+              constantly mistaken for. Suppressed when nothing is held, where it
+              would only restate net worth. */}
+          {totalWealth != null && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <p className="font-mono tabular-nums text-xs" style={{ color: 'var(--dim)' }}>
+                {dollars(totalWealth)} including holdings
+              </p>
+              <InfoHint label="How total wealth is calculated" text={TOTAL_WEALTH_DEFINITION} />
+            </div>
+          )}
 
           {/* Timeframe, dollar change and percentage change — all three named. */}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2.5">

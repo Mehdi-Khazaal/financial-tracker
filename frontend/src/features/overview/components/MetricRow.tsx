@@ -95,14 +95,14 @@ const MetricRow: React.FC<Props> = ({
     {showAssets && (
       <Tile
         label="Investments"
-        hint="Current value of your holdings. Tracked separately from net worth, which covers account balances only. Live prices are fetched on the Portfolio page."
+        hint="Current value of your holdings. Net worth counts account balances only, so buying an asset lowers it by the price paid — the figure below adds both together. Live prices are fetched on the Portfolio page."
         to="/portfolio"
       >
         <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: '#a855f7' }}>
           {dollars(investments)}
         </p>
         <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>
-          {physicalAssets > 0 ? `+ ${dollars(physicalAssets)} in assets` : 'Not in net worth'}
+          {physicalAssets > 0 ? `+ ${dollars(physicalAssets)} in assets` : 'Held, not spent'}
         </p>
       </Tile>
     )}

@@ -13,8 +13,17 @@
  *     coming back out of that category, not new income. It nets against the
  *     category so "Groceries" shows what was actually spent.
  *
+ *   • Asset purchases. Money filed under an `investment` category bought
+ *     something you still hold — gold, a stock, a coin. It left the account but
+ *     was not consumed, so counting it as spending overstates the month and
+ *     drags the savings rate down for a purchase that cost nothing on net.
+ *
  * The refund rule is checked first so a refund onto a credit card is treated
- * as a refund rather than a payment.
+ * as a refund rather than a payment. The investment rule is checked before
+ * *everything*, including the negative-amount shortcut, because a purchase is
+ * negative and would otherwise exit as an expense before its category is ever
+ * consulted. It answers for both directions: selling the gold is no more income
+ * than buying it was spending.
  */
 
 import type { Account, Category, Transaction } from '../../../types';
@@ -37,9 +46,12 @@ export function classifyTransaction(
 ): TransactionKind {
   const amount = Number(tx.amount);
   if (!Number.isFinite(amount) || amount === 0) return 'excluded';
-  if (amount < 0) return 'expense';
 
   const categoryType = tx.category_id != null ? ctx.categoryTypeById.get(tx.category_id) : undefined;
+  // Before the sign check: a purchase is negative and would exit as an expense.
+  if (categoryType === 'investment') return 'investment';
+
+  if (amount < 0) return 'expense';
   if (categoryType === 'expense') return 'refund';
   if (ctx.accountTypeById.get(tx.account_id) === 'credit_card') return 'card-payment';
   return 'income';
@@ -68,6 +80,7 @@ export const KIND_LABELS: Record<TransactionKind, string> = {
   expense: 'Expense',
   refund: 'Refund',
   'card-payment': 'Card payment',
+  investment: 'Investment',
   excluded: 'Not counted',
 };
 
@@ -77,6 +90,7 @@ export const KIND_COLORS: Record<TransactionKind, string> = {
   expense: 'var(--muted)',
   refund: 'var(--pos)',
   'card-payment': 'var(--muted)',
+  investment: 'var(--muted)',
   excluded: 'var(--dim)',
 };
 
@@ -86,6 +100,7 @@ export const KIND_EXPLANATIONS: Record<TransactionKind, string> = {
   expense: 'Money spent.',
   refund: 'Money returned into an expense category — subtracted from that category rather than counted as income.',
   'card-payment': 'A payment into a credit-card account — excluded, because the original purchases were already counted as spending.',
+  investment: 'Money moved into or out of an asset you hold — excluded from spending, because it changed form rather than leaving.',
   excluded: 'Zero-value entry, not counted.',
 };
 

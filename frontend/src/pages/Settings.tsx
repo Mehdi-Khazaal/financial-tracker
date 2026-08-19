@@ -10,6 +10,26 @@ import { usePlaidLink, PlaidLinkOnSuccessMetadata, PlaidLinkOnEventMetadata, Pla
 import LoadErrorBanner from '../components/LoadErrorBanner';
 
 /**
+ * The category types a user can file against, and the accent each one carries.
+ *
+ * `investment` is the third type, added so a purchase that bought something you
+ * still hold — gold, a stock — can be filed as what it is. `classifyTransaction`
+ * reads the type and keeps such transactions out of spending entirely; see
+ * `features/analytics/calculations/transactions.ts`. It takes the app accent
+ * rather than the red/green pair, because it is neither money out nor money in.
+ */
+export const CATEGORY_TABS = ['expense', 'income', 'investment'] as const;
+export type CategoryTab = typeof CATEGORY_TABS[number];
+
+const CAT_TAB_ACCENT: Record<CategoryTab, {
+  tint: string; buttonTint: string; color: string; border: string;
+}> = {
+  expense:    { tint: 'oklch(70% 0.17 25 / 0.15)',  buttonTint: 'oklch(70% 0.17 25 / 0.12)',  color: 'var(--neg)',    border: 'oklch(70% 0.17 25 / 0.25)' },
+  income:     { tint: 'oklch(78% 0.16 150 / 0.15)', buttonTint: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)',    border: 'oklch(78% 0.16 150 / 0.25)' },
+  investment: { tint: 'var(--accent-dim)',          buttonTint: 'var(--accent-dim)',          color: 'var(--accent)', border: 'var(--accent-glow)' },
+};
+
+/**
  * Lazy Plaid Link launcher — only mounted while the user is actively connecting
  * a bank. Loading `usePlaidLink` at page mount pulls in Plaid's CDN script and
  * injects a persistent preload iframe, which on iOS/Android PWAs has been
@@ -69,7 +89,7 @@ const Settings: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [catTab, setCatTab] = useState<'expense' | 'income'>('expense');
+  const [catTab, setCatTab] = useState<CategoryTab>('expense');
 
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
@@ -254,9 +274,10 @@ const Settings: React.FC = () => {
     setPushLoading(false);
   };
 
-  const shown        = categories.filter(c => c.type === catTab);
-  const incomeCount  = categories.filter(c => c.type === 'income').length;
-  const expenseCount = categories.filter(c => c.type === 'expense').length;
+  const shown           = categories.filter(c => c.type === catTab);
+  const incomeCount     = categories.filter(c => c.type === 'income').length;
+  const expenseCount    = categories.filter(c => c.type === 'expense').length;
+  const investmentCount = categories.filter(c => c.type === 'investment').length;
 
   return (
     <AppShell>
@@ -360,17 +381,16 @@ const Settings: React.FC = () => {
           <section>
             <div className="flex items-center justify-between mb-3">
               <p className="label">Categories</p>
-              <p className="text-xs text-muted">{incomeCount} income · {expenseCount} expense</p>
+              <p className="text-xs text-muted">{expenseCount} expense · {incomeCount} income · {investmentCount} investment</p>
             </div>
 
             {/* Tabs */}
             <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: 'var(--elev-1)' }}>
-              {(['expense', 'income'] as const).map(t => (
+              {CATEGORY_TABS.map(t => (
                 <button key={t} onClick={() => setCatTab(t)}
                   className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize"
                   style={catTab === t
-                    ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
-                        color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
+                    ? { backgroundColor: CAT_TAB_ACCENT[t].tint, color: CAT_TAB_ACCENT[t].color }
                     : { color: 'var(--muted)' }}>
                   {t}
                 </button>
@@ -404,9 +424,11 @@ const Settings: React.FC = () => {
                 </div>
                 <button type="submit" disabled={adding || !newName.trim()}
                   className="min-h-[44px] px-4 py-2.5 text-sm font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={catTab === 'expense'
-                    ? { backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.25)' }
-                    : { backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.25)' }}>
+                  style={{
+                    backgroundColor: CAT_TAB_ACCENT[catTab].buttonTint,
+                    color: CAT_TAB_ACCENT[catTab].color,
+                    border: `1px solid ${CAT_TAB_ACCENT[catTab].border}`,
+                  }}>
                   {adding ? '…' : '+ Add'}
                 </button>
               </div>

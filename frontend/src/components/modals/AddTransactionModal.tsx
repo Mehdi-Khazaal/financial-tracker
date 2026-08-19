@@ -6,6 +6,7 @@ import { enqueue } from '../../utils/mutationQueue';
 import { Account, Category } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { selectableCategories } from './categoryOptions';
 
 interface Props {
   isOpen: boolean;
@@ -45,7 +46,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   }, [isOpen]);
 
   useEffect(() => {
-    const filtered = categories.filter(c => c.type === type);
+    const filtered = selectableCategories(categories, type);
     setCategoryId(filtered.length ? String(filtered[0].id) : '');
   }, [type, categories]);
 
@@ -111,7 +112,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
     finally { setLoading(false); }
   };
 
-  const filteredCats = categories.filter(c => c.type === type);
+  const filteredCats = selectableCategories(categories, type);
   const accentColor = type === 'expense' ? 'var(--neg)' : 'var(--pos)';
 
   return (

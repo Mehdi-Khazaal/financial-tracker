@@ -4,6 +4,7 @@ import AmountInput from '../AmountInput';
 import { updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
 import { useToast } from '../../context/ToastContext';
+import { selectableCategories } from './categoryOptions';
 
 interface Props {
   isOpen: boolean;
@@ -73,7 +74,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
     finally { setLoading(false); }
   };
 
-  const filteredCats = categories.filter(c => c.type === type);
+  const filteredCats = selectableCategories(categories, type);
   const accentColor = type === 'expense' ? 'var(--neg)' : 'var(--pos)';
 
   // ── View mode (no keyboard on open) ──────────────────────────────────────────
@@ -90,7 +91,10 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
       { label: 'Date',     value: dateStr,                         color: undefined      },
       { label: 'Account',  value: accName,                         color: undefined      },
       { label: 'Category', value: cat?.name ?? 'Uncategorized',    color: cat?.color     },
-      { label: 'Type',     value: pos ? 'Income' : 'Expense',      color: pos ? 'var(--pos)' : 'var(--neg)' },
+      // Mirrors how the ledger counts it, so this row cannot contradict the
+      // "Investment" label the transaction carries everywhere else.
+      { label: 'Type',     value: cat?.type === 'investment' ? 'Investment' : pos ? 'Income' : 'Expense',
+        color: cat?.type === 'investment' ? 'var(--accent)' : pos ? 'var(--pos)' : 'var(--neg)' },
     ];
 
     return (

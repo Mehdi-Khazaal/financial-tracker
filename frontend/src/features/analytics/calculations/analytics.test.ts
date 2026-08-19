@@ -27,6 +27,7 @@ const CARD = 2;
 const GROCERIES = 10;
 const SALARY = 11;
 const FUEL = 12;
+const BULLION = 13;
 
 const accounts: Account[] = [
   { id: CHECKING, user_id: 1, name: 'Everyday', type: 'checking', balance: 4000, credit_limit: null, currency: 'USD', created_at: '', updated_at: '' },
@@ -37,6 +38,7 @@ const categories: Category[] = [
   { id: GROCERIES, user_id: 1, name: 'Groceries', type: 'expense', color: '#e11', is_system: false, created_at: '' },
   { id: SALARY, user_id: 1, name: 'Salary', type: 'income', color: '#1e1', is_system: false, created_at: '' },
   { id: FUEL, user_id: 1, name: 'Fuel', type: 'expense', color: '#11e', is_system: false, created_at: '' },
+  { id: BULLION, user_id: 1, name: 'Bullion', type: 'investment', color: '#f97', is_system: false, created_at: '' },
 ];
 
 let nextId = 100;
@@ -88,6 +90,72 @@ describe('transaction classification', () => {
 
   it('ignores zero-value rows', () => {
     expect(classifyTransaction(tx('2026-07-06', 0), ctx)).toBe('excluded');
+  });
+
+  // Buying an ounce of gold is negative, so it would exit as an expense if the
+  // category were consulted after the sign — which is why it is consulted first.
+  it('treats a purchase in an investment category as an investment, not an expense', () => {
+    expect(classifyTransaction(tx('2026-07-07', -2000, BULLION), ctx)).toBe('investment');
+  });
+
+  it('treats a sale out of an investment category as an investment, not income', () => {
+    expect(classifyTransaction(tx('2026-07-08', 2100, BULLION), ctx)).toBe('investment');
+  });
+
+  it('does not mistake an investment sale for a refund', () => {
+    expect(classifyTransaction(tx('2026-07-09', 500, BULLION), ctx)).not.toBe('refund');
+  });
+
+  it('classifies an investment bought on a card as an investment, not a card payment', () => {
+    expect(classifyTransaction(tx('2026-07-10', 800, BULLION, CARD), ctx)).toBe('investment');
+  });
+});
+
+// ── Investments are held, not spent ───────────────────────────────────────────
+
+describe('investment purchases are kept out of spending', () => {
+  it('counts toward neither expenses nor income', () => {
+    const metrics = calculatePeriodMetrics([
+      tx('2026-07-02', -50, GROCERIES),
+      tx('2026-07-03', 3000, SALARY),
+      tx('2026-07-04', -2000, BULLION),
+    ], ctx);
+
+    expect(metrics.expenses).toBe(50);
+    expect(metrics.grossExpenses).toBe(50);
+    expect(metrics.income).toBe(3000);
+    expect(metrics.investments).toBe(2000);
+  });
+
+  it('leaves the savings rate untouched', () => {
+    const withoutGold = calculatePeriodMetrics([
+      tx('2026-07-02', -50, GROCERIES),
+      tx('2026-07-03', 3000, SALARY),
+    ], ctx);
+    const withGold = calculatePeriodMetrics([
+      tx('2026-07-02', -50, GROCERIES),
+      tx('2026-07-03', 3000, SALARY),
+      tx('2026-07-04', -2000, BULLION),
+    ], ctx);
+
+    expect(withGold.savingsRate).toBe(withoutGold.savingsRate);
+    expect(withGold.net).toBe(withoutGold.net);
+  });
+
+  it('nets a sale back down against a purchase', () => {
+    const metrics = calculatePeriodMetrics([
+      tx('2026-07-04', -2000, BULLION),
+      tx('2026-07-20', 500, BULLION),
+    ], ctx);
+    expect(metrics.investments).toBe(1500);
+  });
+
+  it('never counts an investment purchase as the largest expense', () => {
+    const metrics = calculatePeriodMetrics([
+      tx('2026-07-02', -50, GROCERIES),
+      tx('2026-07-04', -2000, BULLION),
+    ], ctx);
+    expect(metrics.largestExpense?.category_id).toBe(GROCERIES);
   });
 });
 

@@ -32,6 +32,7 @@ import {
   valuePortfolio,
 } from '../features/portfolio/calculations/investments';
 import { calculateAccountTotals } from '../features/accounts/calculations/totals';
+import { totalWealth } from '../features/portfolio/calculations/wealth';
 import { InfoHint } from '../features/analytics/components/AnalyticsPrimitives';
 
 type Tab = 'investments' | 'assets' | 'savings';
@@ -245,6 +246,11 @@ const PortfolioPage: React.FC = () => {
   const totalCurrent = valuation.total;
   const totalGain = valuation.changeSinceRecorded;
 
+  // Accounts plus *every* holding — investments and physical alike, which the
+  // page keeps in separate arrays. Net worth covers accounts only, so this is
+  // the figure that stays flat when cash is converted into an asset.
+  const wealth = totalWealth(accounts, [...investments, ...assets], stockPrices);
+
   // Asset derived
   const totalAssetValue = assets.reduce((s, a) => s + Number(a.total_value), 0);
   const byType: Record<string, Asset[]> = {};
@@ -443,7 +449,7 @@ const PortfolioPage: React.FC = () => {
               </p>
             </section>
           ) : (
-            <NetWorthTrend snapshots={snapshots} />
+            <NetWorthTrend snapshots={snapshots} wealth={wealth} />
           )}
 
           {/* Investments tab */}

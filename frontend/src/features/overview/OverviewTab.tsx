@@ -83,6 +83,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
       <OverviewHero
         netWorth={model.netWorth}
         availableToSpend={model.availableToSpend}
+        totalWealth={model.totalWealth}
         activity={model.activity}
         comparison={model.comparison}
       />

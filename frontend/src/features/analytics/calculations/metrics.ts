@@ -10,6 +10,7 @@ export const EMPTY_METRICS: PeriodMetrics = {
   grossExpenses: 0,
   refunds: 0,
   cardPayments: 0,
+  investments: 0,
   net: 0,
   savingsRate: null,
   transactionCount: 0,
@@ -35,6 +36,7 @@ export function calculatePeriodMetrics(
   let grossExpenses = 0;
   let refunds = 0;
   let cardPayments = 0;
+  let investments = 0;
   let uncategorizedCount = 0;
   let uncategorizedSpend = 0;
   let largestExpense: Transaction | null = null;
@@ -59,6 +61,11 @@ export function calculatePeriodMetrics(
       refunds += Math.abs(amount);
     } else if (kind === 'card-payment') {
       cardPayments += amount;
+    } else if (kind === 'investment') {
+      // Purchases are negative and sales positive, so negating makes "money put
+      // into assets" the positive direction. A month that sold more than it
+      // bought reads negative, which is the honest answer.
+      investments += -amount;
     }
   });
 
@@ -74,6 +81,7 @@ export function calculatePeriodMetrics(
     grossExpenses,
     refunds,
     cardPayments,
+    investments,
     net,
     savingsRate: income > 0 ? net / income : null,
     transactionCount: transactions.length,

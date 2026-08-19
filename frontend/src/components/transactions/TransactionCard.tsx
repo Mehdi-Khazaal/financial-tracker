@@ -11,7 +11,7 @@ import { KIND_COLORS, KIND_LABELS } from '../../features/analytics/calculations/
  * so tagging those adds noise. A refund and a card payment are the two that
  * look like income and are not, so those — and only those — say what they are.
  */
-const NEEDS_LABEL: TransactionKind[] = ['refund', 'card-payment'];
+const NEEDS_LABEL: TransactionKind[] = ['refund', 'card-payment', 'investment'];
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

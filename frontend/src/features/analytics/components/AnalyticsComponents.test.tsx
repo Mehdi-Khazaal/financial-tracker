@@ -18,7 +18,7 @@ const PERIOD = resolvePeriod('this-month', { today: TODAY, customMonth: '2026-07
 
 const metrics = (over: Partial<PeriodMetrics> = {}): PeriodMetrics => ({
   income: 4000, expenses: 1200, grossExpenses: 1200, refunds: 0, cardPayments: 0,
-  net: 2800, savingsRate: 0.7, transactionCount: 12, uncategorizedCount: 0,
+  investments: 0, net: 2800, savingsRate: 0.7, transactionCount: 12, uncategorizedCount: 0,
   uncategorizedSpend: 0, largestExpense: null, largestIncome: null, ...over,
 });
 

@@ -39,6 +39,7 @@ import {
 } from './calculations/brief';
 import { calculateAccountTotals } from '../accounts/calculations/totals';
 import { valuePortfolio } from '../portfolio/calculations/investments';
+import { totalWealth } from '../portfolio/calculations/wealth';
 
 export interface OverviewSources {
   accounts: Account[];
@@ -85,6 +86,12 @@ export interface OverviewModel {
   /** Checking + cash. Money that can be spent without moving anything first. */
   availableToSpend: number;
   physicalAssets: number;
+  /**
+   * Accounts plus every holding, or null when nothing is held. Net worth is
+   * account balances only, so this is the figure that does not move when cash
+   * is converted into an asset.
+   */
+  totalWealth: number | null;
   investments: number;
   cardDebt: number;
   creditLimit: number;
@@ -298,6 +305,11 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       investments: valuePortfolio(
         assets.filter(a => a.asset_class === 'investment'), {},
       ).total,
+      // Same empty price map, same reason. Passing every asset — physical and
+      // investment alike — because the question is what you are worth in total.
+      totalWealth: assets.length > 0
+        ? totalWealth(accounts, assets, {}).total
+        : null,
       cardDebt: accountTotals.cardDebt,
       creditLimit: accountTotals.creditLimit,
       cardUtilization: accountTotals.utilization,

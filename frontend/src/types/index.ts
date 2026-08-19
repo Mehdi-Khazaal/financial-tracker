@@ -14,7 +14,7 @@ export interface Category {
   id: number;
   user_id: number | null;
   name: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'investment';
   color: string;
   is_system: boolean;
   created_at: string;
