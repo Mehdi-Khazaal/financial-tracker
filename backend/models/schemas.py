@@ -40,9 +40,21 @@ class AccountResponse(AccountBase):
 
 
 # ─── Category ─────────────────────────────────────────────────────────────────
+# `investment` is the third type, for a purchase that bought something the user
+# still holds — gold, a stock. The frontend's `classifyTransaction` reads it and
+# keeps such transactions out of spending entirely, so the money is not counted
+# as consumed.
+#
+# This alias is shared by every category schema on purpose. `CategoryResponse`
+# extends `CategoryBase`, so a type accepted on write but missing here would not
+# merely reject the write — it would make an existing row unserializable and
+# take down `GET /categories` for the whole account.
+CategoryType = Literal["income", "expense", "investment"]
+
+
 class CategoryBase(BaseModel):
     name: str
-    type: Literal["income", "expense"]
+    type: CategoryType
     color: str = "#5b8fff"
 
 class CategoryCreate(CategoryBase):
@@ -50,7 +62,7 @@ class CategoryCreate(CategoryBase):
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
-    type: Optional[str] = None
+    type: Optional[CategoryType] = None
     color: Optional[str] = None
 
 class CategoryResponse(CategoryBase):
