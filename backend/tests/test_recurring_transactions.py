@@ -316,3 +316,88 @@ def test_cannot_patch_another_users_recurring(client, db_session, user, auth_hea
         f"/recurring/{rec.id}", json={"period": "weekly"}, headers=auth_headers
     )
     assert response.status_code == 404
+
+
+# ─── Nightly cron path ────────────────────────────────────────────────────────
+# `/cron/process-recurring` is a *second* materialization path, running
+# unattended for every user. It carried its own copy of the period arithmetic
+# with the same silent `return current` fallback, so these mirror the
+# process-due guarantees for the job nobody is watching.
+CRON_SECRET = "cron-test-secret"
+
+
+def _cron(client, monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", CRON_SECRET)
+    return client.post("/cron/process-recurring", headers={"X-Cron-Secret": CRON_SECRET})
+
+
+def test_cron_requires_the_secret(client, monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", CRON_SECRET)
+    assert client.post("/cron/process-recurring").status_code == 403
+    assert client.post(
+        "/cron/process-recurring", headers={"X-Cron-Secret": "wrong"}
+    ).status_code == 403
+
+
+def test_cron_creates_and_advances(client, db_session, user, account, monkeypatch):
+    rec = _seed_recurring(db_session, user, account)
+    due_date = rec.next_date
+    opening = Decimal(str(account.balance))
+
+    response = _cron(client, monkeypatch)
+    assert response.status_code == 200
+    assert response.json()["processed"] == 1
+
+    db_session.expire_all()
+    assert db_session.get(RecurringTransaction, rec.id).next_date == next_occurrence(due_date, "monthly")
+    assert Decimal(str(db_session.get(Account, account.id).balance)) == opening + Decimal("-20.00")
+
+
+def test_cron_invalid_period_never_materializes(client, db_session, user, account, monkeypatch):
+    """The live bug: this job ran nightly and re-created the same transaction
+    every single time, because `next_date` never advanced past today."""
+    _seed_recurring(db_session, user, account, period="daily")
+    opening = Decimal(str(account.balance))
+
+    for _ in range(3):
+        response = _cron(client, monkeypatch)
+        assert response.status_code == 200
+        assert response.json()["processed"] == 0
+        assert response.json()["skipped_unsupported_period"] == 1
+
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter(Transaction.user_id == user.id).count() == 0
+    assert Decimal(str(db_session.get(Account, account.id).balance)) == opening
+
+
+def test_cron_is_not_repeatable_within_a_cycle(client, db_session, user, account, monkeypatch):
+    _seed_recurring(db_session, user, account)
+
+    first = _cron(client, monkeypatch)
+    second = _cron(client, monkeypatch)
+
+    assert first.json()["processed"] == 1
+    assert second.json()["processed"] == 0
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter(Transaction.user_id == user.id).count() == 1
+
+
+def test_cron_skips_variable_and_inactive_rows(client, db_session, user, account, monkeypatch):
+    _seed_recurring(db_session, user, account, is_variable=True)
+    _seed_recurring(db_session, user, account, is_active=False)
+    assert _cron(client, monkeypatch).json()["processed"] == 0
+
+
+def test_cron_respects_the_users_own_calendar_day(client, db_session, user, account, monkeypatch):
+    """A row due tomorrow must not fire early for a user behind UTC.
+
+    The candidate query deliberately over-selects by a day; the per-user filter
+    is what keeps that from materializing early.
+    """
+    user.timezone = "Pacific/Honolulu"  # UTC-10
+    db_session.commit()
+    _seed_recurring(db_session, user, account, next_date=date.today() + timedelta(days=1))
+
+    assert _cron(client, monkeypatch).json()["processed"] == 0
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter(Transaction.user_id == user.id).count() == 0
