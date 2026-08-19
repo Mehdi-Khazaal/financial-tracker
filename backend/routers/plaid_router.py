@@ -326,6 +326,29 @@ def _apply_pending_replacement(db: Session, tx: dict, user_id: int, local_acct: 
     return True
 
 
+def _posted_row(db: Session, tx: dict, user_id: int, local_acct: Account) -> dict:
+    """Build the enriched insert row for a *posted* Plaid transaction.
+
+    Shared by both ingestion paths — `added`, and the `modified` fallback for a
+    charge that settles under an id we never stored. Those two paths having
+    their own copies is exactly how card charges went missing, so there is one
+    definition and both call it.
+
+    Stages only: the caller still owns the write, so the bulk insert's
+    ON CONFLICT DO NOTHING and the per-page cursor commit are untouched.
+    """
+    return enrich_transaction_input(db, user_id, {
+        "user_id":          user_id,
+        "account_id":       local_acct.id,
+        "category_id":      None,
+        "amount":           _plaid_amount(tx),  # Plaid positive = debit; we store debits as negative
+        "description":      _plaid_description(tx),
+        "plaid_tx_id":      tx["transaction_id"],
+        "transaction_date": date.fromisoformat(tx["date"]),
+        **_plaid_metadata(tx),
+    })
+
+
 def _apply_metadata(row: Transaction, metadata: dict) -> None:
     """Write Plaid metadata onto a row and re-derive its merchant key.
 
@@ -455,59 +478,75 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 continue
             if _apply_pending_replacement(db, tx, user_id, local_acct):
                 continue
-            description = _plaid_description(tx)
-            row = {
-                "user_id":          user_id,
-                "account_id":       local_acct.id,
-                "category_id":      None,
-                "amount":           _plaid_amount(tx),  # Plaid positive = debit; we store debits as negative
-                "description":      description,
-                "plaid_tx_id":      tx["transaction_id"],
-                "transaction_date": date.fromisoformat(tx["date"]),
-                **_plaid_metadata(tx),
-            }
             # Same enrichment step manual entry uses, so a bank-imported row
             # gets a merchant key and a category suggestion instead of landing
-            # permanently uncategorized. It stages only — the bulk insert below
-            # still owns the write, so ON CONFLICT DO NOTHING and the per-page
-            # cursor commit are untouched.
-            rows_to_add.append(enrich_transaction_input(db, user_id, row))
+            # permanently uncategorized.
+            rows_to_add.append(_posted_row(db, tx, user_id, local_acct))
         if rows_to_add:
             result = db.execute(
                 pg_insert(Transaction).values(_uniform_rows(rows_to_add)).on_conflict_do_nothing()
             )
             added_count += result.rowcount
 
-        # Modified — update amount/description/date if Plaid revised a pending transaction
+        # Modified — update amount/description/date if Plaid revised a transaction.
+        #
+        # A modified transaction may have *no row to modify*, and that case is
+        # not an anomaly: card issuers settle a charge under the **same**
+        # transaction_id, flipping `pending` false and delivering the settle
+        # here rather than in `added`. The pending form was skipped on the way
+        # in (see above), so there is nothing to update — and without the
+        # fallback insert below, such a charge has no path into the ledger at
+        # all. The cursor still advances at the end of the page, so the loss is
+        # permanent rather than retried. This is why card accounts appeared to
+        # stop syncing while checking accounts kept working: checking activity
+        # changes id on settle and so arrives via `added` + `pending_transaction_id`.
+        recovered_rows = []
         for tx in data.get("modified", []):
             existing = db.query(Transaction).filter(
                 Transaction.user_id == user_id,
                 Transaction.plaid_tx_id == tx["transaction_id"],
             ).first()
-            if existing:
-                existing.amount           = _plaid_amount(tx)
-                existing.description      = _plaid_description(tx, existing.description)
-                existing.transaction_date = date.fromisoformat(tx["date"])
-                for field, value in _plaid_metadata(tx).items():
-                    setattr(existing, field, value)
-                identity = resolve_transaction_merchant(
-                    existing.description,
-                    plaid_merchant_entity_id=existing.plaid_merchant_entity_id,
+            if not existing:
+                # Still unsettled — Plaid will deliver it again when it posts.
+                if tx.get("pending"):
+                    continue
+                local_acct = local_acct_cache.get(tx["account_id"])
+                if not local_acct:
+                    continue
+                # A legacy pending row (stored before pending charges were
+                # skipped) is replaced rather than duplicated.
+                if _apply_pending_replacement(db, tx, user_id, local_acct):
+                    continue
+                recovered_rows.append(_posted_row(db, tx, user_id, local_acct))
+                continue
+
+            existing.amount           = _plaid_amount(tx)
+            existing.description      = _plaid_description(tx, existing.description)
+            existing.transaction_date = date.fromisoformat(tx["date"])
+            for field, value in _plaid_metadata(tx).items():
+                setattr(existing, field, value)
+            identity = resolve_transaction_merchant(
+                existing.description,
+                plaid_merchant_entity_id=existing.plaid_merchant_entity_id,
+            )
+            existing.merchant_key = identity.key or None
+            # Only fill a category that is still empty. A category the
+            # user set — or one we inferred and they left in place — is
+            # never overwritten by a later sync.
+            if existing.category_id is None:
+                category_id, source = suggest_transaction_category(
+                    db,
+                    user_id,
+                    identity,
+                    pfc_primary=existing.personal_finance_category_primary,
                 )
-                existing.merchant_key = identity.key or None
-                # Only fill a category that is still empty. A category the
-                # user set — or one we inferred and they left in place — is
-                # never overwritten by a later sync.
-                if existing.category_id is None:
-                    category_id, source = suggest_transaction_category(
-                        db,
-                        user_id,
-                        identity,
-                        pfc_primary=existing.personal_finance_category_primary,
-                    )
-                    if category_id is not None:
-                        existing.category_id = category_id
-                        existing.category_source = source
+                if category_id is not None:
+                    existing.category_id = category_id
+                    existing.category_source = source
+
+        if recovered_rows:
+            result = db.execute(pg_insert(Transaction).values(recovered_rows).on_conflict_do_nothing())
+            added_count += result.rowcount
 
         # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
         for tx in data.get("removed", []):
