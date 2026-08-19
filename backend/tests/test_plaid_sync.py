@@ -81,6 +81,24 @@ def _tx(transaction_id, **overrides):
     return payload
 
 
+def _unplaceable_tx(transaction_id, **overrides):
+    """A transaction no category tier can place.
+
+    Its PFC primary is deliberately absent from `PFC_TO_CATEGORY_NAME` and the
+    merchant has no history, so enrichment returns no suggestion and writes no
+    `category_source`. Pairing one of these with a categorizable `_tx` in a
+    single page is what produced rows with differing key sets.
+    """
+    return _tx(
+        transaction_id,
+        name="STATE FARM INSURANCE",
+        merchant_name="State Farm",
+        merchant_entity_id="ent_statefarm",
+        personal_finance_category={"primary": "BANK_FEES", "detailed": "BANK_FEES_OTHER"},
+        **overrides,
+    )
+
+
 def _install_plaid_stub(monkeypatch, pages):
     """Stub `_plaid_post`, serving `/transactions/sync` pages in order."""
     remaining = list(pages)
@@ -244,6 +262,49 @@ def test_modified_inserts_a_card_charge_that_settles_under_the_same_id(
     assert Decimal(str(tx.amount)) == Decimal("-15.99")
     assert tx.account_id == account.id
     assert tx.merchant_key == "netflix"  # enriched on the recovery path too
+
+
+def test_modified_recovery_page_mixing_enrichment_outcomes_inserts_both(
+    db_session, user, account, plaid_item, monkeypatch
+):
+    """The recovery insert carries the added path's multi-row INSERT hazard.
+
+    Both paths build rows through `_posted_row`, so both produce differing key
+    sets when enrichment can place one charge and not another. Normalizing at
+    one insert site and not the other would leave card settlements failing the
+    exact way ordinary ingest used to — silently, taking the whole page.
+    """
+    db_session.add(
+        Category(user_id=user.id, name="Entertainment", type="expense", color="#8e44ad")
+    )
+    db_session.commit()
+
+    # Both authorise as pending under ids we never store.
+    _sync(
+        db_session,
+        plaid_item,
+        user,
+        [{"added": [_tx("tx-card-known", pending=True), _unplaceable_tx("tx-card-x", pending=True)]}],
+        monkeypatch,
+    )
+    assert db_session.query(Transaction).count() == 0
+
+    # Both settle under those same ids, arriving together in one `modified` page.
+    added = _sync(
+        db_session,
+        plaid_item,
+        user,
+        [{"modified": [_tx("tx-card-known"), _unplaceable_tx("tx-card-x")]}],
+        monkeypatch,
+    )
+
+    db_session.expire_all()
+    assert added == 2
+    known = db_session.query(Transaction).filter_by(plaid_tx_id="tx-card-known").one()
+    unplaceable = db_session.query(Transaction).filter_by(plaid_tx_id="tx-card-x").one()
+    assert known.category_source == SOURCE_PLAID_PFC
+    assert unplaceable.category_id is None
+    assert unplaceable.category_source is None
 
 
 def test_modified_still_pending_is_not_inserted(
@@ -509,15 +570,7 @@ def test_page_mixing_categorized_and_uncategorized_rows_inserts_both(
     # the key is in the compiled statement and the second row is the one with
     # nothing to supply. That is the direction that failed.
     categorized = _tx("tx-known")  # PFC ENTERTAINMENT → the category above
-    uncategorized = _tx(
-        "tx-unknown",
-        name="STATE FARM INSURANCE",
-        merchant_name="State Farm",
-        merchant_entity_id="ent_statefarm",
-        # BANK_FEES is deliberately absent from PFC_TO_CATEGORY_NAME, and this
-        # merchant has no history, so no tier can place it.
-        personal_finance_category={"primary": "BANK_FEES", "detailed": "BANK_FEES_OTHER"},
-    )
+    uncategorized = _unplaceable_tx("tx-unknown")
 
     added = _sync(
         db_session,

@@ -545,7 +545,9 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                     existing.category_source = source
 
         if recovered_rows:
-            result = db.execute(pg_insert(Transaction).values(recovered_rows).on_conflict_do_nothing())
+            result = db.execute(
+                pg_insert(Transaction).values(_uniform_rows(recovered_rows)).on_conflict_do_nothing()
+            )
             added_count += result.rowcount
 
         # Removed — Plaid pulled the transaction back (e.g. a declined pending charge)
