@@ -46,6 +46,24 @@ export async function unsubscribeFromPush(): Promise<void> {
   }
 }
 
+/**
+ * Whether *this device* actually holds a push subscription.
+ *
+ * `Notification.permission` is not this question and must not be used as a
+ * proxy for it: permission survives unsubscribing, so a user who turns
+ * notifications off and reloads would see the switch back ON with nothing
+ * behind it. Only the PushManager knows.
+ *
+ * Uses `getRegistration()` rather than `ready`, which never resolves when no
+ * service worker is registered and would hang the caller instead of answering.
+ */
+export async function hasPushSubscription(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) return false;
+  return (await registration.pushManager.getSubscription()) !== null;
+}
+
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY;
 }

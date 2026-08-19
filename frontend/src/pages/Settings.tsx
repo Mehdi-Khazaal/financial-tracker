@@ -4,10 +4,24 @@ import { getCategories, createCategory, updateCategory, deleteCategory } from '.
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { subscribeToPush, unsubscribeFromPush, isPushSupported, getPushPermission } from '../utils/push';
+import { subscribeToPush, unsubscribeFromPush, isPushSupported, hasPushSubscription } from '../utils/push';
 import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
 import { usePlaidLink, PlaidLinkOnSuccessMetadata, PlaidLinkOnEventMetadata, PlaidLinkStableEvent, PlaidLinkOnExitMetadata, PlaidLinkError } from 'react-plaid-link';
 import LoadErrorBanner from '../components/LoadErrorBanner';
+
+/**
+ * What "Reset & Start Fresh" actually does, in the user's terms.
+ *
+ * The previous wording promised only that manual transactions were safe, which
+ * is true but incomplete: it also destroys every category the user filed
+ * against an imported transaction, and it cannot be undone. Phase 6.0 does not
+ * change the endpoint — see `backend/tests/test_plaid_reset.py` for what it
+ * does today — so the copy has to carry the whole truth on its own.
+ */
+export const RESET_CONFIRMATION =
+  'This deletes every transaction imported from your banks, disconnects all connected banks, '
+  + 'and loses the categories you filed against those transactions. Transactions you added '
+  + 'yourself are not affected. This cannot be undone.';
 
 /**
  * The category types a user can file against, and the accent each one carries.
@@ -214,7 +228,13 @@ const Settings: React.FC = () => {
   }
 
   const handlePlaidReset = async () => {
-    const ok = window.confirm('This will delete ALL Plaid-imported transactions and disconnect all banks. Your manually-added transactions are safe. Continue?');
+    // The app's own confirm, not the browser's: `window.confirm` blocks the
+    // event loop, bypasses the focus handling every other destructive action
+    // gets, and was the only one of its kind left in Settings.
+    const ok = await toast.confirm(
+      RESET_CONFIRMATION,
+      { danger: true },
+    );
     if (!ok) return;
     setPlaidResetting(true);
     try {
@@ -256,22 +276,44 @@ const Settings: React.FC = () => {
     finally { setResettingId(null); }
   };
 
-  const [pushEnabled, setPushEnabled] = useState(getPushPermission() === 'granted');
+  // 'checking' until the PushManager answers. The switch used to initialise
+  // from `Notification.permission`, which is a different question — permission
+  // outlives unsubscribing, so turning notifications off and reloading showed
+  // the switch ON with no subscription behind it. Rendering an unknown state as
+  // OFF would be a smaller version of the same lie, so it renders as neither
+  // until the answer arrives.
+  const [pushState, setPushState] = useState<'checking' | 'on' | 'off' | 'error'>('checking');
   const [pushLoading, setPushLoading] = useState(false);
+  const pushEnabled = pushState === 'on';
+
+  useEffect(() => {
+    let cancelled = false;
+    hasPushSubscription()
+      .then(subscribed => { if (!cancelled) setPushState(subscribed ? 'on' : 'off'); })
+      .catch(() => { if (!cancelled) setPushState('error'); });
+    return () => { cancelled = true; };
+  }, []);
 
   const togglePush = async () => {
     setPushLoading(true);
-    if (pushEnabled) {
-      await unsubscribeFromPush();
-      setPushEnabled(false);
-      toast.success('Notifications disabled');
-    } else {
-      const ok = await subscribeToPush();
-      setPushEnabled(ok);
-      if (ok) toast.success('Notifications enabled');
-      else toast.error('Could not enable notifications — check browser permissions');
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromPush();
+        setPushState('off');
+        toast.success('Notifications disabled');
+      } else {
+        const ok = await subscribeToPush();
+        setPushState(ok ? 'on' : 'off');
+        if (ok) toast.success('Notifications enabled');
+        else toast.error('Could not enable notifications — check browser permissions');
+      }
+    } catch {
+      // Visible, but the switch keeps whatever the last known truth was rather
+      // than inventing one.
+      toast.error('Could not change notification settings');
+    } finally {
+      setPushLoading(false);
     }
-    setPushLoading(false);
   };
 
   const shown           = categories.filter(c => c.type === catTab);
@@ -362,13 +404,20 @@ const Settings: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-text">Push notifications</p>
-                  <p className="text-xs text-muted mt-0.5">Recurring transactions, savings milestones</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    {pushState === 'checking'
+                      ? 'Checking this device…'
+                      : pushState === 'error'
+                        ? 'Could not check this device'
+                        : 'Bank sync, recurring transactions, savings milestones'}
+                  </p>
                 </div>
                 <button
                   onClick={togglePush}
-                  disabled={pushLoading}
+                  disabled={pushLoading || pushState === 'checking'}
                   className="relative w-12 h-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50"
                   role="switch" aria-checked={pushEnabled} aria-label="Push notifications"
+                  aria-busy={pushState === 'checking' || pushLoading}
                   style={{ backgroundColor: pushEnabled ? 'var(--accent)' : 'var(--line)' }}>
                   <span className="absolute top-3 left-1.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
                     style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
@@ -436,9 +485,10 @@ const Settings: React.FC = () => {
 
             {/* List */}
             {loading ? (
-              <div className="card py-8 text-center">
+              <div className="card py-8 text-center" role="status">
                 <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
                   style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                <span className="sr-only">Loading categories</span>
               </div>
             ) : shown.length === 0 ? (
               <div className="card py-8 text-center text-muted text-sm">No {catTab} categories yet</div>
@@ -493,7 +543,14 @@ const Settings: React.FC = () => {
                           <span className="text-[9px] px-1.5 py-0.5 rounded-full"
                             style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--dim)' }}>default</span>
                         )}
-                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        {/* System categories are immutable server-side:
+                            `update_category` and `delete_category` both filter
+                            on `user_id == current_user.id`, and these rows have
+                            a null `user_id`, so both actions 404 every time.
+                            Offering controls that cannot succeed is worse than
+                            offering none. */}
+                        {!cat.is_system && (
+                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(cat)}
                             className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs transition-all"
                             aria-label={`Edit ${cat.name}`}
@@ -507,6 +564,7 @@ const Settings: React.FC = () => {
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                           </button>
                         </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -590,9 +648,10 @@ const Settings: React.FC = () => {
               </div>
 
               {adminLoading ? (
-                <div className="card py-8 text-center">
+                <div className="card py-8 text-center" role="status">
                   <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
                     style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                  <span className="sr-only">Loading users</span>
                 </div>
               ) : (
                 <div className="card overflow-hidden">
