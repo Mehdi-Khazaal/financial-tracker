@@ -11,7 +11,7 @@ from threading import Lock
 from typing import Optional
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
@@ -78,6 +78,18 @@ PLAID_TO_ACCOUNT_TYPE = {
 
 # ─── DB Model ─────────────────────────────────────────────────────────────────
 class PlaidItem(Base):
+    """A linked bank connection, plus a small record of how syncing is going.
+
+    The health columns exist because the audit could not answer a basic
+    question: when did Fintrack last *receive* anything for this Item? Plaid's
+    `/item/get` reports when Plaid last *sent* a webhook; only our own record
+    can say whether it arrived. The gap between those two answers is precisely
+    how a delivery problem is distinguished from a registration problem.
+
+    Every health column is nullable and best-effort. Writing them must never
+    be able to fail a sync — see `record_sync_health`.
+    """
+
     __tablename__ = "plaid_items"
 
     id               = Column(Integer, primary_key=True, index=True)
@@ -87,6 +99,20 @@ class PlaidItem(Base):
     institution_name = Column(String(200), nullable=True)
     cursor           = Column(Text, nullable=True)
     created_at       = Column(DateTime, default=utc_now)
+
+    # ── Sync health (observability only; never read by sync logic) ───────────
+    # When Fintrack received a webhook for this Item, and which code it was.
+    last_webhook_at      = Column(DateTime, nullable=True)
+    last_webhook_code    = Column(String(60), nullable=True)
+    # When a sync last ran, what triggered it, and whether it finished.
+    last_sync_at         = Column(DateTime, nullable=True)
+    last_sync_source     = Column(String(20), nullable=True)  # webhook | manual | other
+    last_sync_ok         = Column(Boolean, nullable=True)
+    # Short, safe error summary. Never a Plaid payload, never a credential.
+    last_sync_error      = Column(String(300), nullable=True)
+    last_added_count     = Column(Integer, nullable=True)
+    last_modified_count  = Column(Integer, nullable=True)
+    last_removed_count   = Column(Integer, nullable=True)
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -101,6 +127,23 @@ class PlaidItemResponse(BaseModel):
     id: int
     institution_name: Optional[str]
     created_at: datetime
+
+
+# Plaid raises this when the underlying data changes while a `/transactions/sync`
+# pagination cycle is in flight. Its documented recovery is *not* to retry the
+# failed page: the whole loop must restart from the cursor the cycle began
+# with, because intermediate cursors from a mutated cycle are not valid.
+PLAID_MUTATION_DURING_PAGINATION = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"
+
+# How many times a single sync will restart its pagination cycle before giving
+# up. Bounded so a persistently churning account cannot spin forever; three
+# restarts is generous for a condition that resolves as soon as the account
+# settles.
+MAX_PAGINATION_RESTARTS = 3
+
+
+class PlaidMutationDuringPagination(Exception):
+    """Plaid mutated the dataset mid-pagination; the cycle must restart."""
 
 
 # ─── Plaid API helper ─────────────────────────────────────────────────────────
@@ -121,7 +164,13 @@ def _plaid_post(path: str, body: dict) -> dict:
         logger.warning("plaid_invalid_response %s", kv(path=path))
         raise HTTPException(status_code=502, detail="Plaid returned an invalid response")
     if data.get("error_code"):
-        logger.warning("plaid_api_error %s", kv(path=path, error_code=data.get("error_code")))
+        error_code = data.get("error_code")
+        logger.warning("plaid_api_error %s", kv(path=path, error_code=error_code))
+        # Surfaced as its own type because it has a *specific* required
+        # recovery — restart pagination from the original cursor — rather
+        # than the generic "Plaid is unhappy" 502 everything else gets.
+        if error_code == PLAID_MUTATION_DURING_PAGINATION:
+            raise PlaidMutationDuringPagination(error_code)
         raise HTTPException(status_code=502, detail="Plaid returned an error")
     return data
 
@@ -132,6 +181,60 @@ def _item_access_token(db: Session, item: PlaidItem) -> str:
         item.access_token = encrypt_secret(token)
         db.flush()
     return token
+
+
+SYNC_SOURCE_WEBHOOK = "webhook"
+SYNC_SOURCE_MANUAL = "manual"
+SYNC_SOURCE_OTHER = "other"
+
+# Error text is truncated before storage. The column is diagnostic, not a log
+# sink, and an unbounded exception string could carry a URL or payload
+# fragment we have no reason to keep.
+_MAX_STORED_ERROR = 280
+
+
+def _safe_error(exc: BaseException) -> str:
+    """A short, credential-free description of a failure."""
+    return f"{type(exc).__name__}: {exc}"[:_MAX_STORED_ERROR]
+
+
+def record_sync_health(
+    db: Session,
+    item: PlaidItem,
+    *,
+    source: str,
+    ok: bool,
+    error: Optional[str] = None,
+    added: Optional[int] = None,
+    modified: Optional[int] = None,
+    removed: Optional[int] = None,
+) -> None:
+    """Best-effort health write. Swallows everything.
+
+    Observability must never be able to break the thing it observes: if this
+    write fails, the sync it describes has already succeeded and committed,
+    and losing a diagnostic column is strictly better than failing the sync.
+    Uses its own nested transaction so a failure here cannot poison the
+    caller's session.
+    """
+    try:
+        item.last_sync_at = utc_now()
+        item.last_sync_source = source
+        item.last_sync_ok = ok
+        item.last_sync_error = None if ok else (error or "")[:_MAX_STORED_ERROR]
+        if added is not None:
+            item.last_added_count = added
+        if modified is not None:
+            item.last_modified_count = modified
+        if removed is not None:
+            item.last_removed_count = removed
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.warning("plaid_sync_health_write_failed %s", kv(item_id=item.id))
 
 
 def _plaid_amount(tx: dict) -> Decimal:
@@ -296,12 +399,48 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
 
     db.flush()
 
-    # Page through /transactions/sync, committing after each page
+    # Page through /transactions/sync, committing after each page.
+    #
+    # The cursor the cycle *starts* from is remembered, because a
+    # mutation-during-pagination error invalidates every intermediate cursor
+    # this cycle produced. On that error the loop restarts from here rather
+    # than resuming from wherever it got to. Re-fetching already-stored
+    # transactions is harmless: the insert is ON CONFLICT DO NOTHING keyed on
+    # `plaid_tx_id`, so a restart cannot duplicate anything.
+    cycle_start_cursor = cursor
+    restarts = 0
     while True:
         body: dict = {"access_token": access_token, "count": 500}
         if cursor:
             body["cursor"] = cursor
-        data = _plaid_post("/transactions/sync", body)
+        try:
+            data = _plaid_post("/transactions/sync", body)
+        except PlaidMutationDuringPagination:
+            restarts += 1
+            if restarts > MAX_PAGINATION_RESTARTS:
+                logger.warning(
+                    "plaid_sync_mutation_restart_limit %s",
+                    kv(item_id=item.id, user_id=user_id, restarts=restarts - 1),
+                )
+                raise
+            # Discard anything staged and rewind the stored cursor to where
+            # the cycle began, so no intermediate cursor survives.
+            #
+            # `added_count` is deliberately *not* reset. The error surfaces on
+            # the request at the top of an iteration, by which point every
+            # counted row was already committed by the previous iteration —
+            # those rows are genuinely in the database. On the retry they are
+            # re-offered and absorbed by ON CONFLICT DO NOTHING, contributing
+            # a rowcount of zero, so they are counted exactly once.
+            db.rollback()
+            cursor = cycle_start_cursor
+            item.cursor = cycle_start_cursor or None
+            db.commit()
+            logger.info(
+                "plaid_sync_mutation_restart %s",
+                kv(item_id=item.id, user_id=user_id, attempt=restarts),
+            )
+            continue
 
         # Added — bulk insert; ON CONFLICT DO NOTHING is atomic, no race condition possible.
         # Skip pending charges entirely — they get replaced by a posted transaction with a
@@ -389,14 +528,25 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     return added_count
 
 
-def _do_sync_and_notify(plaid_item_db_id: int, user_id: int):
-    """Background task — owns its own DB session so it outlives the request."""
+def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_SOURCE_OTHER):
+    """Background task — owns its own DB session so it outlives the request.
+
+    `source` records what triggered this run so the health record can tell a
+    webhook-driven sync from a button press. That distinction is the whole
+    point of the observability: if every recent sync is `manual`, webhooks are
+    not arriving, whatever Plaid believes it sent.
+    """
     db = SessionLocal()
     try:
         item = db.query(PlaidItem).filter(PlaidItem.id == plaid_item_db_id).first()
         if not item:
             return
-        count = _sync_item(db, item, user_id)
+        try:
+            count = _sync_item(db, item, user_id)
+        except Exception as exc:
+            record_sync_health(db, item, source=source, ok=False, error=_safe_error(exc))
+            raise
+        record_sync_health(db, item, source=source, ok=True, added=count)
         if count > 0:
             send_push_to_user(
                 db, user_id,
@@ -511,7 +661,7 @@ def exchange_token(
             ))
 
     db.commit()
-    background.add_task(_do_sync_and_notify, item.id, current_user.id)
+    background.add_task(_do_sync_and_notify, item.id, current_user.id, SYNC_SOURCE_MANUAL)
     return {"message": f"{institution_name} connected successfully.", "item_id": item_id}
 
 
@@ -547,7 +697,7 @@ def sync_all(
     if not items:
         raise HTTPException(status_code=404, detail="No connected banks.")
     for item in items:
-        background.add_task(_do_sync_and_notify, item.id, current_user.id)
+        background.add_task(_do_sync_and_notify, item.id, current_user.id, SYNC_SOURCE_MANUAL)
     return {"message": f"Syncing {len(items)} bank(s) in background."}
 
 
@@ -565,7 +715,7 @@ def replay_all_transactions(
         item.cursor = None
     db.commit()
     for item in items:
-        background.add_task(_do_sync_and_notify, item.id, current_user.id)
+        background.add_task(_do_sync_and_notify, item.id, current_user.id, SYNC_SOURCE_MANUAL)
     return {"message": f"Cursor reset for {len(items)} bank(s). Full replay running in background."}
 
 
@@ -596,6 +746,108 @@ def reset_plaid_data(
 
     db.commit()
     return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}
+
+
+# ─── Sync health diagnostics ──────────────────────────────────────────────────
+# Render Free has no shell, so this endpoint is the only way to inspect why a
+# connection is or is not syncing. It is strictly read-only and returns nothing
+# that could authenticate anyone: no access token, no client id, no secret, and
+# no raw Plaid payload — only the specific status fields needed to tell a
+# webhook-registration problem from a delivery problem from an Item error.
+
+WEBHOOK_MATCHES = "matches"
+WEBHOOK_MISMATCHED = "mismatched"
+WEBHOOK_NOT_REGISTERED = "not_registered"
+WEBHOOK_UNKNOWN = "unknown"
+
+
+def _classify_webhook(registered: Optional[str]) -> str:
+    """Compare the Item's registered webhook against this deployment's."""
+    if not PLAID_WEBHOOK_URL:
+        # We cannot judge a mismatch without knowing what we expect.
+        return WEBHOOK_UNKNOWN
+    if not registered:
+        return WEBHOOK_NOT_REGISTERED
+    return WEBHOOK_MATCHES if registered.strip() == PLAID_WEBHOOK_URL.strip() else WEBHOOK_MISMATCHED
+
+
+def _item_health(access_token: str) -> dict:
+    """Read `/item/get` and keep only the diagnostic fields.
+
+    Never raises — a failure to read health is itself a health result.
+    """
+    try:
+        data = _plaid_post("/item/get", {"access_token": access_token})
+    except Exception as exc:
+        return {"reachable": False, "detail": _safe_error(exc)}
+
+    item = data.get("item") or {}
+    status = data.get("status") or {}
+    transactions = status.get("transactions") or {}
+    last_webhook = status.get("last_webhook") or {}
+    error = item.get("error") or {}
+
+    return {
+        "reachable": True,
+        # The whole point of the endpoint: what URL does Plaid actually have?
+        "registered_webhook": item.get("webhook") or None,
+        "webhook_status": _classify_webhook(item.get("webhook")),
+        # Item-level error. Only the code and a safe display message; never the
+        # full error object, which can carry request ids and causes.
+        "item_error_code": error.get("error_code"),
+        "item_error_type": error.get("error_type"),
+        "login_repair_required": error.get("error_code") == "ITEM_LOGIN_REQUIRED",
+        "consent_expiration_time": item.get("consent_expiration_time"),
+        "plaid_last_successful_update": transactions.get("last_successful_update"),
+        "plaid_last_failed_update": transactions.get("last_failed_update"),
+        "plaid_last_webhook_sent_at": last_webhook.get("sent_at"),
+        "plaid_last_webhook_code": last_webhook.get("code_sent"),
+    }
+
+
+@router.get("/sync-health")
+def sync_health(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Per-institution sync diagnostics for the signed-in user's own Items."""
+    items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
+
+    results = []
+    for item in items:
+        # Fintrack's own view — what we received and did.
+        row = {
+            "institution_name": item.institution_name,
+            "connected_at": item.created_at.isoformat() if item.created_at else None,
+            "cursor_initialized": bool(item.cursor),
+            "fintrack_last_webhook_at": item.last_webhook_at.isoformat() if item.last_webhook_at else None,
+            "fintrack_last_webhook_code": item.last_webhook_code,
+            "last_sync_at": item.last_sync_at.isoformat() if item.last_sync_at else None,
+            "last_sync_source": item.last_sync_source,
+            "last_sync_ok": item.last_sync_ok,
+            "last_sync_error": item.last_sync_error,
+            "last_added_count": item.last_added_count,
+            "last_modified_count": item.last_modified_count,
+            "last_removed_count": item.last_removed_count,
+        }
+        # Plaid's view. One Item failing must not hide the others.
+        try:
+            row.update(_item_health(_item_access_token(db, item)))
+        except Exception as exc:
+            row.update({"reachable": False, "detail": _safe_error(exc)})
+        results.append(row)
+
+    try:
+        db.commit()  # `_item_access_token` may re-encrypt a legacy token.
+    except Exception:
+        db.rollback()
+
+    return {
+        "environment": PLAID_ENV,
+        "expected_webhook_url": PLAID_WEBHOOK_URL or None,
+        "webhook_url_configured": bool(PLAID_WEBHOOK_URL),
+        "items": results,
+    }
 
 
 # ─── Recurring add-on capability probe ────────────────────────────────────────
@@ -839,7 +1091,18 @@ async def plaid_webhook(request: Request, background: BackgroundTasks):
         try:
             item = db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first()
             if item:
-                background.add_task(_do_sync_and_notify, item.id, item.user_id)
+                # Stamp receipt before scheduling the sync. This is the field
+                # that distinguishes "Plaid never sent it" from "Plaid sent it
+                # and we never got it" — comparing this against `/item/get`'s
+                # `status.last_webhook.sent_at` answers that directly.
+                try:
+                    item.last_webhook_at = utc_now()
+                    item.last_webhook_code = webhook_code[:60]
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    logger.warning("plaid_webhook_stamp_failed %s", kv(item_id=item.id))
+                background.add_task(_do_sync_and_notify, item.id, item.user_id, SYNC_SOURCE_WEBHOOK)
         finally:
             db.close()
 

@@ -80,6 +80,18 @@ def _prepare_database() -> None:
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS iso_currency_code VARCHAR(8)",
         "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_key ON transactions (user_id, merchant_key)",
         "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_entity ON transactions (user_id, plaid_merchant_entity_id)",
+        # ── Plaid sync health ────────────────────────────────────────────────
+        # Diagnostic columns for why a connection is or is not syncing. Mirrors
+        # Alembic revision 20260811_000010; both must be updated together.
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_webhook_at TIMESTAMP",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_webhook_code VARCHAR(60)",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMP",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_sync_source VARCHAR(20)",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_sync_ok BOOLEAN",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_sync_error VARCHAR(300)",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_added_count INTEGER",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_modified_count INTEGER",
+        "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_removed_count INTEGER",
     ]
     with engine.begin() as conn:
         for sql in migrations:
