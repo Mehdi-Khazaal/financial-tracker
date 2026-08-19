@@ -17,7 +17,11 @@ import pytest
 from models.database import Account, Category, Transaction
 from routers import plaid_router
 from routers.plaid_router import PlaidItem
-from services.transaction_enrichment import SOURCE_MERCHANT_HISTORY, SOURCE_USER
+from services.transaction_enrichment import (
+    SOURCE_MERCHANT_HISTORY,
+    SOURCE_PLAID_PFC,
+    SOURCE_USER,
+)
 from utils.secret_box import encrypt_secret
 
 
@@ -408,3 +412,54 @@ def test_malformed_authorized_date_does_not_break_import(
     assert added == 1
     tx = db_session.query(Transaction).filter_by(plaid_tx_id="tx-1").one()
     assert tx.authorized_date is None
+
+
+# ─── Mixed enrichment outcomes in one page ────────────────────────────────────
+def test_page_mixing_categorized_and_uncategorized_rows_inserts_both(
+    db_session, user, account, plaid_item, monkeypatch
+):
+    """Enrichment answering for some rows and not others must still insert.
+
+    `category_source` was written only when enrichment decided a category, so a
+    page like this produced rows with *differing key sets*. The bulk INSERT is
+    compiled from the first row's keys, and the nullable `category_source` has
+    no Python-side default to supply for the rows that omit it, so the statement
+    failed to compile and every transaction on the page was lost. Nothing
+    surfaced it: the sync endpoint had already returned success and the
+    background task swallowed the error into a log line.
+    """
+    db_session.add(
+        Category(user_id=user.id, name="Entertainment", type="expense", color="#8e44ad")
+    )
+    db_session.commit()
+
+    # Ordered deliberately: the row carrying `category_source` comes first, so
+    # the key is in the compiled statement and the second row is the one with
+    # nothing to supply. That is the direction that failed.
+    categorized = _tx("tx-known")  # PFC ENTERTAINMENT → the category above
+    uncategorized = _tx(
+        "tx-unknown",
+        name="STATE FARM INSURANCE",
+        merchant_name="State Farm",
+        merchant_entity_id="ent_statefarm",
+        # BANK_FEES is deliberately absent from PFC_TO_CATEGORY_NAME, and this
+        # merchant has no history, so no tier can place it.
+        personal_finance_category={"primary": "BANK_FEES", "detailed": "BANK_FEES_OTHER"},
+    )
+
+    added = _sync(
+        db_session,
+        plaid_item,
+        user,
+        [{"added": [categorized, uncategorized]}],
+        monkeypatch,
+    )
+
+    assert added == 2
+    known = db_session.query(Transaction).filter_by(plaid_tx_id="tx-known").one()
+    unknown = db_session.query(Transaction).filter_by(plaid_tx_id="tx-unknown").one()
+    assert known.category_id is not None
+    assert known.category_source == SOURCE_PLAID_PFC
+    # The row enrichment could not place is still imported — just uncategorized.
+    assert unknown.category_id is None
+    assert unknown.category_source is None

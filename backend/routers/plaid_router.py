@@ -238,6 +238,23 @@ def _apply_metadata(row: Transaction, metadata: dict) -> None:
     row.merchant_key = identity.key or None
 
 
+def _uniform_rows(rows: list[dict]) -> list[dict]:
+    """Give every row the same keys, filling the gaps with None.
+
+    A multi-row INSERT is compiled from the *first* row's key set, and a column
+    missing from a later row needs a Python-side default that these nullable
+    columns do not have. One row carrying an extra key therefore raises
+    CompileError and **no** row on the page is written — the statement never
+    reaches the database. Enrichment is the source of that asymmetry, since it
+    fills the category fields only when it has an answer, so the rows are
+    squared up here rather than trusting every producer to stay in step.
+
+    Order is first-seen, not set order, so the generated SQL is stable.
+    """
+    keys = {key: None for row in rows for key in row}
+    return [{key: row.get(key) for key in keys} for row in rows]
+
+
 # ─── Sync logic ───────────────────────────────────────────────────────────────
 def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     """Sync one Plaid item. Returns number of new transactions added."""
@@ -317,7 +334,9 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
             # cursor commit are untouched.
             rows_to_add.append(enrich_transaction_input(db, user_id, row))
         if rows_to_add:
-            result = db.execute(pg_insert(Transaction).values(rows_to_add).on_conflict_do_nothing())
+            result = db.execute(
+                pg_insert(Transaction).values(_uniform_rows(rows_to_add)).on_conflict_do_nothing()
+            )
             added_count += result.rowcount
 
         # Modified — update amount/description/date if Plaid revised a pending transaction

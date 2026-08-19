@@ -286,6 +286,16 @@ def enrich_transaction_input(
             _register_alias(session, description)
         return enriched
 
+    # `category_source` must be present whatever happens below, including the
+    # common "no suggestion" outcome and the except path. Plaid sync collects
+    # these dicts into a single multi-row INSERT, and SQLAlchemy renders that
+    # statement from the *first* row's keys; a later row missing the key has no
+    # Python-side default to fall back on, so the statement fails to compile and
+    # takes the entire page of transactions with it — a silent, total sync
+    # failure that only appears when one page holds both a categorized and an
+    # uncategorized row.
+    enriched.setdefault("category_source", None)
+
     try:
         if register_alias and description:
             _register_alias(session, description)
