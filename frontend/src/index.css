@@ -945,6 +945,46 @@ body::after {
 .pulse-dot   { animation: pulse-glow 1.8s ease-in-out infinite; }
 .spin-slow   { animation: spin-slow .9s linear infinite; }
 
+/* ── Settings control centre ────────────────────────────────────────────────
+   Two panes on desktop, one column on phones.
+
+   The page used to be a 672px column centred in whatever width was available,
+   which on a 1440px display left more than half the viewport empty beside a
+   4000px-tall scroll. Capping the *page* rather than the content lets the rail
+   and the section share the space without the section growing to an unreadable
+   measure — long-form settings text is still bounded to a comfortable width.
+
+   The rail sticks so it stays reachable while a long section (Categories) is
+   scrolled, and stays visually secondary: no panel, no border, just the type. */
+.settings-page {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.settings-shell__nav {
+  position: sticky;
+  /* Clears the floating top bar rather than hiding under it. */
+  top: calc(var(--safe-top) + 5rem);
+}
+
+.settings-shell__content {
+  /* A readable measure. Without this the section stretches to ~950px on an
+     ultrawide display and the forms inside it look adrift. */
+  max-width: 44rem;
+  min-width: 0;
+}
+
+@media (min-width: 1536px) {
+  .settings-shell { gap: 3.5rem; }
+}
+
 /* ── Sidebar-aware layout ───────────────────────────────────────────────────── */
 .md\:ml-60 {
   transition: margin-left 0.3s cubic-bezier(.4,0,.2,1);

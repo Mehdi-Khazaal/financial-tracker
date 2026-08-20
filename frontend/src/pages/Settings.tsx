@@ -1,704 +1,137 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Category } from '../types';
-import { getCategories, createCategory, updateCategory, deleteCategory } from '../utils/api';
+import React from 'react';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { subscribeToPush, unsubscribeFromPush, isPushSupported, hasPushSubscription } from '../utils/push';
-import { changePassword, adminGetUsers, adminResetPassword, plaidCreateLinkToken, plaidExchangeToken, plaidGetItems, plaidDeleteItem, plaidSyncAll, plaidReset } from '../utils/api';
-import { usePlaidLink, PlaidLinkOnSuccessMetadata, PlaidLinkOnEventMetadata, PlaidLinkStableEvent, PlaidLinkOnExitMetadata, PlaidLinkError } from 'react-plaid-link';
-import LoadErrorBanner from '../components/LoadErrorBanner';
+import { useSettingsModel } from '../features/settings/useSettingsModel';
+import { useIsDesktop } from '../features/settings/hooks/useIsDesktop';
+import {
+  SettingsBackButton,
+  SettingsRail,
+  SettingsSectionList,
+} from '../features/settings/components/SettingsNav';
+import PlaidLinkLauncher from '../features/settings/components/PlaidLinkLauncher';
+import AccountSection from '../features/settings/sections/AccountSection';
+import PreferencesSection from '../features/settings/sections/PreferencesSection';
+import CategoriesSection from '../features/settings/sections/CategoriesSection';
+import ConnectionsSection from '../features/settings/sections/ConnectionsSection';
+import AdminSection from '../features/settings/sections/AdminSection';
+import type { SettingsSection } from '../features/settings/types';
 
 /**
- * What "Reset & Start Fresh" actually does, in the user's terms.
+ * Settings — a control centre, not a scroll.
  *
- * The previous wording promised only that manual transactions were safe, which
- * is true but incomplete: it also destroys every category the user filed
- * against an imported transaction, and it cannot be undone. Phase 6.0 does not
- * change the endpoint — see `backend/tests/test_plaid_reset.py` for what it
- * does today — so the copy has to carry the whole truth on its own.
- */
-export const RESET_CONFIRMATION =
-  'This deletes every transaction imported from your banks, disconnects all connected banks, '
-  + 'and loses the categories you filed against those transactions. Transactions you added '
-  + 'yourself are not affected. This cannot be undone.';
-
-/**
- * The category types a user can file against, and the accent each one carries.
+ * This page used to be 649 lines holding six unrelated concerns in one column,
+ * which on a phone meant the category list pushed Connections and Admin
+ * thousands of pixels below the fold, and on a 1440px display left more than
+ * half the viewport empty beside a 672px column.
  *
- * `investment` is the third type, added so a purchase that bought something you
- * still hold — gold, a stock — can be filed as what it is. `classifyTransaction`
- * reads the type and keeps such transactions out of spending entirely; see
- * `features/analytics/calculations/transactions.ts`. It takes the app accent
- * rather than the red/green pair, because it is neither money out nor money in.
+ * It now orchestrates and nothing else: `useSettingsModel` owns the data and
+ * the section state, each section owns its own markup, and this file decides
+ * only which one is on screen. Behaviour is deliberately unchanged — Phase 6A
+ * is architecture, and 6B/6C own the Category Manager and Connections redesign.
+ *
+ * The two layouts share one piece of state rather than duplicating it. Mobile
+ * treats "no section chosen" as the list; desktop substitutes the default so
+ * the content pane is never blank. Only one layout is rendered at a time —
+ * see `useIsDesktop` for why that is a media query rather than a CSS toggle.
  */
-export const CATEGORY_TABS = ['expense', 'income', 'investment'] as const;
-export type CategoryTab = typeof CATEGORY_TABS[number];
 
-const CAT_TAB_ACCENT: Record<CategoryTab, {
-  tint: string; buttonTint: string; color: string; border: string;
-}> = {
-  expense:    { tint: 'oklch(70% 0.17 25 / 0.15)',  buttonTint: 'oklch(70% 0.17 25 / 0.12)',  color: 'var(--neg)',    border: 'oklch(70% 0.17 25 / 0.25)' },
-  income:     { tint: 'oklch(78% 0.16 150 / 0.15)', buttonTint: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)',    border: 'oklch(78% 0.16 150 / 0.25)' },
-  investment: { tint: 'var(--accent-dim)',          buttonTint: 'var(--accent-dim)',          color: 'var(--accent)', border: 'var(--accent-glow)' },
+const SECTION_TITLES: Record<SettingsSection, string> = {
+  account: 'Account',
+  preferences: 'Preferences',
+  categories: 'Categories',
+  connections: 'Connections',
+  admin: 'Admin',
 };
-
-/**
- * Lazy Plaid Link launcher — only mounted while the user is actively connecting
- * a bank. Loading `usePlaidLink` at page mount pulls in Plaid's CDN script and
- * injects a persistent preload iframe, which on iOS/Android PWAs has been
- * observed to break subsequent page rendering (the app snaps back to the
- * pre-redesign styles until the PWA is closed and reopened). Keeping this
- * hook out of the Settings render tree by default eliminates that side effect.
- */
-type PlaidLauncherProps = {
-  onSuccess: (public_token: string, metadata: PlaidLinkOnSuccessMetadata) => void;
-  onExit: (err: PlaidLinkError | null, metadata: PlaidLinkOnExitMetadata) => void;
-  onEvent?: (eventName: PlaidLinkStableEvent | string, metadata: PlaidLinkOnEventMetadata) => void;
-  onError: (message: string) => void;
-};
-
-const PlaidLinkLauncher: React.FC<PlaidLauncherProps> = ({ onSuccess, onExit, onEvent, onError }) => {
-  const [token, setToken] = useState<string | null>(null);
-  const [opened, setOpened] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    plaidCreateLinkToken()
-      .then(r => { if (!cancelled) setToken(r.data.link_token); })
-      .catch(() => { if (!cancelled) onError('Could not start bank connection. Try again.'); });
-    return () => { cancelled = true; };
-  }, [onError]);
-
-  useEffect(() => {
-    if (token) sessionStorage.setItem('plaid_link_token', token);
-  }, [token]);
-
-  const { open, ready } = usePlaidLink({
-    token,
-    receivedRedirectUri: undefined,
-    onSuccess,
-    onExit,
-    onEvent,
-  });
-
-  useEffect(() => {
-    if (ready && token && !opened) {
-      setOpened(true);
-      open();
-    }
-  }, [ready, token, opened, open]);
-
-  return null;
-};
-
-const PRESET_COLORS = [
-  '#f43f5e', '#ff8e53', '#f59e0b', '#10b981', '#1abc9c',
-  '#6366f1', '#a855f7', '#ec4899', '#8a8a94', '#ededee',
-];
 
 const Settings: React.FC = () => {
-  const { user, logout } = useAuth();
-  const toast = useToast();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [catTab, setCatTab] = useState<CategoryTab>('expense');
+  const model = useSettingsModel();
+  const isDesktop = useIsDesktop();
 
-  const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
-  const [adding, setAdding] = useState(false);
-
-  const [editId, setEditId] = useState<number | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editColor, setEditColor] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
-    setLoadError(false);
-    try { const res = await getCategories(); setCategories(Array.isArray(res.data) ? res.data : []); }
-    catch { setLoadError(true); }
-    finally { setLoading(false); }
-  };
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    setAdding(true);
-    try {
-      await createCategory({ name: newName.trim(), type: catTab, color: newColor });
-      setNewName(''); setNewColor(PRESET_COLORS[0]);
-      load(); toast.success('Category created');
-    } catch { toast.error('Failed to create category'); }
-    finally { setAdding(false); }
-  };
-
-  const startEdit = (cat: Category) => {
-    setEditId(cat.id); setEditName(cat.name); setEditColor(cat.color);
-  };
-
-  const handleSaveEdit = async (id: number) => {
-    if (!editName.trim()) return;
-    setSaving(true);
-    try {
-      await updateCategory(id, { name: editName.trim(), color: editColor });
-      setEditId(null); load(); toast.success('Category updated');
-    } catch { toast.error('Failed to update category'); }
-    finally { setSaving(false); }
-  };
-
-  const handleDelete = async (id: number, name: string) => {
-    const ok = await toast.confirm(`Delete "${name}"? Transactions using it will lose their category.`, { danger: true });
-    if (!ok) return;
-    try { await deleteCategory(id); load(); toast.success('Category deleted'); }
-    catch { toast.error('Failed to delete'); }
-  };
-
-  const [pwOpen, setPwOpen] = useState(false);
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [pwLoading, setPwLoading] = useState(false);
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPw !== confirmPw) { toast.error('New passwords do not match'); return; }
-    if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
-    setPwLoading(true);
-    try {
-      await changePassword(currentPw, newPw);
-      toast.success('Password changed successfully');
-      setCurrentPw(''); setNewPw(''); setConfirmPw(''); setPwOpen(false);
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail ?? 'Failed to change password');
-    } finally { setPwLoading(false); }
-  };
-
-  const [plaidItems, setPlaidItems] = useState<any[]>([]);
-  const [plaidSyncing, setPlaidSyncing] = useState(false);
-  const [plaidResetting, setPlaidResetting] = useState(false);
-  const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
-  const [plaidLaunching, setPlaidLaunching] = useState(false);
-
-  const loadPlaidItems = useCallback(async () => {
-    try { const r = await plaidGetItems(); setPlaidItems(Array.isArray(r.data) ? r.data : []); } catch {}
-  }, []);
-
-  useEffect(() => { loadPlaidItems(); }, [loadPlaidItems]);
-
-  const handlePlaidLaunchError = useCallback((message: string) => {
-    toast.error(message);
-    setPlaidLaunching(false);
-  }, [toast]);
-
-  const handlePlaidSuccess = useCallback(async (public_token: string, metadata: any) => {
-    const institution_name = metadata?.institution?.name as string | undefined;
-    try {
-      await plaidExchangeToken(public_token, institution_name);
-      toast.success(`${institution_name || 'Bank'} connected! Syncing transactions...`);
-      await loadPlaidItems();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || 'Failed to connect bank');
-    } finally {
-      sessionStorage.removeItem('plaid_link_token');
-      setPlaidLaunching(false);
-    }
-  }, [toast, loadPlaidItems]);
-
-  const handlePlaidExit = useCallback(() => {
-    sessionStorage.removeItem('plaid_link_token');
-    setPlaidLaunching(false);
-  }, []);
-
-  const handlePlaidEvent = useCallback((eventName: any, metadata: any) => {
-    const sessionId = metadata?.link_session_id;
-    if (sessionId && (eventName === 'ERROR' || eventName === 'EXIT')) {
-      navigator.clipboard.writeText(sessionId).catch(() => {});
-      toast.success(`Session ID copied: ${sessionId}`);
-    }
-  }, [toast]);
-
-  const handlePlaidSync = async () => {
-    setPlaidSyncing(true);
-    try { await plaidSyncAll(); toast.success('Sync started — you\'ll get a notification when done'); }
-    catch (e: any) { toast.error(e?.response?.data?.detail || 'Sync failed'); }
-    finally { setPlaidSyncing(false); }
-  }
-
-  const handlePlaidReset = async () => {
-    // The app's own confirm, not the browser's: `window.confirm` blocks the
-    // event loop, bypasses the focus handling every other destructive action
-    // gets, and was the only one of its kind left in Settings.
-    const ok = await toast.confirm(
-      RESET_CONFIRMATION,
-      { danger: true },
-    );
-    if (!ok) return;
-    setPlaidResetting(true);
-    try {
-      const r = await plaidReset();
-      toast.success(r.data.message || 'Plaid data cleared');
-      setPlaidItems([]);
-    } catch (e: any) { toast.error(e?.response?.data?.detail || 'Reset failed'); }
-    finally { setPlaidResetting(false); }
-  };
-
-  const handleDisconnect = async (item: any) => {
-    const ok = await toast.confirm(`Disconnect ${item.institution_name || 'this bank'}? Your existing transactions won't be deleted.`);
-    if (!ok) return;
-    setDisconnectingId(item.id);
-    try { await plaidDeleteItem(item.id); setPlaidItems(p => p.filter(i => i.id !== item.id)); toast.success('Bank disconnected'); }
-    catch { toast.error('Failed to disconnect'); }
-    finally { setDisconnectingId(null); }
-  };
-
-  const [adminUsers, setAdminUsers] = useState<any[]>([]);
-  const [adminLoading, setAdminLoading] = useState(false);
-  const [resettingId, setResettingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (user?.is_admin) {
-      setAdminLoading(true);
-      adminGetUsers().then(r => setAdminUsers(Array.isArray(r.data) ? r.data : [])).finally(() => setAdminLoading(false));
-    }
-  }, [user?.is_admin]);
-
-  const handleAdminReset = async (u: any) => {
-    const ok = await toast.confirm(`Send a password reset email to ${u.email}?`);
-    if (!ok) return;
-    setResettingId(u.id);
-    try {
-      await adminResetPassword(u.id);
-      toast.success(`Reset email sent to ${u.email}`);
-    } catch { toast.error('Failed to send reset email'); }
-    finally { setResettingId(null); }
-  };
-
-  // 'checking' until the PushManager answers. The switch used to initialise
-  // from `Notification.permission`, which is a different question — permission
-  // outlives unsubscribing, so turning notifications off and reloading showed
-  // the switch ON with no subscription behind it. Rendering an unknown state as
-  // OFF would be a smaller version of the same lie, so it renders as neither
-  // until the answer arrives.
-  const [pushState, setPushState] = useState<'checking' | 'on' | 'off' | 'error'>('checking');
-  const [pushLoading, setPushLoading] = useState(false);
-  const pushEnabled = pushState === 'on';
-
-  useEffect(() => {
-    let cancelled = false;
-    hasPushSubscription()
-      .then(subscribed => { if (!cancelled) setPushState(subscribed ? 'on' : 'off'); })
-      .catch(() => { if (!cancelled) setPushState('error'); });
-    return () => { cancelled = true; };
-  }, []);
-
-  const togglePush = async () => {
-    setPushLoading(true);
-    try {
-      if (pushEnabled) {
-        await unsubscribeFromPush();
-        setPushState('off');
-        toast.success('Notifications disabled');
-      } else {
-        const ok = await subscribeToPush();
-        setPushState(ok ? 'on' : 'off');
-        if (ok) toast.success('Notifications enabled');
-        else toast.error('Could not enable notifications — check browser permissions');
-      }
-    } catch {
-      // Visible, but the switch keeps whatever the last known truth was rather
-      // than inventing one.
-      toast.error('Could not change notification settings');
-    } finally {
-      setPushLoading(false);
+  const renderSection = (section: SettingsSection) => {
+    switch (section) {
+      case 'account':
+        return (
+          <AccountSection
+            username={model.username}
+            email={model.email}
+            onSignOut={model.signOut}
+          />
+        );
+      case 'preferences':
+        return <PreferencesSection push={model.push} />;
+      case 'categories':
+        return <CategoriesSection categories={model.categories} />;
+      case 'connections':
+        return <ConnectionsSection connections={model.connections} />;
+      case 'admin':
+        // Belt and braces: the rail never offers this to a non-admin and
+        // `resolvedSection` cannot return it, but the switch should not be the
+        // only thing standing between a non-admin and admin markup.
+        return model.isAdmin ? <AdminSection admin={model.admin} /> : null;
+      default:
+        return null;
     }
   };
-
-  const shown           = categories.filter(c => c.type === catTab);
-  const incomeCount     = categories.filter(c => c.type === 'income').length;
-  const expenseCount    = categories.filter(c => c.type === 'expense').length;
-  const investmentCount = categories.filter(c => c.type === 'investment').length;
 
   return (
     <AppShell>
       <PageLayout>
-        <div className="max-w-2xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-6 fade-in">
-
-          <div className="product-page-header topbar-safe">
-            <h1 className="product-page-title">Settings</h1>
-          </div>
-
-          {loadError && <LoadErrorBanner message="Categories could not be loaded. Other settings remain available." onRetry={() => void load()} />}
-
-          {/* ── Profile ── */}
-          <section className="card p-5">
-            <p className="label mb-4">Profile</p>
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-md flex items-center justify-center font-mono font-bold text-xl shrink-0"
-                style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)', color: 'var(--accent)' }}>
-                {user?.username.charAt(0).toUpperCase()}
+        <div className="settings-page px-4 md:px-6 pt-6 md:pt-8 pb-10 fade-in">
+          {isDesktop ? (
+            <>
+              <div className="product-page-header topbar-safe">
+                <h1 className="product-page-title">Settings</h1>
               </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-text">{user?.username}</p>
-                <p className="text-sm text-muted break-all">{user?.email}</p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="mt-4 w-full py-2.5 text-sm font-semibold rounded-xl transition-all"
-              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.15)' }}>
-              Sign out
-            </button>
-          </section>
-
-          {/* ── Change Password ── */}
-          <section className="card p-5">
-            <button onClick={() => setPwOpen(o => !o)}
-              className="w-full min-h-[44px] flex items-center justify-between"
-              aria-expanded={pwOpen} aria-controls="security-settings-form">
-              <p className="label">Security</p>
-              <svg className={`w-4 h-4 transition-transform ${pwOpen ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                style={{ color: 'var(--dim)' }}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-
-            {pwOpen && (
-              <form id="security-settings-form" onSubmit={handleChangePassword} className="mt-4 space-y-3">
-                <div>
-                  <label className="form-label" htmlFor="current-password">Current password</label>
-                  <input id="current-password" type="password" autoComplete="current-password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
-                    className="input-dark" placeholder="••••••••" required />
-                </div>
-                <div>
-                  <label className="form-label" htmlFor="new-password">New password</label>
-                  <input id="new-password" type="password" autoComplete="new-password" value={newPw} onChange={e => setNewPw(e.target.value)}
-                    className="input-dark" placeholder="At least 8 characters" required minLength={8} />
-                </div>
-                <div>
-                  <label className="form-label" htmlFor="confirm-password">Confirm new password</label>
-                  <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
-                    className="input-dark" placeholder="••••••••" required />
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button type="submit" disabled={pwLoading}
-                    className="btn-gradient flex-1 py-2.5 text-sm disabled:opacity-60">
-                    {pwLoading ? 'Saving…' : 'Change Password'}
-                  </button>
-                  <button type="button" onClick={() => { setPwOpen(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }}
-                    className="btn-ghost px-4 py-2.5 text-sm">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-          </section>
-
-          {/* ── Notifications ── */}
-          {isPushSupported() && (
-            <section className="card p-5">
-              <p className="label mb-4">Notifications</p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text">Push notifications</p>
-                  <p className="text-xs text-muted mt-0.5">
-                    {pushState === 'checking'
-                      ? 'Checking this device…'
-                      : pushState === 'error'
-                        ? 'Could not check this device'
-                        : 'Bank sync, recurring transactions, savings milestones'}
-                  </p>
-                </div>
-                <button
-                  onClick={togglePush}
-                  disabled={pushLoading || pushState === 'checking'}
-                  className="relative w-12 h-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50"
-                  role="switch" aria-checked={pushEnabled} aria-label="Push notifications"
-                  aria-busy={pushState === 'checking' || pushLoading}
-                  style={{ backgroundColor: pushEnabled ? 'var(--accent)' : 'var(--line)' }}>
-                  <span className="absolute top-3 left-1.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"
-                    style={{ transform: pushEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* ── Categories ── */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <p className="label">Categories</p>
-              <p className="text-xs text-muted">{expenseCount} expense · {incomeCount} income · {investmentCount} investment</p>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex p-1 rounded-xl mb-4" style={{ backgroundColor: 'var(--elev-1)' }}>
-              {CATEGORY_TABS.map(t => (
-                <button key={t} onClick={() => setCatTab(t)}
-                  className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all capitalize"
-                  style={catTab === t
-                    ? { backgroundColor: CAT_TAB_ACCENT[t].tint, color: CAT_TAB_ACCENT[t].color }
-                    : { color: 'var(--muted)' }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {/* Add new */}
-            <form onSubmit={handleAdd} className="card p-4 mb-3">
-              <p className="label mb-3">Add {catTab} category</p>
-              <div className="flex gap-2 flex-wrap mb-3">
-                {PRESET_COLORS.map(c => (
-                  <button key={c} type="button" onClick={() => setNewColor(c)}
-                    className="color-swatch"
-                    style={{ backgroundColor: c }}
-                    aria-label={`Use ${c} for this category`}
-                    aria-pressed={newColor === c} />
-                ))}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex min-w-0 items-center gap-2 flex-1">
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: newColor }} />
-                  <label className="sr-only" htmlFor="new-category">Category name</label>
-                  <input
-                    id="new-category"
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    className="input-dark flex-1"
-                    placeholder="Category name"
+              <div className="settings-shell mt-6">
+                <aside className="settings-shell__nav">
+                  <SettingsRail
+                    sections={model.sections}
+                    active={model.resolvedSection}
+                    onSelect={model.selectSection}
                   />
+                </aside>
+                <div className="settings-shell__content">
+                  {renderSection(model.resolvedSection)}
                 </div>
-                <button type="submit" disabled={adding || !newName.trim()}
-                  className="min-h-[44px] px-4 py-2.5 text-sm font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{
-                    backgroundColor: CAT_TAB_ACCENT[catTab].buttonTint,
-                    color: CAT_TAB_ACCENT[catTab].color,
-                    border: `1px solid ${CAT_TAB_ACCENT[catTab].border}`,
-                  }}>
-                  {adding ? '…' : '+ Add'}
-                </button>
               </div>
-            </form>
-
-            {/* List */}
-            {loading ? (
-              <div className="card py-8 text-center" role="status">
-                <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
-                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                <span className="sr-only">Loading categories</span>
+            </>
+          ) : model.activeSection === null ? (
+            <>
+              <div className="product-page-header topbar-safe">
+                <h1 className="product-page-title">Settings</h1>
               </div>
-            ) : shown.length === 0 ? (
-              <div className="card py-8 text-center text-muted text-sm">No {catTab} categories yet</div>
-            ) : (
-              <div className="card overflow-hidden">
-                {shown.map((cat, i) => (
-                  <div key={cat.id}
-                    className="px-4 py-3 group"
-                    style={{ borderBottom: i < shown.length - 1 ? '1px solid var(--line)' : 'none' }}>
-
-                    {editId === cat.id ? (
-                      <div className="space-y-3">
-                        <div className="flex gap-1.5 flex-wrap">
-                          {PRESET_COLORS.map(c => (
-                            <button key={c} type="button" onClick={() => setEditColor(c)}
-                              className="color-swatch"
-                              style={{ backgroundColor: c }}
-                              aria-label={`Use ${c} for this category`}
-                              aria-pressed={editColor === c} />
-                          ))}
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <div className="flex min-w-0 items-center gap-2 flex-1">
-                            <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: editColor }} />
-                            <label className="sr-only" htmlFor={`edit-category-${cat.id}`}>Category name</label>
-                            <input
-                              id={`edit-category-${cat.id}`}
-                              type="text"
-                              value={editName}
-                              onChange={e => setEditName(e.target.value)}
-                              className="input-dark flex-1 text-sm"
-                              autoFocus
-                            />
-                          </div>
-                          <button onClick={() => handleSaveEdit(cat.id)} disabled={saving || !editName.trim()}
-                            className="px-3 py-2 text-xs font-semibold rounded-lg disabled:opacity-40"
-                            style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>
-                            {saving ? '…' : 'Save'}
-                          </button>
-                          <button onClick={() => setEditId(null)}
-                            className="px-3 py-2 text-xs font-semibold rounded-lg"
-                            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                        <p className="text-sm text-text flex-1">{cat.name}</p>
-                        {cat.is_system && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--dim)' }}>default</span>
-                        )}
-                        {/* System categories are immutable server-side:
-                            `update_category` and `delete_category` both filter
-                            on `user_id == current_user.id`, and these rows have
-                            a null `user_id`, so both actions 404 every time.
-                            Offering controls that cannot succeed is worse than
-                            offering none. */}
-                        {!cat.is_system && (
-                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
-                          <button onClick={() => startEdit(cat)}
-                            className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs transition-all"
-                            aria-label={`Edit ${cat.name}`}
-                            style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
-                          </button>
-                          <button onClick={() => handleDelete(cat.id, cat.name)}
-                            className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs transition-all"
-                            aria-label={`Delete ${cat.name}`}
-                            style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                          </button>
-                        </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="mt-4">
+                <SettingsSectionList
+                  sections={model.sections}
+                  active={model.activeSection}
+                  onSelect={model.selectSection}
+                  summaries={model.summaries}
+                />
               </div>
-            )}
-          </section>
-
-          {/* ── Connected Banks ── */}
-          <section>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-              <div className="flex items-center gap-2">
-                <p className="label">Connected Banks</p>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>
-                  PLAID
-                </span>
+            </>
+          ) : (
+            <>
+              <div className="topbar-safe">
+                <SettingsBackButton onBack={model.clearSection} />
               </div>
-              <div className="flex w-full sm:w-auto gap-2 flex-wrap">
-                {plaidItems.length > 0 && (
-                  <>
-                    <button onClick={handlePlaidSync} disabled={plaidSyncing}
-                      className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                      style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}>
-                      {plaidSyncing ? 'Syncing…' : 'Sync Now'}
-                    </button>
-                  </>
-                )}
-                <button onClick={handlePlaidReset} disabled={plaidResetting}
-                  className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                  {plaidResetting ? 'Clearing…' : 'Reset & Start Fresh'}
-                </button>
-                <button onClick={() => setPlaidLaunching(true)} disabled={plaidLaunching}
-                  className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.2)' }}>
-                  {plaidLaunching ? 'Opening…' : '+ Connect Bank'}
-                </button>
-              </div>
-            </div>
-
-            {plaidItems.length === 0 ? (
-              <div className="card py-8 text-center">
-                <p className="text-sm text-muted">No banks connected yet.</p>
-                <p className="text-xs text-muted mt-1">Connect your bank account to auto-import transactions.</p>
-              </div>
-            ) : (
-              <div className="card overflow-hidden">
-                {plaidItems.map((item, i) => (
-                  <div key={item.id}
-                    className="px-4 py-3 flex items-center gap-3"
-                    style={{ borderBottom: i < plaidItems.length - 1 ? '1px solid var(--line)' : 'none' }}>
-                    <div className="w-8 h-8 rounded-md flex items-center justify-center font-mono font-bold text-sm shrink-0"
-                      style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--pos)', border: '1px solid var(--line)' }}>
-                      {(item.institution_name || 'B').charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text truncate">{item.institution_name || 'Bank'}</p>
-                      <p className="text-xs text-muted">Connected {new Date(item.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <button onClick={() => handleDisconnect(item)} disabled={disconnectingId === item.id}
-                      className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                      style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                      {disconnectingId === item.id ? '…' : 'Disconnect'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* ── Admin Panel ── */}
-          {user?.is_admin && (
-            <section>
-              <div className="flex items-center gap-2 mb-3">
-                <p className="label">Admin — All Users</p>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}>
-                  ADMIN
-                </span>
-              </div>
-
-              {adminLoading ? (
-                <div className="card py-8 text-center" role="status">
-                  <div className="w-5 h-5 rounded-full border-2 border-t-transparent mx-auto spin-slow"
-                    style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                  <span className="sr-only">Loading users</span>
-                </div>
-              ) : (
-                <div className="card overflow-hidden">
-                  {adminUsers.map((u, i) => (
-                    <div key={u.id}
-                      className="px-4 py-3 flex items-center gap-3"
-                      style={{ borderBottom: i < adminUsers.length - 1 ? '1px solid var(--line)' : 'none' }}>
-                      <div className="w-8 h-8 rounded-md flex items-center justify-center font-mono font-bold text-sm shrink-0"
-                        style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--accent)', border: '1px solid var(--line)' }}>
-                        {u.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-text truncate">{u.username}</p>
-                          {u.is_admin && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}>admin</span>
-                          )}
-                          {u.is_verified && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}>verified</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted truncate">{u.email}</p>
-                      </div>
-                      <button
-                        onClick={() => handleAdminReset(u)}
-                        disabled={resettingId === u.id}
-                        className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                        style={{ backgroundColor: 'rgba(245,158,11,.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}>
-                        {resettingId === u.id ? '…' : 'Reset PW'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+              <h1 className="product-page-title mt-2 mb-4">
+                {SECTION_TITLES[model.resolvedSection]}
+              </h1>
+              {renderSection(model.resolvedSection)}
+            </>
           )}
-
         </div>
       </PageLayout>
-      {plaidLaunching && (
+
+      {/* Mounted only while connecting. Loading `usePlaidLink` at page mount
+          pulls Plaid's CDN script and a persistent preload iframe, which breaks
+          PWA rendering on iOS/Android — see PlaidLinkLauncher. */}
+      {model.connections.launching && (
         <PlaidLinkLauncher
-          onSuccess={handlePlaidSuccess}
-          onExit={handlePlaidExit}
-          onEvent={handlePlaidEvent}
-          onError={handlePlaidLaunchError}
+          onSuccess={(publicToken, metadata) => {
+            void model.connections.onConnected(publicToken, metadata?.institution?.name);
+          }}
+          onExit={model.connections.onConnectCancelled}
+          onError={model.connections.onConnectError}
         />
       )}
     </AppShell>

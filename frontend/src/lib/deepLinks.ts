@@ -23,6 +23,17 @@ export const ROUTE_TABS = {
   transactions: { timeline: 'list', review: 'transactions', recurring: 'recurring' },
   accounts: { banking: 'wallet', cards: 'cards', loans: 'loans' },
   portfolio: { investments: 'investments', assets: 'assets', savings: 'savings' },
+  // Settings is sectioned rather than tabbed — it has no mobile context-tab
+  // bar (see `CONTEXT_TABS`, which deliberately omits `/settings`) — but the
+  // addressing convention is the same one every other route uses, so a section
+  // is reachable by link instead of only by tapping through the shell.
+  settings: {
+    account: 'account',
+    preferences: 'preferences',
+    categories: 'categories',
+    connections: 'connections',
+    admin: 'admin',
+  },
 } as const;
 
 /** Query keys read by the destination pages. */
@@ -80,6 +91,11 @@ export const linkToBanking = (): string =>
 /** The cards tab. */
 export const linkToCards = (): string =>
   `/accounts?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.accounts.cards}`;
+
+/** One Settings section, addressable directly. */
+export const linkToSettingsSection = (
+  section: keyof typeof ROUTE_TABS.settings,
+): string => `/settings?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.settings[section]}`;
 
 /** Parse a positive integer id from a query value. Returns null when absent or malformed. */
 export const parseIdParam = (value: string | null): number | null => {
