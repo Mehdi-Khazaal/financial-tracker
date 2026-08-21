@@ -135,6 +135,25 @@ export interface PlaidHealthRow {
   plaid_last_webhook_code?: string | null;
 }
 
+/**
+ * One row of `GET /plaid/sync-status`.
+ *
+ * Local columns only — this endpoint makes no Plaid call, which is what makes
+ * it safe to poll while a manual sync runs. Everything is nullable because a
+ * connection may predate the observability columns entirely.
+ */
+export interface PlaidSyncStatusRow {
+  id: number;
+  institution_name: string | null;
+  last_sync_at: string | null;
+  last_sync_ok: boolean | null;
+  last_sync_error: string | null;
+  last_sync_source: string | null;
+  last_added_count: number | null;
+  last_modified_count: number | null;
+  last_removed_count: number | null;
+}
+
 /** A user row, as `GET /admin/users` returns it. */
 export interface AdminUserSummary {
   id: number;

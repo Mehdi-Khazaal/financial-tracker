@@ -802,6 +802,52 @@ def sync_all(
     return {"message": f"Syncing {len(items)} bank(s) in background."}
 
 
+@router.get("/sync-status")
+def sync_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Local sync progress. **Makes no Plaid call at all.**
+
+    `/plaid/sync-health` is the rich diagnostic, and it costs one live
+    `/item/get` per Item — fine for opening a page, ruinous as a completion
+    loop. This endpoint reads only the `plaid_items` observability columns, so
+    a client can poll it every few seconds while a manual sync runs without
+    generating any Plaid traffic whatsoever.
+
+    That distinction is the entire reason it exists, so it deliberately does
+    not reuse any helper that touches Plaid: adding one later would silently
+    turn a cheap poll into a rate-limit problem.
+
+    Nothing here is a credential or an identifier the client has no use for —
+    no access token, no cursor, no Plaid Item id, no webhook URL. `id` is
+    Fintrack's own row id, matching `/plaid/items`, which is what the caller
+    needs to tell one connection's progress from another's.
+    """
+    items = (
+        db.query(PlaidItem)
+        .filter(PlaidItem.user_id == current_user.id)
+        .order_by(PlaidItem.id)
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "institution_name": item.institution_name,
+                "last_sync_at": item.last_sync_at.isoformat() if item.last_sync_at else None,
+                "last_sync_ok": item.last_sync_ok,
+                "last_sync_error": item.last_sync_error,
+                "last_sync_source": item.last_sync_source,
+                "last_added_count": item.last_added_count,
+                "last_modified_count": item.last_modified_count,
+                "last_removed_count": item.last_removed_count,
+            }
+            for item in items
+        ]
+    }
+
+
 @router.post("/replay")
 def replay_all_transactions(
     background: BackgroundTasks,

@@ -129,6 +129,49 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
   }
   await page.screenshot({ path: 'e2e/__screenshots__/connections-07-phone-390-bottom.png', fullPage: false });
 
+  // --- Sync Now, mid-flight and settled --------------------------------------
+  // The POST is stubbed to succeed and sync-status is held at its baseline, so
+  // the button sits in its honest waiting state rather than claiming success.
+  await page.route('**/plaid/sync', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{"message":"queued"}' }));
+  await page.route('**/plaid/sync-status', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: ITEMS.map(i => ({
+        id: i.id, institution_name: i.institution_name,
+        last_sync_at: minutesAgo(30), last_sync_ok: true, last_sync_error: null,
+        last_sync_source: 'webhook', last_added_count: 0,
+        last_modified_count: 0, last_removed_count: 0,
+      })) }),
+    }));
+
+  await openConnections(1440, 900);
+  await page.getByRole('button', { name: /sync all now/i }).click();
+  await expect(page.getByRole('button', { name: /checking for updates|requesting sync/i }))
+    .toBeVisible({ timeout: 5_000 });
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-08-desktop-1440-syncing.png', fullPage: false });
+
+  // Now let the timestamps advance so it settles honestly.
+  await page.unroute('**/plaid/sync-status');
+  await page.route('**/plaid/sync-status', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: ITEMS.map(i => ({
+        id: i.id, institution_name: i.institution_name,
+        last_sync_at: new Date().toISOString(), last_sync_ok: true, last_sync_error: null,
+        last_sync_source: 'manual', last_added_count: i.id === 5 ? 2 : 0,
+        last_modified_count: 0, last_removed_count: 0,
+      })) }),
+    }));
+  await expect(page.getByText(/sync complete/i)).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-09-desktop-1440-sync-complete.png', fullPage: false });
+
+  await page.unroute('**/plaid/sync');
+  await page.unroute('**/plaid/sync-status');
+
   // --- Degraded: diagnostics unavailable, banks still listed ----------------
   await page.route('**/plaid/sync-health', route => route.fulfill({ status: 502, body: '{}' }));
   await page.setViewportSize({ width: 1440, height: 900 });

@@ -292,5 +292,8 @@ export const plaidReset            = () => api.post('/plaid/reset');
 // Read-only diagnostics. Makes one live Plaid `/item/get` per connected Item,
 // serially, so it is fetched only when the Connections section is opened.
 export const plaidSyncHealth       = () => api.get('/plaid/sync-health');
+// Local columns only — no Plaid call — so it is safe to poll briefly while a
+// manual sync runs. `plaidSyncHealth` is not, and must never be used for that.
+export const plaidSyncStatus       = () => api.get('/plaid/sync-status');
 
 export default api;

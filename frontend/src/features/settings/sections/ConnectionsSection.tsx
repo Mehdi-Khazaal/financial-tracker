@@ -1,6 +1,7 @@
 import React from 'react';
 import type { UsePlaidConnections } from '../hooks/usePlaidConnections';
 import { useConnectionHealth } from '../hooks/useConnectionHealth';
+import { useManualSync } from '../hooks/useManualSync';
 import ConnectionCard from '../components/ConnectionCard';
 import {
   EmptyBlock,
@@ -25,16 +26,35 @@ import {
  *     page load. It *decorates* the list and can never remove from it: if it
  *     fails entirely, every bank still renders with an unknown status.
  *
- * Actions are unchanged in this phase. Sync Now, Connect Bank, Disconnect and
- * Reset behave exactly as before; 6C-3 onward own their semantics.
+ * Sync Now reports what actually happened rather than what was requested. The
+ * POST returns before Plaid is contacted, so completion is established by
+ * watching `/plaid/sync-status` — local columns, no Plaid call — until each
+ * connection's `last_sync_at` advances past a baseline taken beforehand. See
+ * `useManualSync`.
+ *
+ * Connect Bank, Disconnect and Reset are unchanged; later stages own those.
  */
 
 interface Props {
   connections: UsePlaidConnections;
 }
 
+const BUTTON_LABEL: Record<string, string> = {
+  idle: 'Sync all now',
+  requesting: 'Requesting sync…',
+  waiting: 'Checking for updates…',
+  completed: 'Sync all now',
+  partial_failure: 'Sync all now',
+  timed_out: 'Sync all now',
+  request_failed: 'Sync all now',
+};
+
 const ConnectionsSection: React.FC<Props> = ({ connections }) => {
   const health = useConnectionHealth();
+  // Health is refreshed exactly once, when the sync actually settles — not on
+  // a timer, and never as part of the poll: `/plaid/sync-health` costs a live
+  // Plaid call per Item.
+  const sync = useManualSync(health.reload);
   const hasItems = connections.items.length > 0;
 
   return (
@@ -55,12 +75,13 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
       <div className="flex gap-2 flex-wrap mb-2">
         {hasItems && (
           <button
-            onClick={() => { void connections.syncNow(); }}
-            disabled={connections.syncing}
+            onClick={() => { void sync.start(); }}
+            disabled={sync.busy}
+            aria-busy={sync.busy}
             className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
             style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}
           >
-            {connections.syncing ? 'Syncing…' : 'Sync Now'}
+            {BUTTON_LABEL[sync.phase] ?? 'Sync all now'}
           </button>
         )}
         <button
@@ -71,6 +92,61 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
           + Connect Bank
         </button>
       </div>
+
+      {/* One line, announced politely so a screen reader hears the outcome
+          without the whole section being re-read. Timing out is reported as
+          still-running rather than failed: `record_sync_health` swallows its
+          own write errors, so a real sync can finish without the timestamp
+          ever moving. */}
+      {sync.message && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="card p-3 mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+        >
+          <div className="min-w-0">
+            <p
+              className="text-xs font-medium"
+              style={{
+                color: sync.phase === 'request_failed' || sync.phase === 'partial_failure'
+                  ? 'var(--neg)'
+                  : sync.phase === 'timed_out' ? 'var(--muted)' : 'var(--pos)',
+              }}
+            >
+              {sync.message}
+            </p>
+            {sync.perItem.length > 1 && (
+              <ul className="mt-1 space-y-0.5">
+                {sync.perItem.map(entry => (
+                  <li key={entry.name} className="text-[11px]" style={{ color: 'var(--dim)' }}>
+                    {entry.name} · {entry.detail}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {sync.phase === 'timed_out' && (
+              <button
+                type="button"
+                onClick={health.reload}
+                className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg"
+                style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+              >
+                Check status
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={sync.dismiss}
+              className="min-h-[44px] px-2 py-1.5 text-xs font-semibold rounded-lg"
+              style={{ color: 'var(--dim)' }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sets the expectation that syncing is automatic, and heads off the two
           questions this section otherwise generates: "do I have to press this

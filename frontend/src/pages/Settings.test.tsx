@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 /**
@@ -67,6 +67,7 @@ const mockApi = {
   plaidSyncAll: jest.fn(),
   plaidReset: jest.fn(),
   plaidSyncHealth: jest.fn(),
+  plaidSyncStatus: jest.fn(),
 };
 jest.mock('../utils/api', () => new Proxy({}, {
   get: (_t, prop: string) => {
@@ -135,6 +136,20 @@ const SALARY = {
 const BANK = { id: 5, institution_name: 'Capital One', created_at: '2026-05-31T00:00:00Z' };
 const BANK_TWO = { id: 6, institution_name: 'PNC', created_at: '2026-05-31T00:00:00Z' };
 
+/** A `/plaid/sync-status` row. Local columns only — no Plaid call behind it. */
+const statusRow = (over: Record<string, unknown> = {}) => ({
+  id: BANK.id,
+  institution_name: 'Capital One',
+  last_sync_at: '2026-08-20T18:00:00Z',
+  last_sync_ok: true,
+  last_sync_error: null,
+  last_sync_source: 'webhook',
+  last_added_count: 0,
+  last_modified_count: 0,
+  last_removed_count: 0,
+  ...over,
+});
+
 /** A healthy row for BANK. Timestamps are relative so they never go stale. */
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
 const healthRow = (over: Record<string, unknown> = {}) => ({
@@ -181,6 +196,7 @@ beforeEach(() => {
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });
   mockApi.plaidReset.mockResolvedValue({ data: { message: 'cleared' } });
   mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow()] } });
+  mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow()] } });
   mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok' } });
   mockApi.deleteCategory.mockResolvedValue({});
   mockApi.adminResetPassword.mockResolvedValue({});
@@ -231,7 +247,7 @@ describe('Settings shell', () => {
   it('renders one section at a time, not everything at once', async () => {
     await openSettings();
     // Account is open, so Connections content must not also be mounted.
-    expect(screen.queryByRole('button', { name: /sync now/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sync all now/i })).not.toBeInTheDocument();
   });
 
   it('renders a single page heading, never one per layout', async () => {
@@ -279,7 +295,7 @@ describe('Settings deep links', () => {
   it('opens the connections section from ?tab=connections', async () => {
     mockSearchParams = new URLSearchParams('tab=connections');
     await openSettings();
-    expect(await screen.findByRole('button', { name: /sync now/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /sync all now/i })).toBeInTheDocument();
   });
 
   it('opens the admin section for an admin', async () => {
@@ -802,9 +818,9 @@ describe('Settings connected banks', () => {
     expect(await screen.findByText('Capital One')).toBeInTheDocument();
   });
 
-  it('offers Sync Now and calls it', async () => {
+  it('offers Sync all now and requests a sync', async () => {
     await openConnections();
-    fireEvent.click(await screen.findByRole('button', { name: /sync now/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /sync all now/i }));
     await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
   });
 
@@ -836,7 +852,7 @@ describe('Settings connected banks', () => {
     mockApi.plaidGetItems.mockResolvedValue({ data: [] });
     await openConnections();
     await screen.findByText('No banks connected yet');
-    expect(screen.queryByRole('button', { name: /sync now/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sync all now/i })).not.toBeInTheDocument();
   });
 });
 
@@ -1168,11 +1184,349 @@ describe('Settings connections guidance', () => {
   it('keeps the existing actions working', async () => {
     await openSettings('Connections');
 
-    fireEvent.click(await screen.findByRole('button', { name: /sync now/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /sync all now/i }));
     await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
 
     expect(screen.getByRole('button', { name: /connect bank/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /disconnect/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reset & start fresh/i })).toBeInTheDocument();
+  });
+});
+
+
+// --- Honest Sync Now (6C-3) --------------------------------------------------
+// `POST /plaid/sync` queues background work and returns before Plaid is
+// contacted, so its 200 means "requested". Completion is established by
+// watching `/plaid/sync-status` — local columns, no Plaid call — until each
+// connection's `last_sync_at` advances past a baseline taken beforehand.
+
+describe('Settings sync now', () => {
+  const BASE = '2026-08-20T18:00:00Z';
+  const LATER = '2026-08-20T18:09:00Z';
+
+  const openConnections = () => openSettings('Connections');
+
+  /** Flush the microtasks an async chain needs, without advancing the clock. */
+  const flush = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  const pressSync = async () => {
+    const button = await screen.findByRole('button', { name: /sync all now/i });
+    fireEvent.click(button);
+    // `start()` reads the baseline and POSTs before scheduling the first poll;
+    // ticking the clock before those settle would find no timer at all.
+    await flush();
+    return button;
+  };
+
+  /** Advance past one poll interval and let that poll's promises resolve. */
+  const tick = async () => {
+    await act(async () => {
+      jest.advanceTimersByTime(4_000);
+    });
+    await flush();
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  it('starts idle', async () => {
+    await openConnections();
+    expect(await screen.findByRole('button', { name: 'Sync all now' })).toBeEnabled();
+    expect(screen.queryByText(/sync complete/i)).not.toBeInTheDocument();
+  });
+
+  it('takes a baseline before requesting the sync', async () => {
+    await openConnections();
+    await pressSync();
+
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
+    const statusCallOrder = mockApi.plaidSyncStatus.mock.invocationCallOrder[0];
+    const syncCallOrder = mockApi.plaidSyncAll.mock.invocationCallOrder[0];
+    expect(statusCallOrder).toBeLessThan(syncCallOrder);
+  });
+
+  it('does not claim completion just because the POST returned', async () => {
+    await openConnections();
+    await pressSync();
+
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
+    // The timestamp has not moved, so nothing has finished.
+    expect(screen.queryByText(/sync complete/i)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /checking for updates/i })).toBeDisabled();
+  });
+
+  it('never polls sync-health to detect completion', async () => {
+    await openConnections();
+    const healthCallsBefore = mockApi.plaidSyncHealth.mock.calls.length;
+    await pressSync();
+    await tick();
+    await tick();
+
+    // Health costs a live Plaid /item/get per Item; polling it would be the bug.
+    expect(mockApi.plaidSyncHealth.mock.calls.length).toBe(healthCallsBefore);
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('completes once the timestamp advances, and reports what arrived', async () => {
+    await openConnections();
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 3 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText('Sync complete · 3 new')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync all now' })).toBeEnabled();
+  });
+
+  it('says "no new posted transactions" rather than implying everything matches', async () => {
+    await openConnections();
+    await pressSync();
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 0 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText(/no new posted transactions/i)).toBeInTheDocument();
+  });
+
+  it('does not finish while one bank is still pending', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: BASE }), statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: BASE })] },
+    });
+    await openConnections();
+    await pressSync();
+
+    // Only Capital One reports.
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER }), statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: BASE })] },
+    });
+    await tick();
+
+    expect(screen.queryByText(/sync complete/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /checking for updates/i })).toBeDisabled();
+  });
+
+  it('aggregates across banks once both report', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: BASE }), statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: BASE })] },
+    });
+    await openConnections();
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: {
+        items: [
+          statusRow({ last_sync_at: LATER, last_added_count: 2, last_modified_count: 1 }),
+          statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: LATER, last_added_count: 1 }),
+        ],
+      },
+    });
+    await tick();
+
+    expect(await screen.findByText('Sync complete · 3 new · 1 updated')).toBeInTheDocument();
+    expect(screen.getByText(/Capital One · 2 new · 1 updated/)).toBeInTheDocument();
+    expect(screen.getByText(/PNC · 1 new/)).toBeInTheDocument();
+  });
+
+  it('reports a partial failure by name without hiding the success', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: BASE }), statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: BASE })] },
+    });
+    await openConnections();
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: {
+        items: [
+          statusRow({ last_sync_at: LATER, last_added_count: 4 }),
+          statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: LATER, last_sync_ok: false }),
+        ],
+      },
+    });
+    await tick();
+
+    expect(await screen.findByText('Sync finished with an issue on PNC.')).toBeInTheDocument();
+    expect(screen.getByText(/Capital One · 4 new/)).toBeInTheDocument();
+  });
+
+  it('times out without calling it a failure', async () => {
+    await openConnections();
+    await pressSync();
+
+    // Nothing ever advances. `record_sync_health` swallows its own write
+    // errors, so a real sync can finish without the timestamp moving.
+    for (let i = 0; i < 12; i += 1) await tick();
+
+    const message = await screen.findByText(/taking longer than expected/i);
+    expect(message).toBeInTheDocument();
+    expect(message).toHaveTextContent(/still be updating in the background/i);
+    expect(screen.queryByText(/sync failed/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check status' })).toBeInTheDocument();
+  });
+
+  it('stops polling once it times out', async () => {
+    await openConnections();
+    await pressSync();
+    for (let i = 0; i < 12; i += 1) await tick();
+    await screen.findByText(/taking longer than expected/i);
+
+    const callsAtTimeout = mockApi.plaidSyncStatus.mock.calls.length;
+    await tick();
+    await tick();
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAtTimeout);
+  });
+
+  it('stops polling once it completes', async () => {
+    await openConnections();
+    await pressSync();
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: LATER })] } });
+    await tick();
+    await screen.findByText(/sync complete/i);
+
+    const callsAtCompletion = mockApi.plaidSyncStatus.mock.calls.length;
+    await tick();
+    await tick();
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAtCompletion);
+  });
+
+  it('refreshes health exactly once after completion', async () => {
+    await openConnections();
+    await waitFor(() => expect(mockApi.plaidSyncHealth).toHaveBeenCalledTimes(1));
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: LATER })] } });
+    await tick();
+    await screen.findByText(/sync complete/i);
+
+    await waitFor(() => expect(mockApi.plaidSyncHealth).toHaveBeenCalledTimes(2));
+    await tick();
+    expect(mockApi.plaidSyncHealth).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a second sync while one is running', async () => {
+    await openConnections();
+    const button = await pressSync();
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mockApi.plaidSyncAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed request as a request failure, not a sync failure', async () => {
+    mockApi.plaidSyncAll.mockRejectedValue(new Error('offline'));
+    await openConnections();
+    await pressSync();
+
+    expect(await screen.findByText(/could not request a sync/i)).toBeInTheDocument();
+    // Never started, so nothing should be polled.
+    const callsAfter = mockApi.plaidSyncStatus.mock.calls.length;
+    await tick();
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAfter);
+  });
+
+  it('handles a connection that had never synced before', async () => {
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: null })] } });
+    await openConnections();
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 5 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText('Sync complete · 5 new')).toBeInTheDocument();
+  });
+
+  it('does not hang when a bank is disconnected mid-sync', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: BASE }), statusRow({ id: BANK_TWO.id, institution_name: 'PNC', last_sync_at: BASE })] },
+    });
+    await openConnections();
+    await pressSync();
+
+    // PNC vanishes; it can never report, so waiting for it would be pointless.
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 1 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText('Sync complete · 1 new')).toBeInTheDocument();
+  });
+
+  it('survives a failed poll and keeps waiting', async () => {
+    await openConnections();
+    await pressSync();
+
+    mockApi.plaidSyncStatus.mockRejectedValueOnce(new Error('flaky'));
+    await tick();
+    expect(screen.queryByText(/could not request/i)).not.toBeInTheDocument();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: LATER })] } });
+    await tick();
+    expect(await screen.findByText(/sync complete/i)).toBeInTheDocument();
+  });
+
+  it('stops polling when the section is left', async () => {
+    await openConnections();
+    await pressSync();
+    await tick();
+
+    const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+    fireEvent.click(within(nav).getByRole('button', { name: 'Account' }));
+
+    const callsAfterUnmount = mockApi.plaidSyncStatus.mock.calls.length;
+    await tick();
+    await tick();
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAfterUnmount);
+  });
+
+  it('keeps only one global sync control, not one per bank', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    await openConnections();
+    await screen.findByText('Capital One');
+
+    expect(screen.getAllByRole('button', { name: /sync all now/i })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /^sync$/i })).not.toBeInTheDocument();
+  });
+
+  it('exposes busy state on the button rather than animation alone', async () => {
+    await openConnections();
+    const button = await pressSync();
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'));
+  });
+
+  it('announces the outcome politely', async () => {
+    await openConnections();
+    await pressSync();
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: LATER })] } });
+    await tick();
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('keeps the pending-transaction explanation visible', async () => {
+    await openConnections();
+    expect(await screen.findByText(/finish pending at your bank/i)).toBeInTheDocument();
   });
 });

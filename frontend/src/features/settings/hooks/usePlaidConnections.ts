@@ -4,10 +4,19 @@ import {
   plaidExchangeToken,
   plaidGetItems,
   plaidReset,
-  plaidSyncAll,
 } from '../../../utils/api';
 import { useToast } from '../../../context/ToastContext';
 import type { AsyncCollection, LoadStatus, PlaidItemSummary } from '../types';
+
+/**
+ * Connected banks, and the actions that change them.
+ *
+ * Sync Now deliberately does *not* live here. It needs a baseline, a bounded
+ * poll and a settled outcome — a state machine rather than a request, see
+ * `useManualSync`. Keeping a second, simpler `syncNow` alongside it would
+ * invite the old bug back, where a POST returning was mistaken for a sync
+ * finishing.
+ */
 
 /**
  * What "Reset & Start Fresh" actually does, in the user's terms.
@@ -24,11 +33,9 @@ export const RESET_CONFIRMATION =
   + 'yourself are not affected. This cannot be undone.';
 
 export interface UsePlaidConnections extends AsyncCollection<PlaidItemSummary> {
-  syncing: boolean;
   resetting: boolean;
   disconnectingId: number | null;
   launching: boolean;
-  syncNow: () => Promise<void>;
   reset: () => Promise<void>;
   disconnect: (item: PlaidItemSummary) => Promise<void>;
   startConnect: () => void;
@@ -43,7 +50,6 @@ export function usePlaidConnections(): UsePlaidConnections {
   // Was a bare `catch {}` on the page, so a failed request rendered as "no
   // connected banks" — the one answer a user must not be given wrongly.
   const [status, setStatus] = useState<LoadStatus>('loading');
-  const [syncing, setSyncing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -60,18 +66,6 @@ export function usePlaidConnections(): UsePlaidConnections {
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
-
-  const syncNow = useCallback(async () => {
-    setSyncing(true);
-    try {
-      await plaidSyncAll();
-      toast.success("Sync started — you'll get a notification when done");
-    } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
-  }, [toast]);
 
   const reset = useCallback(async () => {
     // The app's own confirm, not the browser's: `window.confirm` blocks the
@@ -138,11 +132,9 @@ export function usePlaidConnections(): UsePlaidConnections {
     status,
     items,
     reload: () => { void reload(); },
-    syncing,
     resetting,
     disconnectingId,
     launching,
-    syncNow,
     reset,
     disconnect,
     startConnect,
