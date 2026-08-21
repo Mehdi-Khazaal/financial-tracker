@@ -289,5 +289,8 @@ export const plaidGetItems         = () => api.get('/plaid/items');
 export const plaidDeleteItem       = (id: number) => api.delete(`/plaid/items/${id}`);
 export const plaidSyncAll          = () => api.post('/plaid/sync');
 export const plaidReset            = () => api.post('/plaid/reset');
+// Read-only diagnostics. Makes one live Plaid `/item/get` per connected Item,
+// serially, so it is fetched only when the Connections section is opened.
+export const plaidSyncHealth       = () => api.get('/plaid/sync-health');
 
 export default api;

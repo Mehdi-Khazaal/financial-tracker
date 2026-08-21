@@ -186,6 +186,41 @@ test('capture Settings across breakpoints', async ({ page, request, registeredUs
   expect(managerOverflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: 'e2e/__screenshots__/settings-20-phone-320-category-manager.png', fullPage: true });
 
+  // --- Connections health, Phase 6C-2 ----------------------------------------
+  // The e2e backend has no Plaid connection, so the honest capture here is the
+  // empty state plus the guidance and the separated troubleshooting area.
+  // Health-state rendering is covered exhaustively by the unit and integration
+  // tests, which can drive every state; a screenshot cannot without a live Item.
+
+  const openConnections = async (width: number, height: number) => {
+    await page.setViewportSize({ width, height });
+    await page.goto('/settings');
+    const nav = page.getByRole('navigation', { name: 'Settings sections' });
+    await expect(nav).toBeVisible({ timeout: 15_000 });
+    if (width >= 1024) {
+      await nav.getByRole('button', { name: 'Connections' }).click();
+    } else {
+      await page.getByRole('button', { name: /^Connections/ }).click();
+    }
+    await expect(page.getByRole('button', { name: /connect bank/i })).toBeVisible({ timeout: 10_000 });
+  };
+
+  await openConnections(390, 844);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-21-phone-390-connections-health.png', fullPage: true });
+
+  await openConnections(1440, 900);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-22-desktop-1440-connections-health.png', fullPage: false });
+
+  // The narrowest supported width must not overflow with the new card content.
+  await openConnections(320, 900);
+  const connectionsOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(connectionsOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-23-phone-320-connections.png', fullPage: true });
+
   // ── No horizontal overflow at the narrowest width ───────────────────────────
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/settings');

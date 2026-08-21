@@ -66,6 +66,7 @@ const mockApi = {
   plaidDeleteItem: jest.fn(),
   plaidSyncAll: jest.fn(),
   plaidReset: jest.fn(),
+  plaidSyncHealth: jest.fn(),
 };
 jest.mock('../utils/api', () => new Proxy({}, {
   get: (_t, prop: string) => {
@@ -132,6 +133,35 @@ const SALARY = {
 };
 
 const BANK = { id: 5, institution_name: 'Capital One', created_at: '2026-05-31T00:00:00Z' };
+const BANK_TWO = { id: 6, institution_name: 'PNC', created_at: '2026-05-31T00:00:00Z' };
+
+/** A healthy row for BANK. Timestamps are relative so they never go stale. */
+const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+const healthRow = (over: Record<string, unknown> = {}) => ({
+  id: BANK.id,
+  institution_name: 'Capital One',
+  connected_at: '2026-05-31T00:00:00Z',
+  cursor_initialized: true,
+  fintrack_last_webhook_at: minutesAgo(10),
+  fintrack_last_webhook_code: 'SYNC_UPDATES_AVAILABLE',
+  last_sync_at: minutesAgo(8),
+  last_sync_source: 'webhook',
+  last_sync_ok: true,
+  last_sync_error: null,
+  last_added_count: 3,
+  last_modified_count: 0,
+  last_removed_count: 0,
+  reachable: true,
+  item_error_code: null,
+  item_error_type: null,
+  login_repair_required: false,
+  consent_expiration_time: null,
+  plaid_last_successful_update: minutesAgo(11),
+  plaid_last_failed_update: null,
+  plaid_last_webhook_sent_at: minutesAgo(10),
+  plaid_last_webhook_code: 'SYNC_UPDATES_AVAILABLE',
+  ...over,
+});
 const OTHER_USER = {
   id: 2, username: 'someone', email: 'someone@example.com',
   is_admin: false, is_verified: true,
@@ -150,6 +180,7 @@ beforeEach(() => {
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });
   mockApi.plaidReset.mockResolvedValue({ data: { message: 'cleared' } });
+  mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow()] } });
   mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok' } });
   mockApi.deleteCategory.mockResolvedValue({});
   mockApi.adminResetPassword.mockResolvedValue({});
@@ -938,5 +969,210 @@ describe('Settings accessibility', () => {
     within(nav).getAllByRole('button').forEach(button => {
       expect(button.tagName).toBe('BUTTON');
     });
+  });
+});
+
+
+// --- Connection health (6C-2) ------------------------------------------------
+// Read-only diagnostics layered over the bank list. The list itself comes from
+// `/plaid/items`, a plain database read; health comes from `/plaid/sync-health`,
+// which makes one live Plaid `/item/get` per Item and therefore must never run
+// on a Settings page load.
+
+describe('Settings connection health', () => {
+  const openConnections = () => openSettings('Connections');
+
+  it('does not request health when Settings opens', async () => {
+    await openSettings();
+    // Account is the default section; the diagnostics belong to Connections.
+    await screen.findByText('khaza@example.com');
+    expect(mockApi.plaidSyncHealth).not.toHaveBeenCalled();
+  });
+
+  it('requests health only once Connections is opened', async () => {
+    await openConnections();
+    await waitFor(() => expect(mockApi.plaidSyncHealth).toHaveBeenCalled());
+  });
+
+  it('does not request health again when another section is opened', async () => {
+    await openSettings('Categories');
+    await screen.findByText('Groceries');
+    expect(mockApi.plaidSyncHealth).not.toHaveBeenCalled();
+  });
+
+  it('shows a healthy connection', async () => {
+    await openConnections();
+    expect(await screen.findByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText(/Last synced 8 minutes ago/)).toBeInTheDocument();
+  });
+
+  it('shows a connection that needs re-authentication, and says what to do', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ login_repair_required: true })] },
+    });
+    await openConnections();
+
+    expect(await screen.findByText('Needs attention')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/sign in again/i);
+  });
+
+  it('shows a sync issue without dumping the raw error into the card', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ last_sync_ok: false, last_sync_error: 'RuntimeError: boom at 0xdeadbeef' })] },
+    });
+    await openConnections();
+
+    expect(await screen.findByText('Sync issue')).toBeInTheDocument();
+    expect(screen.queryByText(/0xdeadbeef/)).not.toBeInTheDocument();
+  });
+
+  it('shows an unreachable item as unavailable rather than broken', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [{ id: BANK.id, institution_name: 'Capital One', connected_at: null, cursor_initialized: true, fintrack_last_webhook_at: null, fintrack_last_webhook_code: null, last_sync_at: null, last_sync_source: null, last_sync_ok: null, last_sync_error: null, last_added_count: null, last_modified_count: null, last_removed_count: null, reachable: false, detail: 'RuntimeError: unreachable' }] },
+    });
+    await openConnections();
+
+    expect(await screen.findByText('Status unavailable')).toBeInTheDocument();
+  });
+
+  it('renders null observability fields as not recorded, never as "never"', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ last_sync_at: null, last_sync_ok: null, fintrack_last_webhook_at: null })] },
+    });
+    await openConnections();
+
+    expect(await screen.findByText('Last sync not recorded yet')).toBeInTheDocument();
+    expect(screen.queryByText(/never synced/i)).not.toBeInTheDocument();
+    // A legacy connection with an established cursor is still healthy.
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+  });
+
+  it('joins health to banks by id, not by institution name', async () => {
+    // Both banks are called "Bank" — the real fallback when Plaid's institution
+    // lookup fails — so only the ids can tell them apart.
+    mockApi.plaidGetItems.mockResolvedValue({
+      data: [{ ...BANK, institution_name: 'Bank' }, { ...BANK_TWO, institution_name: 'Bank' }],
+    });
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: {
+        items: [
+          healthRow({ id: BANK.id, institution_name: 'Bank', login_repair_required: true }),
+          healthRow({ id: BANK_TWO.id, institution_name: 'Bank' }),
+        ],
+      },
+    });
+    await openConnections();
+
+    expect(await screen.findByText('Needs attention')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+  });
+
+  it('still lists every bank when health fails entirely', async () => {
+    mockApi.plaidSyncHealth.mockRejectedValue(new Error('boom'));
+    await openConnections();
+
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+    expect(screen.getByText(/status could not be checked/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
+  });
+
+  it('retries health without reloading the bank list', async () => {
+    mockApi.plaidSyncHealth.mockRejectedValueOnce(new Error('boom'));
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: 'Check again' }));
+    expect(await screen.findByText('Healthy')).toBeInTheDocument();
+  });
+
+  it('does not let one missing health row hide the other bank', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow({ id: BANK.id })] } });
+    await openConnections();
+
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+    expect(screen.getByText('PNC')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText('Status unknown')).toBeInTheDocument();
+  });
+
+  it('mentions a delivery delay without calling the connection broken', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({
+        plaid_last_webhook_sent_at: minutesAgo(180),
+        fintrack_last_webhook_at: null,
+        last_sync_at: minutesAgo(400),
+      })] },
+    });
+    await openConnections();
+
+    expect(await screen.findByText(/updates may be delayed/i)).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+  });
+});
+
+describe('Settings connection details', () => {
+  const openConnections = () => openSettings('Connections');
+
+  it('is collapsed until opened, and is a real disclosure', async () => {
+    await openConnections();
+    const toggle = await screen.findByRole('button', { name: /details/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Last update from your bank')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Last update from your bank')).toBeInTheDocument();
+  });
+
+  it('translates the sync source rather than showing the raw value', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /details/i }));
+    expect(screen.getByText('Your bank')).toBeInTheDocument();
+    expect(screen.queryByText('webhook')).not.toBeInTheDocument();
+  });
+
+  it('shows the sanitized error only when the sync actually failed', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ last_sync_ok: false, last_sync_error: 'HTTPException: Plaid returned an error' })] },
+    });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /details/i }));
+
+    expect(screen.getByText('HTTPException: Plaid returned an error')).toBeInTheDocument();
+  });
+
+  it('never renders deployment diagnostics or identifiers', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({
+        registered_webhook: 'https://api.example.com/plaid/webhook',
+        webhook_status: 'mismatched',
+      })] },
+    });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /details/i }));
+
+    const body = document.body.textContent ?? '';
+    expect(body).not.toContain('https://api.example.com/plaid/webhook');
+    expect(body).not.toContain('mismatched');
+    expect(body).not.toMatch(/access[-_ ]?token/i);
+    expect(body).not.toMatch(/cursor:/i);
+  });
+});
+
+describe('Settings connections guidance', () => {
+  it('explains that syncing is automatic and that pending purchases lag', async () => {
+    await openSettings('Connections');
+    const note = await screen.findByText(/checks for bank updates automatically/i);
+    expect(note).toHaveTextContent(/finish pending at your bank/i);
+  });
+
+  it('keeps the existing actions working', async () => {
+    await openSettings('Connections');
+
+    fireEvent.click(await screen.findByRole('button', { name: /sync now/i }));
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
+
+    expect(screen.getByRole('button', { name: /connect bank/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /disconnect/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reset & start fresh/i })).toBeInTheDocument();
   });
 });

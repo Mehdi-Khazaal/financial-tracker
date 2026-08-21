@@ -86,6 +86,55 @@ export interface PlaidItemSummary {
   created_at: string;
 }
 
+/**
+ * One row of `GET /plaid/sync-health`.
+ *
+ * Two views merged: Fintrack's own record of what it received and did, and
+ * Plaid's `/item/get` view of the Item. Almost everything is nullable, and not
+ * defensively — the health columns were added long after these connections
+ * existed, so a null genuinely means "not recorded", never "never happened".
+ * Typing them as optional keeps that distinction visible at every call site.
+ *
+ * `id` is Fintrack's own `PlaidItem.id`, matching `GET /plaid/items`, and is
+ * the only safe way to join the two lists: `institution_name` is nullable and
+ * falls back to the literal "Bank" when Plaid's institution lookup fails.
+ *
+ * Fields deliberately absent from this type even though the endpoint returns
+ * them: `registered_webhook` and `webhook_status`. Those describe *this
+ * deployment's* configuration, not the bank, and would read identically for
+ * every institution — showing them per-connection would blame the bank for an
+ * operations problem. `registered_webhook` is also a URL.
+ */
+export interface PlaidHealthRow {
+  id: number;
+  institution_name: string | null;
+  connected_at: string | null;
+  cursor_initialized: boolean;
+
+  /** When Fintrack recorded receiving a webhook, and which code it carried. */
+  fintrack_last_webhook_at: string | null;
+  fintrack_last_webhook_code: string | null;
+
+  last_sync_at: string | null;
+  last_sync_source: string | null;
+  last_sync_ok: boolean | null;
+  last_sync_error: string | null;
+  last_added_count: number | null;
+  last_modified_count: number | null;
+  last_removed_count: number | null;
+
+  /** False when `/item/get` could not be read; absent if never attempted. */
+  reachable?: boolean;
+  item_error_code?: string | null;
+  item_error_type?: string | null;
+  login_repair_required?: boolean;
+  consent_expiration_time?: string | null;
+  plaid_last_successful_update?: string | null;
+  plaid_last_failed_update?: string | null;
+  plaid_last_webhook_sent_at?: string | null;
+  plaid_last_webhook_code?: string | null;
+}
+
 /** A user row, as `GET /admin/users` returns it. */
 export interface AdminUserSummary {
   id: number;

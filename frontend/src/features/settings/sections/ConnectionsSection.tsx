@@ -1,24 +1,32 @@
 import React from 'react';
 import type { UsePlaidConnections } from '../hooks/usePlaidConnections';
+import { useConnectionHealth } from '../hooks/useConnectionHealth';
+import ConnectionCard from '../components/ConnectionCard';
 import {
-  Avatar,
   EmptyBlock,
   LoadingBlock,
   SectionErrorBlock,
   SectionHeading,
-  SettingsRow,
 } from '../components/SettingsPrimitives';
 
 /**
- * Connected banks.
+ * Connected banks, and whether they are actually working.
  *
- * Behaviour is unchanged from the page — 6C owns wiring `/plaid/sync-health`
- * into this section, moving Reset into a Danger Zone, and reconnect/repair.
- * The one thing fixed here is the load state: `plaidGetItems` previously failed
- * into a bare `catch {}`, so a request that never succeeded rendered as "no
- * banks connected". That is the single most misleading thing this section
- * could say, since the obvious next step — reconnect — is destructive-adjacent
- * and entirely unnecessary if the connection is fine.
+ * The section previously listed institution names and a connect date, which
+ * answered none of the questions someone arrives here with — the diagnostics
+ * existed at `/plaid/sync-health` and nothing consumed them.
+ *
+ * Two loads, deliberately separate and unequal:
+ *
+ *   • `/plaid/items` is a plain database read and owns the list. It decides
+ *     which banks exist.
+ *   • `/plaid/sync-health` makes one live Plaid `/item/get` per Item, serially,
+ *     so it is fetched only when this section mounts — never on a Settings
+ *     page load. It *decorates* the list and can never remove from it: if it
+ *     fails entirely, every bank still renders with an unknown status.
+ *
+ * Actions are unchanged in this phase. Sync Now, Connect Bank, Disconnect and
+ * Reset behave exactly as before; 6C-3 onward own their semantics.
  */
 
 interface Props {
@@ -26,6 +34,7 @@ interface Props {
 }
 
 const ConnectionsSection: React.FC<Props> = ({ connections }) => {
+  const health = useConnectionHealth();
   const hasItems = connections.items.length > 0;
 
   return (
@@ -43,7 +52,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
       />
       <h2 className="sr-only" id="settings-connections-heading">Connected banks</h2>
 
-      <div className="flex gap-2 flex-wrap mb-3">
+      <div className="flex gap-2 flex-wrap mb-2">
         {hasItems && (
           <button
             onClick={() => { void connections.syncNow(); }}
@@ -63,6 +72,19 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         </button>
       </div>
 
+      {/* Sets the expectation that syncing is automatic, and heads off the two
+          questions this section otherwise generates: "do I have to press this
+          every day" and "why is this morning's coffee missing". Neither is an
+          error, so neither is styled as one — and Sync Now is deliberately not
+          offered as a way to make a pending charge post, because it cannot. */}
+      {hasItems && (
+        <p className="text-xs mb-4 leading-relaxed max-w-prose" style={{ color: 'var(--dim)' }}>
+          Fintrack checks for bank updates automatically in the background — use
+          Sync Now if something looks out of date. Some card purchases will not
+          appear until they finish pending at your bank.
+        </p>
+      )}
+
       {connections.status === 'loading' ? (
         <LoadingBlock label="Loading connected banks" />
       ) : connections.status === 'error' ? (
@@ -73,41 +95,49 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
       ) : !hasItems ? (
         <EmptyBlock>No banks connected yet</EmptyBlock>
       ) : (
-        <div className="card overflow-hidden">
-          {connections.items.map((item, index) => (
-            <SettingsRow
-              key={item.id}
-              isLast={index === connections.items.length - 1}
-              action={(
-                <button
-                  onClick={() => { void connections.disconnect(item); }}
-                  disabled={connections.disconnectingId === item.id}
-                  className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
-                >
-                  {connections.disconnectingId === item.id ? '…' : 'Disconnect'}
-                </button>
-              )}
+        <>
+          {/* Degraded, not broken: the banks below are real and complete, only
+              their status is missing. Said plainly so an unknown badge is not
+              mistaken for a diagnosis. */}
+          {health.status === 'error' && (
+            <div
+              className="card p-3 mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+              role="status"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar label={item.institution_name || 'B'} tone="positive" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text truncate">
-                    {item.institution_name || 'Bank'}
-                  </p>
-                  <p className="text-xs text-muted">
-                    Connected {new Date(item.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            </SettingsRow>
-          ))}
-        </div>
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                Connection status could not be checked. Your banks are still connected.
+              </p>
+              <button
+                type="button"
+                onClick={health.reload}
+                className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg"
+                style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+              >
+                Check again
+              </button>
+            </div>
+          )}
+
+          <ul className="card overflow-hidden">
+            {connections.items.map(item => (
+              <ConnectionCard
+                key={item.id}
+                item={item}
+                // Joined on Fintrack's own id. Never on institution name: it is
+                // nullable and falls back to "Bank" when Plaid's lookup fails,
+                // so two connections can share it.
+                health={health.byItemId.get(item.id)}
+                healthLoading={health.status === 'loading'}
+                disconnecting={connections.disconnectingId === item.id}
+                onDisconnect={() => { void connections.disconnect(item); }}
+              />
+            ))}
+          </ul>
+        </>
       )}
 
-      {/* Kept in place, not hidden: 6C owns the Danger Zone treatment. It is
-          separated and labelled so it no longer sits in the same row as the
-          everyday actions. */}
+      {/* Kept in place and unchanged; 6C owns its semantics later. Separated
+          and labelled so it no longer sits in the same row as Sync Now. */}
       <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
         <p className="label mb-2">Troubleshooting</p>
         <p className="text-xs text-muted mb-3 max-w-prose">
