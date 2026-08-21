@@ -418,3 +418,115 @@ def test_retry_limit_is_bounded(db_session, user, item, monkeypatch):
         plaid_router._sync_item(db_session, item, user.id)
     # One initial attempt plus MAX_PAGINATION_RESTARTS retries, no more.
     assert state["raised"] == MAX_PAGINATION_RESTARTS + 1
+
+
+# --- The local item id -------------------------------------------------------
+# Without this, a client can only join a health row to `/plaid/items` by
+# institution name. That happens to work because `exchange_token` rejects a
+# second Item with the same institution name per user — but that is an
+# incidental uniqueness rule doing load-bearing work it was never designed for,
+# and no per-connection action (sync this one, repair this one) can be built on
+# it. The id is Fintrack's own row id, never Plaid's Item id.
+
+
+def test_each_health_row_carries_the_local_item_id(
+    client, auth_headers, item, monkeypatch
+):
+    _stub_item_get(monkeypatch, _item_get_payload())
+    monkeypatch.setattr(plaid_router, "PLAID_WEBHOOK_URL", EXPECTED_WEBHOOK)
+
+    rows = client.get("/plaid/sync-health", headers=auth_headers).json()["items"]
+    assert [row["id"] for row in rows] == [item.id]
+
+
+def test_the_id_matches_the_one_plaid_items_reports(
+    client, auth_headers, item, monkeypatch
+):
+    """The join has to be exact, so assert against the other endpoint."""
+    _stub_item_get(monkeypatch, _item_get_payload())
+
+    listed = client.get("/plaid/items", headers=auth_headers).json()
+    health = client.get("/plaid/sync-health", headers=auth_headers).json()["items"]
+
+    assert {row["id"] for row in listed} == {row["id"] for row in health}
+
+
+def test_rows_are_distinguishable_even_when_names_collide(
+    client, auth_headers, item, db_session, user, monkeypatch
+):
+    """The case that makes name-joining unusable, and it is not exotic.
+
+    `institution_name` is nullable: when Plaid's institution lookup fails,
+    `exchange_token` falls back to "Bank", and two such connections are
+    indistinguishable by name. The fixture Item is already "PNC", so this test
+    adds a second with the same name — which is enough to collapse any
+    name-keyed mapping while the ids stay distinct.
+    """
+    second = PlaidItem(
+        user_id=user.id,
+        access_token=encrypt_secret("second-token"),
+        item_id="plaid-item-2",
+        institution_name=item.institution_name,
+    )
+    db_session.add(second)
+    db_session.commit()
+    db_session.refresh(second)
+
+    _stub_item_get(monkeypatch, _item_get_payload())
+
+    rows = client.get("/plaid/sync-health", headers=auth_headers).json()["items"]
+    assert len(rows) == 2
+    # Names are identical, so only the ids separate them.
+    assert {row["institution_name"] for row in rows} == {item.institution_name}
+    assert {row["id"] for row in rows} == {item.id, second.id}
+
+
+def test_an_unreachable_item_still_reports_its_id(
+    client, auth_headers, item, monkeypatch
+):
+    """The id must survive the failure path — that row is the one you act on."""
+    def failing_post(path, body):
+        raise RuntimeError("plaid unreachable")
+
+    monkeypatch.setattr(plaid_router, "_plaid_post", failing_post)
+
+    rows = client.get("/plaid/sync-health", headers=auth_headers).json()["items"]
+    assert len(rows) == 1
+    assert rows[0]["id"] == item.id
+    assert rows[0]["reachable"] is False
+
+
+def test_another_users_item_id_never_appears(
+    client, auth_headers, item, db_session, monkeypatch
+):
+    stranger = User(
+        email="nosy@example.com",
+        username="nosy1",
+        hashed_password=auth_utils.get_password_hash("Password123"),
+        is_verified=True,
+        is_admin=False,
+    )
+    db_session.add(stranger)
+    db_session.commit()
+    theirs = PlaidItem(
+        user_id=stranger.id,
+        access_token=encrypt_secret("their-token"),
+        item_id="plaid-item-theirs",
+        institution_name="Their Bank",
+    )
+    db_session.add(theirs)
+    db_session.commit()
+    db_session.refresh(theirs)
+
+    _stub_item_get(monkeypatch, _item_get_payload())
+
+    rows = client.get("/plaid/sync-health", headers=auth_headers).json()["items"]
+    assert theirs.id not in [row["id"] for row in rows]
+    assert [row["id"] for row in rows] == [item.id]
+
+
+def test_plaids_own_item_id_is_still_not_exposed(client, auth_headers, item, monkeypatch):
+    """Adding a local id must not have opened the door to the Plaid one."""
+    _stub_item_get(monkeypatch, _item_get_payload())
+    body = client.get("/plaid/sync-health", headers=auth_headers).text
+    assert item.item_id not in body

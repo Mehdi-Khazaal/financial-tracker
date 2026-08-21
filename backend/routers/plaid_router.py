@@ -619,6 +619,66 @@ def create_link_token(current_user: User = Depends(get_current_user)):
     return {"link_token": data["link_token"]}
 
 
+@router.post("/link-token/update/{item_id}")
+def create_update_link_token(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A Link token that *repairs* an existing Item rather than creating one.
+
+    Plaid calls this update mode. It is the only correct response to
+    `ITEM_LOGIN_REQUIRED`: sending the user through the ordinary Connect flow
+    would mint a second Item for the same institution — and `exchange_token`
+    rejects that with "already connected", leaving them with a broken
+    connection and no way out except Disconnect or Reset.
+
+    Per Plaid's documented contract for update mode:
+
+      * `access_token` identifies the Item to repair;
+      * **`products` is omitted entirely.** Passing it in update mode is an
+        error unless adding a product, which this is not;
+      * `user.client_user_id`, `country_codes` and `language` are still
+        required, and match the new-Item flow so the experience is identical;
+      * `webhook` may be included, and is, so a repaired Item keeps sending to
+        this deployment.
+
+    Nothing here mutates anything. The Item's `access_token` does not change
+    when Link is used in update mode, so there is no exchange-token step
+    afterwards — the caller just re-syncs and the error clears. `item_id` is
+    Fintrack's own row id, matching `/plaid/items`, not Plaid's Item id.
+    """
+    item = (
+        db.query(PlaidItem)
+        .filter(PlaidItem.id == item_id, PlaidItem.user_id == current_user.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    body: dict = {
+        "user":          {"client_user_id": str(current_user.id)},
+        "client_name":   "Financial Tracker",
+        "country_codes": ["US"],
+        "language":      "en",
+        # Reuses the shared helper rather than decrypting inline, so there is
+        # one decryption path. It may re-encrypt a legacy plaintext token and
+        # flush, but `get_db` never commits, so nothing is persisted here.
+        "access_token":  _item_access_token(db, item),
+    }
+    if PLAID_WEBHOOK_URL:
+        body["webhook"] = PLAID_WEBHOOK_URL
+
+    data = _plaid_post("/link/token/create", body)
+    # Only what Link needs plus what the caller already knows. No access token,
+    # no Plaid Item id, no expiry secrets.
+    return {
+        "link_token": data["link_token"],
+        "id": item.id,
+        "institution_name": item.institution_name,
+    }
+
+
 @router.post("/exchange-token")
 def exchange_token(
     body: ExchangeTokenRequest,
@@ -858,6 +918,13 @@ def sync_health(
     for item in items:
         # Fintrack's own view — what we received and did.
         row = {
+            # Fintrack's own row id, matching `PlaidItemResponse.id` from
+            # `/plaid/items`, so a client can join the two lists and act on a
+            # specific connection. Deliberately *not* `item.item_id`, which is
+            # Plaid's identifier for the Item: this endpoint exposes no Plaid
+            # identifiers, and naming the local key `item_id` here would collide
+            # with that meaning everywhere else in the module.
+            "id": item.id,
             "institution_name": item.institution_name,
             "connected_at": item.created_at.isoformat() if item.created_at else None,
             "cursor_initialized": bool(item.cursor),
