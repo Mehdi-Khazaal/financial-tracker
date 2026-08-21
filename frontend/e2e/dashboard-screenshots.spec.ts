@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, loginViaUi } from './fixtures';
+import { test, loginViaUi, ensureCategory } from './fixtures';
 
 /**
  * Dashboard visual capture.
@@ -78,11 +78,11 @@ test('capture the dashboard across breakpoints', async ({ page, request, registe
   await post('/accounts', { name: 'Cash', type: 'cash', balance: 180 });
 
   // ── Categories ──────────────────────────────────────────────────────────────
-  const groceries = await post('/categories', { name: 'Groceries', type: 'expense', color: '#22C55E' });
-  const rent = await post('/categories', { name: 'Rent', type: 'expense', color: '#F97316' });
-  const dining = await post('/categories', { name: 'Dining', type: 'expense', color: '#3B82F6' });
-  const transport = await post('/categories', { name: 'Transport', type: 'expense', color: '#a855f7' });
-  const salary = await post('/categories', { name: 'Salary', type: 'income', color: '#22C55E' });
+  const groceries = await ensureCategory(request, seedHeaders, { name: 'Groceries', type: 'expense', color: '#22C55E' });
+  const rent = await ensureCategory(request, seedHeaders, { name: 'Rent', type: 'expense', color: '#F97316' });
+  const dining = await ensureCategory(request, seedHeaders, { name: 'Dining', type: 'expense', color: '#3B82F6' });
+  const transport = await ensureCategory(request, seedHeaders, { name: 'Transport', type: 'expense', color: '#a855f7' });
+  const salary = await ensureCategory(request, seedHeaders, { name: 'Salary', type: 'income', color: '#22C55E' });
 
   // ── Four completed months, so pace and projection have a baseline ───────────
   for (let m = 1; m <= 4; m += 1) {

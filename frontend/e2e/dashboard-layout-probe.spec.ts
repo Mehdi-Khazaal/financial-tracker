@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test, loginViaUi } from './fixtures';
+import { test, loginViaUi, ensureCategory } from './fixtures';
 
 /**
  * Layout probe.
@@ -32,7 +32,7 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
 
   const checking = await post('/accounts', { name: 'Everyday', type: 'checking', balance: 5000 });
   await post('/accounts', { name: 'Venture Card', type: 'credit_card', balance: -213.37, credit_limit: 6000 });
-  const groceries = await post('/categories', { name: 'Groceries', type: 'expense', color: '#22C55E' });
+  const groceries = await ensureCategory(request, seedHeaders, { name: 'Groceries', type: 'expense', color: '#22C55E' });
   await post('/transactions', { account_id: checking.id, category_id: groceries.id, amount: -42, description: 'Corner Shop', transaction_date: new Date().toISOString().slice(0, 10) });
   await post('/savings-goals', { name: 'Summer 2027', target_amount: 20000 });
 
