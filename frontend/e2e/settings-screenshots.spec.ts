@@ -109,6 +109,83 @@ test('capture Settings across breakpoints', async ({ page, request, registeredUs
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'e2e/__screenshots__/settings-10-ultrawide-1920.png', fullPage: false });
 
+  // --- Category Manager, Phase 6B --------------------------------------------
+  // The surface 6B rebuilt: type tabs with totals, search, one "New" button and
+  // compact rows behind an overflow menu, instead of an always-open create form
+  // above twenty rows carrying two 44px buttons each.
+
+  const openCategories = async (width: number, height: number) => {
+    await page.setViewportSize({ width, height });
+    await page.goto('/settings');
+    const nav = page.getByRole('navigation', { name: 'Settings sections' });
+    await expect(nav).toBeVisible({ timeout: 15_000 });
+    if (width >= 1024) {
+      await nav.getByRole('button', { name: 'Categories' }).click();
+    } else {
+      await page.getByRole('button', { name: /^Categories/ }).click();
+    }
+    await expect(page.getByLabel('Search categories')).toBeVisible({ timeout: 10_000 });
+  };
+
+  // Phone: list, search results, and both sheets.
+  await openCategories(390, 844);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-11-phone-390-category-manager.png', fullPage: true });
+
+  await page.getByLabel('Search categories').fill('e');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-12-phone-390-category-search.png', fullPage: true });
+
+  await page.getByLabel('Search categories').fill('zzzznomatch');
+  await expect(page.getByText(/No expense categories match/)).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-13-phone-390-category-no-results.png', fullPage: true });
+  await page.getByLabel('Search categories').fill('');
+
+  await page.getByRole('button', { name: '+ New' }).click();
+  await expect(page.getByText('New expense category')).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-14-phone-390-category-create.png', fullPage: false });
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Espresso Machine Fund actions' }).click();
+  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await expect(page.getByText('Edit expense category')).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-15-phone-390-category-edit.png', fullPage: false });
+  await page.keyboard.press('Escape');
+
+  // The overflow menu itself, which is what replaced the permanent buttons.
+  await page.getByRole('button', { name: 'Espresso Machine Fund actions' }).click();
+  await expect(page.getByRole('menu')).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-16-phone-390-category-row-menu.png', fullPage: false });
+  await page.keyboard.press('Escape');
+
+  // Desktop: manager, search state, create modal.
+  await openCategories(1440, 900);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-17-desktop-1440-category-manager.png', fullPage: false });
+
+  await page.getByLabel('Search categories').fill('e');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-18-desktop-1440-category-search.png', fullPage: false });
+  await page.getByLabel('Search categories').fill('');
+
+  await page.getByRole('button', { name: '+ New' }).click();
+  await expect(page.getByText('New expense category')).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-19-desktop-1440-category-create.png', fullPage: false });
+  await page.keyboard.press('Escape');
+
+  // The manager must not overflow the narrowest supported width either.
+  await openCategories(320, 900);
+  const managerOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(managerOverflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: 'e2e/__screenshots__/settings-20-phone-320-category-manager.png', fullPage: true });
+
   // ── No horizontal overflow at the narrowest width ───────────────────────────
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/settings');

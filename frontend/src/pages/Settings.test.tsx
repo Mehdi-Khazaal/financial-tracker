@@ -403,72 +403,348 @@ describe('Settings push toggle', () => {
   });
 });
 
-// --- Categories (6.0 assertions preserved) -----------------------------------
+// --- Category Manager (6B) ---------------------------------------------------
+// Every Phase 6.0 assertion is still here; what changed is the shape of the UI
+// they reach through. Creating and editing happen in a sheet, and a row's
+// actions live behind an overflow menu instead of two permanent buttons.
 
 describe('Settings categories', () => {
   const openCategories = () => openSettings('Categories');
 
-  it('counts each type', async () => {
+  const openRowMenu = async (name: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: `${name} actions` }));
+    return screen.getByRole('menu', { name: `${name} actions` });
+  };
+
+  it('counts each type on its tab', async () => {
     await openCategories();
-    expect(
-      await screen.findByText((_content, element) =>
-        element?.textContent === '2 expense · 1 income · 1 investment'),
-    ).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: /expense\s*2/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /income\s*1/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /investment\s*1/ })).toBeInTheDocument();
   });
 
-  it('shows only the selected tab', async () => {
+  it('shows only the selected tab, and says which is selected', async () => {
     await openCategories();
     expect(await screen.findByText('Groceries')).toBeInTheDocument();
     expect(screen.queryByText('Bullion')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /expense/ })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'investment' }));
+    fireEvent.click(screen.getByRole('tab', { name: /investment/ }));
     expect(screen.getByText('Bullion')).toBeInTheDocument();
+    expect(screen.queryByText('Groceries')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /investment/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('offers no actions on a default category, and says why', async () => {
+    // Read-only server-side: defaults are seeded per user with a real
+    // `user_id`, and the API rejects writes to them with 403.
+    await openCategories();
+    expect(await screen.findByText('Default')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Groceries actions' })).not.toBeInTheDocument();
+  });
+
+  it('offers Edit and Delete on a category the user owns', async () => {
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    expect(within(menu).getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  // --- Search ---------------------------------------------------------------
+
+  it('filters the open type, case-insensitively', async () => {
+    await openCategories();
+    await screen.findByText('Groceries');
+
+    fireEvent.change(screen.getByLabelText('Search categories'), { target: { value: 'cof' } });
+    expect(screen.getByText('Coffee')).toBeInTheDocument();
     expect(screen.queryByText('Groceries')).not.toBeInTheDocument();
   });
 
-  it('offers no edit or delete on a default category', async () => {
-    // The backend refuses both — `user_id IS NULL` can never match the owner
-    // filter — so rendering the controls guaranteed a failing request.
+  it('trims the query', async () => {
     await openCategories();
-    expect(await screen.findByText('default')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit Groceries' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete Groceries' })).not.toBeInTheDocument();
+    await screen.findByText('Groceries');
+    fireEvent.change(screen.getByLabelText('Search categories'), { target: { value: '  COFFEE  ' } });
+    expect(screen.getByText('Coffee')).toBeInTheDocument();
   });
 
-  it('offers both on a category the user owns', async () => {
+  it('never searches across types', async () => {
     await openCategories();
-    expect(await screen.findByRole('button', { name: 'Edit Coffee' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete Coffee' })).toBeInTheDocument();
+    await screen.findByText('Groceries');
+    // "Bullion" exists, but under investment.
+    fireEvent.change(screen.getByLabelText('Search categories'), { target: { value: 'bullion' } });
+    expect(screen.queryByText('Bullion')).not.toBeInTheDocument();
   });
 
-  it('confirms before deleting, and names what is lost', async () => {
+  it('names the type and the query when nothing matches', async () => {
     await openCategories();
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Coffee' }));
+    await screen.findByText('Groceries');
+    fireEvent.change(screen.getByLabelText('Search categories'), { target: { value: 'travel' } });
+    expect(screen.getByText(/No expense categories match/)).toHaveTextContent('travel');
+  });
+
+  it('reports how many are shown without changing the totals', async () => {
+    await openCategories();
+    await screen.findByText('Groceries');
+    fireEvent.change(screen.getByLabelText('Search categories'), { target: { value: 'cof' } });
+
+    expect(screen.getByText('1 of 2 shown')).toBeInTheDocument();
+    // The tab badge still reports the real total.
+    expect(screen.getByRole('tab', { name: /expense\s*2/ })).toBeInTheDocument();
+  });
+
+  it('does not hit the API while typing', async () => {
+    await openCategories();
+    await screen.findByText('Groceries');
+    const before = mockApi.getCategories.mock.calls.length;
+
+    const field = screen.getByLabelText('Search categories');
+    ['c', 'co', 'cof'].forEach(value => fireEvent.change(field, { target: { value } }));
+
+    expect(mockApi.getCategories.mock.calls.length).toBe(before);
+  });
+
+  // --- Create ---------------------------------------------------------------
+
+  it('opens a sheet naming the type being created', async () => {
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    expect(await screen.findByText('New expense category')).toBeInTheDocument();
+  });
+
+  it('creates on the open tab', async () => {
+    mockApi.createCategory.mockResolvedValue({});
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Coffee Beans' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    await waitFor(() => expect(mockApi.createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Coffee Beans', type: 'expense' }),
+    ));
+  });
+
+  it('creates under the tab the user is on, not always expense', async () => {
+    mockApi.createCategory.mockResolvedValue({});
+    await openCategories();
+    fireEvent.click(await screen.findByRole('tab', { name: /investment/ }));
+    fireEvent.click(screen.getByRole('button', { name: '+ New' }));
+
+    expect(await screen.findByText('New investment category')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Silver' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    await waitFor(() => expect(mockApi.createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Silver', type: 'investment' }),
+    ));
+  });
+
+  it('trims the name before submitting', async () => {
+    mockApi.createCategory.mockResolvedValue({});
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: '  Coffee Beans  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    await waitFor(() => expect(mockApi.createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Coffee Beans' }),
+    ));
+  });
+
+  it('sends the chosen colour', async () => {
+    mockApi.createCategory.mockResolvedValue({});
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Coffee Beans' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Use #10b981 for this category' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    await waitFor(() => expect(mockApi.createCategory).toHaveBeenCalledWith(
+      expect.objectContaining({ color: '#10b981' }),
+    ));
+  });
+
+  it('marks the selected colour, not by appearance alone', async () => {
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const swatch = await screen.findByRole('button', { name: 'Use #10b981 for this category' });
+
+    fireEvent.click(swatch);
+    expect(swatch).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('cannot submit an empty name', async () => {
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    expect(await screen.findByRole('button', { name: 'Create category' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: '   ' } });
+    expect(screen.getByRole('button', { name: 'Create category' })).toBeDisabled();
+  });
+
+  it('shows a duplicate-name error against the field, not as a toast', async () => {
+    mockApi.createCategory.mockRejectedValue({
+      response: { data: { detail: 'You already have a expense category called "Groceries".' } },
+    });
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Groceries' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    const error = await screen.findByRole('alert');
+    expect(error).toHaveTextContent('You already have a expense category called "Groceries".');
+    // The sheet stays open so the name can be corrected.
+    expect(screen.getByLabelText('Name')).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it('associates the error with the name field', async () => {
+    mockApi.createCategory.mockRejectedValue({
+      response: { data: { detail: 'You already have a expense category called "Groceries".' } },
+    });
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Groceries' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+
+    await screen.findByRole('alert');
+    const field = screen.getByLabelText('Name');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveAttribute('aria-describedby', 'category-form-error');
+  });
+
+  it('clears the error as soon as the name is edited', async () => {
+    mockApi.createCategory.mockRejectedValue({
+      response: { data: { detail: 'You already have a expense category called "Groceries".' } },
+    });
+    await openCategories();
+    fireEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Groceries' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create category' }));
+    await screen.findByRole('alert');
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Groceries 2' } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // --- Edit -----------------------------------------------------------------
+
+  it('edits a category the user owns', async () => {
+    mockApi.updateCategory.mockResolvedValue({});
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
+
+    expect(await screen.findByText('Edit expense category')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Espresso' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(mockApi.updateCategory).toHaveBeenCalledWith(
+      CUSTOM_EXPENSE.id, expect.objectContaining({ name: 'Espresso' }),
+    ));
+  });
+
+  it('prefills the existing name and colour', async () => {
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
+
+    expect(await screen.findByLabelText('Name')).toHaveValue('Coffee');
+    // '#abc' is not a preset, so the sheet says it is keeping the current one
+    // rather than silently showing an unselected palette.
+    expect(screen.getByText('Keeping its current colour')).toBeInTheDocument();
+  });
+
+  it('shows a duplicate error when renaming onto another category', async () => {
+    mockApi.updateCategory.mockRejectedValue({
+      response: { data: { detail: 'You already have a expense category called "Groceries".' } },
+    });
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Groceries' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('You already have');
+  });
+
+  it('never offers to change the type', async () => {
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
+
+    await screen.findByLabelText('Name');
+    // Exact match: the tablist behind the sheet is labelled "Category type",
+    // which a loose /type/i would match and make this assertion meaningless.
+    expect(screen.queryByLabelText('Type')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  // --- Delete ---------------------------------------------------------------
+
+  it('confirms before deleting, and names the consequence exactly', async () => {
+    await openCategories();
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Delete' }));
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
-    expect(mockConfirm.mock.calls[0][0]).toMatch(/lose their category/i);
+    const [message, options] = mockConfirm.mock.calls[0];
+    expect(message).toMatch(/become uncategorized/i);
+    expect(message).toMatch(/not deleted/i);
+    expect(message).toMatch(/not moved to another category/i);
+    expect(message).toMatch(/cannot be undone/i);
+    expect(options).toEqual(expect.objectContaining({ danger: true }));
+
     await waitFor(() => expect(mockApi.deleteCategory).toHaveBeenCalledWith(CUSTOM_EXPENSE.id));
   });
 
   it('does not delete when the confirm is declined', async () => {
     mockConfirm.mockResolvedValue(false);
     await openCategories();
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Coffee' }));
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Delete' }));
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
     expect(mockApi.deleteCategory).not.toHaveBeenCalled();
   });
 
-  it('creates a category on the open tab', async () => {
-    mockApi.createCategory.mockResolvedValue({});
+  it('reloads the list after a delete', async () => {
     await openCategories();
+    const before = mockApi.getCategories.mock.calls.length;
+    const menu = await openRowMenu('Coffee');
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Delete' }));
 
-    fireEvent.change(await screen.findByLabelText('Category name'), { target: { value: 'Coffee Beans' } });
-    fireEvent.click(screen.getByRole('button', { name: '+ Add' }));
+    await waitFor(() => expect(mockApi.deleteCategory).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockApi.getCategories.mock.calls.length).toBeGreaterThan(before));
+  });
 
-    await waitFor(() => expect(mockApi.createCategory).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Coffee Beans', type: 'expense' }),
-    ));
+  // --- Keyboard and load states --------------------------------------------
+
+  it('closes the row menu on Escape and returns focus to its trigger', async () => {
+    await openCategories();
+    const trigger = await screen.findByRole('button', { name: 'Coffee actions' });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu', { name: 'Coffee actions' })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it('announces the row menu as a menu', async () => {
+    await openCategories();
+    const trigger = await screen.findByRole('button', { name: 'Coffee actions' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('surfaces a category load failure without pretending the list is empty', async () => {

@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+import re
+
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, Literal, List
 from decimal import Decimal
 from datetime import datetime, date
@@ -51,19 +53,77 @@ class AccountResponse(AccountBase):
 # take down `GET /categories` for the whole account.
 CategoryType = Literal["income", "expense", "investment"]
 
+# Colour is validated by *shape*, not against a palette.
+#
+# The frontend offers ten preset swatches, but the eighteen categories seeded
+# at signup use six entirely different values — the two sets do not overlap at
+# all. An allowlist of the presets would therefore reject every default
+# category the moment anything touched it, so the rule is "a real hex colour"
+# rather than "one of ours". That still stops the arbitrary strings the column
+# used to accept, which reached a `style` attribute unchecked.
+HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+MAX_CATEGORY_NAME = 100
+
+
+def _validate_category_name(value: str) -> str:
+    """Trim, then require something to be left.
+
+    Trimming is normalization, not a rename: " groceries " and "groceries" are
+    the same category to a person, and storing the padded form would make the
+    duplicate check depend on invisible characters.
+    """
+    trimmed = value.strip()
+    if not trimmed:
+        raise ValueError("Category name is required")
+    if len(trimmed) > MAX_CATEGORY_NAME:
+        raise ValueError(f"Category name must be at most {MAX_CATEGORY_NAME} characters")
+    return trimmed
+
+
+def _validate_category_color(value: str) -> str:
+    if not HEX_COLOR.match(value or ""):
+        raise ValueError("Color must be a hex value like #5b8fff")
+    return value.lower()
+
 
 class CategoryBase(BaseModel):
     name: str
     type: CategoryType
     color: str = "#5b8fff"
 
+    @field_validator("name")
+    @classmethod
+    def name_is_present(cls, value: str) -> str:
+        return _validate_category_name(value)
+
+    @field_validator("color")
+    @classmethod
+    def color_is_hex(cls, value: str) -> str:
+        return _validate_category_color(value)
+
 class CategoryCreate(CategoryBase):
     pass
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
+    # Type is accepted by the schema for backwards compatibility but the UI
+    # does not offer it: retyping a category moves it between semantic
+    # populations and silently rewrites history — an `investment` category
+    # flipped to `expense` reclassifies every past purchase filed under it as
+    # spending. See `classifyTransaction`.
     type: Optional[CategoryType] = None
     color: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def name_is_present(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else _validate_category_name(value)
+
+    @field_validator("color")
+    @classmethod
+    def color_is_hex(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else _validate_category_color(value)
 
 class CategoryResponse(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
