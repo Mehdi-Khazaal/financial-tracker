@@ -37,6 +37,9 @@ interface Props {
   healthLoading: boolean;
   disconnecting: boolean;
   onDisconnect: () => void;
+  /** Present only when this connection can actually be repaired via Link. */
+  onReconnect?: () => void;
+  reconnecting?: boolean;
   now?: number;
 }
 
@@ -56,7 +59,7 @@ const Row: React.FC<{ label: string; value: string; title?: string | null }> = (
 );
 
 const ConnectionCard: React.FC<Props> = ({
-  item, health, healthLoading, disconnecting, onDisconnect, now,
+  item, health, healthLoading, disconnecting, onDisconnect, onReconnect, reconnecting, now,
 }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId().replace(/:/g, '');
@@ -107,6 +110,26 @@ const ConnectionCard: React.FC<Props> = ({
             <p className="text-xs mt-1.5" role="alert" style={{ color: 'var(--accent)' }}>
               {assessment.detail}
             </p>
+          )}
+
+          {/* Only for connections Plaid says can be repaired through Link, and
+              deliberately the most prominent control on the card: it is the
+              recommended recovery, and Disconnect beside it is not. */}
+          {!healthLoading && onReconnect && (
+            <button
+              type="button"
+              onClick={onReconnect}
+              disabled={reconnecting}
+              aria-busy={reconnecting}
+              className="mt-2 min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+              style={{
+                backgroundColor: 'var(--accent-dim)',
+                color: 'var(--accent)',
+                border: '1px solid var(--accent-glow)',
+              }}
+            >
+              {reconnecting ? 'Opening your bank…' : `Reconnect ${name}`}
+            </button>
           )}
 
           {!healthLoading && assessment.deliveryDelayed && (

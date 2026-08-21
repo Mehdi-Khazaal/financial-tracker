@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { UsePlaidConnections } from '../hooks/usePlaidConnections';
 import { useConnectionHealth } from '../hooks/useConnectionHealth';
 import { useManualSync } from '../hooks/useManualSync';
 import ConnectionCard from '../components/ConnectionCard';
+import { isRepairable } from '../calculations/connectionHealth';
 import {
   EmptyBlock,
   LoadingBlock,
@@ -56,6 +57,27 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
   // Plaid call per Item.
   const sync = useManualSync(health.reload);
   const hasItems = connections.items.length > 0;
+
+  // After a successful repair, re-read health and run an ordinary sync — the
+  // same honest one Sync Now uses, rather than a second "repair sync" with its
+  // own idea of completion. Plaid clears the Item error itself and backfills
+  // the missed window on its next webhook, so nothing here needs to chase it.
+  //
+  // The hooks are held in refs because their identities change every render;
+  // depending on them directly would re-run this on each one.
+  const healthRef = useRef(health);
+  healthRef.current = health;
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+  const handledRepairRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const completedAt = connections.repairCompletedAt;
+    if (completedAt == null || handledRepairRef.current === completedAt) return;
+    handledRepairRef.current = completedAt;
+    healthRef.current.reload();
+    void syncRef.current.start();
+  }, [connections.repairCompletedAt]);
 
   return (
     <section aria-labelledby="settings-connections-heading">
@@ -206,6 +228,13 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
                 healthLoading={health.status === 'loading'}
                 disconnecting={connections.disconnectingId === item.id}
                 onDisconnect={() => { void connections.disconnect(item); }}
+                // Offered only when Plaid says a sign-in will fix it. A healthy
+                // bank gets no Reconnect, and neither does one that is merely
+                // unreachable or slow.
+                onReconnect={isRepairable(health.byItemId.get(item.id))
+                  ? () => connections.startRepair(item)
+                  : undefined}
+                reconnecting={connections.repairingId === item.id}
               />
             ))}
           </ul>

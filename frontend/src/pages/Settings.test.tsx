@@ -47,7 +47,10 @@ jest.mock('../components/Navigation', () => () => null);
 
 // Plaid Link pulls a CDN script; the page lazy-mounts it for that reason, and
 // it has no place in a unit test.
-const mockUsePlaidLink = jest.fn(() => ({ open: jest.fn(), ready: true }));
+// Typed to receive the config so tests can drive `onSuccess`/`onExit` exactly
+// as react-plaid-link would, which is the only way to exercise the connect
+// versus update success branch.
+const mockUsePlaidLink = jest.fn((_config?: any) => ({ open: jest.fn(), ready: true }));
 jest.mock('react-plaid-link', () => ({
   usePlaidLink: (...args: unknown[]) => mockUsePlaidLink(...(args as [])),
 }));
@@ -61,6 +64,7 @@ const mockApi = {
   adminGetUsers: jest.fn(),
   adminResetPassword: jest.fn(),
   plaidCreateLinkToken: jest.fn(),
+  plaidCreateUpdateLinkToken: jest.fn(),
   plaidExchangeToken: jest.fn(),
   plaidGetItems: jest.fn(),
   plaidDeleteItem: jest.fn(),
@@ -197,7 +201,10 @@ beforeEach(() => {
   mockApi.plaidReset.mockResolvedValue({ data: { message: 'cleared' } });
   mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow()] } });
   mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow()] } });
-  mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok' } });
+  mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok-connect' } });
+  mockApi.plaidCreateUpdateLinkToken.mockResolvedValue({ data: { link_token: 'tok-update' } });
+  mockApi.plaidExchangeToken.mockResolvedValue({ data: {} });
+  sessionStorage.clear();
   mockApi.deleteCategory.mockResolvedValue({});
   mockApi.adminResetPassword.mockResolvedValue({});
   mockPush.isPushSupported.mockReturnValue(true);
@@ -1528,5 +1535,298 @@ describe('Settings sync now', () => {
   it('keeps the pending-transaction explanation visible', async () => {
     await openConnections();
     expect(await screen.findByText(/finish pending at your bank/i)).toBeInTheDocument();
+  });
+});
+
+
+// --- Reconnect / Link update mode (6C-4) -------------------------------------
+// Repairing an Item is not connecting a new one. Plaid's update mode reuses the
+// existing Item and leaves its access token unchanged, so the public token must
+// NOT be exchanged — and `exchange_token` would reject it anyway, since it
+// refuses a second Item for an already-connected institution. Getting that
+// branch wrong breaks the one flow whose job is to rescue a broken connection.
+
+describe('Settings reconnect', () => {
+  const openConnections = () => openSettings('Connections');
+
+  const needsRepair = (over: Record<string, unknown> = {}) => healthRow({
+    login_repair_required: true,
+    item_error_code: 'ITEM_LOGIN_REQUIRED',
+    ...over,
+  });
+
+  /** Drive Link to a successful close, as react-plaid-link would. */
+  const completeLink = async () => {
+    const config = mockUsePlaidLink.mock.calls[mockUsePlaidLink.mock.calls.length - 1][0] as any;
+    await act(async () => {
+      config.onSuccess('public-token-xyz', { institution: { name: 'PNC' } });
+    });
+  };
+
+  const cancelLink = async () => {
+    const config = mockUsePlaidLink.mock.calls[mockUsePlaidLink.mock.calls.length - 1][0] as any;
+    await act(async () => {
+      config.onExit(null, {});
+    });
+  };
+
+  // --- When it appears ------------------------------------------------------
+
+  it('is absent on a healthy connection', async () => {
+    await openConnections();
+    await screen.findByText('Healthy');
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument();
+  });
+
+  it('appears when Plaid says a sign-in is required', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    expect(await screen.findByRole('button', { name: /reconnect capital one/i })).toBeInTheDocument();
+  });
+
+  it('appears from the error code alone, without the flag', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ login_repair_required: false, item_error_code: 'ITEM_LOGIN_REQUIRED' })] },
+    });
+    await openConnections();
+    expect(await screen.findByRole('button', { name: /reconnect/i })).toBeInTheDocument();
+  });
+
+  it('is absent for problems a bank login cannot fix', async () => {
+    // Unreachable, a failed sync and a generic institution error are all real
+    // problems — none is an authentication problem, so update mode would send
+    // the user through a login that changes nothing.
+    for (const health of [
+      { reachable: false },
+      { last_sync_ok: false },
+      { item_error_code: 'INSTITUTION_DOWN' },
+    ]) {
+      mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow(health)] } });
+      const view = await openConnections();
+      await screen.findByText('Capital One');
+      expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('is absent when health could not be read at all', async () => {
+    mockApi.plaidSyncHealth.mockRejectedValue(new Error('boom'));
+    await openConnections();
+    await screen.findByText('Capital One');
+    expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument();
+  });
+
+  // --- The token it asks for ------------------------------------------------
+
+  it('requests an update token for that specific connection', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalledWith(BANK.id));
+  });
+
+  it('never requests a new-connection token when repairing', async () => {
+    // Using the ordinary endpoint would mint a *second* Item for the same
+    // institution, which is exactly what update mode exists to avoid.
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalled());
+    expect(mockApi.plaidCreateLinkToken).not.toHaveBeenCalled();
+  });
+
+  it('asks for the right bank when two need repair', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [needsRepair(), needsRepair({ id: BANK_TWO.id, institution_name: 'PNC' })] },
+    });
+    await openConnections();
+
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect pnc/i }));
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalledWith(BANK_TWO.id));
+    expect(mockApi.plaidCreateUpdateLinkToken).not.toHaveBeenCalledWith(BANK.id);
+  });
+
+  // --- THE critical branch --------------------------------------------------
+
+  it('MUST NOT exchange the public token after a successful repair', async () => {
+    // Plaid's update-mode contract reuses the existing Item and leaves its
+    // access token unchanged, so there is nothing to exchange. Calling
+    // `exchange_token` here would also be rejected as "already connected",
+    // breaking the repair. If this test ever fails, the connect and update
+    // success branches have been merged — do not "fix" it by relaxing it.
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() => expect(mockUsePlaidLink).toHaveBeenCalled());
+
+    await completeLink();
+
+    expect(mockApi.plaidExchangeToken).not.toHaveBeenCalled();
+  });
+
+  it('still exchanges the public token after a normal connect', async () => {
+    // The other half of the fork, asserted so neither branch can drift.
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /connect bank/i }));
+    await waitFor(() => expect(mockUsePlaidLink).toHaveBeenCalled());
+
+    await completeLink();
+
+    await waitFor(() => expect(mockApi.plaidExchangeToken).toHaveBeenCalledWith('public-token-xyz', 'PNC'));
+    expect(mockApi.plaidCreateUpdateLinkToken).not.toHaveBeenCalled();
+  });
+
+  // --- After a repair -------------------------------------------------------
+
+  it('re-reads the connection list and health after repairing', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    await waitFor(() => expect(mockApi.plaidSyncHealth).toHaveBeenCalledTimes(1));
+    const itemCallsBefore = mockApi.plaidGetItems.mock.calls.length;
+
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() => expect(mockUsePlaidLink).toHaveBeenCalled());
+    await completeLink();
+
+    await waitFor(() =>
+      expect(mockApi.plaidGetItems.mock.calls.length).toBeGreaterThan(itemCallsBefore));
+    await waitFor(() => expect(mockApi.plaidSyncHealth.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('runs an ordinary sync after repairing, not a bespoke one', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() => expect(mockUsePlaidLink).toHaveBeenCalled());
+    await completeLink();
+
+    // The same endpoint Sync Now uses, through the same honest completion path.
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
+  });
+
+  // --- Cancel and failure ---------------------------------------------------
+
+  it('changes nothing when the user closes Link', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() => expect(mockUsePlaidLink).toHaveBeenCalled());
+
+    await cancelLink();
+
+    expect(mockApi.plaidExchangeToken).not.toHaveBeenCalled();
+    expect(mockApi.plaidSyncAll).not.toHaveBeenCalled();
+    expect(mockApi.plaidDeleteItem).not.toHaveBeenCalled();
+    // Still broken, still offering the same way out.
+    expect(await screen.findByRole('button', { name: /reconnect/i })).toBeEnabled();
+  });
+
+  it('leaves everything alone when the token request fails', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    mockApi.plaidCreateUpdateLinkToken.mockRejectedValue(new Error('offline'));
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith(
+      expect.stringMatching(/could not start reconnection/i),
+    ));
+    expect(mockApi.plaidExchangeToken).not.toHaveBeenCalled();
+    expect(mockApi.plaidDeleteItem).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: /reconnect/i })).toBeEnabled();
+  });
+
+  it('refuses a second reconnect while one is open', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    const button = await screen.findByRole('button', { name: /reconnect/i });
+
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toBeDisabled());
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalledTimes(1));
+  });
+
+  // --- Lazy mount, both modes ----------------------------------------------
+
+  it('does not mount Plaid Link until a repair is started', async () => {
+    // The CDN script and its preload iframe break PWA rendering on
+    // iOS/Android, which is why the mount is conditional in both modes.
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    await screen.findByRole('button', { name: /reconnect/i });
+
+    expect(mockUsePlaidLink).not.toHaveBeenCalled();
+    expect(mockApi.plaidCreateUpdateLinkToken).not.toHaveBeenCalled();
+  });
+
+  // --- Session storage separation -------------------------------------------
+
+  it('parks the update token under a key scoped to its bank', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+
+    await waitFor(() =>
+      expect(sessionStorage.getItem(`plaid_link_token_update_${BANK.id}`)).toBe('tok-update'));
+    // A stale token for one bank must never be reachable as another's.
+    expect(sessionStorage.getItem('plaid_link_token_connect')).toBeNull();
+    expect(sessionStorage.getItem(`plaid_link_token_update_${BANK_TWO.id}`)).toBeNull();
+  });
+
+  it('parks a connect token under its own key', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /connect bank/i }));
+
+    await waitFor(() =>
+      expect(sessionStorage.getItem('plaid_link_token_connect')).toBe('tok-connect'));
+    expect(sessionStorage.getItem(`plaid_link_token_update_${BANK.id}`)).toBeNull();
+  });
+
+  it('clears the update token when the repair is cancelled', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() =>
+      expect(sessionStorage.getItem(`plaid_link_token_update_${BANK.id}`)).toBe('tok-update'));
+
+    await cancelLink();
+
+    expect(sessionStorage.getItem(`plaid_link_token_update_${BANK.id}`)).toBeNull();
+  });
+
+  it('never puts anything but a Link token in browser storage', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect/i }));
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalled());
+
+    const stored = Object.keys(sessionStorage).map(key => `${key}=${sessionStorage.getItem(key)}`).join(' ');
+    expect(stored).not.toMatch(/access[-_]?token/i);
+    expect(stored).not.toContain('public-token');
+  });
+
+  // --- Accessibility --------------------------------------------------------
+
+  it('exposes busy state while the token is being fetched', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+    const button = await screen.findByRole('button', { name: /reconnect/i });
+
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'));
+  });
+
+  it('explains the problem in plain language, not a Plaid error code', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [needsRepair()] } });
+    await openConnections();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/sign in again/i);
+    // The code may live in Details, but never in the primary message.
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/ITEM_LOGIN_REQUIRED/);
   });
 });

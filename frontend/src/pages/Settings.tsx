@@ -122,12 +122,24 @@ const Settings: React.FC = () => {
         </div>
       </PageLayout>
 
-      {/* Mounted only while connecting. Loading `usePlaidLink` at page mount
-          pulls Plaid's CDN script and a persistent preload iframe, which breaks
-          PWA rendering on iOS/Android — see PlaidLinkLauncher. */}
-      {model.connections.launching && (
+      {/* Mounted only while a Link flow is open, in either mode. Loading
+          `usePlaidLink` at page mount pulls Plaid's CDN script and a persistent
+          preload iframe, which breaks PWA rendering on iOS/Android — see
+          PlaidLinkLauncher.
+
+          The success branch differs by mode and must not be unified: a new
+          connection exchanges its public token, a repair must not, because
+          update mode reuses the existing Item and its access token. */}
+      {model.connections.linkFlow && (
         <PlaidLinkLauncher
+          mode={model.connections.linkFlow.mode}
+          itemId={model.connections.linkFlow.itemId}
           onSuccess={(publicToken, metadata) => {
+            const flow = model.connections.linkFlow;
+            if (flow?.mode === 'update' && flow.itemId != null) {
+              void model.connections.onRepaired(flow.itemId);
+              return;
+            }
             void model.connections.onConnected(publicToken, metadata?.institution?.name);
           }}
           onExit={model.connections.onConnectCancelled}

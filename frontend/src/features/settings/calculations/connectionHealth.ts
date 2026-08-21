@@ -174,6 +174,26 @@ export function assessConnection(
 }
 
 /**
+ * Whether Link update mode can actually repair this connection.
+ *
+ * Deliberately narrow: only when Plaid says the Item needs the user to sign in
+ * again. Update mode fixes an authentication problem — it does not fix an
+ * unreachable API, a failed sync, a delayed webhook, or a quiet account, and
+ * offering it for those would send someone through a bank login that changes
+ * nothing and teaches them the button is noise.
+ *
+ * `PENDING_EXPIRATION` is the other case Plaid documents as update-mode
+ * repairable. It is deliberately excluded for now: it is a consent-expiry
+ * concept that is largely EU/UK, `consent_expiration_time` is null for the US
+ * institutions here, and adding a branch that cannot be exercised is worse
+ * than adding it when there is something to test it against.
+ */
+export function isRepairable(row: PlaidHealthRow | undefined): boolean {
+  if (!row) return false;
+  return row.login_repair_required === true || row.item_error_code === 'ITEM_LOGIN_REQUIRED';
+}
+
+/**
  * A timestamp as a person would say it.
  *
  * Returns null for a missing value so callers can render "Not recorded yet"

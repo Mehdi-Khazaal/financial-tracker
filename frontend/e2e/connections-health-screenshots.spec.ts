@@ -129,6 +129,26 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
   }
   await page.screenshot({ path: 'e2e/__screenshots__/connections-07-phone-390-bottom.png', fullPage: false });
 
+  // --- Reconnect on the affected card ----------------------------------------
+  // PNC is stubbed as ITEM_LOGIN_REQUIRED, so only that card offers Reconnect.
+  // Link itself is never launched: the token request is stubbed, and opening
+  // real Plaid Link in a test is exactly what this phase must not do.
+  await openConnections(1440, 900);
+  await expect(page.getByRole('button', { name: /reconnect pnc/i })).toBeVisible({ timeout: 10_000 });
+  // The rail marks the open section; assert it rather than trusting the paint,
+  // since a capture taken mid-transition can show the previous highlight.
+  await expect(page.getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('button', { name: 'Connections' })).toHaveAttribute('aria-current', 'page');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-10-desktop-1440-reconnect.png', fullPage: false });
+
+  await openConnections(390, 844);
+  await expect(page.getByRole('button', { name: /reconnect pnc/i })).toBeVisible({ timeout: 10_000 });
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-11-phone-390-reconnect.png', fullPage: true });
+
+  // Only the broken connection gets the action.
+  expect(await page.getByRole('button', { name: /^reconnect/i }).count()).toBe(1);
+
   // --- Sync Now, mid-flight and settled --------------------------------------
   // The POST is stubbed to succeed and sync-status is held at its baseline, so
   // the button sits in its honest waiting state rather than claiming success.

@@ -283,6 +283,12 @@ export const cleanDescription = (desc: string | null | undefined): string => {
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
 export const plaidCreateLinkToken  = () => api.post('/plaid/link-token');
+// Link token in *update mode*, repairing the Item Fintrack already holds.
+// `itemId` is Fintrack's own PlaidItem.id. Completing this flow reuses the
+// existing Item and access token, so it must NOT be followed by an exchange —
+// see `usePlaidConnections.onRepaired`.
+export const plaidCreateUpdateLinkToken = (itemId: number) =>
+  api.post(`/plaid/link-token/update/${itemId}`);
 export const plaidExchangeToken    = (public_token: string, institution_name?: string) =>
   api.post('/plaid/exchange-token', { public_token, institution_name });
 export const plaidGetItems         = () => api.get('/plaid/items');

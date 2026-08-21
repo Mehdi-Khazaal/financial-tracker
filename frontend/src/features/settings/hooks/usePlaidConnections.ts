@@ -35,7 +35,19 @@ export const RESET_CONFIRMATION =
 export interface UsePlaidConnections extends AsyncCollection<PlaidItemSummary> {
   resetting: boolean;
   disconnectingId: number | null;
-  launching: boolean;
+  /** Which Link flow is open, if any. Null means the launcher is unmounted. */
+  linkFlow: { mode: 'connect' | 'update'; itemId?: number } | null;
+  /** The Item currently being repaired, for the card's busy state. */
+  repairingId: number | null;
+  startRepair: (item: PlaidItemSummary) => void;
+  onRepaired: (itemId: number) => Promise<void>;
+  /**
+   * Bumped when a repair succeeds, so the section can re-read health and run an
+   * ordinary sync. A signal rather than a callback because the launcher lives
+   * on the page while the sync machinery lives in the section, and threading a
+   * function between them would couple the two.
+   */
+  repairCompletedAt: number | null;
   reset: () => Promise<void>;
   disconnect: (item: PlaidItemSummary) => Promise<void>;
   startConnect: () => void;
@@ -52,7 +64,9 @@ export function usePlaidConnections(): UsePlaidConnections {
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [resetting, setResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
-  const [launching, setLaunching] = useState(false);
+  const [linkFlow, setLinkFlow] = useState<{ mode: 'connect' | 'update'; itemId?: number } | null>(null);
+  const [repairingId, setRepairingId] = useState<number | null>(null);
+  const [repairCompletedAt, setRepairCompletedAt] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     setStatus('loading');
@@ -103,8 +117,40 @@ export function usePlaidConnections(): UsePlaidConnections {
     }
   }, [toast]);
 
-  const startConnect = useCallback(() => setLaunching(true), []);
+  const startConnect = useCallback(() => setLinkFlow({ mode: 'connect' }), []);
 
+  const startRepair = useCallback((item: PlaidItemSummary) => {
+    setRepairingId(item.id);
+    setLinkFlow({ mode: 'update', itemId: item.id });
+  }, []);
+
+  /**
+   * Link update mode succeeded.
+   *
+   * **Deliberately does not exchange a public token.** Plaid's documented
+   * contract for update mode reuses the existing Item and leaves its access
+   * token unchanged, so there is nothing to exchange — and `exchange_token`
+   * would reject it anyway, since it refuses a second Item for an institution
+   * already connected. Calling it here would break the one flow whose purpose
+   * is to rescue a broken connection.
+   *
+   * Nothing local changes either: same Item, same cursor, same transactions.
+   * The caller re-reads health and runs an ordinary sync; Plaid clears the
+   * error itself and backfills the missed window on its next webhook.
+   */
+  const onRepaired = useCallback(async (itemId: number) => {
+    sessionStorage.removeItem(`plaid_link_token_update_${itemId}`);
+    setLinkFlow(null);
+    setRepairingId(null);
+    toast.success('Bank reconnected');
+    await reload();
+    setRepairCompletedAt(Date.now());
+  }, [reload, toast]);
+
+  /**
+   * A *new* connection succeeded, so the public token must be exchanged — this
+   * is the branch update mode must never reach. See `onRepaired`.
+   */
   const onConnected = useCallback(async (publicToken: string, institutionName?: string) => {
     try {
       await plaidExchangeToken(publicToken, institutionName);
@@ -113,19 +159,32 @@ export function usePlaidConnections(): UsePlaidConnections {
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Failed to connect bank');
     } finally {
-      sessionStorage.removeItem('plaid_link_token');
-      setLaunching(false);
+      sessionStorage.removeItem('plaid_link_token_connect');
+      setLinkFlow(null);
     }
   }, [reload, toast]);
 
+  /**
+   * The user closed Link, in either mode. Not an error and not destructive:
+   * a cancelled repair leaves the connection exactly as it was, still needing
+   * attention, and Reconnect can simply be pressed again.
+   */
   const onConnectCancelled = useCallback(() => {
-    sessionStorage.removeItem('plaid_link_token');
-    setLaunching(false);
+    setLinkFlow(current => {
+      if (current?.mode === 'update' && current.itemId != null) {
+        sessionStorage.removeItem(`plaid_link_token_update_${current.itemId}`);
+      } else {
+        sessionStorage.removeItem('plaid_link_token_connect');
+      }
+      return null;
+    });
+    setRepairingId(null);
   }, []);
 
   const onConnectError = useCallback((message: string) => {
     toast.error(message);
-    setLaunching(false);
+    setLinkFlow(null);
+    setRepairingId(null);
   }, [toast]);
 
   return {
@@ -134,10 +193,14 @@ export function usePlaidConnections(): UsePlaidConnections {
     reload: () => { void reload(); },
     resetting,
     disconnectingId,
-    launching,
+    linkFlow,
+    repairingId,
     reset,
     disconnect,
     startConnect,
+    startRepair,
+    onRepaired,
+    repairCompletedAt,
     onConnected,
     onConnectCancelled,
     onConnectError,
