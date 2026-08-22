@@ -3,6 +3,7 @@ import {
   plaidDeleteItem,
   plaidExchangeToken,
   plaidGetItems,
+  plaidRemoveItemLocally,
   plaidReset,
 } from '../../../utils/api';
 import { useToast } from '../../../context/ToastContext';
@@ -32,9 +33,46 @@ export const RESET_CONFIRMATION =
   + 'and loses the categories you filed against those transactions. Transactions you added '
   + 'yourself are not affected. This cannot be undone.';
 
+/**
+ * What an ordinary Disconnect keeps, in the user's terms.
+ *
+ * Every historical record survives: the transactions already imported, the
+ * accounts, the categories filed against them, and the recurring records built
+ * from them. Disconnect stops future updates — it is not Reset, and the copy
+ * has to make that difference visible before the click, not after.
+ */
+export const disconnectConfirmation = (name: string) =>
+  `Disconnect ${name}? Fintrack will stop receiving new transactions from this bank. `
+  + 'Everything already imported — transactions, accounts and the categories you filed '
+  + 'them under — is kept. You can connect it again later.';
+
+/**
+ * The escape hatch's confirmation, and the most important copy in this file.
+ *
+ * This path makes **no** Plaid call, so it cannot claim the bank's access was
+ * revoked. Saying only "removed" would be the exact dishonesty Phase 6C-5 took
+ * out of Disconnect, one screen further along — so the sentence that matters
+ * names the live consequence and where to act on it.
+ */
+export const forceRemoveConfirmation = (name: string) =>
+  `Fintrack could not confirm with Plaid that ${name} was disconnected. Removing it here `
+  + 'only removes it from Fintrack — the bank’s connection may still be active at Plaid, '
+  + 'so revoke it with your bank or at my.plaid.com as well. Your imported transactions are '
+  + 'kept. This cannot be undone from Fintrack.';
+
 export interface UsePlaidConnections extends AsyncCollection<PlaidItemSummary> {
   resetting: boolean;
   disconnectingId: number | null;
+  /**
+   * Connections whose Disconnect failed against Plaid, and which therefore
+   * offer the local-only escape hatch. Kept per item rather than as a single
+   * id so a second bank's failure does not silently retarget the first one's
+   * "Remove from Fintrack anyway" button.
+   */
+  unremovableIds: number[];
+  forceRemovingId: number | null;
+  /** Local-only removal. Only offered after a real Disconnect has failed. */
+  removeLocally: (item: PlaidItemSummary) => Promise<void>;
   /** Which Link flow is open, if any. Null means the launcher is unmounted. */
   linkFlow: { mode: 'connect' | 'update'; itemId?: number } | null;
   /** The Item currently being repaired, for the card's busy state. */
@@ -64,6 +102,8 @@ export function usePlaidConnections(): UsePlaidConnections {
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [resetting, setResetting] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
+  const [unremovableIds, setUnremovableIds] = useState<number[]>([]);
+  const [forceRemovingId, setForceRemovingId] = useState<number | null>(null);
   const [linkFlow, setLinkFlow] = useState<{ mode: 'connect' | 'update'; itemId?: number } | null>(null);
   const [repairingId, setRepairingId] = useState<number | null>(null);
   const [repairCompletedAt, setRepairCompletedAt] = useState<number | null>(null);
@@ -92,6 +132,7 @@ export function usePlaidConnections(): UsePlaidConnections {
       const response = await plaidReset();
       toast.success(response.data.message || 'Plaid data cleared');
       setItems([]);
+      setUnremovableIds([]);
       setStatus('ready');
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Reset failed');
@@ -100,20 +141,68 @@ export function usePlaidConnections(): UsePlaidConnections {
     }
   }, [toast]);
 
+  /**
+   * Disconnect at Plaid first, and only then locally.
+   *
+   * The server now refuses to delete its record when `/item/remove` fails, so
+   * a failure here means the connection is genuinely still live: the card must
+   * stay, and the old blanket "Failed to disconnect" toast is replaced by the
+   * server's own sentence, which says nothing was changed.
+   *
+   * The failure is remembered so that connection, and only that connection,
+   * can offer the local-only escape hatch afterwards. Offering it before a
+   * real attempt has failed would make the dishonest path the easy one.
+   */
   const disconnect = useCallback(async (item: PlaidItemSummary) => {
-    const confirmed = await toast.confirm(
-      `Disconnect ${item.institution_name || 'this bank'}? Your existing transactions won't be deleted.`,
-    );
+    const name = item.institution_name || 'this bank';
+    const confirmed = await toast.confirm(disconnectConfirmation(name), { danger: true });
     if (!confirmed) return;
     setDisconnectingId(item.id);
     try {
       await plaidDeleteItem(item.id);
       setItems(current => current.filter(entry => entry.id !== item.id));
+      setUnremovableIds(current => current.filter(id => id !== item.id));
       toast.success('Bank disconnected');
-    } catch {
-      toast.error('Failed to disconnect');
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.detail
+        || 'Could not disconnect this bank. Nothing was changed — try again.',
+      );
+      setUnremovableIds(current => (current.includes(item.id) ? current : [...current, item.id]));
     } finally {
       setDisconnectingId(null);
+    }
+  }, [toast]);
+
+  /**
+   * Forget the connection locally without contacting Plaid.
+   *
+   * Reachable only from a card whose Disconnect has already failed. It reports
+   * the server's own wording, which states that Plaid removal was not
+   * confirmed, rather than the ordinary success line — the whole point is
+   * that this outcome is not the same outcome.
+   */
+  const removeLocally = useCallback(async (item: PlaidItemSummary) => {
+    const name = item.institution_name || 'this bank';
+    const confirmed = await toast.confirm(forceRemoveConfirmation(name), {
+      danger: true,
+      title: 'Remove from Fintrack anyway?',
+    });
+    if (!confirmed) return;
+    setForceRemovingId(item.id);
+    try {
+      const response = await plaidRemoveItemLocally(item.id);
+      setItems(current => current.filter(entry => entry.id !== item.id));
+      setUnremovableIds(current => current.filter(id => id !== item.id));
+      // `info`, not `success`: nothing was confirmed with Plaid.
+      toast.info(
+        response.data?.message
+        || 'Connection removed from Fintrack. Plaid removal was not confirmed.',
+      );
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Could not remove this connection.');
+    } finally {
+      setForceRemovingId(null);
     }
   }, [toast]);
 
@@ -193,6 +282,9 @@ export function usePlaidConnections(): UsePlaidConnections {
     reload: () => { void reload(); },
     resetting,
     disconnectingId,
+    unremovableIds,
+    forceRemovingId,
+    removeLocally,
     linkFlow,
     repairingId,
     reset,

@@ -29,9 +29,15 @@ jest.mock('../context/AuthContext', () => ({
 const mockConfirm = jest.fn().mockResolvedValue(true);
 const mockToastSuccess = jest.fn();
 const mockToastError = jest.fn();
+const mockToastInfo = jest.fn();
 
 jest.mock('../context/ToastContext', () => ({
-  useToast: () => ({ success: mockToastSuccess, error: mockToastError, confirm: mockConfirm }),
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+    info: mockToastInfo,
+    confirm: mockConfirm,
+  }),
 }));
 
 let mockSearchParams = new URLSearchParams();
@@ -68,6 +74,7 @@ const mockApi = {
   plaidExchangeToken: jest.fn(),
   plaidGetItems: jest.fn(),
   plaidDeleteItem: jest.fn(),
+  plaidRemoveItemLocally: jest.fn(),
   plaidSyncAll: jest.fn(),
   plaidReset: jest.fn(),
   plaidSyncHealth: jest.fn(),
@@ -204,6 +211,13 @@ beforeEach(() => {
   mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok-connect' } });
   mockApi.plaidCreateUpdateLinkToken.mockResolvedValue({ data: { link_token: 'tok-update' } });
   mockApi.plaidExchangeToken.mockResolvedValue({ data: {} });
+  mockApi.plaidDeleteItem.mockResolvedValue({ data: { message: 'Bank disconnected.' } });
+  mockApi.plaidRemoveItemLocally.mockResolvedValue({
+    data: {
+      message: 'Connection removed from Fintrack. Plaid removal was not confirmed.',
+      remote_removal_confirmed: false,
+    },
+  });
   sessionStorage.clear();
   mockApi.deleteCategory.mockResolvedValue({});
   mockApi.adminResetPassword.mockResolvedValue({});
@@ -860,6 +874,194 @@ describe('Settings connected banks', () => {
     await openConnections();
     await screen.findByText('No banks connected yet');
     expect(screen.queryByRole('button', { name: /sync all now/i })).not.toBeInTheDocument();
+  });
+});
+
+// --- Disconnect, and the escape hatch when it cannot succeed (6C-5) ----------
+// The server no longer deletes its record when `/item/remove` fails, so the UI
+// must not behave as though it did. These tests exist to keep the failed case
+// visible: the card stays, the wording says nothing changed, and the only way
+// to reach the local-only removal is to have actually tried the honest one.
+
+const REMOTE_FAILURE = {
+  response: { data: { detail: 'Could not disconnect this bank with Plaid. Nothing was changed — try again.' } },
+};
+
+describe('Settings disconnect', () => {
+  const openConnections = () => openSettings('Connections');
+  const disconnectButton = () => screen.findByRole('button', { name: /^disconnect capital one$/i });
+  const escapeHatch = () => screen.queryByRole('button', { name: /remove from fintrack anyway/i });
+  /** The card for one bank, so an assertion cannot drift onto its neighbour. */
+  const cardFor = (bank: string) => {
+    const card = screen.getAllByRole('listitem')
+      .find(entry => within(entry).queryByText(bank) !== null);
+    if (!card) throw new Error(`No card rendered for ${bank}`);
+    return card;
+  };
+
+  it('says what a disconnect keeps before asking', async () => {
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    const [message] = mockConfirm.mock.calls[0];
+    expect(message).toMatch(/capital one/i);
+    expect(message).toMatch(/stop receiving new transactions/i);
+    // The old copy promised only that transactions survived. Categories do too,
+    // and that is the difference between Disconnect and Reset.
+    expect(message).toMatch(/categories/i);
+  });
+
+  it('does not disconnect when the confirm is declined', async () => {
+    mockConfirm.mockResolvedValue(false);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    expect(mockApi.plaidDeleteItem).not.toHaveBeenCalled();
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+  });
+
+  it('removes the card when Plaid confirms the removal', async () => {
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockApi.plaidDeleteItem).toHaveBeenCalledWith(BANK.id));
+    await waitFor(() => expect(screen.queryByText('Capital One')).not.toBeInTheDocument());
+    expect(mockToastSuccess).toHaveBeenCalledWith('Bank disconnected');
+  });
+
+  it('keeps the connection when Plaid refuses, and says nothing changed', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    // The server's own sentence, not a generic "Failed to disconnect".
+    expect(mockToastError.mock.calls[0][0]).toMatch(/nothing was changed/i);
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    // The bank is still connected, so it is still listed.
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+  });
+
+  it('never falls back to a local-only removal on its own', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(mockApi.plaidRemoveItemLocally).not.toHaveBeenCalled();
+  });
+
+  it('does not offer the escape hatch before a disconnect has failed', async () => {
+    await openConnections();
+    await screen.findByText('Capital One');
+    expect(escapeHatch()).not.toBeInTheDocument();
+  });
+
+  it('offers the escape hatch only on the connection that failed', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    const hatches = await screen.findAllByRole('button', { name: /remove from fintrack anyway/i });
+    expect(hatches).toHaveLength(1);
+    // And it belongs to Capital One, not to PNC.
+    expect(within(cardFor('Capital One'))
+      .getByRole('button', { name: /remove from fintrack anyway/i })).toBeInTheDocument();
+    expect(within(cardFor('PNC'))
+      .queryByRole('button', { name: /remove from fintrack anyway/i })).not.toBeInTheDocument();
+  });
+
+  it('states the live consequence in the card, not only in the dialog', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    const card = cardFor('Capital One');
+    expect(card).toHaveTextContent(/only removes it from Fintrack/i);
+    expect(card).toHaveTextContent(/may stay active at Plaid/i);
+    expect(card).toHaveTextContent(/try disconnect again first/i);
+  });
+
+  it('warns that Plaid removal is not confirmed before removing locally', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+
+    mockConfirm.mockClear();
+    fireEvent.click(escapeHatch() as HTMLElement);
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    const [message, options] = mockConfirm.mock.calls[0];
+    expect(message).toMatch(/could not confirm with plaid/i);
+    expect(message).toMatch(/only removes it from fintrack/i);
+    // Where to actually revoke the access this cannot revoke.
+    expect(message).toMatch(/my\.plaid\.com/i);
+    expect(message).toMatch(/cannot be undone/i);
+    expect(options).toMatchObject({ danger: true });
+  });
+
+  it('does not remove locally when that confirm is declined', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+
+    mockConfirm.mockResolvedValue(false);
+    fireEvent.click(escapeHatch() as HTMLElement);
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(2));
+    expect(mockApi.plaidRemoveItemLocally).not.toHaveBeenCalled();
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+  });
+
+  it('removes locally and reports that Plaid was not confirmed', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+
+    fireEvent.click(escapeHatch() as HTMLElement);
+
+    await waitFor(() => expect(mockApi.plaidRemoveItemLocally).toHaveBeenCalledWith(BANK.id));
+    await waitFor(() => expect(screen.queryByText('Capital One')).not.toBeInTheDocument());
+    // Not `success`: this outcome is not the same outcome as a disconnect.
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      expect.stringMatching(/plaid removal was not confirmed/i),
+    );
+  });
+
+  it('keeps the card when even the local removal fails', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValue(REMOTE_FAILURE);
+    mockApi.plaidRemoveItemLocally.mockRejectedValue(new Error('boom'));
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+
+    fireEvent.click(escapeHatch() as HTMLElement);
+
+    await waitFor(() => expect(mockApi.plaidRemoveItemLocally).toHaveBeenCalled());
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+  });
+
+  it('clears the escape hatch when a retried disconnect succeeds', async () => {
+    mockApi.plaidDeleteItem.mockRejectedValueOnce(REMOTE_FAILURE);
+    await openConnections();
+    fireEvent.click(await disconnectButton());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(escapeHatch()).toBeInTheDocument();
+
+    fireEvent.click(await disconnectButton());
+
+    await waitFor(() => expect(screen.queryByText('Capital One')).not.toBeInTheDocument());
+    expect(escapeHatch()).not.toBeInTheDocument();
+    expect(mockApi.plaidRemoveItemLocally).not.toHaveBeenCalled();
   });
 });
 

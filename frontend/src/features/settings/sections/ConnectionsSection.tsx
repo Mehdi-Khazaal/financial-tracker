@@ -33,7 +33,12 @@ import {
  * connection's `last_sync_at` advances past a baseline taken beforehand. See
  * `useManualSync`.
  *
- * Connect Bank, Disconnect and Reset are unchanged; later stages own those.
+ * Disconnect removes the connection at Plaid before removing it here, so a
+ * failure leaves the card in place rather than reporting a success that did
+ * not happen. Only a card whose Disconnect has actually failed is then offered
+ * the local-only escape hatch — see `usePlaidConnections`.
+ *
+ * Reset is unchanged; a later stage owns it.
  */
 
 interface Props {
@@ -228,6 +233,13 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
                 healthLoading={health.status === 'loading'}
                 disconnecting={connections.disconnectingId === item.id}
                 onDisconnect={() => { void connections.disconnect(item); }}
+                // Appears only after this connection's Disconnect has failed
+                // against Plaid, so the path that cannot confirm anything is
+                // never the first one offered.
+                onRemoveAnyway={connections.unremovableIds.includes(item.id)
+                  ? () => { void connections.removeLocally(item); }
+                  : undefined}
+                removing={connections.forceRemovingId === item.id}
                 // Offered only when Plaid says a sign-in will fix it. A healthy
                 // bank gets no Reconnect, and neither does one that is merely
                 // unreachable or slow.

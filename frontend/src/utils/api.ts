@@ -293,6 +293,13 @@ export const plaidExchangeToken    = (public_token: string, institution_name?: s
   api.post('/plaid/exchange-token', { public_token, institution_name });
 export const plaidGetItems         = () => api.get('/plaid/items');
 export const plaidDeleteItem       = (id: number) => api.delete(`/plaid/items/${id}`);
+// Last-resort escape hatch: forget the connection locally **without** asking
+// Plaid to remove it, for an Item whose remote removal cannot be made to
+// succeed. It makes no Plaid call, so it cannot and does not confirm the Item
+// was removed there — the response says so and the UI must repeat it. Never
+// use this as a fallback for an ordinary failed disconnect without asking.
+export const plaidRemoveItemLocally = (id: number) =>
+  api.post(`/plaid/items/${id}/remove-local`);
 export const plaidSyncAll          = () => api.post('/plaid/sync');
 export const plaidReset            = () => api.post('/plaid/reset');
 // Read-only diagnostics. Makes one live Plaid `/item/get` per connected Item,

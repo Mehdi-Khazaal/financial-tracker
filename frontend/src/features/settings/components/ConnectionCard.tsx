@@ -40,6 +40,13 @@ interface Props {
   /** Present only when this connection can actually be repaired via Link. */
   onReconnect?: () => void;
   reconnecting?: boolean;
+  /**
+   * Present only after a real Disconnect has failed against Plaid. Absent on
+   * every other card, so the local-only removal can never be reached before
+   * the honest path has been tried.
+   */
+  onRemoveAnyway?: () => void;
+  removing?: boolean;
   now?: number;
 }
 
@@ -59,7 +66,8 @@ const Row: React.FC<{ label: string; value: string; title?: string | null }> = (
 );
 
 const ConnectionCard: React.FC<Props> = ({
-  item, health, healthLoading, disconnecting, onDisconnect, onReconnect, reconnecting, now,
+  item, health, healthLoading, disconnecting, onDisconnect, onReconnect, reconnecting,
+  onRemoveAnyway, removing, now,
 }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId().replace(/:/g, '');
@@ -142,6 +150,7 @@ const ConnectionCard: React.FC<Props> = ({
         <button
           onClick={onDisconnect}
           disabled={disconnecting}
+          aria-label={`Disconnect ${name}`}
           className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
           style={{
             backgroundColor: 'oklch(70% 0.17 25 / 0.1)',
@@ -152,6 +161,38 @@ const ConnectionCard: React.FC<Props> = ({
           {disconnecting ? '…' : 'Disconnect'}
         </button>
       </div>
+
+      {/* Shown only once a Disconnect has actually failed, and deliberately the
+          least prominent control on the card. The order of the three actions
+          is the order they should be tried: Reconnect repairs, Disconnect is
+          the correct removal, and this one is the last resort that cannot
+          confirm anything with Plaid. Its consequence is stated here as well
+          as in the confirmation, because a control this quiet should not rely
+          on a dialog to carry the meaning. */}
+      {onRemoveAnyway && (
+        <div
+          className="mt-3 pt-3"
+          style={{ borderTop: '1px solid var(--line)' }}
+          role="group"
+          aria-label={`Troubleshooting for ${name}`}
+        >
+          <p className="text-xs leading-relaxed max-w-prose" style={{ color: 'var(--muted)' }}>
+            Fintrack could not disconnect this bank with Plaid, so nothing was changed.
+            Try Disconnect again first — removing it here only removes it from Fintrack,
+            and the bank’s connection may stay active at Plaid.
+          </p>
+          <button
+            type="button"
+            onClick={onRemoveAnyway}
+            disabled={removing}
+            aria-busy={removing}
+            className="mt-1.5 min-h-[44px] -ml-1 px-1 text-xs font-semibold underline underline-offset-2 disabled:opacity-40"
+            style={{ color: 'var(--neg)' }}
+          >
+            {removing ? 'Removing…' : 'Remove from Fintrack anyway'}
+          </button>
+        </div>
+      )}
 
       {health && (
         <>

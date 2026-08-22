@@ -204,6 +204,63 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'e2e/__screenshots__/connections-05-desktop-1440-degraded.png', fullPage: false });
 
+  // --- A disconnect Plaid refuses, and the escape hatch it unlocks -----------
+  // Health is stubbed healthy again first: the degraded case above left it
+  // failing, and a card with unknown status would not exercise the hierarchy.
+  await page.unroute('**/plaid/sync-health');
+  await page.route('**/plaid/sync-health', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(HEALTH) }));
+
+  // The DELETE is stubbed to fail exactly as the server now fails it: the
+  // connection is untouched at Plaid, so the card must stay. Nothing here goes
+  // near a real Item — this phase must make no destructive Plaid call.
+  await page.route('**/plaid/items/*', route => {
+    if (route.request().method() !== 'DELETE') return route.continue();
+    return route.fulfill({
+      status: 502,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        detail: 'Could not disconnect this bank with Plaid. Nothing was changed — try again.',
+      }),
+    });
+  });
+
+  await openConnections(1440, 900);
+  await page.getByRole('button', { name: 'Disconnect Capital One' }).click();
+  await page.getByRole('button', { name: 'Confirm' }).click();
+
+  const hatch = page.getByRole('button', { name: /remove from fintrack anyway/i });
+  await expect(hatch).toBeVisible({ timeout: 10_000 });
+  // The bank is still connected, so it is still listed.
+  await expect(page.getByText('Capital One').first()).toBeVisible();
+  // And only the card that failed gets the escape hatch.
+  expect(await page.getByRole('button', { name: /remove from fintrack anyway/i }).count()).toBe(1);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-12-desktop-1440-disconnect-failed.png', fullPage: false });
+
+  // The confirmation for the local-only removal has to carry the consequence.
+  await hatch.click();
+  const dialog = page.getByText(/could not confirm with plaid/i);
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/my\.plaid\.com/i)).toBeVisible();
+  // The dialog fades in; capturing immediately catches it mid-transition and
+  // the text reads as though it overlapped the card behind it.
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-13-desktop-1440-remove-anyway.png', fullPage: false });
+  // Declined: nothing is removed, and the card is still there.
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByText('Capital One').first()).toBeVisible();
+
+  // The same state on a phone, where the card is the whole width.
+  await openConnections(390, 844);
+  await page.getByRole('button', { name: 'Disconnect Capital One' }).click();
+  await page.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByRole('button', { name: /remove from fintrack anyway/i }))
+    .toBeVisible({ timeout: 10_000 });
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-14-phone-390-disconnect-failed.png', fullPage: true });
+
+  await page.unroute('**/plaid/items/*');
+
   // --- Narrowest supported width --------------------------------------------
   await page.unroute('**/plaid/sync-health');
   await page.route('**/plaid/sync-health', route =>

@@ -146,6 +146,32 @@ class PlaidMutationDuringPagination(Exception):
     """Plaid mutated the dataset mid-pagination; the cycle must restart."""
 
 
+# Plaid documents this as: "The Item you requested cannot be found. This Item
+# does not exist, has been previously removed via /item/remove, or has had
+# access removed by the user."
+#
+# That makes it *terminal proof* the remote Item is gone, which is the one
+# error Disconnect may safely treat as equivalent to a successful removal.
+# Notably `INVALID_ACCESS_TOKEN` is **not** such a proof — a token can be
+# malformed or expired while the Item is very much alive — so it is not
+# treated this way.
+PLAID_ITEM_NOT_FOUND = "ITEM_NOT_FOUND"
+
+
+class PlaidItemNotFound(HTTPException):
+    """Plaid says this Item no longer exists.
+
+    Subclasses `HTTPException` deliberately: every existing caller catches or
+    propagates that and keeps behaving exactly as before, while Disconnect can
+    catch this narrower type and finish its local cleanup. Adding a bare
+    `Exception` here would turn today's 502 into a 500 for callers that never
+    asked about this case.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(status_code=502, detail="Plaid returned an error")
+
+
 # ─── Plaid API helper ─────────────────────────────────────────────────────────
 def _plaid_post(path: str, body: dict) -> dict:
     url = _BASE_URLS.get(PLAID_ENV, _BASE_URLS["sandbox"]) + path
@@ -171,6 +197,11 @@ def _plaid_post(path: str, body: dict) -> dict:
         # than the generic "Plaid is unhappy" 502 everything else gets.
         if error_code == PLAID_MUTATION_DURING_PAGINATION:
             raise PlaidMutationDuringPagination(error_code)
+        # Same reasoning: a specific recovery rather than the generic 502.
+        # Disconnect finishes locally on this one; nothing else changes,
+        # because it *is* a 502 to anyone not looking for it.
+        if error_code == PLAID_ITEM_NOT_FOUND:
+            raise PlaidItemNotFound()
         raise HTTPException(status_code=502, detail="Plaid returned an error")
     return data
 
@@ -771,21 +802,108 @@ def list_items(db: Session = Depends(get_db), current_user: User = Depends(get_c
     return db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
 
 
-@router.delete("/items/{item_id}")
-def disconnect_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    item = db.query(PlaidItem).filter(PlaidItem.id == item_id, PlaidItem.user_id == current_user.id).first()
+def _owned_item(db: Session, item_id: int, user_id: int) -> PlaidItem:
+    item = (
+        db.query(PlaidItem)
+        .filter(PlaidItem.id == item_id, PlaidItem.user_id == user_id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+
+@router.delete("/items/{item_id}")
+def disconnect_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Remove the connection at Plaid first, and only then locally.
+
+    This used to swallow a failed `/item/remove`, delete the local row anyway
+    and report success — which could leave a live Item at Plaid with the only
+    record capable of reconciling it destroyed. The remote call now gates the
+    local delete.
+
+    `ITEM_NOT_FOUND` is the one error treated as success, because Plaid
+    documents it as meaning the Item "does not exist, has been previously
+    removed via /item/remove, or has had access removed by the user". That is
+    terminal proof there is nothing left to remove. Every other failure keeps
+    the row so the user can retry — including an invalid access token, which
+    says the *token* is unusable and proves nothing about the Item.
+
+    Historical data is untouched, exactly as before: accounts, transactions,
+    categories, merchant history, recurring records and balances all survive.
+    Disconnect stops future updates; it is not Reset.
+    """
+    item = _owned_item(db, item_id, current_user.id)
+
     try:
         _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
+    except PlaidItemNotFound:
+        # Already gone at Plaid. Finishing locally is the correct outcome, and
+        # is also how a previous remote-success/local-failure run recovers.
+        logger.info(
+            "plaid_disconnect_item_already_removed %s",
+            kv(item_id=item.id, user_id=current_user.id),
+        )
     except Exception as exc:
         logger.warning(
             "plaid_remote_disconnect_failed %s",
             kv(item_id=item.id, user_id=current_user.id, error_type=type(exc).__name__),
         )
+        raise HTTPException(
+            status_code=502,
+            detail="Could not disconnect this bank with Plaid. Nothing was changed — try again.",
+        )
+
+    try:
+        db.delete(item)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        # The awkward one: gone at Plaid, still here locally. Deliberately no
+        # extra state is recorded to recover it — retrying is the recovery,
+        # because the retry's `/item/remove` returns ITEM_NOT_FOUND and the
+        # branch above finishes the local delete. Saying so plainly beats
+        # inventing a reconciliation job for a case a second click resolves.
+        logger.error(
+            "plaid_disconnect_local_delete_failed %s",
+            kv(item_id=item.id, user_id=current_user.id, error_type=type(exc).__name__),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "This bank was disconnected at Plaid, but Fintrack could not finish "
+                "removing it. Try again to complete it."
+            ),
+        )
+
+    return {"message": "Bank disconnected."}
+
+
+@router.post("/items/{item_id}/remove-local")
+def remove_item_locally(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Forget the connection locally **without** contacting Plaid.
+
+    A recovery escape hatch, not the normal path: it exists for an Item whose
+    remote removal cannot be made to succeed, so a user is not stuck with a
+    connection they can never clear now that Disconnect refuses to lie.
+
+    It makes no Plaid call at all, and therefore cannot and does not claim the
+    remote Item was removed. The response says so, and the client repeats it in
+    a stronger confirmation. Historical data is preserved on the same terms as
+    an ordinary disconnect.
+    """
+    item = _owned_item(db, item_id, current_user.id)
+
+    logger.warning(
+        "plaid_item_removed_locally_without_remote_confirmation %s",
+        kv(item_id=item.id, user_id=current_user.id),
+    )
     db.delete(item)
     db.commit()
-    return {"message": "Bank disconnected."}
+    return {
+        "message": "Connection removed from Fintrack. Plaid removal was not confirmed.",
+        "remote_removal_confirmed": False,
+    }
 
 
 @router.post("/sync")
