@@ -302,6 +302,12 @@ export const plaidRemoveItemLocally = (id: number) =>
   api.post(`/plaid/items/${id}/remove-local`);
 export const plaidSyncAll          = () => api.post('/plaid/sync');
 export const plaidReset            = () => api.post('/plaid/reset');
+// "Rebuild bank history". Clears every cursor so the next sync re-reads all
+// available history; existing rows are matched on `plaid_tx_id` and skipped
+// rather than duplicated or overwritten, so filings survive. Non-destructive
+// but slow — it returns before the work runs, so completion is established by
+// polling `/plaid/sync-status`, exactly as a manual sync is.
+export const plaidRebuildHistory   = () => api.post('/plaid/replay');
 // Read-only diagnostics. Makes one live Plaid `/item/get` per connected Item,
 // serially, so it is fetched only when the Connections section is opened.
 export const plaidSyncHealth       = () => api.get('/plaid/sync-health');

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { plaidSyncAll, plaidSyncStatus } from '../../../utils/api';
+import { plaidRebuildHistory, plaidSyncAll, plaidSyncStatus } from '../../../utils/api';
 import type { PlaidSyncStatusRow } from '../types';
 import {
   evaluateSync,
@@ -7,6 +7,7 @@ import {
   phaseFor,
   summarise,
   type SyncBaseline,
+  type SyncKind,
   type SyncOutcome,
   type SyncPhase,
 } from '../calculations/syncProgress';
@@ -36,6 +37,27 @@ import {
 export const POLL_INTERVAL_MS = 4_000;
 /** ~9 polls. Beyond this the honest answer is "still running", not "failed". */
 export const POLL_TIMEOUT_MS = 36_000;
+/**
+ * A rebuild asks every bank for its whole available window rather than the
+ * delta since a cursor, so it takes far longer. Same machine, same evidence,
+ * same "still running" ending — only the patience differs.
+ */
+export const REBUILD_TIMEOUT_MS = 180_000;
+
+export interface ManualSyncOptions {
+  /**
+   * Which operation to run. `rebuild` posts to `/plaid/replay`, which clears
+   * every cursor so the next sync re-reads all available history, and waits
+   * longer for it.
+   *
+   * Completion is established the same way for both, and deliberately so:
+   * replay records its runs as manual syncs, so `/plaid/sync-status` reports a
+   * rebuild exactly as it reports a sync. A second polling implementation
+   * would be a second chance to reintroduce the bug this one exists to
+   * prevent — treating a queued request as a finished job.
+   */
+  kind?: SyncKind;
+}
 
 export interface UseManualSync {
   phase: SyncPhase;
@@ -49,7 +71,10 @@ export interface UseManualSync {
   dismiss: () => void;
 }
 
-export function useManualSync(onSettled?: () => void): UseManualSync {
+export function useManualSync(
+  onSettled?: () => void,
+  { kind = 'sync' }: ManualSyncOptions = {},
+): UseManualSync {
   const [phase, setPhase] = useState<SyncPhase>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [perItem, setPerItem] = useState<{ name: string; detail: string }[]>([]);
@@ -79,10 +104,10 @@ export function useManualSync(onSettled?: () => void): UseManualSync {
 
   const settle = useCallback((outcome: SyncOutcome) => {
     setPhase(phaseFor(outcome));
-    setMessage(summarise(outcome));
+    setMessage(summarise(outcome, kind));
     setPerItem(perItemSummary(outcome));
     onSettledRef.current?.();
-  }, []);
+  }, [kind]);
 
   const readStatus = async (): Promise<PlaidSyncStatusRow[]> => {
     const response = await plaidSyncStatus();
@@ -109,12 +134,16 @@ export function useManualSync(onSettled?: () => void): UseManualSync {
       const before = await readStatus();
       baseline = new Map(before.map(row => [row.id, row.last_sync_at]));
 
-      await plaidSyncAll();
+      await (kind === 'rebuild' ? plaidRebuildHistory() : plaidSyncAll());
     } catch {
       activeRef.current = false;
       if (!cancelledRef.current) {
         setPhase('request_failed');
-        setMessage('Could not request a sync. Check your connection and try again.');
+        setMessage(
+          kind === 'rebuild'
+            ? 'Could not start the rebuild. Check your connection and try again.'
+            : 'Could not request a sync. Check your connection and try again.',
+        );
       }
       return;
     }
@@ -126,13 +155,17 @@ export function useManualSync(onSettled?: () => void): UseManualSync {
     if (baseline.size === 0) {
       activeRef.current = false;
       setPhase('completed');
-      setMessage('Sync complete · no connected banks');
+      setMessage(
+        kind === 'rebuild'
+          ? 'Rebuild complete · no connected banks'
+          : 'Sync complete · no connected banks',
+      );
       return;
     }
 
     setPhase('waiting');
 
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    const deadline = Date.now() + (kind === 'rebuild' ? REBUILD_TIMEOUT_MS : POLL_TIMEOUT_MS);
 
     const poll = async () => {
       if (cancelledRef.current) return;
@@ -156,7 +189,9 @@ export function useManualSync(onSettled?: () => void): UseManualSync {
         activeRef.current = false;
         setPhase('timed_out');
         setMessage(
-          'Sync is taking longer than expected. Your banks may still be updating in the background.',
+          kind === 'rebuild'
+            ? 'The rebuild is taking longer than expected. Your banks may still be sending history in the background.'
+            : 'Sync is taking longer than expected. Your banks may still be updating in the background.',
         );
         setPerItem(perItemSummary(outcome));
         return;
@@ -166,7 +201,7 @@ export function useManualSync(onSettled?: () => void): UseManualSync {
     };
 
     timerRef.current = window.setTimeout(() => { void poll(); }, POLL_INTERVAL_MS);
-  }, [settle]);
+  }, [kind, settle]);
 
   const dismiss = useCallback(() => {
     setPhase('idle');

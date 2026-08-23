@@ -261,6 +261,67 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
 
   await page.unroute('**/plaid/items/*');
 
+  // --- The recovery ladder: Troubleshooting, then Danger Zone ---------------
+  // The point of the capture is the hierarchy — Rebuild sits above a divider
+  // from Reset, and the two are described by what each one keeps.
+  await openConnections(1440, 900);
+  const rebuild = page.getByRole('button', { name: 'Rebuild bank history' });
+  await expect(rebuild).toBeVisible({ timeout: 10_000 });
+  await rebuild.scrollIntoViewIfNeeded();
+  await expect(page.getByRole('group', { name: /danger zone/i })).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-15-desktop-1440-recovery-ladder.png', fullPage: false });
+
+  // The rebuild confirmation must read as safe, not as a second Reset.
+  await rebuild.click();
+  // Scoped to the dialog's own title: the section copy above says much the
+  // same thing, deliberately, so a bare text match hits both.
+  await expect(page.getByText('Rebuild bank history?', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-16-desktop-1440-rebuild-confirm.png', fullPage: false });
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  // --- A Reset that stopped, and deleted nothing ----------------------------
+  await page.route('**/plaid/reset', route =>
+    route.fulfill({
+      status: 502,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        detail: 'Reset could not continue because PNC could not be disconnected. '
+          + 'Nothing in your imported transaction history was deleted — try again.',
+      }),
+    }));
+
+  await page.getByRole('button', { name: 'Reset & Start Fresh' }).click();
+  await expect(page.getByText('Reset & Start Fresh?', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-17-desktop-1440-reset-confirm.png', fullPage: false });
+
+  await page.getByRole('button', { name: 'Confirm' }).click();
+  const resetAlert = page.getByRole('alert').filter({ hasText: /could not continue/i });
+  await expect(resetAlert).toBeVisible({ timeout: 10_000 });
+  // The failure stays on screen with a retry, and the banks are still listed.
+  await expect(page.getByRole('button', { name: /try again/i })).toBeVisible();
+  await expect(page.getByText('Capital One').first()).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-18-desktop-1440-reset-stopped.png', fullPage: false });
+
+  // The same ladder on a phone, where it has to stack.
+  await openConnections(390, 844);
+  await expect(page.getByRole('button', { name: 'Rebuild bank history' })).toBeVisible({ timeout: 10_000 });
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__screenshots__/connections-19-phone-390-recovery-ladder.png', fullPage: false });
+
+  // The last control must clear the dock, asserted rather than eyeballed.
+  const resetBottom = await page.getByRole('button', { name: 'Reset & Start Fresh' }).boundingBox();
+  const dockBottom = await page.locator('.mobile-dock-shell').first().boundingBox();
+  if (resetBottom && dockBottom) {
+    expect(resetBottom.y + resetBottom.height).toBeLessThanOrEqual(dockBottom.y + 1);
+  }
+
+  await page.unroute('**/plaid/reset');
+
   // --- Narrowest supported width --------------------------------------------
   await page.unroute('**/plaid/sync-health');
   await page.route('**/plaid/sync-health', route =>
@@ -271,4 +332,3 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
   );
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: 'e2e/__screenshots__/connections-06-phone-320-health.png', fullPage: true });
-});

@@ -134,30 +134,44 @@ export function totalsFor(rows: PlaidSyncStatusRow[]): SyncTotals {
 }
 
 /**
+ * Which operation is being reported. The evidence and the arithmetic are
+ * identical — a rebuild is a sync from a cleared cursor — so only the wording
+ * differs, and it differs in one place rather than in a forked state machine.
+ */
+export type SyncKind = 'sync' | 'rebuild';
+
+/**
  * The one-line result.
  *
  * "no new posted transactions" rather than "nothing new": a pending card
  * purchase is legitimately absent from an up-to-date sync, and the wording
  * should not imply that everything visible in the banking app is now here.
+ *
+ * A rebuild finding nothing is the *expected* result, not a disappointment —
+ * it means every transaction your banks still hold is already here — so it
+ * gets its own sentence rather than borrowing the sync one.
  */
-export function summarise(outcome: SyncOutcome): string {
+export function summarise(outcome: SyncOutcome, kind: SyncKind = 'sync'): string {
   const totals = totalsFor(outcome.advanced);
+  const noun = kind === 'rebuild' ? 'Rebuild' : 'Sync';
 
   if (outcome.failed.length > 0) {
     const names = outcome.failed
       .map(row => row.institution_name || 'a bank')
       .join(', ');
-    return `Sync finished with an issue on ${names}.`;
+    return `${noun} finished with an issue on ${names}.`;
   }
 
   if (totals.added === 0 && totals.modified === 0) {
-    return 'Sync complete · no new posted transactions';
+    return kind === 'rebuild'
+      ? 'Rebuild complete · nothing was missing'
+      : 'Sync complete · no new posted transactions';
   }
 
   const parts: string[] = [];
   if (totals.added > 0) parts.push(`${totals.added} new`);
   if (totals.modified > 0) parts.push(`${totals.modified} updated`);
-  return `Sync complete · ${parts.join(' · ')}`;
+  return `${noun} complete · ${parts.join(' · ')}`;
 }
 
 /** Per-institution detail, for the connections that actually reported. */

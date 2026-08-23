@@ -77,6 +77,7 @@ const mockApi = {
   plaidRemoveItemLocally: jest.fn(),
   plaidSyncAll: jest.fn(),
   plaidReset: jest.fn(),
+  plaidRebuildHistory: jest.fn(),
   plaidSyncHealth: jest.fn(),
   plaidSyncStatus: jest.fn(),
 };
@@ -206,6 +207,7 @@ beforeEach(() => {
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });
   mockApi.plaidReset.mockResolvedValue({ data: { message: 'cleared' } });
+  mockApi.plaidRebuildHistory.mockResolvedValue({ data: { message: 'queued' } });
   mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [healthRow()] } });
   mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow()] } });
   mockApi.plaidCreateLinkToken.mockResolvedValue({ data: { link_token: 'tok-connect' } });
@@ -2030,5 +2032,336 @@ describe('Settings reconnect', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/sign in again/i);
     // The code may live in Details, but never in the primary message.
     expect(screen.getByRole('alert')).not.toHaveTextContent(/ITEM_LOGIN_REQUIRED/);
+  });
+});
+
+// --- Rebuild & Danger Zone (6C-6) --------------------------------------------
+// Rebuild is the safe rung of the recovery ladder and Reset is the last one.
+// Most of what these tests protect is the difference between them: what each
+// keeps, how each reports completion, and the fact that a Reset which stopped
+// early deleted nothing at all.
+
+describe('Settings rebuild bank history', () => {
+  const BASE = '2026-08-20T18:00:00Z';
+  const LATER = '2026-08-20T18:09:00Z';
+
+  const openConnections = () => openSettings('Connections');
+
+  const flush = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  const pressRebuild = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: /rebuild bank history/i }));
+    await flush();
+  };
+
+  const tick = async () => {
+    await act(async () => { jest.advanceTimersByTime(4_000); });
+    await flush();
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  it('is offered when there are banks to rebuild from', async () => {
+    await openConnections();
+    expect(await screen.findByRole('button', { name: 'Rebuild bank history' })).toBeEnabled();
+  });
+
+  it('is absent when no bank is connected', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [] });
+    await openConnections();
+    await screen.findByText('No banks connected yet');
+    expect(screen.queryByRole('button', { name: /rebuild bank history/i })).not.toBeInTheDocument();
+  });
+
+  it('explains what it keeps before asking', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    const [message] = mockConfirm.mock.calls[0];
+    expect(message).toMatch(/matched rather than duplicated/i);
+    expect(message).toMatch(/categories you filed are kept/i);
+    expect(message).toMatch(/nothing is deleted/i);
+    // It is not the destructive one, so it must not borrow its language.
+    expect(message).not.toMatch(/cannot be undone/i);
+  });
+
+  it('does not rebuild when the confirm is declined', async () => {
+    mockConfirm.mockResolvedValue(false);
+    await openConnections();
+    await pressRebuild();
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    expect(mockApi.plaidRebuildHistory).not.toHaveBeenCalled();
+  });
+
+  it('requests the rebuild once confirmed', async () => {
+    await openConnections();
+    await pressRebuild();
+    await waitFor(() => expect(mockApi.plaidRebuildHistory).toHaveBeenCalled());
+    expect(mockApi.plaidReset).not.toHaveBeenCalled();
+  });
+
+  it('takes a baseline before requesting, like every other long job', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    await waitFor(() => expect(mockApi.plaidRebuildHistory).toHaveBeenCalled());
+    expect(mockApi.plaidSyncStatus.mock.invocationCallOrder[0])
+      .toBeLessThan(mockApi.plaidRebuildHistory.mock.invocationCallOrder[0]);
+  });
+
+  it('does not claim completion just because the POST returned', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    await waitFor(() => expect(mockApi.plaidRebuildHistory).toHaveBeenCalled());
+    expect(screen.queryByText(/rebuild complete/i)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /rebuilding/i })).toBeDisabled();
+  });
+
+  it('never polls sync-health to detect completion', async () => {
+    await openConnections();
+    const before = mockApi.plaidSyncHealth.mock.calls.length;
+    await pressRebuild();
+    await tick();
+    await tick();
+
+    expect(mockApi.plaidSyncHealth.mock.calls.length).toBe(before);
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('reports what the rebuild actually imported', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 2 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText('Rebuild complete · 2 new')).toBeInTheDocument();
+  });
+
+  it('treats finding nothing as the expected result, not a disappointment', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 0 })] },
+    });
+    await tick();
+
+    expect(await screen.findByText(/rebuild complete · nothing was missing/i)).toBeInTheDocument();
+  });
+
+  it('waits longer than a sync before giving up, and still does not call it a failure', async () => {
+    await openConnections();
+    await pressRebuild();
+
+    // Past a sync's 36s deadline: a rebuild is still legitimately running.
+    await act(async () => { jest.advanceTimersByTime(40_000); });
+    await flush();
+    expect(screen.queryByText(/taking longer than expected/i)).not.toBeInTheDocument();
+
+    await act(async () => { jest.advanceTimersByTime(150_000); });
+    await flush();
+    const message = await screen.findByText(/taking longer than expected/i);
+    expect(message).toHaveTextContent(/still be sending history/i);
+    expect(message).not.toHaveTextContent(/failed/i);
+  });
+
+  it('reports a refused request as a request failure, not a failed rebuild', async () => {
+    mockApi.plaidRebuildHistory.mockRejectedValue(new Error('offline'));
+    await openConnections();
+    await pressRebuild();
+
+    expect(await screen.findByText(/could not start the rebuild/i)).toBeInTheDocument();
+  });
+
+  it('keeps Sync all now working alongside it', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /sync all now/i }));
+    await flush();
+    await waitFor(() => expect(mockApi.plaidSyncAll).toHaveBeenCalled());
+    expect(mockApi.plaidRebuildHistory).not.toHaveBeenCalled();
+  });
+});
+
+describe('Settings danger zone', () => {
+  const openConnections = () => openSettings('Connections');
+  const RESET_FAILURE = {
+    response: { data: { detail: 'Reset could not continue because PNC could not be disconnected. Nothing in your imported transaction history was deleted — try again.' } },
+  };
+
+  const dangerZone = () => screen.getByRole('group', { name: /danger zone/i });
+  const pressReset = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: /^reset & start fresh$/i }));
+  };
+
+  it('separates Reset from the everyday actions', async () => {
+    await openConnections();
+    const zone = dangerZone();
+    expect(within(zone).getByRole('button', { name: /reset & start fresh/i })).toBeInTheDocument();
+    // The safe rungs live outside it.
+    expect(within(zone).queryByRole('button', { name: /sync all now/i })).not.toBeInTheDocument();
+    expect(within(zone).queryByRole('button', { name: /connect bank/i })).not.toBeInTheDocument();
+    expect(within(zone).queryByRole('button', { name: /rebuild bank history/i })).not.toBeInTheDocument();
+  });
+
+  it('says in text what it destroys, not only in colour', async () => {
+    await openConnections();
+    const zone = dangerZone();
+    expect(zone).toHaveTextContent(/deletes every transaction imported from your banks/i);
+    expect(zone).toHaveTextContent(/does not keep your imported history/i);
+    expect(zone).toHaveTextContent(/added yourself are not affected/i);
+  });
+
+  it('is absent when there is nothing to reset', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [] });
+    await openConnections();
+    await screen.findByText('No banks connected yet');
+    expect(screen.queryByRole('button', { name: /reset & start fresh/i })).not.toBeInTheDocument();
+    // Connect Bank is the one thing that still makes sense.
+    expect(screen.getByRole('button', { name: /connect bank/i })).toBeInTheDocument();
+  });
+
+  it('keeps the whole truth in the confirmation, and points at the safe option', async () => {
+    await openConnections();
+    await pressReset();
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    const [message, options] = mockConfirm.mock.calls[0];
+    expect(message).toMatch(/deletes every transaction imported from your banks/i);
+    expect(message).toMatch(/disconnects all connected banks/i);
+    expect(message).toMatch(/loses the categories you filed/i);
+    expect(message).toMatch(/added yourself are not affected/i);
+    expect(message).toMatch(/cannot be undone/i);
+    expect(message).toMatch(/rebuild your bank history instead/i);
+    expect(options).toMatchObject({ danger: true });
+  });
+
+  it('does not reset when the confirm is declined', async () => {
+    mockConfirm.mockResolvedValue(false);
+    await openConnections();
+    await pressReset();
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    expect(mockApi.plaidReset).not.toHaveBeenCalled();
+  });
+
+  it('clears the connections on success', async () => {
+    await openConnections();
+    await pressReset();
+
+    await waitFor(() => expect(mockApi.plaidReset).toHaveBeenCalled());
+    expect(await screen.findByText('No banks connected yet')).toBeInTheDocument();
+    expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it('keeps the failure on screen instead of a toast that disappears', async () => {
+    mockApi.plaidReset.mockRejectedValue(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/PNC could not be disconnected/i);
+  });
+
+  it('repeats the server\'s claim that nothing was deleted', async () => {
+    mockApi.plaidReset.mockRejectedValue(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/nothing in your imported transaction history was deleted/i);
+    // And the banks are still listed, because they still exist.
+    expect(screen.getByText('Capital One')).toBeInTheDocument();
+    expect(screen.queryByText('No banks connected yet')).not.toBeInTheDocument();
+  });
+
+  it('never claims success when the reset stopped', async () => {
+    mockApi.plaidReset.mockRejectedValue(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+
+    await screen.findByRole('alert');
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('points at the per-bank escape hatch rather than a global bypass', async () => {
+    mockApi.plaidReset.mockRejectedValue(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/remove from fintrack anyway/i);
+    // There is no one-click "reset anyway".
+    expect(screen.queryByRole('button', { name: /reset anyway/i })).not.toBeInTheDocument();
+  });
+
+  it('can be retried, and succeeds once the bank is dealt with', async () => {
+    mockApi.plaidReset.mockRejectedValueOnce(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+    await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(mockApi.plaidReset).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('No banks connected yet')).toBeInTheDocument();
+  });
+
+  it('lets the failure be dismissed without resetting anything', async () => {
+    mockApi.plaidReset.mockRejectedValue(RESET_FAILURE);
+    await openConnections();
+    await pressReset();
+    await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(mockApi.plaidReset).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the app confirm, not a blocking browser dialog', async () => {
+    const nativeConfirm = jest.spyOn(window, 'confirm');
+    await openConnections();
+    await pressReset();
+
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled());
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    nativeConfirm.mockRestore();
+  });
+
+  it('stacks the recovery ladder cleanly on a phone', async () => {
+    // The mobile rows carry a summary in their label ("Connections · 1
+    // connected bank"), so the exact-name helper cannot open them.
+    await openSettings(undefined, 'mobile');
+    const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+    fireEvent.click(within(nav).getByRole('button', { name: /^Connections/ }));
+
+    expect(await screen.findByRole('button', { name: /rebuild bank history/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reset & start fresh/i })).toBeInTheDocument();
+    // Every action is a real button with a touch-sized target.
+    [/sync all now/i, /rebuild bank history/i, /reset & start fresh/i].forEach(name => {
+      const button = screen.getByRole('button', { name });
+      expect(button.tagName).toBe('BUTTON');
+      expect(button.className).toMatch(/min-h-\[44px\]/);
+    });
   });
 });

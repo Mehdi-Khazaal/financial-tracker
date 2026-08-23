@@ -5,11 +5,16 @@ all. These tests deliberately pin **current** behaviour rather than desired
 behaviour, so that Phase 6C can change it against a baseline that says out loud
 what it used to do.
 
-Two of them document defects rather than guarantees. They are named so, and
-they must be *inverted* rather than deleted when the defect is fixed:
+Two of them documented defects rather than guarantees. 6C-6 fixed one and
+inverted its test in place:
 
-  * `test_account_balances_are_left_stale_CURRENT_BEHAVIOUR`
   * `test_a_failed_remote_removal_still_drops_the_local_row_CURRENT_BEHAVIOUR`
+    became `test_a_failed_remote_removal_stops_the_whole_reset`.
+
+The other is still pinned, deliberately:
+
+  * `test_account_balances_are_left_stale_CURRENT_BEHAVIOUR` — see its
+    docstring for why the arithmetic to fix it does not exist yet.
 
 Do not "fix" a failure here by loosening the assertion. If one of these starts
 failing, the endpoint's behaviour changed, and that is the finding.
@@ -222,15 +227,30 @@ def test_account_rows_are_not_deleted(
 def test_account_balances_are_left_stale_CURRENT_BEHAVIOUR(
     client, auth_headers, db_session, user, account, item, stub_plaid
 ):
-    """DEFECT, pinned: reset deletes transactions without correcting balances.
+    """DEFECT, still pinned after the 6C-6 balance audit. Do not delete it.
 
-    `reset_plaid_data` deletes rows with a raw `db.delete(tx)`, bypassing
-    `LedgerService._adjust_balance`, and every Item is removed in the same call
-    — so nothing re-reads balances from Plaid afterwards. Between reset and
-    reconnect the Accounts page, net worth and the dashboard hero all show a
-    balance that still includes the deleted transactions.
+    Reset deletes imported rows in bulk, bypassing `LedgerService`, and removes
+    every Item in the same call, so nothing re-reads balances from Plaid
+    afterwards.
 
-    Invert this test when the endpoint is fixed in 6C. Do not delete it.
+    6C-6 audited whether a correct post-reset balance can be *derived* from
+    stored data, and it cannot:
+
+    * `Account.balance` is an absolute figure, not a running total of rows we
+      hold. `_sync_item` **overwrites** it from `/accounts/get`; manual entries
+      adjust it by delta via `LedgerService._adjust_balance`. Both authorities
+      write the same column.
+    * The imported window is `PLAID_DAYS_REQUESTED`, not the account's whole
+      life, so summing the surviving transactions is not the balance and never
+      was.
+    * `Account` has no opening-balance or baseline column, and
+      `account_balance_snapshots` cannot stand in for one: every snapshot is
+      recomputed as `current balance − sum(later transactions)`, so it inherits
+      the same anchor rather than recording an independent past value.
+
+    Zeroing it, summing the remainder, or deleting the account would each
+    invent a number or destroy manual data. Inverting this test requires an
+    `opening_balance` + `baseline_date` on `accounts`, not a change here.
     """
     starting_balance = Decimal(str(account.balance))
     _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
@@ -245,15 +265,20 @@ def test_account_balances_are_left_stale_CURRENT_BEHAVIOUR(
     )
 
 
-def test_a_failed_remote_removal_still_drops_the_local_row_CURRENT_BEHAVIOUR(
-    client, auth_headers, db_session, user, item, monkeypatch
+def test_a_failed_remote_removal_stops_the_whole_reset(
+    client, auth_headers, db_session, user, account, item, monkeypatch
 ):
-    """DEFECT, pinned: a Plaid `/item/remove` failure is swallowed.
+    """INVERTED in 6C-6. Was `..._still_drops_the_local_row_CURRENT_BEHAVIOUR`.
 
-    The local row is deleted regardless, so an Item that Plaid still considers
-    live becomes invisible to Fintrack — it can keep sending webhooks and may
-    keep billing, with nothing left to reconcile it against.
+    The failure used to be swallowed: the local row went regardless, so an Item
+    Plaid still considered live became invisible to Fintrack — able to keep
+    sending webhooks and billing, with nothing left to reconcile it against.
+
+    Now the remote phase runs first and gates everything, so a failure leaves
+    the user exactly where they started.
     """
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
+
     def failing_post(path, body):
         raise RuntimeError("plaid unreachable")
 
@@ -261,8 +286,13 @@ def test_a_failed_remote_removal_still_drops_the_local_row_CURRENT_BEHAVIOUR(
 
     response = client.post("/plaid/reset", headers=auth_headers)
 
-    assert response.status_code == 200, "The failure is swallowed, not surfaced"
-    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 0
+    assert response.status_code == 502
+    assert "nothing" in response.json()["detail"].lower()
+
+    db_session.expire_all()
+    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 1
+    # And — the claim the message makes — the history really is still there.
+    assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-imported-1").one_or_none() is not None
 
 
 def test_categorization_work_on_imported_rows_is_lost_CURRENT_BEHAVIOUR(
@@ -282,3 +312,180 @@ def test_categorization_work_on_imported_rows_is_lost_CURRENT_BEHAVIOUR(
     assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-filed").one_or_none() is None
     # The category itself survives; only the filing evidence is destroyed.
     assert db_session.query(Category).filter_by(id=category.id).one_or_none() is not None
+
+# --- The two-phase design (6C-6) ---------------------------------------------
+# A remote API cannot be rolled back, so partial failure is handled by never
+# starting the destructive half. Everything below exists to keep that ordering
+# honest: the message promises nothing was deleted, and these prove it.
+
+
+@pytest.fixture
+def second_item(db_session, user):
+    row = PlaidItem(
+        user_id=user.id,
+        access_token=encrypt_secret("access-token-2"),
+        item_id="item-reset-2",
+        institution_name="PNC",
+        cursor="cursor-def",
+    )
+    db_session.add(row)
+    db_session.commit()
+    db_session.refresh(row)
+    return row
+
+
+def test_the_remote_removal_happens_before_anything_is_deleted(
+    client, auth_headers, db_session, user, account, item, stub_plaid, monkeypatch
+):
+    """Ordering, observed from inside the request's own session.
+
+    It has to be that session: a staged delete is invisible to every other
+    connection until it commits, so asking the test's session would pass
+    whatever the endpoint did. `_item_access_token` is the hook, because it is
+    handed the request session immediately before the remote call.
+
+    The explicit `flush()` matters as much as the session does. The test
+    sessions are built with `autoflush=False`, so a pending delete would not
+    reach the database before the count and the assertion would hold even for a
+    delete-first implementation. Flushing forces any staged deletion to show.
+    """
+    seen = {}
+    real_token = plaid_router._item_access_token
+
+    def observing_token(db, item):
+        db.flush()
+        seen["history_at_remote_call"] = (
+            db.query(Transaction)
+            .filter(Transaction.plaid_tx_id == "tx-imported-1")
+            .count()
+        )
+        return real_token(db, item)
+
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
+    monkeypatch.setattr(plaid_router, "_item_access_token", observing_token)
+
+    assert client.post("/plaid/reset", headers=auth_headers).status_code == 200
+    assert seen["history_at_remote_call"] == 1, "history was deleted before Plaid was asked"
+
+
+def test_one_failing_bank_of_two_stops_everything(
+    client, auth_headers, db_session, user, account, item, second_item, monkeypatch
+):
+    """Capital One succeeds, PNC fails. Nothing local may be touched."""
+    def post(path, body):
+        # The second Item's token is the one that fails.
+        from utils.secret_box import decrypt_secret
+        if decrypt_secret(second_item.access_token) == body.get("access_token"):
+            raise RuntimeError("plaid unreachable")
+        return {}
+
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
+    monkeypatch.setattr(plaid_router, "_plaid_post", post)
+
+    response = client.post("/plaid/reset", headers=auth_headers)
+
+    assert response.status_code == 502
+    # Named, so the user knows which connection to deal with.
+    assert "PNC" in response.json()["detail"]
+
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-imported-1").one_or_none() is not None
+    # Both rows survive — including the one already removed at Plaid, which is
+    # what lets the retry resolve it via ITEM_NOT_FOUND.
+    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 2
+
+
+def test_a_retry_after_a_partial_failure_completes(
+    client, auth_headers, db_session, user, account, item, second_item, monkeypatch
+):
+    """The recovery the design depends on, run end to end."""
+    from utils.secret_box import decrypt_secret
+
+    state = {"pnc_reachable": False, "capital_one_removed": False}
+
+    def post(path, body):
+        token = body.get("access_token")
+        if decrypt_secret(second_item.access_token) == token:
+            if not state["pnc_reachable"]:
+                raise RuntimeError("plaid unreachable")
+            return {}
+        # Capital One: gone after the first attempt, so the retry sees the
+        # terminal error rather than a second successful removal.
+        if state["capital_one_removed"]:
+            raise plaid_router.PlaidItemNotFound()
+        state["capital_one_removed"] = True
+        return {}
+
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
+    monkeypatch.setattr(plaid_router, "_plaid_post", post)
+
+    assert client.post("/plaid/reset", headers=auth_headers).status_code == 502
+
+    state["pnc_reachable"] = True
+    assert client.post("/plaid/reset", headers=auth_headers).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 0
+    assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-imported-1").one_or_none() is None
+
+
+def test_an_already_removed_item_does_not_block_a_reset(
+    client, auth_headers, db_session, user, item, monkeypatch
+):
+    """ITEM_NOT_FOUND is terminal proof, not a failure."""
+    def already_gone(path, body):
+        raise plaid_router.PlaidItemNotFound()
+
+    monkeypatch.setattr(plaid_router, "_plaid_post", already_gone)
+
+    assert client.post("/plaid/reset", headers=auth_headers).status_code == 200
+    db_session.expire_all()
+    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 0
+
+
+def test_a_local_failure_rolls_the_whole_reset_back(
+    client, auth_headers, db_session, user, account, item, stub_plaid, monkeypatch
+):
+    """History and connections fall together, or not at all."""
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-imported-1")
+
+    def boom(self):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(plaid_router.Session, "commit", boom)
+
+    response = client.post("/plaid/reset", headers=auth_headers)
+    assert response.status_code == 500
+    assert "could not finish" in response.json()["detail"].lower()
+
+    monkeypatch.undo()
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-imported-1").one_or_none() is not None
+    assert db_session.query(PlaidItem).filter_by(user_id=user.id).count() == 1
+
+
+def test_a_failed_reset_leaks_nothing(
+    client, auth_headers, db_session, user, item, monkeypatch
+):
+    def failing_post(path, body):
+        raise RuntimeError("plaid unreachable")
+
+    monkeypatch.setattr(plaid_router, "_plaid_post", failing_post)
+
+    body = client.post("/plaid/reset", headers=auth_headers).text
+    assert "access-token" not in body
+    assert "cursor-abc" not in body
+    assert "item-reset-1" not in body
+
+
+def test_a_reset_with_no_banks_still_clears_imported_history(
+    client, auth_headers, db_session, user, account, stub_plaid
+):
+    """A leftover import with no Item behind it is still Plaid data."""
+    _tx(db_session, user.id, account.id, -50, plaid_tx_id="tx-orphaned")
+
+    assert client.post("/plaid/reset", headers=auth_headers).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.query(Transaction).filter_by(plaid_tx_id="tx-orphaned").one_or_none() is None
+    assert stub_plaid == []

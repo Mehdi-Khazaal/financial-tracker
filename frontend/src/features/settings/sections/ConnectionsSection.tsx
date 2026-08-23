@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import type { UsePlaidConnections } from '../hooks/usePlaidConnections';
 import { useConnectionHealth } from '../hooks/useConnectionHealth';
-import { useManualSync } from '../hooks/useManualSync';
+import { useManualSync, type UseManualSync } from '../hooks/useManualSync';
 import ConnectionCard from '../components/ConnectionCard';
 import { isRepairable } from '../calculations/connectionHealth';
+import { REBUILD_CONFIRMATION } from '../hooks/usePlaidConnections';
+import { useToast } from '../../../context/ToastContext';
 import {
   EmptyBlock,
   LoadingBlock,
@@ -38,7 +40,13 @@ import {
  * not happen. Only a card whose Disconnect has actually failed is then offered
  * the local-only escape hatch — see `usePlaidConnections`.
  *
- * Reset is unchanged; a later stage owns it.
+ * The actions are laid out as a recovery ladder, least destructive first, and
+ * deliberately not visually equal: automatic sync, then Sync all now, then
+ * Reconnect on the card that needs it, then Rebuild bank history under
+ * Troubleshooting, then Disconnect, and only then Reset in a Danger Zone of
+ * its own. Someone should almost never reach the bottom rung, and the two
+ * rungs people confuse — Rebuild and Reset — are separated by a divider and
+ * described in terms of what each one keeps.
  */
 
 interface Props {
@@ -55,13 +63,90 @@ const BUTTON_LABEL: Record<string, string> = {
   request_failed: 'Sync all now',
 };
 
+/**
+ * The outcome line for a long-running operation, shared by Sync and Rebuild.
+ *
+ * Announced politely so a screen reader hears the result without the whole
+ * section being re-read. Timing out is reported as still-running rather than
+ * failed: `record_sync_health` swallows its own write errors, so a real sync
+ * can finish without the timestamp ever moving.
+ */
+const ProgressBanner: React.FC<{ state: UseManualSync; onCheckStatus: () => void }> = ({
+  state, onCheckStatus,
+}) => {
+  if (!state.message) return null;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="card p-3 mb-3 mt-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div className="min-w-0">
+        <p
+          className="text-xs font-medium"
+          style={{
+            color: state.phase === 'request_failed' || state.phase === 'partial_failure'
+              ? 'var(--neg)'
+              : state.phase === 'timed_out' ? 'var(--muted)' : 'var(--pos)',
+          }}
+        >
+          {state.message}
+        </p>
+        {state.perItem.length > 1 && (
+          <ul className="mt-1 space-y-0.5">
+            {state.perItem.map(entry => (
+              <li key={entry.name} className="text-[11px]" style={{ color: 'var(--dim)' }}>
+                {entry.name} · {entry.detail}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex gap-2 shrink-0">
+        {state.phase === 'timed_out' && (
+          <button
+            type="button"
+            onClick={onCheckStatus}
+            className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg"
+            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+          >
+            Check status
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={state.dismiss}
+          className="min-h-[44px] px-2 py-1.5 text-xs font-semibold rounded-lg"
+          style={{ color: 'var(--dim)' }}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const ConnectionsSection: React.FC<Props> = ({ connections }) => {
+  const toast = useToast();
   const health = useConnectionHealth();
   // Health is refreshed exactly once, when the sync actually settles — not on
   // a timer, and never as part of the poll: `/plaid/sync-health` costs a live
   // Plaid call per Item.
   const sync = useManualSync(health.reload);
+  // The same machine, told which operation it is running. A rebuild records
+  // its runs as manual syncs, so `/plaid/sync-status` reports one exactly as
+  // it reports a sync; a second polling implementation would only be a second
+  // place to mistake a queued request for a finished job.
+  const rebuild = useManualSync(health.reload, { kind: 'rebuild' });
   const hasItems = connections.items.length > 0;
+
+  const startRebuild = async () => {
+    const confirmed = await toast.confirm(REBUILD_CONFIRMATION, {
+      title: 'Rebuild bank history?',
+    });
+    if (!confirmed) return;
+    await rebuild.start();
+  };
 
   // After a successful repair, re-read health and run an ordinary sync — the
   // same honest one Sync Now uses, rather than a second "repair sync" with its
@@ -120,60 +205,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         </button>
       </div>
 
-      {/* One line, announced politely so a screen reader hears the outcome
-          without the whole section being re-read. Timing out is reported as
-          still-running rather than failed: `record_sync_health` swallows its
-          own write errors, so a real sync can finish without the timestamp
-          ever moving. */}
-      {sync.message && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="card p-3 mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
-        >
-          <div className="min-w-0">
-            <p
-              className="text-xs font-medium"
-              style={{
-                color: sync.phase === 'request_failed' || sync.phase === 'partial_failure'
-                  ? 'var(--neg)'
-                  : sync.phase === 'timed_out' ? 'var(--muted)' : 'var(--pos)',
-              }}
-            >
-              {sync.message}
-            </p>
-            {sync.perItem.length > 1 && (
-              <ul className="mt-1 space-y-0.5">
-                {sync.perItem.map(entry => (
-                  <li key={entry.name} className="text-[11px]" style={{ color: 'var(--dim)' }}>
-                    {entry.name} · {entry.detail}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="flex gap-2 shrink-0">
-            {sync.phase === 'timed_out' && (
-              <button
-                type="button"
-                onClick={health.reload}
-                className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg"
-                style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
-              >
-                Check status
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={sync.dismiss}
-              className="min-h-[44px] px-2 py-1.5 text-xs font-semibold rounded-lg"
-              style={{ color: 'var(--dim)' }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      <ProgressBanner state={sync} onCheckStatus={health.reload} />
 
       {/* Sets the expectation that syncing is automatic, and heads off the two
           questions this section otherwise generates: "do I have to press this
@@ -253,22 +285,96 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         </>
       )}
 
-      {/* Kept in place and unchanged; 6C owns its semantics later. Separated
-          and labelled so it no longer sits in the same row as Sync Now. */}
-      <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
-        <p className="label mb-2">Troubleshooting</p>
-        <p className="text-xs text-muted mb-3 max-w-prose">
-          Start over if syncing is broken beyond repair. This is irreversible.
-        </p>
-        <button
-          onClick={() => { void connections.reset(); }}
-          disabled={connections.resetting}
-          className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-          style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
+      {/* Troubleshooting: the safe half of recovery. Shown only when there is
+          a connection to act on — offering to rebuild history from no banks
+          is a button that can only disappoint. */}
+      {hasItems && (
+        <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
+          <p className="label mb-2">Troubleshooting</p>
+          <p className="text-xs text-muted mb-3 max-w-prose">
+            If transactions are missing or look out of date, rebuild your history first.
+            Fintrack asks your banks for their transaction history again; anything you
+            already have is matched rather than duplicated, the categories you filed are
+            kept, and nothing is deleted.
+          </p>
+          <button
+            onClick={() => { void startRebuild(); }}
+            disabled={rebuild.busy}
+            aria-busy={rebuild.busy}
+            className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+            style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+          >
+            {rebuild.busy ? 'Rebuilding…' : 'Rebuild bank history'}
+          </button>
+
+          <ProgressBanner state={rebuild} onCheckStatus={health.reload} />
+        </div>
+      )}
+
+      {/* Danger Zone: restrained, but genuinely separated. The distinction
+          from Rebuild above is stated in terms of what each one keeps, which
+          is the only difference a person actually needs. */}
+      {hasItems && (
+        <div
+          className="mt-6 pt-4"
+          style={{ borderTop: '1px solid oklch(70% 0.17 25 / 0.25)' }}
+          role="group"
+          aria-labelledby="settings-danger-zone"
         >
-          {connections.resetting ? 'Clearing…' : 'Reset & Start Fresh'}
-        </button>
-      </div>
+          <p className="label mb-2" id="settings-danger-zone" style={{ color: 'var(--neg)' }}>
+            Danger Zone
+          </p>
+          <p className="text-xs text-muted mb-3 max-w-prose">
+            Reset deletes every transaction imported from your banks and disconnects them
+            all. Unlike rebuilding, it does not keep your imported history or the
+            categories you filed against it. Transactions you added yourself are not
+            affected.
+          </p>
+
+          {/* Not a toast. A stopped Reset deleted nothing, and that sentence
+              has to still be there when the user looks back at the screen. */}
+          {connections.resetPhase === 'failed' && connections.resetError && (
+            <div className="card p-3 mb-3" role="alert">
+              <p className="text-xs font-medium" style={{ color: 'var(--neg)' }}>
+                {connections.resetError}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>
+                If a bank cannot be disconnected at all, use Remove from Fintrack anyway on
+                that connection above, then try again.
+              </p>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => { void connections.reset(); }}
+                  disabled={connections.resetting}
+                  className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg"
+                  style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}
+                >
+                  Try again
+                </button>
+                <button
+                  type="button"
+                  onClick={connections.dismissReset}
+                  className="min-h-[44px] px-2 py-1.5 text-xs font-semibold rounded-lg"
+                  style={{ color: 'var(--dim)' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => { void connections.reset(); }}
+            disabled={connections.resetting}
+            aria-busy={connections.resetting}
+            className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+            style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
+          >
+            {connections.resetting ? 'Clearing…' : 'Reset & Start Fresh'}
+          </button>
+        </div>
+      )}
     </section>
   );
 };

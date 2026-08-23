@@ -24,14 +24,29 @@ import type { AsyncCollection, LoadStatus, PlaidItemSummary } from '../types';
  *
  * The wording before Phase 6.0 promised only that manual transactions were
  * safe, which is true but incomplete: it also destroys every category the user
- * filed against an imported transaction, and it cannot be undone. The endpoint
- * is unchanged — `backend/tests/test_plaid_reset.py` pins what it does today,
- * and 6C owns fixing it — so the copy has to carry the whole truth on its own.
+ * filed against an imported transaction, and it cannot be undone.
+ *
+ * 6C-6 changed how Reset *fails*, not what it destroys, so every claim here
+ * still holds — `backend/tests/test_plaid_reset.py` pins each one. The added
+ * line points at Rebuild, because most people arriving at this button want
+ * that instead and cannot be expected to know the difference.
  */
 export const RESET_CONFIRMATION =
   'This deletes every transaction imported from your banks, disconnects all connected banks, '
   + 'and loses the categories you filed against those transactions. Transactions you added '
-  + 'yourself are not affected. This cannot be undone.';
+  + 'yourself are not affected. This cannot be undone. If you are trying to fix missing or '
+  + 'out-of-date transactions, rebuild your bank history instead — it keeps everything.';
+
+/**
+ * Rebuilding is the safe one, and the copy may only say so because the backend
+ * proves it: re-offered rows are matched on `plaid_tx_id` and skipped by
+ * `ON CONFLICT DO NOTHING`, so nothing is duplicated and no existing row —
+ * including its category — is touched. See `backend/tests/test_plaid_rebuild.py`.
+ */
+export const REBUILD_CONFIRMATION =
+  'Fintrack will ask your connected banks for their transaction history again. Transactions '
+  + 'you already have are matched rather than duplicated, and the categories you filed are '
+  + 'kept. Nothing is deleted. This can take a few minutes.';
 
 /**
  * What an ordinary Disconnect keeps, in the user's terms.
@@ -60,8 +75,21 @@ export const forceRemoveConfirmation = (name: string) =>
   + 'so revoke it with your bank or at my.plaid.com as well. Your imported transactions are '
   + 'kept. This cannot be undone from Fintrack.';
 
+/**
+ * Reset's states, kept explicit rather than inferred from a boolean.
+ *
+ * `failed` is the one that earns its place: a Reset stopped by a bank that
+ * could not be disconnected has deleted **nothing**, and that has to be
+ * sayable — and retryable — rather than collapsing into a toast that vanishes.
+ */
+export type ResetPhase = 'idle' | 'working' | 'failed' | 'completed';
+
 export interface UsePlaidConnections extends AsyncCollection<PlaidItemSummary> {
   resetting: boolean;
+  resetPhase: ResetPhase;
+  /** The server's sentence when Reset stopped, naming the bank that blocked it. */
+  resetError: string | null;
+  dismissReset: () => void;
   disconnectingId: number | null;
   /**
    * Connections whose Disconnect failed against Plaid, and which therefore
@@ -101,6 +129,8 @@ export function usePlaidConnections(): UsePlaidConnections {
   // connected banks" — the one answer a user must not be given wrongly.
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [resetting, setResetting] = useState(false);
+  const [resetPhase, setResetPhase] = useState<ResetPhase>('idle');
+  const [resetError, setResetError] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
   const [unremovableIds, setUnremovableIds] = useState<number[]>([]);
   const [forceRemovingId, setForceRemovingId] = useState<number | null>(null);
@@ -121,25 +151,49 @@ export function usePlaidConnections(): UsePlaidConnections {
 
   useEffect(() => { void reload(); }, [reload]);
 
+  /**
+   * Reset & Start Fresh.
+   *
+   * The server now removes every bank at Plaid *before* deleting anything, and
+   * stops the whole operation if one of them cannot be removed — so a failure
+   * here means the imported history is still intact. That claim is repeated to
+   * the user verbatim from the server's own sentence, which names the bank,
+   * and the failure stays on screen with a retry rather than passing as a
+   * toast: it is the one message that has to survive being looked away from.
+   */
   const reset = useCallback(async () => {
     // The app's own confirm, not the browser's: `window.confirm` blocks the
     // event loop and bypasses the focus handling every other destructive
     // action gets.
-    const confirmed = await toast.confirm(RESET_CONFIRMATION, { danger: true });
+    const confirmed = await toast.confirm(RESET_CONFIRMATION, {
+      danger: true,
+      title: 'Reset & Start Fresh?',
+    });
     if (!confirmed) return;
     setResetting(true);
+    setResetPhase('working');
+    setResetError(null);
     try {
       const response = await plaidReset();
       toast.success(response.data.message || 'Plaid data cleared');
       setItems([]);
       setUnremovableIds([]);
       setStatus('ready');
+      setResetPhase('completed');
     } catch (error: any) {
-      toast.error(error?.response?.data?.detail || 'Reset failed');
+      const detail = error?.response?.data?.detail
+        || 'Reset could not be completed. Nothing was deleted — try again.';
+      setResetError(detail);
+      setResetPhase('failed');
     } finally {
       setResetting(false);
     }
   }, [toast]);
+
+  const dismissReset = useCallback(() => {
+    setResetPhase('idle');
+    setResetError(null);
+  }, []);
 
   /**
    * Disconnect at Plaid first, and only then locally.
@@ -281,6 +335,9 @@ export function usePlaidConnections(): UsePlaidConnections {
     items,
     reload: () => { void reload(); },
     resetting,
+    resetPhase,
+    resetError,
+    dismissReset,
     disconnectingId,
     unremovableIds,
     forceRemovingId,

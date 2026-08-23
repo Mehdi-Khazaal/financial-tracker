@@ -972,7 +972,26 @@ def replay_all_transactions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Reset cursors so the next sync replays all historical transactions. Dedup prevents re-imports."""
+    """Clear every cursor so the next sync re-reads all available history.
+
+    Surfaced as "Rebuild bank history". Non-destructive, and specifically:
+
+    * A null cursor makes `/transactions/sync` return the full window from the
+      beginning, all of it in `added`.
+    * Those rows go through `pg_insert(...).on_conflict_do_nothing()` keyed on
+      the unique `plaid_tx_id`, so a row already stored is **skipped entirely**
+      — not updated, not duplicated. Categories, and every other field on an
+      existing row, are therefore untouched by a rebuild.
+    * `added_count` is the insert's rowcount, so a repeat rebuild honestly
+      reports zero new transactions rather than re-counting the history.
+    * `removed` is empty from a null cursor, so nothing is deleted.
+    * Each Item is its own background task with its own session; one failing
+      bank cannot block another, and each records its own sync health.
+
+    It is safe to run any number of times. It is also slow — this asks every
+    bank for its whole available window — which is why the client polls
+    `/plaid/sync-status` for completion instead of trusting this response.
+    """
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
     if not items:
         raise HTTPException(status_code=404, detail="No connected banks.")
@@ -989,27 +1008,90 @@ def reset_plaid_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete all Plaid-imported transactions and bank connections for the current user."""
-    plaid_txs = db.query(Transaction).filter(
-        Transaction.user_id == current_user.id,
-        Transaction.plaid_tx_id.isnot(None),
-    ).all()
-    deleted_count = len(plaid_txs)
-    for tx in plaid_txs:
-        db.delete(tx)
+    """Delete every Plaid-imported transaction and bank connection for this user.
 
+    Two phases, in this order, and the order is the whole design.
+
+    **Remote first, for every Item, before anything local is deleted.** The
+    previous version deleted the transactions first, then swallowed each
+    `/item/remove` failure and dropped the local rows anyway — so a bank that
+    Plaid still considered live became invisible to Fintrack with its history
+    already destroyed. 6C-5 made single-bank Disconnect refuse to lie; Reset
+    must not be the way back around that.
+
+    A remote API cannot be rolled back, so partial failure is handled by not
+    starting the destructive half: if any Item fails to remove, nothing local
+    is touched and the response names the institution. Retrying is safe and
+    complete — the Items already removed answer `ITEM_NOT_FOUND` on the second
+    pass, which is terminal proof they are gone, so the retry resolves them and
+    carries on to the ones that remain.
+
+    Account balances are deliberately **not** reconciled here. `Account.balance`
+    is an absolute figure — the institution's own number, written by
+    `/accounts/get` — not a sum of the rows this deletes, and the imported
+    window is not the account's whole life. There is no stored baseline to
+    recompute it from, so any value derived here would be invented. See
+    `test_account_balances_are_left_stale_CURRENT_BEHAVIOUR`, which stays
+    pinned until an opening-balance column exists to make the arithmetic real.
+    """
     items = db.query(PlaidItem).filter(PlaidItem.user_id == current_user.id).all()
+
+    # ── Phase 1: resolve every Item at Plaid ──────────────────────────────────
+    unresolved: list[str] = []
     for item in items:
         try:
             _plaid_post("/item/remove", {"access_token": _item_access_token(db, item)})
+        except PlaidItemNotFound:
+            # Already gone at Plaid — terminal, and the reason a retry after a
+            # partial failure can finish rather than starting over.
+            logger.info(
+                "plaid_reset_item_already_removed %s",
+                kv(item_id=item.id, user_id=current_user.id),
+            )
         except Exception as exc:
+            unresolved.append(item.institution_name or "a bank")
             logger.warning(
                 "plaid_remote_reset_failed %s",
                 kv(item_id=item.id, user_id=current_user.id, error_type=type(exc).__name__),
             )
-        db.delete(item)
 
-    db.commit()
+    if unresolved:
+        # Nothing has been deleted at this point, and the claim in this message
+        # is only true because the destructive phase is below it, not above.
+        names = ", ".join(sorted(set(unresolved)))
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Reset could not continue because {names} could not be disconnected. "
+                "Nothing in your imported transaction history was deleted — try again."
+            ),
+        )
+
+    # ── Phase 2: the destructive half, once and atomically ───────────────────
+    try:
+        deleted_count = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.plaid_tx_id.isnot(None),
+        ).delete(synchronize_session=False)
+        for item in items:
+            db.delete(item)
+        db.commit()
+    except Exception as exc:
+        # One transaction, so the history and the connections fall together
+        # rather than leaving the rows deleted and the Items still listed.
+        db.rollback()
+        logger.error(
+            "plaid_reset_local_delete_failed %s",
+            kv(user_id=current_user.id, error_type=type(exc).__name__),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Your banks were disconnected at Plaid, but Fintrack could not finish "
+                "clearing their data. Try again to complete it."
+            ),
+        )
+
     return {"message": f"Cleared {deleted_count} Plaid transactions and {len(items)} bank connection(s). Reconnect your bank to start fresh."}
 
 
