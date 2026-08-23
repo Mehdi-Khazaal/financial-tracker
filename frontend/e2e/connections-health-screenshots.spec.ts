@@ -68,7 +68,11 @@ const HEALTH = {
 };
 
 test('capture Connections health states', async ({ page, registeredUser }) => {
-  test.setTimeout(120_000);
+  // The capture grew through 6C-2..6C-6 — health, sync, reconnect, the failed
+  // disconnect, the recovery ladder and a seven-width responsive sweep. It
+  // runs in ~40s locally; CI browser work is several times slower, so the
+  // budget is set from that ratio rather than from the local number.
+  test.setTimeout(300_000);
 
   await page.route('**/plaid/items', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ITEMS) }));
