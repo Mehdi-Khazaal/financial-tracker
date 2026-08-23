@@ -31,6 +31,37 @@ def get_db():
 
 
 class Account(Base):
+    """A place money sits, and the one number the whole app anchors on.
+
+    **`balance` is an absolute current figure, not a sum of the rows we hold.**
+    Two authorities write it, and knowing which is which matters:
+
+    * `plaid_router._sync_item` **overwrites** it wholesale from `/accounts/get`
+      — the institution's own number, for accounts with a `plaid_account_id`.
+    * `LedgerService._adjust_balance` moves it by a delta on every manual
+      transaction, transfer, and savings-goal withdrawal.
+
+    Everything historical is derived from it by walking backwards:
+    `services.balance_snapshots` computes each month-end as
+    `balance − sum(transactions dated later)`. There is no independent record
+    of what the balance used to be.
+
+    KNOWN LIMITATION (Phase 6C-6, deliberately not fixed): because of that,
+    a correct balance cannot be *reconstructed* after imported transactions are
+    deleted. The imported window is `PLAID_DAYS_REQUESTED`, not the account's
+    whole life, so summing survivors is not the balance; there is no opening or
+    baseline column to start from; and the snapshots inherit the same anchor
+    rather than recording an independent past value. `POST /plaid/reset`
+    therefore leaves the balance untouched rather than inventing one — see
+    `backend/tests/test_plaid_reset.py`
+    ::`test_account_balances_are_left_stale_CURRENT_BEHAVIOUR`, which pins it.
+
+    Fixing it needs data, not logic: an `opening_balance` plus a
+    `baseline_date`, written at account creation and when Plaid first adopts an
+    account, so the balance becomes `opening_balance + sum(transactions after
+    baseline_date)` and external-vs-ledger balances stop sharing one column.
+    """
+
     __tablename__ = "accounts"
 
     id = Column(Integer, primary_key=True, index=True)

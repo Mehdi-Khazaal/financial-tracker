@@ -2365,3 +2365,160 @@ describe('Settings danger zone', () => {
     });
   });
 });
+
+// --- Cross-flow state (6C stabilization) -------------------------------------
+// Each action was tested on its own in 6C-1..6C-6. These test the seams: what
+// happens when one flow lands on top of another, and what one action leaves
+// behind for the next.
+
+describe('Settings connections cross-flow', () => {
+  const BASE = '2026-08-20T18:00:00Z';
+  const LATER = '2026-08-20T18:09:00Z';
+
+  const openConnections = () => openSettings('Connections');
+
+  const flush = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  const tick = async () => {
+    await act(async () => { jest.advanceTimersByTime(4_000); });
+    await flush();
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  it('refuses to rebuild while a sync is running', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /sync all now/i }));
+    await flush();
+
+    // Both machines read the same `last_sync_at` evidence, so running them
+    // together would let each claim the other's advance as its own.
+    const rebuild = screen.getByRole('button', { name: /rebuild bank history/i });
+    expect(rebuild).toBeDisabled();
+    fireEvent.click(rebuild);
+    await flush();
+    expect(mockApi.plaidRebuildHistory).not.toHaveBeenCalled();
+  });
+
+  it('refuses to sync while a rebuild is running', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /rebuild bank history/i }));
+    await flush();
+
+    const syncButton = screen.getByRole('button', { name: /sync all now/i });
+    expect(syncButton).toBeDisabled();
+    fireEvent.click(syncButton);
+    await flush();
+    expect(mockApi.plaidSyncAll).not.toHaveBeenCalled();
+  });
+
+  it('frees both controls again once the run settles', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /rebuild bank history/i }));
+    await flush();
+
+    mockApi.plaidSyncStatus.mockResolvedValue({
+      data: { items: [statusRow({ last_sync_at: LATER, last_added_count: 1 })] },
+    });
+    await tick();
+
+    expect(await screen.findByRole('button', { name: 'Sync all now' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Rebuild bank history' })).toBeEnabled();
+  });
+
+  it('stops a rebuild\'s polling when the section is left', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /rebuild bank history/i }));
+    await flush();
+    await tick();
+
+    const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+    fireEvent.click(within(nav).getByRole('button', { name: 'Account' }));
+    const callsAfterLeaving = mockApi.plaidSyncStatus.mock.calls.length;
+
+    await act(async () => { jest.advanceTimersByTime(20_000); });
+    await flush();
+
+    expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAfterLeaving);
+  });
+
+  it('re-reads health after a reset, so no diagnostics outlive their bank', async () => {
+    await openConnections();
+    await waitFor(() => expect(mockApi.plaidSyncHealth).toHaveBeenCalled());
+    const healthCallsBefore = mockApi.plaidSyncHealth.mock.calls.length;
+
+    // With no Items left, this call makes no Plaid request at all.
+    mockApi.plaidSyncHealth.mockResolvedValue({ data: { items: [] } });
+    fireEvent.click(screen.getByRole('button', { name: /^reset & start fresh$/i }));
+
+    await waitFor(() => expect(mockApi.plaidReset).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockApi.plaidSyncHealth.mock.calls.length).toBeGreaterThan(healthCallsBefore));
+  });
+
+  it('leaves a usable page after a reset: no cards, no maintenance actions, Connect Bank', async () => {
+    await openConnections();
+    fireEvent.click(await screen.findByRole('button', { name: /^reset & start fresh$/i }));
+
+    await waitFor(() => expect(mockApi.plaidReset).toHaveBeenCalled());
+    expect(await screen.findByText('No banks connected yet')).toBeInTheDocument();
+    expect(screen.queryByText('Capital One')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sync all now/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /rebuild bank history/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reset & start fresh/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect bank/i })).toBeInTheDocument();
+  });
+
+  it('keeps the healthy bank fully usable when another one fails to disconnect', async () => {
+    mockApi.plaidGetItems.mockResolvedValue({ data: [BANK, BANK_TWO] });
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow(), healthRow({ id: BANK_TWO.id, institution_name: 'PNC' })] },
+    });
+    mockApi.plaidDeleteItem.mockRejectedValue({
+      response: { data: { detail: 'Could not disconnect this bank with Plaid. Nothing was changed — try again.' } },
+    });
+    await openConnections();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disconnect Capital One' }));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+
+    // The failure belongs to one card. The other is untouched, and the global
+    // maintenance actions still work.
+    expect(screen.getByText('PNC')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Disconnect PNC' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Sync all now' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Rebuild bank history' })).toBeEnabled();
+  });
+
+  it('leaves the connection exactly as it was when a repair is cancelled', async () => {
+    mockApi.plaidSyncHealth.mockResolvedValue({
+      data: { items: [healthRow({ login_repair_required: true, item_error_code: 'ITEM_LOGIN_REQUIRED' })] },
+    });
+    await openConnections();
+
+    fireEvent.click(await screen.findByRole('button', { name: /reconnect capital one/i }));
+    await waitFor(() => expect(mockApi.plaidCreateUpdateLinkToken).toHaveBeenCalled());
+    const config = mockUsePlaidLink.mock.calls[mockUsePlaidLink.mock.calls.length - 1][0] as any;
+    await act(async () => { config.onExit(null, {}); });
+
+    // No exchange, no reload, no disconnect — and the card is still there,
+    // still offering the repair.
+    expect(mockApi.plaidExchangeToken).not.toHaveBeenCalled();
+    expect(mockApi.plaidDeleteItem).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: /reconnect capital one/i })).toBeEnabled();
+  });
+});

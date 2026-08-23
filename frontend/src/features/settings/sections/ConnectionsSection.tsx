@@ -140,6 +140,19 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
   const rebuild = useManualSync(health.reload, { kind: 'rebuild' });
   const hasItems = connections.items.length > 0;
 
+  /**
+   * One long job at a time, across both machines.
+   *
+   * `useManualSync` already refuses to start twice, but each instance only
+   * knows about itself — and both establish completion from the *same*
+   * evidence, each connection's `last_sync_at`. Two running together would
+   * each settle on whichever advance landed first and report the other's work
+   * as their own: a rebuild finishing could be announced as "Sync complete",
+   * or a sync's timestamp could end a rebuild that had barely started. The
+   * guard belongs here because this is the only place that can see both.
+   */
+  const busy = sync.busy || rebuild.busy;
+
   const startRebuild = async () => {
     const confirmed = await toast.confirm(REBUILD_CONFIRMATION, {
       title: 'Rebuild bank history?',
@@ -169,6 +182,17 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
     void syncRef.current.start();
   }, [connections.repairCompletedAt]);
 
+  // A completed Reset removed every connection, so the diagnostics held for
+  // them describe things that no longer exist. Nothing renders them once the
+  // list is empty, but leaving them in memory means the next bank connected in
+  // this same session could be joined against a stale map. Re-reading costs
+  // nothing here: with no Items, `/plaid/sync-health` makes no Plaid call at
+  // all. Keyed on the phase, so it fires once on the transition.
+  useEffect(() => {
+    if (connections.resetPhase !== 'completed') return;
+    healthRef.current.reload();
+  }, [connections.resetPhase]);
+
   return (
     <section aria-labelledby="settings-connections-heading">
       <SectionHeading
@@ -188,7 +212,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         {hasItems && (
           <button
             onClick={() => { void sync.start(); }}
-            disabled={sync.busy}
+            disabled={busy}
             aria-busy={sync.busy}
             className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
             style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}
@@ -292,14 +316,14 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--line)' }}>
           <p className="label mb-2">Troubleshooting</p>
           <p className="text-xs text-muted mb-3 max-w-prose">
-            If transactions are missing or look out of date, rebuild your history first.
+            If transactions are still missing after a sync, rebuild your history.
             Fintrack asks your banks for their transaction history again; anything you
             already have is matched rather than duplicated, the categories you filed are
             kept, and nothing is deleted.
           </p>
           <button
             onClick={() => { void startRebuild(); }}
-            disabled={rebuild.busy}
+            disabled={busy}
             aria-busy={rebuild.busy}
             className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
             style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--fg)', border: '1px solid var(--line)' }}

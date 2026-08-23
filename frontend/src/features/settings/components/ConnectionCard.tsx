@@ -150,6 +150,7 @@ const ConnectionCard: React.FC<Props> = ({
         <button
           onClick={onDisconnect}
           disabled={disconnecting}
+          aria-busy={disconnecting}
           aria-label={`Disconnect ${name}`}
           className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
           style={{

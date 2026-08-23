@@ -332,3 +332,18 @@ test('capture Connections health states', async ({ page, registeredUser }) => {
   );
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: 'e2e/__screenshots__/connections-06-phone-320-health.png', fullPage: true });
+
+  // --- Every supported width, with the whole ladder on screen ---------------
+  // The section grew a Troubleshooting block and a Danger Zone in 6C-6, both
+  // of which carry prose. Prose is what overflows, so the sweep checks the
+  // page after the ladder is rendered rather than only the card list.
+  for (const [width, height] of [[320, 900], [390, 844], [740, 360], [768, 1024], [1024, 768], [1440, 900], [1920, 1080]]) {
+    await openConnections(width, height);
+    await expect(page.getByRole('button', { name: 'Rebuild bank history' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('group', { name: /danger zone/i })).toBeVisible();
+    const overflowAt = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflowAt, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(1);
+  }
+});
