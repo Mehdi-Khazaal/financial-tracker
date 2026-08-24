@@ -395,6 +395,29 @@ def _apply_metadata(row: Transaction, metadata: dict) -> None:
     row.merchant_key = identity.key or None
 
 
+def _local_balance(plaid_balances: dict, is_credit: bool) -> Decimal:
+    """Plaid's balance, in Fintrack's sign convention.
+
+    Plaid and Fintrack describe a credit card from opposite sides. Plaid states
+    it as a liability — *"For `credit`-type accounts, a positive balance
+    indicates the amount owed; a negative amount indicates the lender owing the
+    account holder"* — while Fintrack stores every account from the holder's
+    side, where money you owe is negative and money owed to you is positive.
+    One negation converts between them.
+
+    This used to be `-abs(current)`, which is the same thing for the ordinary
+    case and silently wrong for the interesting one: overpay a card and Plaid
+    reports a *negative* current balance, which `-abs` mapped straight back to
+    negative — indistinguishable from owing that amount. A card the issuer owed
+    money on displayed as debt, and the overpayment was invisible in net worth.
+
+    Depository accounts are already stated from the holder's side and pass
+    through untouched.
+    """
+    current = Decimal(str(plaid_balances.get("current") or 0))
+    return -current if is_credit else current
+
+
 def _uniform_rows(rows: list[dict]) -> list[dict]:
     """Give every row the same keys, filling the gaps with None.
 
@@ -427,9 +450,7 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         plaid_acct_id = acct["account_id"]
         acct_name = acct.get("official_name") or acct.get("name") or "Unknown"
         subtype = (acct.get("subtype") or "other").lower()
-        balance = Decimal(str(acct["balances"].get("current") or 0))
-        if subtype in ("credit card", "credit"):
-            balance = -abs(balance)
+        balance = _local_balance(acct["balances"], subtype in ("credit card", "credit"))
 
         # Match by plaid_account_id; fall back to name for pre-existing accounts
         local_acct = db.query(Account).filter(
@@ -764,9 +785,7 @@ def exchange_token(
         plaid_acct_id = acct["account_id"]
         acct_name     = acct.get("official_name") or acct.get("name") or institution_name
         acct_type     = PLAID_TO_ACCOUNT_TYPE.get((acct.get("subtype") or "other").lower(), "checking")
-        balance       = Decimal(str(acct["balances"].get("current") or 0))
-        if acct_type == "credit_card":
-            balance = -abs(balance)
+        balance       = _local_balance(acct["balances"], acct_type == "credit_card")
 
         existing = (
             db.query(Account).filter(

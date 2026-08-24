@@ -83,7 +83,13 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
           <select value={toId} onChange={e => setToId(e.target.value)} className="input-dark">
             {accounts.filter(a => String(a.id) !== fromId).map(a => (
               <option key={a.id} value={a.id}>
-                {a.name} ({a.type === 'credit_card' ? `Owes $${Math.abs(Number(a.balance)).toFixed(2)}` : `$${Number(a.balance).toFixed(2)}`})
+                {/* A card can be in credit, so the label follows the sign
+                    rather than assuming debt — see `describeBalance`. */}
+                {a.name} ({a.type === 'credit_card'
+                  ? Number(a.balance) > 0
+                    ? `$${Number(a.balance).toFixed(2)} in credit`
+                    : `Owes $${Math.abs(Number(a.balance)).toFixed(2)}`
+                  : `$${Number(a.balance).toFixed(2)}`})
               </option>
             ))}
           </select>
