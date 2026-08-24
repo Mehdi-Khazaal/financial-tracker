@@ -418,6 +418,48 @@ def _local_balance(plaid_balances: dict, is_credit: bool) -> Decimal:
     return -current if is_credit else current
 
 
+def _match_local_account(
+    db: Session, user_id: int, plaid_acct_id: str, acct_name: str
+) -> Optional[Account]:
+    """The local account a Plaid account belongs to, if one already exists.
+
+    Two rules, in order:
+
+    1. **Plaid's account id**, which is authoritative and unambiguous.
+    2. **The name — but only for an account no bank has claimed.** Matching on
+       a name is how a "Savings" someone typed in by hand gets adopted the
+       first time their bank is connected, instead of appearing twice.
+
+    The `plaid_account_id IS NULL` half of that second rule is the load-bearing
+    part. Without it, connecting a bank whose account happens to share a name
+    with one *another* bank already owns would take that account over:
+    overwrite its balance and repoint its `plaid_account_id`, which is unique,
+    so it either steals the link or fails the write outright. Generic names —
+    "Savings", "Checking", "Credit Card" — make that collision ordinary rather
+    than exotic.
+
+    Both ingestion paths call this, because they used to disagree: the sync
+    checked that the account was unclaimed and the initial connect did not.
+    """
+    by_plaid_id = (
+        db.query(Account)
+        .filter(Account.user_id == user_id, Account.plaid_account_id == plaid_acct_id)
+        .first()
+    )
+    if by_plaid_id:
+        return by_plaid_id
+
+    return (
+        db.query(Account)
+        .filter(
+            Account.user_id == user_id,
+            Account.name == acct_name,
+            Account.plaid_account_id.is_(None),
+        )
+        .first()
+    )
+
+
 def _uniform_rows(rows: list[dict]) -> list[dict]:
     """Give every row the same keys, filling the gaps with None.
 
@@ -452,19 +494,9 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
         subtype = (acct.get("subtype") or "other").lower()
         balance = _local_balance(acct["balances"], subtype in ("credit card", "credit"))
 
-        # Match by plaid_account_id; fall back to name for pre-existing accounts
-        local_acct = db.query(Account).filter(
-            Account.user_id == user_id,
-            Account.plaid_account_id == plaid_acct_id,
-        ).first()
-        if not local_acct:
-            local_acct = db.query(Account).filter(
-                Account.user_id == user_id,
-                Account.name == acct_name,
-                Account.plaid_account_id == None,
-            ).first()
-            if local_acct:
-                local_acct.plaid_account_id = plaid_acct_id
+        local_acct = _match_local_account(db, user_id, plaid_acct_id, acct_name)
+        if local_acct is not None:
+            local_acct.plaid_account_id = plaid_acct_id
 
         if local_acct:
             local_acct.balance = Decimal(str(balance))
@@ -787,16 +819,7 @@ def exchange_token(
         acct_type     = PLAID_TO_ACCOUNT_TYPE.get((acct.get("subtype") or "other").lower(), "checking")
         balance       = _local_balance(acct["balances"], acct_type == "credit_card")
 
-        existing = (
-            db.query(Account).filter(
-                Account.user_id == current_user.id,
-                Account.plaid_account_id == plaid_acct_id,
-            ).first()
-            or db.query(Account).filter(
-                Account.user_id == current_user.id,
-                Account.name == acct_name,
-            ).first()
-        )
+        existing = _match_local_account(db, current_user.id, plaid_acct_id, acct_name)
 
         if existing:
             existing.plaid_account_id = plaid_acct_id
