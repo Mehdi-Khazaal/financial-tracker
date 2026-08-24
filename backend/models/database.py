@@ -434,3 +434,42 @@ class Job(Base):
     locked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class UserPreferences(Base):
+    """Per-user settings for behaviour the user is allowed to change.
+
+    Deliberately its own table rather than columns on `users`. `users` is the
+    authentication model, loaded on every request by `get_current_user`, and
+    preferences are product state that will grow; keeping them apart also means
+    `create_all` provisions this table on startup with no `ALTER TABLE` against
+    a live table and no backfill.
+
+    **A missing row means every default**, which is the whole backward-
+    compatibility story: no migration has to write anything for existing users,
+    and no deployment can silently turn a behaviour off. Rows are created
+    lazily, the first time someone actually changes something.
+
+    Nothing here is a secret or a credential, and nothing here may be edited by
+    an admin on another user's behalf — see `routers/preferences.py`.
+    """
+
+    __tablename__ = "user_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    # Whether Fintrack may choose a category when the user did not. The global
+    # `AUTO_CATEGORIZE` environment switch outranks this: effective behaviour is
+    # `global AND user`, so turning the environment switch off cannot be
+    # overridden here. See `services.user_preferences`.
+    automatic_categorization_enabled = Column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

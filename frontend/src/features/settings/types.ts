@@ -34,7 +34,7 @@ export interface SectionDefinition {
 
 export const SECTION_DEFINITIONS: readonly SectionDefinition[] = [
   { id: 'account', label: 'Account', description: 'Profile, password and sign out' },
-  { id: 'preferences', label: 'Preferences', description: 'Notifications' },
+  { id: 'preferences', label: 'Preferences', description: 'Automation and notifications' },
   { id: 'categories', label: 'Categories', description: 'How your spending is filed' },
   { id: 'connections', label: 'Connections', description: 'Connected banks and syncing' },
   { id: 'admin', label: 'Admin', description: 'User management', adminOnly: true },

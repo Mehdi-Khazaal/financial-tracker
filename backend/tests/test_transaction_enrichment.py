@@ -6,8 +6,8 @@ from decimal import Decimal
 import pytest
 
 from models.auth import User
-from models.database import Account, Category, Transaction
-from services import merchants
+from models.database import Account, Category, MerchantAlias, Transaction
+from services import merchants, user_preferences
 from services.transaction_enrichment import (
     MIN_HISTORY_OBSERVATIONS,
     auto_categorize_enabled,
@@ -382,3 +382,142 @@ def test_switch_off_never_disturbs_an_explicit_category(monkeypatch, db_session,
     )
     assert result["category_id"] == category.id
     assert result["category_source"] == SOURCE_USER
+
+# ─── The per-user preference (Phase 6D) ───────────────────────────────────────
+# The operator's `AUTO_CATEGORIZE` switch above and the user's preference are
+# two different questions. These tests hold the same line for the user-level
+# one: turning it off stops Fintrack *choosing* a category and nothing else.
+# Enrichment, merchant identity, Plaid metadata, alias registration and the
+# import itself all continue — the transaction simply arrives uncategorized,
+# ready to be filed by hand.
+
+
+def _disable_for(db_session, user_id):
+    user_preferences.upsert(db_session, user_id, {"automatic_categorization_enabled": False})
+    db_session.commit()
+
+
+def test_a_user_who_opts_out_gets_no_suggestion(db_session, user, account, category):
+    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
+    _disable_for(db_session, user.id)
+
+    identity = resolve_transaction_merchant("NETFLIX*MEMBERSHIP")
+    suggested, source = suggest_transaction_category(db_session, user.id, identity)
+
+    assert suggested is None
+    assert source is None
+
+
+def test_opting_out_does_not_stop_merchant_enrichment(db_session, user, account, category):
+    """The separation this phase has to prove: identity is not categorization."""
+    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
+    _disable_for(db_session, user.id)
+
+    result = enrich_transaction_input(
+        db_session, user.id,
+        {
+            "account_id": account.id,
+            "amount": Decimal("-9.99"),
+            "description": "NETFLIX*MEMBERSHIP",
+            "plaid_merchant_entity_id": "ent_netflix",
+            "payment_channel": "online",
+            "personal_finance_category_primary": "ENTERTAINMENT",
+        },
+    )
+
+    assert result["merchant_key"] == "netflix"
+    assert result["plaid_merchant_entity_id"] == "ent_netflix"
+    assert result["payment_channel"] == "online"
+    assert result["personal_finance_category_primary"] == "ENTERTAINMENT"
+    # Only the choosing stops.
+    assert result.get("category_id") is None
+    assert result["category_source"] is None
+
+
+def test_opting_out_stops_the_pfc_fallback_too(db_session, user, account):
+    """Both suggestion routes are behind the same gate, not just history."""
+    db_session.add(Category(user_id=user.id, name="Entertainment", type="expense", color="#ffffff"))
+    db_session.commit()
+    _disable_for(db_session, user.id)
+
+    identity = resolve_transaction_merchant("SOME UNKNOWN MERCHANT")
+    suggested, source = suggest_transaction_category(
+        db_session, user.id, identity, pfc_primary="ENTERTAINMENT"
+    )
+
+    assert suggested is None
+    assert source is None
+
+
+def test_opting_out_never_disturbs_a_category_the_user_chose(db_session, user, account, category):
+    _disable_for(db_session, user.id)
+
+    result = enrich_transaction_input(
+        db_session, user.id,
+        {
+            "account_id": account.id,
+            "amount": Decimal("-9.99"),
+            "description": "NETFLIX",
+            "category_id": category.id,
+        },
+    )
+
+    assert result["category_id"] == category.id
+    assert result["category_source"] == SOURCE_USER
+
+
+def test_opting_out_still_registers_the_merchant_alias(db_session, user, account, category):
+    """Learning who a merchant is continues, so filing by hand still improves."""
+    _disable_for(db_session, user.id)
+
+    enrich_transaction_input(
+        db_session, user.id,
+        {"account_id": account.id, "amount": Decimal("-9.99"), "description": "NETFLIX*MEMBERSHIP"},
+    )
+    db_session.commit()
+
+    assert db_session.query(MerchantAlias).count() > 0
+
+
+def test_one_users_choice_does_not_affect_another(db_session, user, account, category):
+    other = User(
+        email="other-enrich@example.com",
+        username="otherenrich",
+        hashed_password="x",
+        is_verified=True,
+    )
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+
+    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
+    _seed_history(db_session, other, account, category, ["NETFLIX", "NETFLIX.COM"])
+    _disable_for(db_session, user.id)
+
+    identity = resolve_transaction_merchant("NETFLIX*MEMBERSHIP")
+    assert suggest_transaction_category(db_session, user.id, identity)[0] is None
+    assert suggest_transaction_category(db_session, other.id, identity)[0] == category.id
+
+
+def test_the_user_preference_cannot_re_enable_a_globally_disabled_feature(
+    monkeypatch, db_session, user, account, category
+):
+    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
+    user_preferences.upsert(db_session, user.id, {"automatic_categorization_enabled": True})
+    db_session.commit()
+    monkeypatch.setenv("AUTO_CATEGORIZE", "false")
+
+    identity = resolve_transaction_merchant("NETFLIX*MEMBERSHIP")
+    assert suggest_transaction_category(db_session, user.id, identity)[0] is None
+
+
+def test_turning_it_back_on_restores_suggestions(db_session, user, account, category):
+    _seed_history(db_session, user, account, category, ["NETFLIX", "NETFLIX.COM"])
+    _disable_for(db_session, user.id)
+    identity = resolve_transaction_merchant("NETFLIX*MEMBERSHIP")
+    assert suggest_transaction_category(db_session, user.id, identity)[0] is None
+
+    user_preferences.upsert(db_session, user.id, {"automatic_categorization_enabled": True})
+    db_session.commit()
+
+    assert suggest_transaction_category(db_session, user.id, identity)[0] == category.id

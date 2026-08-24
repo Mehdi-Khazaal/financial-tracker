@@ -5,6 +5,7 @@ import { DEEP_LINK_KEYS } from '../../lib/deepLinks';
 import { useCategories, type UseCategories } from './hooks/useCategories';
 import { usePlaidConnections, type UsePlaidConnections } from './hooks/usePlaidConnections';
 import { usePushPreference, type UsePushPreference } from './hooks/usePushPreference';
+import { useAutomationPreference, type UseAutomationPreference } from './hooks/useAutomationPreference';
 import { useAdminUsers, type UseAdminUsers } from './hooks/useAdminUsers';
 import {
   DEFAULT_SECTION,
@@ -42,6 +43,7 @@ export interface SettingsModel {
   categories: UseCategories;
   connections: UsePlaidConnections;
   push: UsePushPreference;
+  automation: UseAutomationPreference;
   admin: UseAdminUsers;
 }
 
@@ -56,6 +58,7 @@ export function useSettingsModel(): SettingsModel {
   const categories = useCategories();
   const connections = usePlaidConnections();
   const push = usePushPreference();
+  const automation = useAutomationPreference();
   const admin = useAdminUsers(isAdmin);
 
   // Same convention every other route uses: apply the arriving parameter once,
@@ -114,6 +117,7 @@ export function useSettingsModel(): SettingsModel {
     categories,
     connections,
     push,
+    automation,
     admin,
   };
 }

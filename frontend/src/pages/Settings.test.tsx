@@ -69,6 +69,8 @@ const mockApi = {
   changePassword: jest.fn(),
   adminGetUsers: jest.fn(),
   adminResetPassword: jest.fn(),
+  getPreferences: jest.fn(),
+  updatePreferences: jest.fn(),
   plaidCreateLinkToken: jest.fn(),
   plaidCreateUpdateLinkToken: jest.fn(),
   plaidExchangeToken: jest.fn(),
@@ -203,6 +205,16 @@ beforeEach(() => {
   mockApi.getCategories.mockResolvedValue({
     data: [SYSTEM_CATEGORY, CUSTOM_EXPENSE, CUSTOM_CATEGORY, SALARY],
   });
+  mockApi.getPreferences.mockResolvedValue({
+    data: { automatic_categorization_enabled: true, automatic_categorization_effective: true },
+  });
+  mockApi.updatePreferences.mockImplementation((changes: Record<string, boolean>) =>
+    Promise.resolve({
+      data: {
+        automatic_categorization_enabled: changes.automatic_categorization_enabled,
+        automatic_categorization_effective: changes.automatic_categorization_enabled,
+      },
+    }));
   mockApi.plaidGetItems.mockResolvedValue({ data: [BANK] });
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });
@@ -2520,5 +2532,231 @@ describe('Settings connections cross-flow', () => {
     expect(mockApi.plaidExchangeToken).not.toHaveBeenCalled();
     expect(mockApi.plaidDeleteItem).not.toHaveBeenCalled();
     expect(await screen.findByRole('button', { name: /reconnect capital one/i })).toBeEnabled();
+  });
+});
+
+// --- Preferences: automation vs device (6D) ----------------------------------
+// Two switches that look identical and mean different things. Automatic
+// categorization is an account setting stored on the server; push is a
+// subscription held by one browser. Most of what follows exists to keep them
+// from being conflated, and to keep the switch from ever claiming a state it
+// does not know.
+
+describe('Settings automation preference', () => {
+  const openPreferences = () => openSettings('Preferences');
+  const automationSwitch = () => screen.findByRole('switch', { name: 'Automatic categorization' });
+
+  it('reads the saved setting when Preferences opens', async () => {
+    await openPreferences();
+    await waitFor(() => expect(mockApi.getPreferences).toHaveBeenCalled());
+    expect(await automationSwitch()).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('does not request preferences before Preferences is opened', async () => {
+    // It is one cheap read, but the section owns it — the same rule the
+    // connection diagnostics follow.
+    await openSettings('Connections');
+    expect(await screen.findByText('Capital One')).toBeInTheDocument();
+    expect(mockApi.getPreferences).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a saved "off" as off', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: false, automatic_categorization_effective: false },
+    });
+    await openPreferences();
+    expect(await automationSwitch()).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('saves a change and reports it', async () => {
+    await openPreferences();
+    fireEvent.click(await automationSwitch());
+
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalledWith({
+      automatic_categorization_enabled: false,
+    }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Automatic categorization' }))
+      .toHaveAttribute('aria-checked', 'false'));
+    expect(mockToastSuccess).toHaveBeenCalledWith('Automatic categorization off');
+  });
+
+  it('turns it back on', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: false, automatic_categorization_effective: false },
+    });
+    await openPreferences();
+    fireEvent.click(await automationSwitch());
+
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalledWith({
+      automatic_categorization_enabled: true,
+    }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Automatic categorization' }))
+      .toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('takes the state from the server response, not from what it sent', async () => {
+    // The client cannot know whether the kill-switch is in the way; only the
+    // server's answer does.
+    mockApi.updatePreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: false },
+    });
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: false, automatic_categorization_effective: false },
+    });
+    await openPreferences();
+    fireEvent.click(await automationSwitch());
+
+    expect(await screen.findByText(/temporarily turned off by Fintrack/i)).toBeInTheDocument();
+  });
+
+  it('puts the switch back when the save fails', async () => {
+    mockApi.updatePreferences.mockRejectedValue(new Error('offline'));
+    await openPreferences();
+    fireEvent.click(await automationSwitch());
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Could not save that setting'));
+    // Still on, because nothing was saved.
+    expect(screen.getByRole('switch', { name: 'Automatic categorization' }))
+      .toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('does not render an unreadable setting as off', async () => {
+    mockApi.getPreferences.mockRejectedValue(new Error('boom'));
+    await openPreferences();
+
+    expect(await screen.findByText(/could not load this setting/i)).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Automatic categorization' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('retries a failed read without touching anything else', async () => {
+    mockApi.getPreferences.mockRejectedValueOnce(new Error('boom'));
+    await openPreferences();
+    await screen.findByText(/could not load this setting/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Automatic categorization' }))
+      .toHaveAttribute('aria-checked', 'true'));
+    expect(mockApi.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  // --- The globally disabled case ------------------------------------------
+  it('says unavailable rather than showing the user a false "off"', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: false },
+    });
+    await openPreferences();
+
+    expect(await screen.findByText(/temporarily turned off by Fintrack/i)).toBeInTheDocument();
+    const control = screen.getByRole('switch', { name: 'Automatic categorization' });
+    // Their choice is still on — the switch is not lying about that.
+    expect(control).toHaveAttribute('aria-checked', 'true');
+    expect(control).toBeDisabled();
+  });
+
+  it('refuses to write while the feature is globally unavailable', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: false },
+    });
+    await openPreferences();
+    await screen.findByText(/temporarily turned off by Fintrack/i);
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Automatic categorization' }));
+
+    expect(mockApi.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('explains the consequence in words, not only through the switch', async () => {
+    await openPreferences();
+    await automationSwitch();
+    expect(screen.getByText(/leaves new transactions uncategorized/i)).toBeInTheDocument();
+    expect(screen.getByText(/still categorize anything yourself/i)).toBeInTheDocument();
+  });
+
+  it('keeps implementation vocabulary out of the UI', async () => {
+    await openPreferences();
+    await automationSwitch();
+
+    const body = document.body.textContent ?? '';
+    for (const term of ['merchant_key', 'PFC', 'personal_finance_category', 'Plaid-first', 'confidence']) {
+      expect(body).not.toContain(term);
+    }
+  });
+
+  // --- Independence from the device switch ---------------------------------
+  it('is a separate control from push notifications', async () => {
+    await openPreferences();
+    await automationSwitch();
+
+    expect(screen.getByRole('switch', { name: 'Push notifications' })).toBeInTheDocument();
+    // Two headings, so neither reads as a sub-setting of the other.
+    expect(screen.getByRole('heading', { name: 'Automation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
+  it('does not send the device subscription to the server', async () => {
+    await openPreferences();
+    fireEvent.click(await screen.findByRole('switch', { name: 'Push notifications' }));
+
+    await waitFor(() => expect(mockPush.subscribeToPush).toHaveBeenCalled());
+    expect(mockApi.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('does not touch the device subscription when saving an account setting', async () => {
+    await openPreferences();
+    fireEvent.click(await automationSwitch());
+
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalled());
+    expect(mockPush.subscribeToPush).not.toHaveBeenCalled();
+    expect(mockPush.unsubscribeFromPush).not.toHaveBeenCalled();
+  });
+
+  it('still says the push switch is per-device', async () => {
+    await openPreferences();
+    await automationSwitch();
+    expect(screen.getByText(/applies to this device only/i)).toBeInTheDocument();
+  });
+
+  // --- Accessibility and layout --------------------------------------------
+  it('exposes both switches as real switches with a touch-sized target', async () => {
+    await openPreferences();
+    await automationSwitch();
+
+    for (const name of ['Automatic categorization', 'Push notifications']) {
+      const control = screen.getByRole('switch', { name });
+      expect(control.tagName).toBe('BUTTON');
+      expect(control).toHaveAttribute('aria-checked');
+      expect(control.className).toMatch(/h-11/);
+    }
+  });
+
+  it('announces the setting state politely', async () => {
+    await openPreferences();
+    await automationSwitch();
+
+    const status = screen.getAllByRole('status').find(
+      node => /automatic categorization/i.test(node.textContent ?? ''),
+    );
+    expect(status).toBeDefined();
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('marks the switch busy while it loads', async () => {
+    mockApi.getPreferences.mockReturnValue(new Promise(() => {}));
+    await openPreferences();
+
+    const control = await automationSwitch();
+    expect(control).toHaveAttribute('aria-busy', 'true');
+    expect(control).toBeDisabled();
+  });
+
+  it('renders as compact rows on a phone', async () => {
+    await openSettings(undefined, 'mobile');
+    const nav = await screen.findByRole('navigation', { name: 'Settings sections' });
+    fireEvent.click(within(nav).getByRole('button', { name: /^Preferences/ }));
+
+    expect(await automationSwitch()).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Push notifications' })).toBeInTheDocument();
   });
 });

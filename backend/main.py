@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import admin, assistant, cron, history, loans, plaid_router, push, recurring_transactions, savings_goals, stocks, transfers
+from routers import admin, assistant, cron, history, loans, plaid_router, preferences, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 from utils.security import BrowserOriginMiddleware
@@ -146,6 +146,7 @@ app.include_router(stocks.router)
 app.include_router(recurring_transactions.router)
 app.include_router(history.router)
 app.include_router(loans.router)
+app.include_router(preferences.router)
 app.include_router(push.router)
 app.include_router(admin.router)
 app.include_router(cron.router)

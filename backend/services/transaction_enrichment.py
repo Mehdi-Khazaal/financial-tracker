@@ -60,11 +60,17 @@ from services import merchants
 # the only thing that disables it; anything else, including it being unset,
 # leaves it on.
 #
-# What disabling does *not* touch: merchant identity still resolves,
-# `merchant_key` and every Plaid metadata column are still written, and aliases
-# are still registered. Only the act of choosing a category stops. New imports
-# simply arrive uncategorized, exactly as they did before this phase — and a
-# category the user set is never affected either way.
+# This is the *operator's* switch and it is not the same as the user's. Since
+# Phase 6D each user also has `automatic_categorization_enabled`, and effective
+# behaviour is `global AND user`: this switch can disable the feature for
+# everyone, and nothing a user sets can turn it back on. See
+# `services.user_preferences.automatic_categorization_enabled`.
+#
+# What disabling does *not* touch, at either level: merchant identity still
+# resolves, `merchant_key` and every Plaid metadata column are still written,
+# and aliases are still registered. Only the act of choosing a category stops.
+# New imports simply arrive uncategorized, exactly as they did before this
+# phase — and a category the user set is never affected either way.
 
 
 def auto_categorize_enabled() -> bool:
@@ -264,8 +270,19 @@ def suggest_transaction_category(
     Returns `(category_id, source)`, or `(None, None)` when there is not
     enough signal. Callers must not use this to override a category the user
     already chose.
+
+    This is the only place in the application that decides a category
+    automatically — Plaid's `added` rows, its `modified` rows, and manual
+    entries saved without one all arrive here — which is why the preference is
+    enforced at this single point rather than at each call site. A gate per
+    caller would be three chances to miss one.
+
+    Imported locally to keep the module import graph acyclic:
+    `services.user_preferences` reads the global switch from here.
     """
-    if not auto_categorize_enabled():
+    from services import user_preferences
+
+    if not user_preferences.automatic_categorization_enabled(session, user_id):
         return None, None
 
     if identity.is_resolvable:

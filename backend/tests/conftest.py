@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker
 
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
-from routers import accounts, admin, assets, assistant, auth, categories, cron, history, plaid_router, recurring_transactions, savings_goals, stocks, transactions
+from routers import accounts, admin, assets, assistant, auth, categories, cron, history, plaid_router, preferences, recurring_transactions, savings_goals, stocks, transactions
 from utils import auth as auth_utils
 from utils.idempotency import IdempotencyMiddleware
 from utils.limiter import limiter
@@ -55,6 +55,7 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
+app.include_router(preferences.router)
 app.include_router(transactions.router)
 app.include_router(assets.router)
 app.include_router(savings_goals.router)

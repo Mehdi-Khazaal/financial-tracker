@@ -57,7 +57,7 @@ const Settings: React.FC = () => {
           />
         );
       case 'preferences':
-        return <PreferencesSection push={model.push} />;
+        return <PreferencesSection push={model.push} automation={model.automation} />;
       case 'categories':
         return <CategoriesSection categories={model.categories} />;
       case 'connections':

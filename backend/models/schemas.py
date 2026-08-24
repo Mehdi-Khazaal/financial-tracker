@@ -340,3 +340,38 @@ class LoanResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+# ============ PREFERENCES ============
+class PreferencesUpdate(BaseModel):
+    """A partial update. Unknown keys are rejected, not ignored.
+
+    `extra="forbid"` is the point of this class. A client sending
+    `automatic_categorisation_enabled` — or a field from a newer build — gets a
+    422 telling it so, rather than a 200 that silently changed nothing and
+    looks exactly like success.
+
+    Every field is optional so a caller can send only what it is changing;
+    `exclude_unset=True` in the router is what makes "absent" mean "leave it
+    alone" rather than "set it to null".
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    automatic_categorization_enabled: Optional[bool] = None
+
+
+class PreferencesResponse(BaseModel):
+    """What the user chose, and what it currently amounts to.
+
+    The two differ only when a deployment-level switch overrides the stored
+    value. Exposing both is what lets Settings say "unavailable right now"
+    honestly instead of showing a switch that does nothing when pressed.
+    """
+
+    automatic_categorization_enabled: bool
+    # Read-only: `stored AND AUTO_CATEGORIZE`. Never writable — see
+    # `routers/preferences.py`.
+    automatic_categorization_effective: bool
+
+    model_config = ConfigDict(from_attributes=True)

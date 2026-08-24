@@ -281,6 +281,14 @@ export const cleanDescription = (desc: string | null | undefined): string => {
   return desc.replace(/^\[plaid:[^\]]+\]\s*/, '');
 };
 
+// ── Preferences ───────────────────────────────────────────────────────────────
+// Per-user settings for behaviour the user may change. `*_effective` in the
+// response is read-only: it folds in the deployment-level kill-switch, so the
+// UI can explain a switch that is on but currently doing nothing.
+export const getPreferences    = () => api.get('/preferences');
+export const updatePreferences = (changes: Record<string, boolean>) =>
+  api.patch('/preferences', changes);
+
 // ── Plaid ─────────────────────────────────────────────────────────────────────
 export const plaidCreateLinkToken  = () => api.post('/plaid/link-token');
 // Link token in *update mode*, repairing the Item Fintrack already holds.
