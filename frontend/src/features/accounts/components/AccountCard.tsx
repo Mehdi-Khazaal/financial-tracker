@@ -5,7 +5,7 @@ import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../../../components/dashboar
 import ProgressBar from '../../../components/ProgressBar';
 import { MINUS, dollars, percent } from '../../analytics/format';
 import { linkToAccountTransactions } from '../../../lib/deepLinks';
-import { describeBalance } from '../calculations/cards';
+import { availableCredit, describeBalance } from '../calculations/cards';
 import { UTILIZATION_LABELS, utilizationBand } from '../calculations/cards';
 import { calculateBalanceChange } from '../calculations/history';
 
@@ -179,7 +179,7 @@ const AccountCard: React.FC<Props> = ({
             <>
               <div className="flex justify-between items-baseline text-[11px] mb-1.5 gap-2">
                 <span style={{ color: 'var(--muted)' }}>
-                  <span className="tabular-nums">{dollars(Math.max(0, limit - owed))}</span> available
+                  <span className="tabular-nums">{dollars(availableCredit(account) ?? 0)}</span> available
                 </span>
                 <span className="tabular-nums shrink-0" style={{ color: 'var(--muted)' }}>
                   {percent(utilization, 0, true)} of {dollars(limit)}

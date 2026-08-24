@@ -42,6 +42,26 @@ export const UTILIZATION_LABELS: Record<UtilizationBand, string> = {
 export const amountOwed = (account: Account): number =>
   Math.max(0, -Number(account.balance));
 
+/**
+ * Spending room on a card, or null when no limit is recorded.
+ *
+ * `limit + balance`, because the balance already carries its direction: owing
+ * $400 on a $1,000 card leaves $600, and being $42 *in credit* on the same
+ * card leaves $1,042. Clamped at zero so a card over its limit reads as
+ * nothing left rather than a negative amount of room.
+ *
+ * Exported because two places used to work this out for themselves — the card
+ * tile and `describeBalance` — and they disagreed the moment a card went into
+ * credit: the tile kept showing the bare limit and quietly dropped the
+ * overpayment. A limit the user has not entered stays unknown; it is never
+ * inferred.
+ */
+export const availableCredit = (account: Account): number | null => {
+  const limit = Number(account.credit_limit) || 0;
+  if (limit <= 0) return null;
+  return Math.max(0, limit + Number(account.balance));
+};
+
 /** Total owed across every credit-card account. */
 export const totalCardDebt = (accounts: Account[]): number =>
   accounts
@@ -69,11 +89,11 @@ export function describeBalance(account: Account): BalancePresentation {
   const balance = Number(account.balance) || 0;
 
   if (account.type === 'credit_card') {
-    const limit = Number(account.credit_limit) || 0;
-
+    // Every branch below asks `availableCredit` rather than working the limit
+    // out again, so the three card states cannot disagree about spending room.
     if (balance < 0) {
       const owed = Math.abs(balance);
-      const available = limit > 0 ? Math.max(0, limit - owed) : null;
+      const available = availableCredit(account);
       return {
         text: `${dollars(owed)} owed`,
         srText: `${dollars(owed)} owed`,
@@ -86,19 +106,26 @@ export function describeBalance(account: Account): BalancePresentation {
 
     if (balance > 0) {
       // Overpaid, or a refund landed after the statement cleared.
+      //
+      // The detail line shows spending room, not the limit. Being $28.94 in
+      // credit on a $300 card means $328.94 is available, and that is exactly
+      // the moment the figure is worth knowing — showing the bare limit
+      // dropped the overpayment back out of view.
+      const available = availableCredit(account);
       return {
         text: `${dollars(balance)} in credit`,
         srText: `${dollars(balance)} credit balance, nothing owed`,
         tone: 'positive',
-        detail: limit > 0 ? `${dollars(limit)} limit` : null,
+        detail: available == null ? null : `${dollars(available)} available`,
       };
     }
 
+    const available = availableCredit(account);
     return {
       text: 'Paid off',
       srText: 'Paid off, nothing owed',
       tone: 'positive',
-      detail: limit > 0 ? `${dollars(limit)} available` : null,
+      detail: available == null ? null : `${dollars(available)} available`,
     };
   }
 

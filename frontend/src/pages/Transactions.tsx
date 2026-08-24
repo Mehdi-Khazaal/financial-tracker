@@ -225,6 +225,10 @@ const Transactions: React.FC = () => {
   const [categories, setCategories]     = useState<Category[]>([]);
   const [loading, setLoading]           = useState(true);  const [loadError, setLoadError]       = useState(false);
   const [failedSources, setFailedSources] = useState<string[]>([]);
+  // Set when the ledger is knowingly incomplete. Separate from `loadError`:
+  // nothing failed, there is simply more history than the page will hold, and
+  // that has to be said rather than shown as a complete list.
+  const [truncatedAt, setTruncatedAt] = useState<number | null>(null);
 
   const [showTx, setShowTx]             = useState(false);
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
@@ -283,8 +287,11 @@ const Transactions: React.FC = () => {
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const transactionsResult = results[0];
       if (transactionsResult.status === 'fulfilled') {
-        // `fetchAllTransactions` resolves to an array, not an Axios response.
-        setTransactions(Array.isArray(transactionsResult.value) ? transactionsResult.value : []);
+        // `fetchAllTransactions` resolves to a page object, not an Axios
+        // response, and reports whether it saw everything.
+        const page = transactionsResult.value;
+        setTransactions(Array.isArray(page.transactions) ? page.transactions : []);
+        setTruncatedAt(page.truncated ? page.loaded : null);
       }
       const accountsResult = results[1];
       if (accountsResult.status === 'fulfilled') {
@@ -940,6 +947,19 @@ const Transactions: React.FC = () => {
         {loadError && (
           <div className="shrink-0 px-3 pt-3 md:px-4">
             <LoadErrorBanner message={`Some data could not be refreshed: ${failedSources.join(', ')}. Available tabs are still shown.`} onRetry={() => void load()} />
+          </div>
+        )}
+
+        {/* Not an error — a limit. Every total on this page is computed from
+            what was loaded, so if that is not the whole ledger the page has to
+            say so rather than presenting a confident subtotal. */}
+        {truncatedAt != null && (
+          <div className="card p-3 mb-3" role="status">
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              Showing your {truncatedAt.toLocaleString()} most recent transactions.
+              Older entries are not included, so totals and charts on this page
+              cover that range only.
+            </p>
           </div>
         )}
 

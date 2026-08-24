@@ -81,8 +81,12 @@ const AccountsPage: React.FC = () => {
       }
       const transactionsResult = results[1];
       if (transactionsResult.status === 'fulfilled') {
-        // `fetchAllTransactions` resolves to an array, not an Axios response.
-        setTransactions(Array.isArray(transactionsResult.value) ? transactionsResult.value : []);
+        // `fetchAllTransactions` resolves to a page object, not an Axios
+        // response. This page shows account-scoped views rather than whole-
+        // ledger totals, so the cap is not surfaced here — the Transactions
+        // page is where an incomplete ledger is stated.
+        const rows = transactionsResult.value?.transactions;
+        setTransactions(Array.isArray(rows) ? rows : []);
       }
       const loansResult = results[2];
       if (loansResult.status === 'fulfilled') {

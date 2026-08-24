@@ -50,6 +50,7 @@ from sqlalchemy.orm import Session
 
 from models.database import Category, Transaction
 from services import merchants
+from utils.logging import get_logger, kv
 
 # ─── Kill switch ──────────────────────────────────────────────────────────────
 # Automatic categorization is new behaviour: before Phase 5A every Plaid import
@@ -77,6 +78,9 @@ def auto_categorize_enabled() -> bool:
     """Whether inference may assign a category. Read per call, not cached at
     import, so the switch takes effect on a restart without a code change."""
     return os.getenv("AUTO_CATEGORIZE", "true").strip().lower() != "false"
+
+
+logger = get_logger(__name__)
 
 
 # ─── Confidence thresholds ────────────────────────────────────────────────────
@@ -351,10 +355,20 @@ def enrich_transaction_input(
         if category_id is not None:
             enriched["category_id"] = category_id
             enriched["category_source"] = source
-    except Exception:
-        # Enrichment is best-effort. A failure here leaves the transaction
+    except Exception as exc:
+        # Enrichment stays best-effort: a failure leaves the transaction
         # uncategorized, which is a valid state, rather than failing the write.
-        pass
+        #
+        # It is no longer *silent*, though. Swallowing this without a trace
+        # meant categorization could break for everyone and the only symptom
+        # would be transactions quietly arriving uncategorized — the same shape
+        # as the sync failure that went unnoticed in production because nothing
+        # recorded it. Only the exception type is logged: the values that reach
+        # here are the user's own transaction descriptions.
+        logger.warning(
+            "transaction_enrichment_failed %s",
+            kv(user_id=user_id, error_type=type(exc).__name__),
+        )
 
     return enriched
 

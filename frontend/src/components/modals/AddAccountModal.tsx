@@ -20,6 +20,7 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const [type, setType] = useState('checking');
   const [balance, setBalance] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
+  const [inCredit, setInCredit] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const isCreditCard = type === 'credit_card';
@@ -28,15 +29,23 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // A card is entered as a plain amount plus which side of zero it sits
+      // on, matching Edit Account. This form used to ask for the raw stored
+      // value — "enter -450 when you owe money" — which put the database's
+      // sign convention in front of the user and disagreed with the other
+      // dialog for the same field.
+      const typed = parseFloat(balance) || 0;
+      const cardBalance = inCredit ? Math.abs(typed) : -Math.abs(typed);
+
       await createAccount({
         name,
         type,
-        balance: parseFloat(balance) || 0,
+        balance: isCreditCard ? cardBalance : typed,
         credit_limit: isCreditCard && creditLimit ? parseFloat(creditLimit) : null,
         currency: 'USD',
       });
       onSuccess(); onClose();
-      setName(''); setType('checking'); setBalance(''); setCreditLimit('');
+      setName(''); setType('checking'); setBalance(''); setCreditLimit(''); setInCredit(false);
     } catch { toast.error('Failed to create account'); }
     finally { setLoading(false); }
   };
@@ -76,9 +85,11 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         {/* Balance / Credit limit */}
         <div className={`grid gap-3 ${isCreditCard ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <div>
-            <label className="form-label" htmlFor="account-balance">{isCreditCard ? 'Current balance' : 'Balance'}</label>
+            <label className="form-label" htmlFor="account-balance">
+              {isCreditCard ? (inCredit ? 'Credit balance' : 'Balance owed') : 'Balance'}
+            </label>
             <input id="account-balance" type="number" inputMode="decimal" step="0.01" value={balance} onChange={e => setBalance(e.target.value)}
-              className="input-dark" placeholder={isCreditCard ? '-500.00' : '0.00'} />
+              className="input-dark" placeholder={isCreditCard ? '500.00' : '0.00'} />
           </div>
           {isCreditCard && (
             <div>
@@ -90,9 +101,22 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         </div>
 
         {isCreditCard && (
-          <p className="text-xs text-muted">
-            Enter the current balance as a negative number (for example, -450) when you owe money.
-          </p>
+          <>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={inCredit}
+                onChange={e => setInCredit(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-xs text-muted">I overpaid — my card is in credit</span>
+            </label>
+            <p className="text-xs text-muted">
+              {inCredit
+                ? 'How much your card issuer owes you.'
+                : 'How much you currently owe. No minus sign needed.'}
+            </p>
+          </>
         )}
 
         <button type="submit" disabled={loading || !name.trim()}

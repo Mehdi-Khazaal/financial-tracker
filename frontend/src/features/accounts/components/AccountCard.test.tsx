@@ -120,6 +120,24 @@ describe('credit cards', () => {
     expect(screen.getByText(/credit balance, nothing owed/)).toBeInTheDocument();
   });
 
+  it('counts an overpayment as extra spending room', () => {
+    // $42 in credit on a $1,000 card is $1,042 to spend, and that is the whole
+    // point of the state. Showing the bare limit dropped the overpayment back
+    // out of sight the moment it mattered. The amount sits in its own span, so
+    // match the row's text rather than a single node.
+    const { container } = renderCard(card(42, 1000));
+
+    expect(container.textContent).toContain('$1,042.00');
+    expect(container.textContent).toContain('available');
+  });
+
+  it('still shows remaining room on a card that is owed', () => {
+    const { container } = renderCard(card(-400, 1000));
+
+    expect(container.textContent).toContain('$600.00');
+    expect(container.textContent).toContain('available');
+  });
+
   it('says utilisation is unavailable rather than showing 0%', () => {
     renderCard(card(-400, null));
 

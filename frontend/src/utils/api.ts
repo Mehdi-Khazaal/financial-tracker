@@ -122,20 +122,59 @@ export const getTransactions   = (params?: Record<string, any>) =>
  * `maxPages` bounds the worst case at 20,000 rows.
  */
 export const PAGE_SIZE = 1000;
+/**
+ * A safety rail, not a budget. 50 pages is 50,000 transactions — decades of
+ * ordinary use — so hitting it means something is wrong rather than that
+ * someone is unusually busy, and the caller says so instead of trimming.
+ */
+export const MAX_TRANSACTION_PAGES = 50;
+/**
+ * Every transaction the page is allowed to hold, and an honest note when that
+ * was not every transaction.
+ *
+ * The page cap exists so a runaway loop cannot hammer the API. What it must
+ * not do is decide silently: the previous version stopped at the cap and
+ * returned a plain array, so a large enough history simply lost its oldest
+ * entries with nothing to distinguish that from having reached the end. Every
+ * total on the page would then be quietly wrong, which is the same class of
+ * failure as `getTransactions()` truncating at 500 — the bug this function was
+ * written to fix.
+ *
+ * `truncated` is what the caller shows the user. It is set only when the last
+ * page came back full, meaning the server had more to give.
+ */
+export interface TransactionPage {
+  transactions: any[];
+  /** True when the cap stopped the fetch before the server ran out of rows. */
+  truncated: boolean;
+  /** How many were actually loaded, for wording like "the most recent N". */
+  loaded: number;
+}
+
 export const fetchAllTransactions = async (
   params: Record<string, any> = {},
-  maxPages = 20,
-): Promise<any[]> => {
+  maxPages = MAX_TRANSACTION_PAGES,
+): Promise<TransactionPage> => {
   const all: any[] = [];
+  let truncated = false;
+
   for (let page = 0; page < maxPages; page += 1) {
     const res = await api.get('/transactions', {
       params: { ...params, limit: PAGE_SIZE, skip: page * PAGE_SIZE },
     });
     const batch = Array.isArray(res.data) ? res.data : [];
     all.push(...batch);
-    if (batch.length < PAGE_SIZE) break;
+
+    if (batch.length < PAGE_SIZE) {
+      // Short page: the server has no more rows. This is the only way to
+      // finish knowing the set is complete.
+      return { transactions: all, truncated: false, loaded: all.length };
+    }
+    // A full last page means there is more behind it.
+    truncated = page === maxPages - 1;
   }
-  return all;
+
+  return { transactions: all, truncated, loaded: all.length };
 };
 export const createTransaction = (data: any) => api.post('/transactions', data);
 export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);

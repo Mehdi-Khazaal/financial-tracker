@@ -521,3 +521,77 @@ def test_turning_it_back_on_restores_suggestions(db_session, user, account, cate
     db_session.commit()
 
     assert suggest_transaction_category(db_session, user.id, identity)[0] == category.id
+
+
+# ─── Failures are best-effort, but no longer silent ───────────────────────────
+def test_an_enrichment_failure_still_lets_the_transaction_through(
+    db_session, user, account, monkeypatch
+):
+    """The guarantee that has to survive: a bad guess never blocks a write."""
+    def explode(*args, **kwargs):
+        raise RuntimeError("categorization is broken")
+
+    monkeypatch.setattr(
+        "services.transaction_enrichment.suggest_transaction_category", explode
+    )
+
+    result = enrich_transaction_input(
+        db_session, user.id,
+        {"account_id": account.id, "amount": Decimal("-5"), "description": "NETFLIX"},
+    )
+
+    assert result["merchant_key"] == "netflix"
+    assert result.get("category_id") is None
+    assert result["category_source"] is None
+
+
+def test_an_enrichment_failure_is_recorded(db_session, user, account, monkeypatch, caplog):
+    """It used to be swallowed without a trace.
+
+    Categorization could break for everyone and the only symptom would be
+    transactions quietly arriving uncategorized — the same shape as the sync
+    failure that sat unnoticed in production because nothing recorded it.
+    """
+    def explode(*args, **kwargs):
+        raise RuntimeError("categorization is broken")
+
+    monkeypatch.setattr(
+        "services.transaction_enrichment.suggest_transaction_category", explode
+    )
+
+    with caplog.at_level("WARNING", logger="services.transaction_enrichment"):
+        enrich_transaction_input(
+            db_session, user.id,
+            {"account_id": account.id, "amount": Decimal("-5"), "description": "NETFLIX"},
+        )
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("transaction_enrichment_failed" in message for message in messages)
+    assert any("RuntimeError" in message for message in messages)
+
+
+def test_the_failure_log_carries_no_transaction_detail(
+    db_session, user, account, monkeypatch, caplog
+):
+    """Descriptions are the user's own data and have no place in a log line."""
+    def explode(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "services.transaction_enrichment.suggest_transaction_category", explode
+    )
+
+    with caplog.at_level("WARNING", logger="services.transaction_enrichment"):
+        enrich_transaction_input(
+            db_session, user.id,
+            {
+                "account_id": account.id,
+                "amount": Decimal("-5"),
+                "description": "DR SMITH PSYCHIATRY",
+            },
+        )
+
+    for record in caplog.records:
+        message = record.getMessage()
+        assert "PSYCHIATRY" not in message
+        assert "DR SMITH" not in message
