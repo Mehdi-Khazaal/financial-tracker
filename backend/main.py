@@ -78,6 +78,9 @@ def _prepare_database() -> None:
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_code VARCHAR(40)",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS authorized_date DATE",
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS iso_currency_code VARCHAR(8)",
+        # Serves `WHERE user_id = ? ORDER BY transaction_date DESC`, the app's
+        # most frequent query. Mirrors Alembic revision 20260824_000012.
+        "CREATE INDEX IF NOT EXISTS ix_transactions_user_date ON transactions (user_id, transaction_date)",
         "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_key ON transactions (user_id, merchant_key)",
         "CREATE INDEX IF NOT EXISTS ix_transactions_user_merchant_entity ON transactions (user_id, plaid_merchant_entity_id)",
         # ── Plaid sync health ────────────────────────────────────────────────

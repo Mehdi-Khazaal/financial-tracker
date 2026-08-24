@@ -14,12 +14,16 @@ import TransferModal from '../components/modals/TransferModal';
 import { DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
 import LoadErrorBanner from '../components/LoadErrorBanner';
-import AnalyticsTab from '../features/analytics/AnalyticsTab';
 import AnalyticsSkeleton from '../features/analytics/components/AnalyticsSkeleton';
 import OverviewTab from '../features/overview/OverviewTab';
 import { useToday } from '../features/overview/useOverviewModel';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
+
+// Split out on its own: this subtree owns the charting library, the largest
+// dependency in the app, and the dashboard opens on the Overview tab. Someone
+// who never opens Analytics never downloads it.
+const AnalyticsTab = React.lazy(() => import('../features/analytics/AnalyticsTab'));
 
 type Tab = 'overview' | 'analytics';
 
@@ -68,9 +72,18 @@ const Dashboard: React.FC = () => {
       const apply = <T,>(index: number, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
         const result = results[index];
         if (result.status !== 'fulfilled') return;
-        // `fetchAllTransactions` resolves to an array; the others to an Axios response.
-        const value = result.value as { data?: unknown } | unknown[];
-        const payload = Array.isArray(value) ? value : value?.data;
+        // Three shapes reach this helper: `fetchAllTransactions` resolves to
+        // a page object with a `transactions` array, the others to an Axios
+        // response with `data`, and a bare array is still accepted. Getting
+        // this wrong fails quietly — an unrecognised shape lands as `[]`,
+        // which renders as "no data" rather than as an error.
+        const value = result.value as
+          { data?: unknown; transactions?: unknown } | unknown[];
+        const payload = Array.isArray(value)
+          ? value
+          : Array.isArray(value?.transactions)
+            ? value.transactions
+            : value?.data;
         setter(Array.isArray(payload) ? payload as T[] : []);
       };
       apply<Account>(0, setAccounts);
@@ -204,7 +217,20 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* ══════════════════ ANALYTICS ══════════════════ */}
+          {/* Its own boundary, not the router's: the page header and the tab
+              bar must stay put while the chunk arrives. Falling back to the
+              router's boundary would blank the whole dashboard and leave the
+              user unable to switch back. */}
           {tab === 'analytics' && (
+            <React.Suspense
+              fallback={(
+                <div role="status" aria-live="polite" className="py-16 text-center">
+                  <span className="text-xs" style={{ color: 'var(--dim)' }}>
+                    Loading analytics…
+                  </span>
+                </div>
+              )}
+            >
             <AnalyticsTab
               transactions={transactions}
               categories={categories}
@@ -216,6 +242,7 @@ const Dashboard: React.FC = () => {
               failedSources={failedSources}
               initialCategoryId={initialCategoryId}
             />
+            </React.Suspense>
           )}
 
           {/* Clears the mobile context tabs and dock on the last card. */}

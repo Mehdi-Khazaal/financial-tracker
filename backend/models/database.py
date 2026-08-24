@@ -122,6 +122,13 @@ class Transaction(Base):
         # Every merchant lookup is user-scoped: "what has *this user* filed
         # this merchant under before". A composite index serves that directly;
         # a bare index on the key alone would still scan across tenants.
+        # The listing query — `WHERE user_id = ? ORDER BY transaction_date DESC`
+        # — is the most frequent in the application and had no index that could
+        # serve its sort. The merchant indexes below start with `user_id` but
+        # carry a different second column, so the database had to read every
+        # row for the user and sort them on each request. Ordering by date is
+        # what the ledger, the month picker and every analytics range do.
+        Index("ix_transactions_user_date", "user_id", "transaction_date"),
         Index("ix_transactions_user_merchant_key", "user_id", "merchant_key"),
         Index("ix_transactions_user_merchant_entity", "user_id", "plaid_merchant_entity_id"),
     )
