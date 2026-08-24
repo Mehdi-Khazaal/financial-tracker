@@ -250,6 +250,24 @@ def _clean_text(value, field: str, max_length: int, required: bool = True) -> Op
 
 # ─── Read-tool implementations (execute immediately) ─────────────────────────
 def _t_get_overview(db: Session, user: User, **_) -> dict:
+    """The assistant's financial snapshot.
+
+    `estimated_net_worth` is deliberately broader than the app's headline net
+    worth: it adds portfolio assets and money lent out, because someone asking
+    an assistant "what am I worth" means everything, not just bank balances.
+
+    What it must not do is *omit* a component. Credit card balances were
+    excluded from every term — `liquid` filters them out and nothing added them
+    back — so a card debt of $500 simply did not exist here, and Fin answered
+    with a number higher than the Accounts page for the same person. Card
+    balances are signed (negative when owed, positive when the issuer owes the
+    holder), so they are added, not subtracted.
+
+    One known difference remains and is left alone on purpose: `liquid` counts
+    `investment`-type accounts, while the app's own net worth excludes them and
+    reports them beside the portfolio. Changing that would redefine a number
+    the assistant already reports rather than fix a missing one.
+    """
     accounts = db.query(Account).filter(Account.user_id == user.id).all()
     liquid = sum((a.balance for a in accounts if a.type != "credit_card"), Decimal("0"))
     credit = sum((a.balance for a in accounts if a.type == "credit_card"), Decimal("0"))
@@ -264,7 +282,9 @@ def _t_get_overview(db: Session, user: User, **_) -> dict:
         "credit_card_balance": _jsonable(credit),
         "assets_total": _jsonable(assets_total),
         "loans_owed_to_you": _jsonable(loans_out),
-        "estimated_net_worth": _jsonable(liquid + Decimal(str(assets_total)) + Decimal(str(loans_out))),
+        "estimated_net_worth": _jsonable(
+            liquid + credit + Decimal(str(assets_total)) + Decimal(str(loans_out))
+        ),
         "account_count": len(accounts),
     }
 
@@ -1005,7 +1025,7 @@ def _all_tool_schemas() -> list:
     return [
         {
             "name": "get_overview",
-            "description": "Get a snapshot of the user's finances: liquid balance, credit card debt, assets, loans owed, and estimated net worth.",
+            "description": "Get a snapshot of the user's finances: liquid balance, credit card balances, assets, loans owed, and estimated net worth (all of those combined, with card debt subtracted).",
             "input_schema": {"type": "object", "properties": {}},
         },
         {
