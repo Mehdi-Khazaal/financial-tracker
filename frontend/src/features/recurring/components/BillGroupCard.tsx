@@ -84,7 +84,11 @@ const BillGroupCard: React.FC<{
   const headingId = `recurring-group-${groupKey}`;
   const remainingValue = num(remaining);
   return (
-    <section className="card overflow-hidden" aria-labelledby={headingId}>
+    // No `overflow-hidden` on the card and no entrance animation on the rows:
+    // the first clipped each bill's action menu to its card (only "Edit" was
+    // reachable), and the second left every row a layer of its own, so the row
+    // below painted over an open menu.
+    <section className="card" aria-labelledby={headingId}>
       <header className="flex items-center gap-3 px-4 py-3.5">
         <span style={{ color: 'var(--accent)' }}><GroupIcon group={groupKey} /></span>
         <div className="min-w-0 flex-1">
@@ -99,7 +103,7 @@ const BillGroupCard: React.FC<{
           <p className="label mt-0.5" style={{ fontSize: 9 }}>a month</p>
         </div>
       </header>
-      <ul className="stagger-in">
+      <ul>
         {bills.map(bill => <BillRow key={bill.id} bill={bill} actions={actions} />)}
       </ul>
     </section>

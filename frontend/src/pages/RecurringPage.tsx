@@ -175,29 +175,31 @@ const RecurringPage: React.FC = () => {
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  // The header is the Transactions header, class for class. Recurring is the
+  // third view of that page, so the Timeline / Review / Recurring switcher must
+  // sit in exactly the same spot — when it lived inside a centred column it
+  // jumped to the middle of the screen every time Recurring was chosen.
   const header = (
-    <div className="product-page-header topbar-safe">
-      <div className="flex items-center gap-3 min-w-0">
-        <h1 className="product-page-title">Recurring</h1>
-        <div className="hidden md:flex p-1 rounded-xl" style={{ backgroundColor: 'var(--elev-1)' }} role="tablist" aria-label="Transaction views">
-          {TRANSACTION_TABS.map(t => (
-            <button key={t.id} type="button" role="tab" aria-selected={t.id === 'recurring'}
-              onClick={() => goToTransactionsTab(t.id)}
-              className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
-              style={t.id === 'recurring'
-                ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-                : { color: 'var(--muted)' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+    <div className="product-page-header topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+      <h1 className="sr-only">Recurring</h1>
+      <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }} role="tablist" aria-label="Transaction views">
+        {TRANSACTION_TABS.map(t => (
+          <button key={t.id} type="button" role="tab" aria-selected={t.id === 'recurring'}
+            onClick={() => goToTransactionsTab(t.id)}
+            className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
+            style={t.id === 'recurring'
+              ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+              : { color: 'var(--muted)' }}>
+            {t.label}
+          </button>
+        ))}
       </div>
-      <div className="product-header-actions">
-        <button type="button" className="header-action header-action--primary" onClick={() => setShowAdd(true)}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3" aria-hidden="true">
+      <div className="ml-auto shrink-0">
+        <button type="button" className="header-action header-action--primary text-sm" onClick={() => setShowAdd(true)}>
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0" aria-hidden="true">
             <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
           </svg>
-          Add
+          <span>Add</span>
         </button>
       </div>
     </div>
@@ -206,12 +208,20 @@ const RecurringPage: React.FC = () => {
   if (loading) {
     return (
       <AppShell>
-        <PageLayout>
-          <div className="max-w-3xl mx-auto px-4 md:px-6 pt-6 md:pt-8 space-y-4" aria-busy="true">
-            {header}
-            <Skeleton h={220} rounded="rounded-xl" className="w-full" />
-            <Skeleton h={140} rounded="rounded-xl" className="w-full" />
-            <Skeleton h={180} rounded="rounded-xl" className="w-full" />
+        <PageLayout scrollRegion="contained">
+          {header}
+          <div className="flex-1 overflow-y-auto px-4 md:px-5 py-4 md:py-5" aria-busy="true">
+            <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] items-start">
+              <div className="space-y-4">
+                <Skeleton h={260} rounded="rounded-xl" className="w-full" />
+                <Skeleton h={180} rounded="rounded-xl" className="w-full" />
+              </div>
+              <div className="grid gap-4 2xl:grid-cols-2">
+                <Skeleton h={160} rounded="rounded-xl" className="w-full" />
+                <Skeleton h={160} rounded="rounded-xl" className="w-full" />
+                <Skeleton h={160} rounded="rounded-xl" className="w-full" />
+              </div>
+            </div>
           </div>
         </PageLayout>
       </AppShell>
@@ -219,103 +229,124 @@ const RecurringPage: React.FC = () => {
   }
 
   const hasBills = !!overview && (overview.groups.length > 0 || overview.income.length > 0 || overview.paused.length > 0);
+  const hasSide = !!overview && (hasBills || attention.length > 0 || overview.suggestions.length > 0);
 
   return (
     <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
-      <PageLayout>
-        <div className="max-w-3xl mx-auto px-4 md:px-6 pt-6 md:pt-8 pb-10 space-y-5 fade-in">
-          {header}
+      <PageLayout scrollRegion="contained">
+        {header}
 
-          {loadError && <LoadErrorBanner onRetry={() => void load()} />}
+        <div className="flex-1 overflow-y-auto mobile-tabs-spacer md:pb-10">
+          <div className="px-4 md:px-5 py-4 md:py-5 space-y-4 md:space-y-5 fade-in">
+            {loadError && <LoadErrorBanner onRetry={() => void load()} />}
 
-          {overview && (
-            <>
-              {hasBills && <RecurringHero overview={overview} />}
+            {overview && !hasSide && (
+              <div className="card py-14 px-6 text-center max-w-2xl mx-auto">
+                <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>No recurring bills yet</p>
+                <p className="text-sm max-w-sm mx-auto leading-relaxed mb-5" style={{ color: 'var(--muted)' }}>
+                  Once a bill or subscription has charged a couple of times, it shows up here to track in one tap.
+                  You can also add rent, salary or anything else by hand.
+                </p>
+                <button type="button" onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add a recurring charge</button>
+              </div>
+            )}
 
-              {attention.length > 0 && (
-                <section className="card overflow-hidden" aria-labelledby="recurring-attention-heading">
-                  <header className="flex items-center justify-between gap-3 px-4 py-3.5">
-                    <div>
-                      <h2 id="recurring-attention-heading" className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Needs attention</h2>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Due within a week, or not seen when expected</p>
-                    </div>
-                    {dueManualFixed.length > 0 && (
-                      <button type="button" onClick={() => void logDueFixed()} disabled={processing}
-                        className="header-action header-action--primary text-xs disabled:opacity-50">
-                        {processing ? 'Logging…' : `Log ${dueManualFixed.length} due`}
-                      </button>
-                    )}
-                  </header>
-                  <ul>
-                    {attention.map(bill => <BillRow key={`attention-${bill.id}`} bill={bill} actions={actions} />)}
-                  </ul>
-                </section>
-              )}
+            {overview && hasSide && (
+              // Two columns on a desktop: the month's figure and everything that
+              // wants a decision on the left, every tracked bill on the right.
+              // One column on a phone, in that same order.
+              <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] items-start">
+                <div className="space-y-4 md:space-y-5 min-w-0 lg:sticky lg:top-0">
+                  {hasBills && <RecurringHero overview={overview} />}
 
-              <SuggestionList
-                suggestions={overview.suggestions}
-                chosenGroups={chosenGroups}
-                groupLabels={groupLabels}
-                busyIdentity={busyIdentity}
-                onTrack={s => void track(s)}
-                onDismiss={s => void dismiss(s)}
-                onChangeGroup={s => setGroupTarget({ kind: 'suggestion', suggestion: s })}
-              />
-
-              {!hasBills && overview.suggestions.length === 0 && (
-                <div className="card py-14 px-6 text-center">
-                  <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>No recurring bills yet</p>
-                  <p className="text-sm max-w-sm mx-auto leading-relaxed mb-5" style={{ color: 'var(--muted)' }}>
-                    Once a bill or subscription has charged a couple of times, it shows up here to track in one tap.
-                    You can also add rent, salary or anything else by hand.
-                  </p>
-                  <button type="button" onClick={() => setShowAdd(true)} className="btn-gradient px-6 py-2.5 text-sm">Add a recurring charge</button>
-                </div>
-              )}
-
-              {overview.groups.map(group => (
-                <BillGroupCard
-                  key={group.key}
-                  groupKey={group.key}
-                  label={group.label}
-                  monthlyTotal={group.monthly_total}
-                  paid={group.paid_this_month}
-                  remaining={group.remaining_this_month}
-                  bills={group.bills}
-                  actions={actions}
-                />
-              ))}
-
-              {overview.income.length > 0 && (
-                <BillGroupCard
-                  groupKey="income"
-                  label="Income"
-                  monthlyTotal={overview.income_typical_monthly}
-                  paid="0"
-                  remaining="0"
-                  bills={overview.income}
-                  actions={actions}
-                />
-              )}
-
-              {overview.paused.length > 0 && (
-                <section className="card overflow-hidden">
-                  <button type="button" onClick={() => setShowPaused(v => !v)} aria-expanded={showPaused}
-                    className="w-full flex items-center justify-between px-4 py-3.5 text-left pressable" style={{ minHeight: 48 }}>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--muted)' }}>Paused · {overview.paused.length}</span>
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"
-                      style={{ color: 'var(--dim)', transform: showPaused ? 'rotate(180deg)' : 'none', transition: 'transform 180ms var(--ease-out)' }}>
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  {showPaused && (
-                    <ul>{overview.paused.map(bill => <BillRow key={bill.id} bill={bill} actions={actions} />)}</ul>
+                  {attention.length > 0 && (
+                    <section className="card" aria-labelledby="recurring-attention-heading">
+                      <header className="flex items-center justify-between gap-3 px-4 py-3.5">
+                        <div>
+                          <h2 id="recurring-attention-heading" className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Needs attention</h2>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Due within a week, or not seen when expected</p>
+                        </div>
+                        {dueManualFixed.length > 0 && (
+                          <button type="button" onClick={() => void logDueFixed()} disabled={processing}
+                            className="header-action header-action--primary text-xs disabled:opacity-50">
+                            {processing ? 'Logging…' : `Log ${dueManualFixed.length} due`}
+                          </button>
+                        )}
+                      </header>
+                      <ul>
+                        {attention.map(bill => <BillRow key={`attention-${bill.id}`} bill={bill} actions={actions} />)}
+                      </ul>
+                    </section>
                   )}
-                </section>
-              )}
-            </>
-          )}
+
+                  <SuggestionList
+                    suggestions={overview.suggestions}
+                    chosenGroups={chosenGroups}
+                    groupLabels={groupLabels}
+                    busyIdentity={busyIdentity}
+                    onTrack={s => void track(s)}
+                    onDismiss={s => void dismiss(s)}
+                    onChangeGroup={s => setGroupTarget({ kind: 'suggestion', suggestion: s })}
+                  />
+                </div>
+
+                <div className="min-w-0 space-y-4 md:space-y-5">
+                  {!hasBills && (
+                    <div className="card py-12 px-6 text-center">
+                      <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Nothing tracked yet</p>
+                      <p className="text-sm max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--muted)' }}>
+                        Track a suggestion, or add a bill by hand, and it is grouped here.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid gap-4 md:gap-5 2xl:grid-cols-2 items-start">
+                    {overview.groups.map(group => (
+                      <BillGroupCard
+                        key={group.key}
+                        groupKey={group.key}
+                        label={group.label}
+                        monthlyTotal={group.monthly_total}
+                        paid={group.paid_this_month}
+                        remaining={group.remaining_this_month}
+                        bills={group.bills}
+                        actions={actions}
+                      />
+                    ))}
+
+                    {overview.income.length > 0 && (
+                      <BillGroupCard
+                        groupKey="income"
+                        label="Income"
+                        monthlyTotal={overview.income_typical_monthly}
+                        paid="0"
+                        remaining="0"
+                        bills={overview.income}
+                        actions={actions}
+                      />
+                    )}
+                  </div>
+
+                  {overview.paused.length > 0 && (
+                    <section className="card">
+                      <button type="button" onClick={() => setShowPaused(v => !v)} aria-expanded={showPaused}
+                        className="w-full flex items-center justify-between px-4 py-3.5 text-left pressable" style={{ minHeight: 48 }}>
+                        <span className="text-sm font-semibold" style={{ color: 'var(--muted)' }}>Paused · {overview.paused.length}</span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"
+                          style={{ color: 'var(--dim)', transform: showPaused ? 'rotate(180deg)' : 'none', transition: 'transform 180ms var(--ease-out)' }}>
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      {showPaused && (
+                        <ul>{overview.paused.map(bill => <BillRow key={bill.id} bill={bill} actions={actions} />)}</ul>
+                      )}
+                    </section>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </PageLayout>
 
