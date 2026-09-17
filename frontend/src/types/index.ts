@@ -111,7 +111,7 @@ export interface RecurringTransaction {
 
 export type RecurringGroupKey =
   | 'housing' | 'utilities' | 'phone_internet' | 'insurance' | 'subscriptions'
-  | 'loans_cards' | 'transport' | 'other' | 'income';
+  | 'loans_cards' | 'transport' | 'healthcare' | 'other' | 'income';
 
 export type RecurringBillStatus = 'paid' | 'due_soon' | 'upcoming' | 'overdue' | 'waiting' | 'missed' | 'paused';
 

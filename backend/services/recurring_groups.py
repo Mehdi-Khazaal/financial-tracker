@@ -35,6 +35,7 @@ GROUPS: Final[list[tuple[str, str]]] = [
     ("subscriptions", "Subscriptions"),
     ("loans_cards", "Loans & cards"),
     ("transport", "Transport"),
+    ("healthcare", "Healthcare"),
     ("other", "Other"),
     ("income", "Income"),
 ]
@@ -64,12 +65,20 @@ _PFC_DETAILED: Final[dict[str, str]] = {
     "TRANSPORTATION_PUBLIC_TRANSIT": "transport",
     "TRANSPORTATION_PARKING": "transport",
     "TRANSPORTATION_TOLLS": "transport",
+    "MEDICAL_DENTAL_CARE": "healthcare",
+    "MEDICAL_EYE_CARE": "healthcare",
+    "MEDICAL_NURSING_CARE": "healthcare",
+    "MEDICAL_PHARMACIES_AND_SUPPLEMENTS": "healthcare",
+    "MEDICAL_PRIMARY_CARE": "healthcare",
+    "MEDICAL_VETERINARY_SERVICES": "healthcare",
+    "MEDICAL_OTHER_MEDICAL": "healthcare",
 }
 
 _PFC_PRIMARY: Final[dict[str, str]] = {
     "RENT_AND_UTILITIES": "utilities",
     "LOAN_PAYMENTS": "loans_cards",
     "TRANSPORTATION": "transport",
+    "MEDICAL": "healthcare",
     "INCOME": "income",
 }
 
@@ -79,9 +88,13 @@ _CATEGORY_WORDS: Final[list[tuple[str, tuple[str, ...]]]] = [
     ("utilities", ("utilities", "utility", "electric", "electricity", "water", "energy", "trash")),
     ("phone_internet", ("phone", "mobile", "cell", "internet", "wifi", "cable", "broadband")),
     ("insurance", ("insurance",)),
-    ("subscriptions", ("subscription", "subscriptions", "streaming", "software", "membership", "memberships", "gym", "apps")),
+    ("subscriptions", ("subscription", "subscriptions", "streaming", "software", "membership", "memberships", "gym", "fitness", "apps")),
     ("loans_cards", ("loan", "loans", "debt", "credit")),
     ("transport", ("car", "auto", "transport", "transportation", "transit", "parking", "fuel")),
+    ("healthcare", (
+        "health", "healthcare", "medical", "dental", "dentist", "doctor", "pharmacy", "orthodontics",
+        "orthodontist", "therapy", "vision", "optometry", "prescriptions", "hospital", "clinic",
+    )),
     ("income", ("salary", "income", "paycheck", "payroll", "wages")),
 ]
 
@@ -101,6 +114,7 @@ _MERCHANT_WORDS: Final[list[tuple[str, tuple[str, ...]]]] = [
     )),
     ("utilities", ("electric", "electricity", "utilities", "utility", "pge", "coned")),
     ("housing", ("rent", "apartments", "mortgage")),
+    ("healthcare", ("invisalign", "orthodontics", "orthodontist", "dental", "dentistry")),
 ]
 
 _WORD = re.compile(r"[a-z0-9]+")

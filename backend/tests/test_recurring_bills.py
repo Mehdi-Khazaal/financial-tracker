@@ -428,3 +428,47 @@ def test_category_match_needs_a_close_amount(db_session, user, linked_account):
           amount=Decimal("-1850.00"), next_date=today, group_key="housing")
     _tx(db_session, user, linked_account, today, "-240.00", "HOME DEPOT", category_id=rent.id)
     assert recurring_bills.reconcile_user(db_session, user, today=today) == 0
+
+
+# ─── Healthcare ───────────────────────────────────────────────────────────────
+def test_healthcare_is_its_own_group():
+    assert recurring_groups.classify(amount_is_income=False, pfc_detailed="MEDICAL_DENTAL_CARE") == "healthcare"
+    assert recurring_groups.classify(amount_is_income=False, category_name="Healthcare") == "healthcare"
+    assert recurring_groups.classify(amount_is_income=False, merchant_key="invisalign") == "healthcare"
+
+
+def test_in_store_aligner_plan_is_suggested(db_session, user, account):
+    """The case that prompted the group: a fixed monthly treatment plan the
+    office charges in person was skipped as an ordinary in-store purchase."""
+    today = user_today(user)
+    health = Category(name="Healthcare", type="expense", color="#14B8A6", user_id=user.id)
+    db_session.add(health)
+    db_session.commit()
+    for n in (6, 5, 4, 3, 2, 1):
+        _tx(db_session, user, account, _months_ago(today, n), "-189.00", "SMILE ORTHO GROUP",
+            category_id=health.id, payment_channel="in store")
+
+    found = recurring_detection.detect(db_session, user.id, today)
+    assert [(s.group_key, s.period, s.is_variable) for s in found] == [("healthcare", "monthly", False)]
+
+
+def test_varying_pharmacy_runs_are_not_suggested(db_session, user, account):
+    today = user_today(user)
+    for n, amount in ((4, "-12.40"), (3, "-58.10"), (2, "-23.75"), (1, "-71.20")):
+        _tx(db_session, user, account, _months_ago(today, n), amount, "CVS PHARMACY", payment_channel="in store",
+            personal_finance_category_primary="MEDICAL",
+            personal_finance_category_detailed="MEDICAL_PHARMACIES_AND_SUPPLEMENTS")
+    assert recurring_detection.detect(db_session, user.id, today) == []
+
+
+def test_bills_can_be_moved_to_healthcare(client, auth_headers, account):
+    created = client.post("/recurring/", headers=auth_headers, json={
+        "account_id": account.id, "amount": "-189.00", "description": "Aligners",
+        "period": "monthly", "next_date": "2030-01-05",
+    }).json()
+    moved = client.patch(f"/recurring/{created['id']}", headers=auth_headers, json={"group_key": "healthcare"})
+    assert moved.status_code == 200 and moved.json()["group_key"] == "healthcare"
+
+
+def test_fitness_category_stays_a_subscription():
+    assert recurring_groups.classify(amount_is_income=False, category_name="Health & Fitness") == "subscriptions"

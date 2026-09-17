@@ -16,7 +16,7 @@ RecurringPeriod = Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"
 # Must stay in step with `services.recurring_groups.GROUPS`.
 RecurringGroupKey = Literal[
     "housing", "utilities", "phone_internet", "insurance", "subscriptions",
-    "loans_cards", "transport", "other", "income",
+    "loans_cards", "transport", "healthcare", "other", "income",
 ]
 
 

@@ -10,6 +10,7 @@ const PATHS: Record<RecurringGroupKey, string> = {
   subscriptions: 'M4 10a6 6 0 0110.5-4M16 10a6 6 0 01-10.5 4M14.5 3v3h-3M5.5 17v-3h3',
   loans_cards: 'M3 6h14v9H3zM3 9h14M6 12.5h3',
   transport: 'M4.5 13V9l1.8-4h7.4l1.8 4v4M4.5 13h11M4.5 13v2M15.5 13v2M7 11h.01M13 11h.01',
+  healthcare: 'M10 16.5s-6-3.6-6-8.2A3.3 3.3 0 0110 6.4a3.3 3.3 0 016 1.9c0 4.6-6 8.2-6 8.2zM10 8.5v4M8 10.5h4',
   other: 'M5 10h.01M10 10h.01M15 10h.01',
   income: 'M10 15.5V4.5m0 0L5.5 9M10 4.5L14.5 9',
 };

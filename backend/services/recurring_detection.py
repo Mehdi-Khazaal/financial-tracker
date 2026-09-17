@@ -29,7 +29,9 @@ suggestion only when **all** of the following hold:
 
 *Bill-like* means Plaid's category or transaction code says so (rent,
 utilities, insurance, loan payment, direct debit, bill payment), or the charge
-classifies into a group other than "other".
+classifies into a group other than "other". Healthcare is bill-like only at a
+steady amount: a monthly aligner or treatment plan is a bill even when the
+office charges a card on file in person, but varying pharmacy runs are not.
 
 Card payments and transfers between the user's own accounts are never bills:
 they move money that was already counted when it was spent.
@@ -298,7 +300,8 @@ def _evaluate(
         code in _BILL_CODES
         or pfc_primary in _BILL_PFC_PRIMARY
         or pfc_detailed in _BILL_PFC_DETAILED
-        or group_key not in {"other", "income"}
+        or group_key not in {"other", "income", "healthcare"}
+        or (group_key == "healthcare" and spread <= FIXED_SPREAD)
     )
 
     required = min_count if is_income else max(2, min_count - 1) if bill_like else min_count

@@ -13,6 +13,7 @@ export const RECURRING_GROUPS: { key: RecurringGroupKey; label: string }[] = [
   { key: 'subscriptions', label: 'Subscriptions' },
   { key: 'loans_cards', label: 'Loans & cards' },
   { key: 'transport', label: 'Transport' },
+  { key: 'healthcare', label: 'Healthcare' },
   { key: 'other', label: 'Other' },
   { key: 'income', label: 'Income' },
 ];
