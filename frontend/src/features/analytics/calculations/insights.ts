@@ -53,7 +53,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
       body: `It last charged ${dollars(topIncrease.from)} and now charges ${dollars(topIncrease.to)}. Worth checking the plan is still the one you want.`,
       tone: 'warning',
       score: 80 + Math.min(20, topIncrease.delta),
-      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/recurring' },
     });
   }
 
@@ -161,7 +161,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
         body: `${plural(soon.length, 'charge')} scheduled, starting with ${soon[0].name}. Worth a glance at the balance they come out of.`,
         tone: 'info',
         score: 58,
-        action: { label: 'View bills', to: '/transactions', tab: 'recurring' },
+        action: { label: 'View bills', to: '/recurring' },
       });
     }
   }
@@ -176,7 +176,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
       body: `${detected.slice(0, 2).map(d => d.name).join(' and ')} ${verbFor(detected.length, 'charge')} on a regular cycle — about ${dollars(total)} a month in total. Fintrack has not confirmed what they are.`,
       tone: 'action',
       score: 64,
-      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/recurring' },
     });
   }
 
@@ -189,7 +189,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
       body: `${duplicate.names.join(' and ')} may be the same service billed twice. Worth confirming before either renews.`,
       tone: 'action',
       score: 66,
-      action: { label: 'Review recurring charges', to: '/transactions', tab: 'recurring' },
+      action: { label: 'Review recurring charges', to: '/recurring' },
     });
   }
 

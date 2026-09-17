@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
-import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction } from '../types';
+import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview } from '../types';
 import {
   fetchAllTransactions, getAccounts, getSavingsGoals, getCategories,
-  getNetWorthHistory, getAssets, getRecurring,
+  getNetWorthHistory, getAssets, getRecurring, getRecurringOverview,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
@@ -36,6 +36,7 @@ const Dashboard: React.FC = () => {
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [assetsList, setAssetsList]           = useState<Asset[]>([]);
   const [recurring, setRecurring]             = useState<RecurringTransaction[]>([]);
+  const [recurringOverview, setRecurringOverview] = useState<RecurringOverview | null>(null);
   const [loading, setLoading]                 = useState(true);
   const [loadError, setLoadError]             = useState(false);
   const [failedSources, setFailedSources]     = useState<string[]>([]);
@@ -55,7 +56,7 @@ const Dashboard: React.FC = () => {
     setInitialCategoryId(parseIdParam(params.get(DEEP_LINK_KEYS.category)));
   });
 
-  const SOURCES = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets', 'recurring'];
+  const SOURCES = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets', 'recurring', 'recurring overview'];
 
   const loadAll = async () => {
     setLoadError(false);
@@ -66,7 +67,7 @@ const Dashboard: React.FC = () => {
       // 24 months of net-worth snapshots feeds the chart's range selector.
       const results = await Promise.allSettled([
         getAccounts(), fetchAllTransactions(), getSavingsGoals(), getCategories(),
-        getNetWorthHistory(24), getAssets(), getRecurring(),
+        getNetWorthHistory(24), getAssets(), getRecurring(), getRecurringOverview(),
       ]);
       const failed = SOURCES.filter((_, index) => results[index].status === 'rejected');
       const apply = <T,>(index: number, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
@@ -93,6 +94,10 @@ const Dashboard: React.FC = () => {
       apply<MonthSnapshot>(4, setNetWorthSnapshots);
       apply<Asset>(5, setAssetsList);
       apply<RecurringTransaction>(6, setRecurring);
+      const overviewResult = results[7];
+      setRecurringOverview(overviewResult.status === 'fulfilled'
+        ? (overviewResult.value as { data: RecurringOverview }).data
+        : null);
       setFailedSources(failed);
       setLoadError(failed.length > 0);
     } catch {
@@ -209,6 +214,7 @@ const Dashboard: React.FC = () => {
               categories={categories}
               goals={savingsGoals}
               recurring={recurring}
+              recurringOverview={recurringOverview}
               snapshots={netWorthSnapshots}
               assets={assetsList}
               failedSources={failedSources}
@@ -237,6 +243,7 @@ const Dashboard: React.FC = () => {
               accounts={accounts}
               goals={savingsGoals}
               recurring={recurring}
+              recurringOverview={recurringOverview}
               snapshots={netWorthSnapshots}
               assets={assetsList}
               failedSources={failedSources}

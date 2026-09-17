@@ -95,6 +95,22 @@ def _prepare_database() -> None:
         "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_added_count INTEGER",
         "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_modified_count INTEGER",
         "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_removed_count INTEGER",
+        # ── Recurring bills remodel ──────────────────────────────────────────
+        # Groups, bank-charge matching and alert bookkeeping. Mirrors Alembic
+        # revision 20260916_000013; both must be updated together.
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS group_key VARCHAR(30)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS source VARCHAR(20)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS plaid_merchant_entity_id VARCHAR(64)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS merchant_key VARCHAR(120)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS last_paid_date DATE",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS last_paid_amount NUMERIC(15, 2)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS last_transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS previous_amount NUMERIC(15, 2)",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS amount_changed_on DATE",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS reminder_sent_for DATE",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS missed_alert_sent_for DATE",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS price_alert_sent_on DATE",
+        "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
     ]
     with engine.begin() as conn:
         for sql in migrations:

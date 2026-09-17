@@ -4,6 +4,7 @@ const DEFAULTS: Record<string, string> = {
   '/':             'overview',
   '/accounts':     'wallet',
   '/transactions': 'list',
+  '/recurring':    'recurring',
   '/portfolio':    'investments',
 };
 

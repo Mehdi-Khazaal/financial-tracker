@@ -35,7 +35,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
         right={
           <button
             type="button"
-            onClick={() => onNavigate('/transactions', 'recurring')}
+            onClick={() => onNavigate('/recurring')}
             className="text-xs font-semibold pressable"
             style={{ color: 'var(--accent)' }}
           >
@@ -51,7 +51,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
           action={
             <button
               type="button"
-              onClick={() => onNavigate('/transactions', 'recurring')}
+              onClick={() => onNavigate('/recurring')}
               className="btn-gradient px-5 py-2.5 text-sm mt-1"
             >
               Set up recurring charges
@@ -111,7 +111,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
           {upcoming.length > PREVIEW_COUNT && (
             <button
               type="button"
-              onClick={() => onNavigate('/transactions', 'recurring')}
+              onClick={() => onNavigate('/recurring')}
               className="w-full mt-3 pt-3 text-xs font-semibold pressable"
               style={{ borderTop: '1px solid var(--line)', color: 'var(--accent)', minHeight: 44 }}
             >

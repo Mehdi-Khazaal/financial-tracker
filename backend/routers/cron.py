@@ -6,10 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.auth import User
 from models.database import get_db, RecurringTransaction, Transaction, Account, Category
+from services import merchants, recurring_bills
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
 from utils.dates import user_today
 from utils.logging import get_logger, kv
+from utils.push_sender import send_push_to_user
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 logger = get_logger(__name__)
@@ -43,6 +45,10 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
        and then failing to move `next_date` would leave it permanently due, so
        this nightly job would re-create it and re-apply its amount to the
        balance on *every* run, unattended, forever.
+    3. **Bank-linked bills are never posted.** The bank imports those charges;
+       posting them here as well counted them twice. They are reconciled
+       against the imported charge instead, for every user with bills, and
+       due-soon, missed and price-rise alerts go out once per cycle.
     """
     _require_cron_secret(request)
 
@@ -71,7 +77,7 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
             continue
 
         account = db.query(Account).filter(Account.id == rec.account_id, Account.user_id == rec.user_id).first()
-        if not account:
+        if not account or recurring_bills.is_linked(account):
             continue
         if rec.category_id is not None:
             category = (
@@ -100,17 +106,51 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
             category_id=rec.category_id,
             amount=rec.amount,
             description=rec.description,
+            merchant_key=rec.merchant_key or merchants.merchant_key(rec.description) or None,
             transaction_date=rec.next_date,
         )
         db.add(tx)
+        db.flush()
         account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
+        rec.last_paid_date = rec.next_date
+        rec.last_paid_amount = abs(Decimal(str(rec.amount)))
+        rec.last_transaction_id = tx.id
         rec.next_date = advanced
         created += 1
 
     db.commit()
+
+    # Reconcile and alert every user who tracks a bill.
+    reconciled = 0
+    alerts_sent = 0
+    user_ids = [
+        row[0] for row in db.query(RecurringTransaction.user_id)
+        .filter(RecurringTransaction.is_active == True)  # noqa: E712
+        .distinct()
+        .all()
+    ]
+    for user_id in user_ids:
+        owner = users.get(user_id) or db.query(User).filter(User.id == user_id).first()
+        if owner is None:
+            continue
+        try:
+            today = user_today(owner)
+            reconciled += recurring_bills.reconcile_user(db, owner, today=today)
+            alerts = recurring_bills.collect_alerts(db, owner, today)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("cron_recurring_reconcile_failed %s", kv(user_id=user_id))
+            continue
+        for alert in alerts:
+            send_push_to_user(db, owner.id, alert.title, alert.body, url="/recurring", tag=alert.tag)
+            alerts_sent += 1
+
     return {
         "processed": created,
         "skipped_unsupported_period": skipped_unsupported,
+        "reconciled": reconciled,
+        "alerts": alerts_sent,
         "date": str(utc_today),
     }
 

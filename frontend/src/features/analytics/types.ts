@@ -10,6 +10,7 @@
 import type {
   Account,
   Category,
+  RecurringGroupKey,
   RecurringTransaction,
   SavingsGoal,
   Transaction,
@@ -251,22 +252,17 @@ export interface UpcomingBill {
 }
 
 export interface DetectedSubscription {
+  /** The server's identity for the suggestion. */
   key: string;
   name: string;
   monthlyAmount: number;
   occurrences: number;
-  medianIntervalDays: number;
+  period: RecurringTransaction['period'];
   lastSeen: string;
 }
 
-/**
- * How a declared recurring charge is grouped. Derived from fields the user
- * actually set, never from guessing at merchant names:
- *   • `bill`         — the amount varies each cycle (utilities, phone)
- *   • `subscription` — a fixed amount on a regular cycle
- *   • `other`        — anything that fits neither cleanly
- */
-export type RecurringKind = 'bill' | 'subscription' | 'other';
+/** A declared charge's group — assigned by the server, movable by the user. */
+export type RecurringKind = RecurringGroupKey;
 
 export interface RecurringCharge {
   id: number;
@@ -302,6 +298,15 @@ export interface SubscriptionInsight {
   possibleDuplicates: { names: string[]; note: string }[];
   /** Repeating charges found in history that the user has not confirmed. */
   detected: DetectedSubscription[];
+  /** This calendar month's recurring cost, from the server. Null when unavailable. */
+  thisMonth: RecurringMonth | null;
+}
+
+/** Recurring bills this calendar month: already paid plus still due. */
+export interface RecurringMonth {
+  expected: number;
+  paid: number;
+  remaining: number;
 }
 
 export interface RecurringOutlook {

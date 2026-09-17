@@ -65,12 +65,17 @@ describe('deep links carry their context', () => {
   });
 });
 
+describe('recurring', () => {
+  it('goes straight to the Recurring page rather than a Transactions tab', () => {
+    expect(linkToRecurring()).toBe('/recurring');
+  });
+});
+
 describe('every link names a tab its destination actually has', () => {
   const cases: [string, string][] = [
     [linkToAccountTransactions(1), '/transactions'],
     [linkToCategoryTransactions(1), '/transactions'],
     [linkToReview(), '/transactions'],
-    [linkToRecurring(), '/transactions'],
     [linkToCategoryAnalytics(1), '/'],
     [linkToAccount(1), '/accounts'],
     [linkToAccount(1, true), '/accounts'],

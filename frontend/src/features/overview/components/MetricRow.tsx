@@ -4,6 +4,7 @@ import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
 import { MINUS, dollars, percent } from '../../analytics/format';
 import { linkToCards, linkToSavings } from '../../../lib/deepLinks';
 import type { SpendingPace } from '../calculations/brief';
+import type { RecurringMonth } from '../../analytics/types';
 
 /**
  * The secondary metric band.
@@ -30,6 +31,9 @@ interface Props {
   /** Total set aside against goals. */
   allocatedToGoals: number;
   goalCount: number;
+  /** This month's recurring bills, from the server. Null hides the tile. */
+  recurringMonth?: RecurringMonth | null;
+  recurringCount?: number;
 }
 
 const Tile: React.FC<{
@@ -57,8 +61,15 @@ const Tile: React.FC<{
 const MetricRow: React.FC<Props> = ({
   monthName, income, expenses, pace, physicalAssets, investments,
   cardDebt, cardUtilization, showAssets, allocatedToGoals, goalCount,
-}) => (
-  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-3">
+  recurringMonth = null, recurringCount = 0,
+}) => {
+  const showRecurring = recurringMonth != null && (recurringCount > 0 || recurringMonth.expected > 0);
+  const tileCount = 3 + (showAssets ? 1 : 0) + (showRecurring ? 1 : 0);
+  // Written out in full so Tailwind finds both class names.
+  const desktopColumns = tileCount === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4';
+
+  return (
+  <div className={`grid grid-cols-2 ${desktopColumns} gap-2.5 md:gap-3`}>
     <Tile
       label={`${monthName} spending`}
       hint="Money spent this month. Refunds reduce the category they came from; credit-card payments and transfers between your own accounts are excluded."
@@ -73,6 +84,23 @@ const MetricRow: React.FC<Props> = ({
           : `+${dollars(income)} in`}
       </p>
     </Tile>
+
+    {showRecurring && recurringMonth && (
+      <Tile
+        label="Bills this month"
+        hint="What your tracked recurring bills and subscriptions cost this calendar month: what has already been paid, plus every charge still due before the month ends. Manage them on the Recurring page."
+        to="/recurring"
+      >
+        <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--fg)' }}>
+          {dollars(recurringMonth.expected)}
+        </p>
+        <p className="text-[10px] mt-1 truncate tabular-nums" style={{ color: 'var(--dim)' }}>
+          {recurringMonth.remaining > 0
+            ? `${dollars(recurringMonth.paid)} paid · ${dollars(recurringMonth.remaining)} to come`
+            : 'All paid this month'}
+        </p>
+      </Tile>
+    )}
 
     <Tile
       label="Cards"
@@ -122,6 +150,7 @@ const MetricRow: React.FC<Props> = ({
       </p>
     </Tile>
   </div>
-);
+  );
+};
 
 export default MetricRow;

@@ -14,17 +14,19 @@ import type {
   Asset,
   Category,
   MonthSnapshot,
+  RecurringOverview,
   RecurringTransaction,
   SavingsGoal,
   Transaction,
 } from '../../types';
-import type { Forecast, PeriodMetrics, UpcomingBill } from '../analytics/types';
+import type { Forecast, PeriodMetrics, RecurringMonth, UpcomingBill } from '../analytics/types';
 import {
   buildClassificationContext,
   normalizeMerchantName,
 } from '../analytics/calculations/transactions';
 import { calculatePeriodMetrics, monthlyMetrics } from '../analytics/calculations/metrics';
-import { detectRecurringTransactions, upcomingBills } from '../analytics/calculations/recurring';
+import { upcomingBills } from '../analytics/calculations/recurring';
+import { monthFromOverview } from '../recurring/calculations';
 import { calculateCategoryComparisons } from '../analytics/calculations/categories';
 import { calculateForecast } from '../analytics/calculations/forecast';
 import { calculateSavingsMetrics } from '../analytics/calculations/savings';
@@ -47,6 +49,8 @@ export interface OverviewSources {
   categories: Category[];
   goals: SavingsGoal[];
   recurring: RecurringTransaction[];
+  /** Server-built recurring figures and suggestions; null when unavailable. */
+  recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
   /** Names of sources that failed to load, from the Dashboard loader. */
@@ -98,8 +102,12 @@ export interface OverviewModel {
   cardUtilization: number | null;
   /** The next declared recurring charge due, or null. */
   nextCharge: UpcomingBill | null;
-  /** Undeclared subscription-shaped charges found in history. */
+  /** Undeclared recurring charges the server found in history. */
   undeclaredRecurringCount: number;
+  /** This month's recurring bills: paid plus still due. Null when unavailable. */
+  recurringMonth: RecurringMonth | null;
+  /** Active tracked bills, for the tile's caption. */
+  recurringCount: number;
 }
 
 /** Stable "now" for a mounted page, so memos don't invalidate every render. */
@@ -115,7 +123,7 @@ const monthLabelOf = (month: string): string => {
 };
 
 export function useOverviewModel(sources: OverviewSources, today: Date): OverviewModel {
-  const { accounts, transactions, categories, goals, recurring, snapshots, assets, failedSources } = sources;
+  const { accounts, transactions, categories, goals, recurring, recurringOverview = null, snapshots, assets, failedSources } = sources;
 
   const ctx = useMemo(
     () => buildClassificationContext(accounts, categories),
@@ -191,9 +199,9 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       const key = normalizeMerchantName(r.description);
       if (key) declaredKeys.add(key);
     });
-    const undeclaredRecurringCount = failedSources.includes('recurring')
-      ? 0
-      : detectRecurringTransactions(transactions, ctx, { today, declaredKeys }).length;
+    const undeclaredRecurringCount = recurringOverview
+      ? recurringOverview.suggestions.filter(s => !s.is_income).length
+      : 0;
 
     // The most recent month that has actually finished, for the all-clear line.
     const previousMonth = addMonths(monthKey, -1);
@@ -315,6 +323,8 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       cardUtilization: accountTotals.utilization,
       nextCharge,
       undeclaredRecurringCount,
+      recurringMonth: monthFromOverview(recurringOverview),
+      recurringCount: recurringOverview?.bill_count ?? 0,
     };
-  }, [accounts, transactions, categories, goals, recurring, snapshots, assets, failedSources, ctx, today]);
+  }, [accounts, transactions, categories, goals, recurring, recurringOverview, snapshots, assets, failedSources, ctx, today]);
 }

@@ -24,6 +24,7 @@ const Assistant = React.lazy(() => import('../pages/Assistant'));
 const ForgotPassword = React.lazy(() => import('../pages/ForgotPassword'));
 const OAuthCallback = React.lazy(() => import('../pages/OAuthCallback'));
 const PortfolioPage = React.lazy(() => import('../pages/PortfolioPage'));
+const RecurringPage = React.lazy(() => import('../pages/RecurringPage'));
 const ResetPassword = React.lazy(() => import('../pages/ResetPassword'));
 const Settings = React.lazy(() => import('../pages/Settings'));
 const Transactions = React.lazy(() => import('../pages/Transactions'));
@@ -50,6 +51,7 @@ export const APP_ROUTES: AppRouteDefinition[] = [
   { path: '/', element: <Dashboard />, requiresAuth: true },
   { path: '/accounts', element: <AccountsPage />, requiresAuth: true },
   { path: '/transactions', element: <Transactions />, requiresAuth: true },
+  { path: '/recurring', element: <RecurringPage />, requiresAuth: true },
   { path: '/portfolio', element: <PortfolioPage />, requiresAuth: true },
   { path: '/assistant', element: <Assistant />, requiresAuth: true },
   { path: '/settings', element: <Settings />, requiresAuth: true },
@@ -59,7 +61,6 @@ export const LEGACY_REDIRECTS: LegacyRedirectDefinition[] = [
   { from: '/wallet', to: '/accounts' },
   { from: '/cards', to: '/accounts' },
   { from: '/loans', to: '/accounts' },
-  { from: '/recurring', to: '/transactions' },
   { from: '/investments', to: '/portfolio' },
   { from: '/assets', to: '/portfolio' },
   { from: '/savings', to: '/portfolio' },

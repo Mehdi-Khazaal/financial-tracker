@@ -99,6 +99,100 @@ export interface RecurringTransaction {
   is_active: boolean;
   is_variable: boolean;
   created_at: string;
+  /** One of `RECURRING_GROUPS`; null only on rows the server has not grouped yet. */
+  group_key?: RecurringGroupKey | null;
+  source?: 'manual' | 'detected' | null;
+  last_paid_date?: string | null;
+  last_paid_amount?: number | null;
+  /** The price before the most recent change on a fixed bill. */
+  previous_amount?: number | null;
+  amount_changed_on?: string | null;
+}
+
+export type RecurringGroupKey =
+  | 'housing' | 'utilities' | 'phone_internet' | 'insurance' | 'subscriptions'
+  | 'loans_cards' | 'transport' | 'other' | 'income';
+
+export type RecurringBillStatus = 'paid' | 'due_soon' | 'upcoming' | 'overdue' | 'waiting' | 'missed' | 'paused';
+
+/** A tracked bill as the Recurring page shows it. Money fields arrive as strings. */
+export interface RecurringBill extends Omit<RecurringTransaction, 'amount' | 'last_paid_amount' | 'previous_amount'> {
+  amount: string;
+  last_paid_amount?: string | null;
+  previous_amount?: string | null;
+  group_key: RecurringGroupKey;
+  group_label: string;
+  account_name: string | null;
+  category_name: string | null;
+  /** Bank-linked: marked paid from imported charges, never posted by the app. */
+  linked: boolean;
+  status: RecurringBillStatus;
+  status_label: string;
+  days_until: number;
+  monthly_amount: string;
+  paid_this_month: string;
+  remaining_this_month: string;
+}
+
+export interface RecurringGroupSummary {
+  key: RecurringGroupKey;
+  label: string;
+  monthly_total: string;
+  paid_this_month: string;
+  remaining_this_month: string;
+  bills: RecurringBill[];
+}
+
+export interface RecurringSuggestion {
+  identity: string;
+  name: string;
+  amount: string;
+  period: RecurringPeriod;
+  next_date: string;
+  last_date: string;
+  is_variable: boolean;
+  is_income: boolean;
+  group_key: RecurringGroupKey;
+  group_label: string;
+  account_id: number;
+  account_name: string | null;
+  category_id: number | null;
+  occurrences: number;
+  confidence: 'high' | 'medium';
+  reasons: string[];
+  min_amount: string;
+  max_amount: string;
+  monthly_amount: string;
+}
+
+export interface RecurringUpcoming {
+  id: number;
+  name: string;
+  amount: string;
+  due_date: string;
+  days_until: number;
+  group_key: RecurringGroupKey;
+  is_variable: boolean;
+  linked: boolean;
+  account_name: string | null;
+}
+
+export interface RecurringOverview {
+  month: string;
+  today: string;
+  expected_this_month: string;
+  paid_this_month: string;
+  remaining_this_month: string;
+  typical_monthly: string;
+  income_expected_this_month: string;
+  income_typical_monthly: string;
+  bill_count: number;
+  groups: RecurringGroupSummary[];
+  income: RecurringBill[];
+  paused: RecurringBill[];
+  upcoming: RecurringUpcoming[];
+  suggestions: RecurringSuggestion[];
+  group_options: { key: RecurringGroupKey; label: string }[];
 }
 
 export interface MonthSnapshot {

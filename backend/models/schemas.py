@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Literal, List
 from decimal import Decimal
 from datetime import datetime, date
@@ -13,6 +13,11 @@ from datetime import datetime, date
 # run. Anything that widens this set must widen `services.recurring_schedule`
 # in the same change.
 RecurringPeriod = Literal["weekly", "biweekly", "monthly", "quarterly", "yearly"]
+# Must stay in step with `services.recurring_groups.GROUPS`.
+RecurringGroupKey = Literal[
+    "housing", "utilities", "phone_internet", "insurance", "subscriptions",
+    "loans_cards", "transport", "other", "income",
+]
 
 
 # ─── Account ─────────────────────────────────────────────────────────────────
@@ -249,7 +254,8 @@ class RecurringTransactionBase(BaseModel):
     is_variable: bool = False
 
 class RecurringTransactionCreate(RecurringTransactionBase):
-    pass
+    # Omitted → chosen automatically from the category and merchant.
+    group_key: Optional[RecurringGroupKey] = None
 
 class RecurringTransactionUpdate(BaseModel):
     account_id: Optional[int] = None
@@ -260,6 +266,7 @@ class RecurringTransactionUpdate(BaseModel):
     next_date: Optional[date] = None
     is_active: Optional[bool] = None
     is_variable: Optional[bool] = None
+    group_key: Optional[RecurringGroupKey] = None
 
 class RecurringTransactionResponse(RecurringTransactionBase):
     model_config = ConfigDict(from_attributes=True)
@@ -269,6 +276,104 @@ class RecurringTransactionResponse(RecurringTransactionBase):
     is_active: bool
     is_variable: bool
     created_at: datetime
+    group_key: Optional[str] = None
+    source: Optional[str] = None
+    last_paid_date: Optional[date] = None
+    last_paid_amount: Optional[Decimal] = None
+    previous_amount: Optional[Decimal] = None
+    amount_changed_on: Optional[date] = None
+
+
+class RecurringBillOut(RecurringTransactionResponse):
+    group_label: str
+    account_name: Optional[str] = None
+    category_name: Optional[str] = None
+    # Bank-linked: marked paid from imported charges, never posted by the app.
+    linked: bool
+    status: str
+    status_label: str
+    days_until: int
+    monthly_amount: Decimal
+    paid_this_month: Decimal
+    remaining_this_month: Decimal
+
+
+class RecurringGroupOut(BaseModel):
+    key: str
+    label: str
+    monthly_total: Decimal
+    paid_this_month: Decimal
+    remaining_this_month: Decimal
+    bills: list[RecurringBillOut]
+
+
+class RecurringUpcomingOut(BaseModel):
+    id: int
+    name: str
+    amount: Decimal
+    due_date: date
+    days_until: int
+    group_key: str
+    is_variable: bool
+    linked: bool
+    account_name: Optional[str] = None
+
+
+class RecurringSuggestionOut(BaseModel):
+    identity: str
+    name: str
+    amount: Decimal
+    period: RecurringPeriod
+    next_date: date
+    last_date: date
+    is_variable: bool
+    is_income: bool
+    group_key: str
+    group_label: str
+    account_id: int
+    account_name: Optional[str] = None
+    category_id: Optional[int] = None
+    occurrences: int
+    confidence: str
+    reasons: list[str]
+    min_amount: Decimal
+    max_amount: Decimal
+    monthly_amount: Decimal
+
+
+class RecurringGroupOption(BaseModel):
+    key: str
+    label: str
+
+
+class RecurringOverviewOut(BaseModel):
+    month: str
+    today: date
+    # Expenses only: paid so far this calendar month plus what is still due.
+    expected_this_month: Decimal
+    paid_this_month: Decimal
+    remaining_this_month: Decimal
+    # Every active bill normalised to a month — the steady-state figure.
+    typical_monthly: Decimal
+    income_expected_this_month: Decimal
+    income_typical_monthly: Decimal
+    bill_count: int
+    groups: list[RecurringGroupOut]
+    income: list[RecurringBillOut]
+    paused: list[RecurringBillOut]
+    upcoming: list[RecurringUpcomingOut]
+    suggestions: list[RecurringSuggestionOut]
+    group_options: list[RecurringGroupOption]
+
+
+class ConfirmSuggestionRequest(BaseModel):
+    identity: str = Field(min_length=1, max_length=200)
+    group_key: Optional[RecurringGroupKey] = None
+    name: Optional[str] = Field(default=None, max_length=120)
+
+
+class DismissSuggestionRequest(BaseModel):
+    identity: str = Field(min_length=1, max_length=200)
 
 class LogVariableRecurringRequest(BaseModel):
     amount: Decimal

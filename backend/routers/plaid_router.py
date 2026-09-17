@@ -653,6 +653,23 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
     return added_count
 
 
+def _reconcile_recurring(db: Session, user_id: int) -> None:
+    """Mark tracked bills paid from the charges this sync just imported.
+
+    Isolated so a problem here can never fail or roll back the sync itself —
+    the transactions are already committed, and the nightly job reconciles
+    again anyway.
+    """
+    try:
+        from services import recurring_bills
+        owner = db.query(User).filter(User.id == user_id).first()
+        if owner and recurring_bills.reconcile_user(db, owner):
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("plaid_recurring_reconcile_failed %s", kv(user_id=user_id))
+
+
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_SOURCE_OTHER):
     """Background task — owns its own DB session so it outlives the request.
 
@@ -673,6 +690,7 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_
             raise
         record_sync_health(db, item, source=source, ok=True, added=count)
         if count > 0:
+            _reconcile_recurring(db, user_id)
             send_push_to_user(
                 db, user_id,
                 "Bank sync complete",

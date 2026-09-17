@@ -1,4 +1,4 @@
-import type { Account, Category, RecurringTransaction, SavingsGoal, Transaction } from '../../../types';
+import type { Account, Category, RecurringSuggestion, RecurringTransaction, SavingsGoal, Transaction } from '../../../types';
 import {
   buildClassificationContext,
   classifyTransaction,
@@ -13,7 +13,7 @@ import { calculateSavingsMetrics, selectPrimaryGoal } from './savings';
 import { calculateNetWorthChange } from './netWorth';
 import { buildCashFlow } from './cashflow';
 import {
-  buildRecurringOutlook, detectRecurringTransactions, groupRecurringCharges,
+  buildRecurringOutlook, groupRecurringCharges, suggestionsToDetected,
   monthlyEquivalent, monthlyRecurringExpense,
 } from './recurring';
 import { KIND_LABELS } from './transactions';
@@ -615,43 +615,29 @@ describe('recurring', () => {
     expect(monthlyEquivalent(-10, 'monthly')).toBe(10);
   });
 
-  it('detects a steady monthly charge', () => {
-    const detected = detectRecurringTransactions([
-      tx('2026-05-04', -15.99, null, CHECKING, 'Streamflix'),
-      tx('2026-06-04', -15.99, null, CHECKING, 'Streamflix'),
-      tx('2026-07-04', -15.99, null, CHECKING, 'Streamflix'),
-    ], ctx, { today: TODAY });
-
-    expect(detected).toHaveLength(1);
-    expect(detected[0].occurrences).toBe(3);
-    expect(detected[0].monthlyAmount).toBeCloseTo(15.99, 1);
+  it('shows server suggestions as detected charges, expenses only, largest first', () => {
+    const suggestion = (over: Partial<RecurringSuggestion>): RecurringSuggestion => ({
+      identity: 'key:streamflix', name: 'Streamflix', amount: '-15.99', period: 'monthly',
+      next_date: '2026-08-04', last_date: '2026-07-04', is_variable: false, is_income: false,
+      group_key: 'subscriptions', group_label: 'Subscriptions', account_id: CHECKING, account_name: 'Checking',
+      category_id: null, occurrences: 3, confidence: 'high', reasons: ['3 charges'],
+      min_amount: '15.99', max_amount: '15.99', monthly_amount: '15.99', ...over,
+    });
+    const detected = suggestionsToDetected([
+      suggestion({}),
+      suggestion({ identity: 'key:power', name: 'City Power', amount: '-120', monthly_amount: '120', is_variable: true }),
+      suggestion({ identity: 'key:payroll', name: 'Payroll', amount: '2000', monthly_amount: '4333.33', is_income: true }),
+    ]);
+    expect(detected.map(d => d.name)).toEqual(['City Power', 'Streamflix']);
+    expect(detected[1]).toMatchObject({ key: 'key:streamflix', monthlyAmount: 15.99, occurrences: 3, period: 'monthly' });
   });
 
-  it('ignores a regular shop with varying amounts', () => {
-    const detected = detectRecurringTransactions([
-      tx('2026-05-04', -30, null, CHECKING, 'Corner Grocer'),
-      tx('2026-06-04', -95, null, CHECKING, 'Corner Grocer'),
-      tx('2026-07-04', -12, null, CHECKING, 'Corner Grocer'),
-    ], ctx, { today: TODAY });
-    expect(detected).toHaveLength(0);
-  });
-
-  it('ignores a charge seen only twice', () => {
-    const detected = detectRecurringTransactions([
-      tx('2026-06-04', -9.99, null, CHECKING, 'Podcast Plus'),
-      tx('2026-07-04', -9.99, null, CHECKING, 'Podcast Plus'),
-    ], ctx, { today: TODAY });
-    expect(detected).toHaveLength(0);
-  });
-
-  it('does not re-detect something already declared as recurring', () => {
-    const declared = new Set([normalizeMerchantName('Streamflix')]);
-    const detected = detectRecurringTransactions([
-      tx('2026-05-04', -15.99, null, CHECKING, 'Streamflix'),
-      tx('2026-06-04', -15.99, null, CHECKING, 'Streamflix'),
-      tx('2026-07-04', -15.99, null, CHECKING, 'Streamflix'),
-    ], ctx, { today: TODAY, declaredKeys: declared });
-    expect(detected).toHaveLength(0);
+  it('reports no detected charges when the server sent none', () => {
+    const outlook = buildRecurringOutlook({
+      recurring: [], transactions: [], accounts, categories, ctx, today: TODAY,
+    });
+    expect(outlook.subscriptions.detected).toEqual([]);
+    expect(outlook.subscriptions.thisMonth).toBeNull();
   });
 
   it('expands short-cycle bills across the 30-day window', () => {
@@ -909,18 +895,19 @@ describe('groupRecurringCharges', () => {
     is_active: true, is_variable: false, created_at: '', ...over,
   });
 
-  it('files a varying amount as a bill and a fixed one as a subscription', () => {
+  it('groups by the server-assigned group, in page order', () => {
     const groups = groupRecurringCharges([
-      make({ id: 1, description: 'Electricity', is_variable: true }),
-      make({ id: 2, description: 'Streamflix', is_variable: false }),
+      make({ id: 1, description: 'Streamflix', group_key: 'subscriptions' }),
+      make({ id: 2, description: 'Electricity', is_variable: true, group_key: 'utilities' }),
+      make({ id: 3, description: 'Rent', amount: -1500, group_key: 'housing' }),
     ], categories);
 
-    expect(groups.find(g => g.kind === 'bill')?.charges[0].name).toBe('Electricity');
-    expect(groups.find(g => g.kind === 'subscription')?.charges[0].name).toBe('Streamflix');
+    expect(groups.map(g => g.kind)).toEqual(['housing', 'utilities', 'subscriptions']);
+    expect(groups.find(g => g.kind === 'utilities')?.charges[0].name).toBe('Electricity');
   });
 
-  it('files an irregular cadence as other', () => {
-    const groups = groupRecurringCharges([make({ period: 'biweekly' })], categories);
+  it('files a row the server has not grouped yet under other', () => {
+    const groups = groupRecurringCharges([make({ group_key: null })], categories);
     expect(groups.map(g => g.kind)).toEqual(['other']);
   });
 

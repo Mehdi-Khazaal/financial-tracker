@@ -1,18 +1,16 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useRouteTab } from '../context/TabContext';
 import { localDateStr } from '../utils/date';
-import { Transaction, Account, Category, RecurringTransaction } from '../types';
+import { Transaction, Account, Category } from '../types';
 import {
   fetchAllTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription,
-  getRecurring, deleteRecurring, updateRecurring, processDueRecurring, logVariableRecurring,
   updateTransaction,
 } from '../utils/api';
 import {
   buildClassificationContext, classifyTransaction,
 } from '../features/analytics/calculations/transactions';
 import { calculatePeriodMetrics } from '../features/analytics/calculations/metrics';
-import { monthlyEquivalent } from '../features/analytics/calculations/recurring';
 import type { ClassificationContext } from '../features/analytics/types';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, linkToCategoryAnalytics, parseIdParam } from '../lib/deepLinks';
@@ -22,7 +20,6 @@ import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
-import AddRecurringModal from '../components/modals/AddRecurringModal';
 import TransactionCard from '../components/transactions/TransactionCard';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
@@ -40,13 +37,6 @@ type Tab = 'transactions' | 'list' | 'recurring';
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const PERIOD_LABELS: Record<string, string> = {
-  weekly: 'Weekly', biweekly: 'Biweekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly',
-};
-const PERIOD_COLORS: Record<string, string> = {
-  weekly: '#a855f7', biweekly: 'var(--accent)', monthly: 'var(--pos)', quarterly: '#f59e0b', yearly: 'var(--neg)',
-};
 
 const formatMonth = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
@@ -219,6 +209,17 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
 const Transactions: React.FC = () => {
   const toast = useToast();
   const [tab, setTab] = useRouteTab('/transactions');
+  const navigate = useNavigate();
+
+  // Recurring bills have their own page. The tab stays in the switcher so the
+  // three views of money-in-and-out remain together, but choosing it goes
+  // there — and this page falls back to the Timeline for the return trip.
+  useEffect(() => {
+    if (tab !== 'recurring') return;
+    setTab('list');
+    navigate('/recurring');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts]         = useState<Account[]>([]);
@@ -234,12 +235,6 @@ const Transactions: React.FC = () => {
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
   const [editTx, setEditTx]             = useState<Transaction | null>(null);
-
-  const [items, setItems]                       = useState<RecurringTransaction[]>([]);
-  const [showAddRecurring, setShowAddRecurring] = useState(false);
-  const [processing, setProcessing]             = useState(false);
-  const [billInputs, setBillInputs]             = useState<Record<number, string>>({});
-  const [loggingBill, setLoggingBill]           = useState<number | null>(null);
 
   const [selectedMonth, setSelectedMonth]   = useState('');
   const [draggingTxId, setDraggingTxId]     = useState<number | null>(null);
@@ -281,9 +276,9 @@ const Transactions: React.FC = () => {
       // filter, the month picker and the category detail all showed only the
       // most recent 500 entries with no indication anything was missing.
       const results = await Promise.allSettled([
-        fetchAllTransactions(), getAccounts(), getCategories(), getRecurring(),
+        fetchAllTransactions(), getAccounts(), getCategories(),
       ]);
-      const labels = ['transactions', 'accounts', 'categories', 'recurring transactions'];
+      const labels = ['transactions', 'accounts', 'categories'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
       const transactionsResult = results[0];
       if (transactionsResult.status === 'fulfilled') {
@@ -301,14 +296,10 @@ const Transactions: React.FC = () => {
       if (categoriesResult.status === 'fulfilled') {
         setCategories(Array.isArray(categoriesResult.value.data) ? categoriesResult.value.data : []);
       }
-      const recurringResult = results[3];
-      if (recurringResult.status === 'fulfilled') {
-        setItems(Array.isArray(recurringResult.value.data) ? recurringResult.value.data : []);
-      }
       setFailedSources(failed);
       setLoadError(failed.length > 0);
     } catch {
-      setFailedSources(['transactions', 'accounts', 'categories', 'recurring transactions']);
+      setFailedSources(['transactions', 'accounts', 'categories']);
       setLoadError(true);
     }
     finally { setLoading(false); }
@@ -544,152 +535,7 @@ const Transactions: React.FC = () => {
     setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '' });
   };
 
-  // ── Recurring helpers ─────────────────────────────────────────────────────────
-  const handleDeleteRecurring = async (id: number) => {
-    const ok = await toast.confirm('Delete this recurring transaction?', { danger: true });
-    if (!ok) return;
-    try { await deleteRecurring(id); load(); toast.success('Deleted'); }
-    catch { toast.error('Failed to delete'); }
-  };
-
-  const handleToggle = async (item: RecurringTransaction) => {
-    try { await updateRecurring(item.id, { is_active: !item.is_active }); load(); }
-    catch { toast.error('Failed to update'); }
-  };
-
-  const handleProcess = async () => {
-    setProcessing(true);
-    try {
-      const res = await processDueRecurring();
-      const count = Array.isArray(res.data) ? res.data.length : 0;
-      if (count > 0) toast.success(`Logged ${count} transaction${count !== 1 ? 's' : ''}`);
-      else toast.info('No fixed recurring transactions due right now');
-      load();
-    } catch { toast.error('Failed to process'); }
-    finally { setProcessing(false); }
-  };
-
-  const handleLogBill = async (item: RecurringTransaction) => {
-    const input = billInputs[item.id];
-    if (!input || parseFloat(input) <= 0) return;
-    setLoggingBill(item.id);
-    try {
-      const sign = Number(item.amount) < 0 ? -1 : 1;
-      await logVariableRecurring(item.id, sign * Math.abs(parseFloat(input)));
-      setBillInputs(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      load(); toast.success('Bill logged');
-    } catch { toast.error('Failed to log bill'); }
-    finally { setLoggingBill(null); }
-  };
-
-  const getCategory    = (id: number | null) => categories.find(c => c.id === id);
-  const getAccountName = (id: number) => accounts.find(a => a.id === id)?.name ?? 'Unknown';
-
-  const today          = localDateStr();
-  const dueNow         = items.filter(i => i.is_active && i.next_date <= today);
-  const dueFixed       = dueNow.filter(i => !i.is_variable);
-  const dueBills       = dueNow.filter(i => i.is_variable);
-  const upcoming       = items.filter(i => i.is_active && i.next_date > today);
-  const inactive       = items.filter(i => !i.is_active);
-
-  // `monthlyEquivalent` is the same normalisation Analytics uses (52/12, 26/12,
-  // 1, 1/3, 1/12). The rounded table this page used to carry — 4.33, 2.17,
-  // 0.33, 0.083 — made the two screens quote different monthly costs for the
-  // same subscription.
-  const monthlyIncome  = items
-    .filter(i => i.is_active && Number(i.amount) > 0)
-    .reduce((s, i) => s + monthlyEquivalent(Number(i.amount), i.period), 0);
-  const monthlyExpense = items
-    .filter(i => i.is_active && Number(i.amount) < 0)
-    .reduce((s, i) => s + monthlyEquivalent(Number(i.amount), i.period), 0);
-  const monthlyNet     = monthlyIncome - monthlyExpense;
-
-  const formatNextDate = (d: string) => {
-    const todayStr = localDateStr();
-    if (d === todayStr) return 'Due today';
-    if (d < todayStr) return 'Overdue';
-    const days = Math.ceil((new Date(d).getTime() - new Date(todayStr).getTime()) / 86400000);
-    if (days === 1) return 'Tomorrow';
-    if (days <= 7) return `In ${days} days`;
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  // ── Recurring Item ─────────────────────────────────────────────────────────────
-  const RecurringItem: React.FC<{ item: RecurringTransaction }> = ({ item }) => {
-    const pos = Number(item.amount) > 0;
-    const cat = getCategory(item.category_id);
-    const due = item.next_date <= today;
-    return (
-      <div className="group transition-colors hover:bg-surface2" style={{ borderBottom: '1px solid var(--line)' }}>
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: cat?.color ?? (pos ? 'var(--pos)' : 'var(--neg)') }} />
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: 'var(--elev-sub)', color: item.is_variable ? '#f59e0b' : (pos ? 'var(--pos)' : 'var(--neg)') }}>
-            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              {item.is_variable
-                ? <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" />
-                : pos
-                  ? <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  : <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              }
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-text truncate">{item.description || 'Recurring'}</p>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'var(--elev-sub)', color: PERIOD_COLORS[item.period] }}>
-                {PERIOD_LABELS[item.period]}
-              </span>
-              {item.is_variable && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'var(--elev-sub)', color: '#f59e0b' }}>variable</span>}
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted flex-wrap">
-              <span>{getAccountName(item.account_id)}</span>
-              {cat && <><span>·</span><span style={{ color: cat.color }}>{cat.name}</span></>}
-              <span>·</span>
-              <span style={{ color: due && item.is_active ? 'var(--neg)' : 'var(--muted)' }}>{formatNextDate(item.next_date)}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <p className="font-mono font-bold text-sm" style={{ color: item.is_variable ? '#f59e0b' : (pos ? 'var(--pos)' : 'var(--neg)'), fontVariantNumeric: 'tabular-nums' }}>
-              {item.is_variable ? '~' : (pos ? '+' : '-')}${fmt(Math.abs(Number(item.amount)))}
-            </p>
-            <button onClick={() => handleToggle(item)}
-              className="w-11 h-11 rounded-full transition-all relative shrink-0"
-              role="switch" aria-checked={item.is_active} aria-label={`${item.description || 'Recurring transaction'} active`}
-              style={{ backgroundColor: item.is_active ? 'var(--pos)' : 'var(--line)' }}>
-              <div className="absolute top-3 w-5 h-5 rounded-full bg-white shadow transition-all" style={{ left: item.is_active ? '21px' : '3px' }} />
-            </button>
-            <button onClick={() => handleDeleteRecurring(item.id)}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
-              aria-label={`Delete ${item.description || 'recurring transaction'}`}
-              style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        {item.is_variable && item.is_active && due && (
-          <div className="px-4 pb-3 flex gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-muted text-xs">$</span>
-              <label className="sr-only" htmlFor={`recurring-amount-${item.id}`}>Amount for {item.description || 'recurring transaction'}</label>
-              <input id={`recurring-amount-${item.id}`} type="number" inputMode="decimal" step="0.01" min="0.01" value={billInputs[item.id] ?? ''}
-                onChange={e => setBillInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
-                className="input-dark pl-6 text-sm py-2.5"
-                placeholder={`This month's amount (last: $${fmt(Math.abs(Number(item.amount)))})`} />
-            </div>
-            <button onClick={() => handleLogBill(item)}
-              disabled={loggingBill === item.id || !billInputs[item.id] || parseFloat(billInputs[item.id] ?? '0') <= 0}
-              className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
-              style={{ backgroundColor: 'var(--elev-sub)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.25)' }}>
-              {loggingBill === item.id ? '…' : 'Log bill'}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const getCategory = (id: number | null) => categories.find(c => c.id === id);
 
   // ── Drag card helper ──────────────────────────────────────────────────────────
   const makeDragHandlers = (tx: Transaction) => ({
@@ -924,23 +770,6 @@ const Transactions: React.FC = () => {
             </div>
           )}
 
-          {/* Recurring tab actions */}
-          {tab === 'recurring' && (
-            <div className="flex gap-2 ml-auto shrink-0">
-              {dueFixed.length > 0 && (
-                <button onClick={handleProcess} disabled={processing}
-                  className="text-xs font-semibold h-11 px-3 rounded-lg disabled:opacity-50 transition-all"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                  {processing ? '…' : `Log ${dueFixed.length} fixed`}
-                </button>
-              )}
-              <button onClick={() => setShowAddRecurring(true)}
-                className="text-xs font-semibold h-11 px-3 rounded-lg transition-all"
-                style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', color: 'var(--muted)' }}>
-                + Add
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ── Board Tab ── */}
@@ -1372,90 +1201,6 @@ const Transactions: React.FC = () => {
           </div>
         )}
 
-        {/* ── Recurring Tab ── */}
-        {tab === 'recurring' && !failedSources.includes('recurring transactions') && (
-          <div className="flex-1 overflow-y-auto mobile-tabs-spacer md:pb-10">
-            <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-5 fade-in">
-              <h1 className="text-xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)' }}>Recurring</h1>
-
-              {items.filter(i => i.is_active).length > 0 && (
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                    <p className="label mb-1">Est. Income</p>
-                    <p className="font-mono font-bold text-sm" style={{ color: 'var(--pos)', fontVariantNumeric: 'tabular-nums' }}>+${fmt(monthlyIncome)}</p>
-                    <p className="text-[10px] text-muted mt-0.5">/month</p>
-                  </div>
-                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                    <p className="label mb-1">Est. Costs</p>
-                    <p className="font-mono font-bold text-sm" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>-${fmt(monthlyExpense)}</p>
-                    <p className="text-[10px] text-muted mt-0.5">/month</p>
-                  </div>
-                  <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
-                    <p className="label mb-1">Net</p>
-                    <p className="font-mono font-bold text-sm" style={{ color: monthlyNet >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-                      {monthlyNet >= 0 ? '+' : '-'}${fmt(Math.abs(monthlyNet))}
-                    </p>
-                    <p className="text-[10px] text-muted mt-0.5">/month</p>
-                  </div>
-                </div>
-              )}
-
-              {items.length === 0 ? (
-                <div className="card py-14 text-center">
-                  <p className="font-semibold text-text mb-1">No recurring transactions yet</p>
-                  <p className="text-sm text-muted mb-5 max-w-sm mx-auto leading-relaxed">
-                    Declaring rent, salary and subscriptions lets Fintrack show what is due next
-                    and forecast the month. Imported activity works without this — it just cannot
-                    be predicted ahead of time.
-                  </p>
-                  <button onClick={() => setShowAddRecurring(true)} className="btn-gradient px-6 py-2.5 text-sm">Add First Recurring</button>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {dueNow.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--neg)' }} />
-                        <p className="label" style={{ color: 'var(--neg)' }}>Due Now</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' }}>{dueNow.length}</span>
-                      </div>
-                      <div className="card overflow-hidden">
-                        {dueNow.map(item => <RecurringItem key={item.id} item={item} />)}
-                      </div>
-                      {dueFixed.length > 0 && (
-                        <button onClick={handleProcess} disabled={processing}
-                          className="mt-2 w-full py-3 text-sm font-semibold rounded-lg transition-all active:scale-95 disabled:opacity-50"
-                          style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.12)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
-                          {processing ? 'Processing…' : `Log all ${dueFixed.length} fixed transactions`}
-                        </button>
-                      )}
-                      {dueBills.length > 0 && (
-                        <p className="text-xs text-muted mt-2 text-center">{dueBills.length} variable bill{dueBills.length !== 1 ? 's' : ''} need a manual amount</p>
-                      )}
-                    </div>
-                  )}
-                  {upcoming.length > 0 && (
-                    <div>
-                      <p className="label mb-3">Upcoming</p>
-                      <div className="card overflow-hidden">
-                        {upcoming.map(item => <RecurringItem key={item.id} item={item} />)}
-                      </div>
-                    </div>
-                  )}
-                  {inactive.length > 0 && (
-                    <div>
-                      <p className="label mb-3 opacity-60">Paused</p>
-                      <div className="card overflow-hidden opacity-60">
-                        {inactive.map(item => <RecurringItem key={item.id} item={item} />)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
       </PageLayout>
 
       {/* ── Categorize picker (mobile) ── */}
@@ -1473,7 +1218,6 @@ const Transactions: React.FC = () => {
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
-      <AddRecurringModal isOpen={showAddRecurring} onClose={() => setShowAddRecurring(false)} onSuccess={load} />
       <CategoryDetailModal
         cat={detailCat}
         allTransactions={transactions}

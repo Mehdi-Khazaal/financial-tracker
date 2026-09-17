@@ -18,6 +18,13 @@ export const CONTEXT_TABS: Record<string, ReadonlyArray<ContextTabDefinition>> =
     { label: 'Review', value: 'transactions' },
     { label: 'Recurring', value: 'recurring' },
   ],
+  // Recurring is its own page but the third view of Transactions, so the phone
+  // keeps the same three tabs there.
+  '/recurring': [
+    { label: 'Timeline', value: 'list' },
+    { label: 'Review', value: 'transactions' },
+    { label: 'Recurring', value: 'recurring' },
+  ],
   '/portfolio': [
     { label: 'Investments', value: 'investments' },
     { label: 'Assets', value: 'assets' },

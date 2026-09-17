@@ -15,7 +15,6 @@ import {
   merchantKeyOf,
   normalizeMerchantName,
 } from './transactions';
-import { detectRecurringTransactions } from './recurring';
 
 const CHECKING = 1;
 
@@ -90,94 +89,6 @@ describe('merchantKeyOf', () => {
   it('normalizes locally when the row predates the migration', () => {
     const row = tx('2026-07-01', -10, 'ACH DEBIT STREAMFLIX');
     expect(merchantKeyOf(row)).toBe('streamflix');
-  });
-});
-
-describe('detection with stored identity', () => {
-  it('groups variants the backend already resolved to one key', () => {
-    // Three different raw strings, one stored key — the old code grouped on
-    // the description and would have seen three separate merchants.
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -15.99, 'NETFLIX.COM', { merchant_key: 'netflix' }),
-        tx('2026-06-04', -15.99, 'NETFLIX*MEMBERSHIP', { merchant_key: 'netflix' }),
-        tx('2026-07-04', -15.99, 'SQ *NETFLIX', { merchant_key: 'netflix' }),
-      ],
-      ctx,
-      { today: TODAY },
-    );
-    expect(detected).toHaveLength(1);
-    expect(detected[0].occurrences).toBe(3);
-  });
-
-  it('groups on the Plaid entity id even when the strings differ wildly', () => {
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -12.5, 'PAYMENT REF 41A', { plaid_merchant_entity_id: 'ent_gym', merchant_key: 'ref a' }),
-        tx('2026-06-04', -12.5, 'PAYMENT REF 88B', { plaid_merchant_entity_id: 'ent_gym', merchant_key: 'ref b' }),
-        tx('2026-07-04', -12.5, 'PAYMENT REF 03C', { plaid_merchant_entity_id: 'ent_gym', merchant_key: 'ref c' }),
-      ],
-      ctx,
-      { today: TODAY },
-    );
-    expect(detected).toHaveLength(1);
-  });
-
-  it('still works entirely on legacy rows with no stored identity', () => {
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -15.99, 'Streamflix'),
-        tx('2026-06-04', -15.99, 'Streamflix'),
-        tx('2026-07-04', -15.99, 'Streamflix'),
-      ],
-      ctx,
-      { today: TODAY },
-    );
-    expect(detected).toHaveLength(1);
-  });
-
-  it('suppresses a declared subscription matched by stored key', () => {
-    const declared = new Set([normalizeMerchantName('Netflix')]);
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -15.99, 'NETFLIX.COM', { merchant_key: 'netflix' }),
-        tx('2026-06-04', -15.99, 'NETFLIX*MEMBERSHIP', { merchant_key: 'netflix' }),
-        tx('2026-07-04', -15.99, 'SQ *NETFLIX', { merchant_key: 'netflix' }),
-      ],
-      ctx,
-      { today: TODAY, declaredKeys: declared },
-    );
-    expect(detected).toHaveLength(0);
-  });
-
-  it('suppresses a declared subscription on rows that also carry an entity id', () => {
-    // Suppression must work through the string key even when grouping used
-    // the entity id — a declared row only has a description.
-    const declared = new Set([normalizeMerchantName('Netflix')]);
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -15.99, 'Netflix', { plaid_merchant_entity_id: 'ent_nf', merchant_key: 'netflix' }),
-        tx('2026-06-04', -15.99, 'Netflix', { plaid_merchant_entity_id: 'ent_nf', merchant_key: 'netflix' }),
-        tx('2026-07-04', -15.99, 'Netflix', { plaid_merchant_entity_id: 'ent_nf', merchant_key: 'netflix' }),
-      ],
-      ctx,
-      { today: TODAY, declaredKeys: declared },
-    );
-    expect(detected).toHaveLength(0);
-  });
-
-  it('keeps unrelated merchants apart when only descriptions are available', () => {
-    const detected = detectRecurringTransactions(
-      [
-        tx('2026-05-04', -15.99, 'Apple Store'),
-        tx('2026-06-04', -15.99, 'Apple Bakery'),
-        tx('2026-07-04', -15.99, 'Apple Store'),
-      ],
-      ctx,
-      { today: TODAY },
-    );
-    // Two occurrences each — neither reaches the 3-occurrence threshold.
-    expect(detected).toHaveLength(0);
   });
 });
 

@@ -245,6 +245,56 @@ class RecurringTransaction(Base):
     is_variable = Column(Boolean, default=False)
     created_at = Column(DateTime, default=utc_now)
 
+    # ── Organisation ─────────────────────────────────────────────────────────
+    # One of `services.recurring_groups.GROUP_KEYS`. Assigned automatically on
+    # create and overwritten only when the user moves the bill, so a deliberate
+    # move is never undone by re-classification. Null only on rows that predate
+    # this column; readers fall back to deriving it.
+    group_key = Column(String(30), nullable=True)
+    # "manual" (typed in) or "detected" (confirmed from a suggestion).
+    source = Column(String(20), nullable=True)
+
+    # ── Identity, for matching imported bank charges ─────────────────────────
+    # The same two-level identity `services.merchants` gives transactions. A
+    # bill on a bank-linked account is never posted by the app; it is marked
+    # paid when an imported transaction with this identity arrives.
+    plaid_merchant_entity_id = Column(String(64), nullable=True)
+    merchant_key = Column(String(120), nullable=True)
+
+    # ── Payment history ──────────────────────────────────────────────────────
+    last_paid_date = Column(Date, nullable=True)
+    last_paid_amount = Column(Numeric(15, 2), nullable=True)
+    last_transaction_id = Column(Integer, ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True)
+    # The amount before the most recent price change on a fixed bill, and when
+    # the change was seen. Null when the price has never moved.
+    previous_amount = Column(Numeric(15, 2), nullable=True)
+    amount_changed_on = Column(Date, nullable=True)
+
+    # ── Alert bookkeeping ────────────────────────────────────────────────────
+    # Each holds the due date an alert was already sent for, so a nightly job
+    # can run any number of times and still notify once per cycle.
+    reminder_sent_for = Column(Date, nullable=True)
+    missed_alert_sent_for = Column(Date, nullable=True)
+    price_alert_sent_on = Column(Date, nullable=True)
+
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class RecurringDismissal(Base):
+    """A detected recurring charge the user said is not a bill.
+
+    Keyed on the same identity detection groups by, so the suggestion never
+    comes back — not on the next page load and not after the next bank sync.
+    """
+
+    __tablename__ = "recurring_dismissals"
+    __table_args__ = (UniqueConstraint("user_id", "identity", name="uq_recurring_dismissals_user_identity"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    identity = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=utc_now)
+
 
 class Loan(Base):
     __tablename__ = "loans"

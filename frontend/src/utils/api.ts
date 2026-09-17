@@ -207,6 +207,11 @@ export const createRecurring  = (data: any) => api.post('/recurring', data);
 export const updateRecurring  = (id: number, data: any) => api.patch(`/recurring/${id}`, data);
 export const deleteRecurring  = (id: number) => api.delete(`/recurring/${id}`);
 export const processDueRecurring = () => api.post('/recurring/process-due');
+export const getRecurringOverview = () => api.get('/recurring/overview');
+export const confirmRecurringSuggestion = (identity: string, overrides: { group_key?: string; name?: string } = {}) =>
+  api.post('/recurring/suggestions/confirm', { identity, ...overrides });
+export const dismissRecurringSuggestion = (identity: string) =>
+  api.post('/recurring/suggestions/dismiss', { identity });
 export const logVariableRecurring = (id: number, amount: number, transaction_date?: string) =>
   api.post(`/recurring/${id}/log`, { amount, transaction_date });
 

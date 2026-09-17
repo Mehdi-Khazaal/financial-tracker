@@ -5,6 +5,7 @@ import type {
   Asset,
   Category,
   MonthSnapshot,
+  RecurringOverview,
   RecurringTransaction,
   SavingsGoal,
   Transaction,
@@ -44,6 +45,7 @@ export interface OverviewTabProps {
   categories: Category[];
   goals: SavingsGoal[];
   recurring: RecurringTransaction[];
+  recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
   failedSources: string[];
@@ -60,6 +62,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
       categories: props.categories,
       goals: props.goals,
       recurring: props.recurring,
+      recurringOverview: props.recurringOverview ?? null,
       snapshots: props.snapshots,
       assets: props.assets,
       failedSources: props.failedSources,
@@ -101,6 +104,8 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         showAssets={!failedSources.includes('assets')}
         allocatedToGoals={allocatedToGoals}
         goalCount={goalsFailed ? 0 : goals.length}
+        recurringMonth={model.recurringMonth}
+        recurringCount={model.recurringCount}
       />
 
       <div className="grid md:grid-cols-2 gap-4 md:gap-5 items-start">

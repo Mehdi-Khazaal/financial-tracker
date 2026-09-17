@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Account, Asset, Category, MonthSnapshot, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
+import type { Account, Asset, Category, MonthSnapshot, RecurringOverview, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
 import type { CategoryDetail, PeriodId } from './types';
 import { TabContext } from '../../context/TabContext';
 import { cleanDescription } from '../../utils/api';
@@ -33,6 +33,7 @@ interface Props {
   accounts: Account[];
   goals: SavingsGoal[];
   recurring: RecurringTransaction[];
+  recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
   failedSources: string[];
@@ -67,7 +68,7 @@ const readStoredPeriod = (): PeriodId => {
  * (savings, cash flow, categories), and then the detail underneath.
  */
 const AnalyticsTab: React.FC<Props> = ({
-  transactions, categories, accounts, goals, recurring, snapshots, assets, failedSources,
+  transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, failedSources,
   initialCategoryId = null,
 }) => {
   const navigate = useNavigate();
@@ -88,8 +89,8 @@ const AnalyticsTab: React.FC<Props> = ({
   const [openCategoryId, setOpenCategoryId] = useState<number | null>(initialCategoryId);
 
   const sources = useMemo(
-    () => ({ transactions, categories, accounts, goals, recurring, snapshots, assets }),
-    [transactions, categories, accounts, goals, recurring, snapshots, assets],
+    () => ({ transactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets }),
+    [transactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets],
   );
 
   const model = useAnalyticsModel(

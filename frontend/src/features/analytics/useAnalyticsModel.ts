@@ -13,6 +13,7 @@ import type {
   Asset,
   Category,
   MonthSnapshot,
+  RecurringOverview,
   RecurringTransaction,
   SavingsGoal,
   Transaction,
@@ -42,6 +43,7 @@ import { calculateSavingsMetrics } from './calculations/savings';
 import { calculateNetWorthChange } from './calculations/netWorth';
 import { buildCashFlow } from './calculations/cashflow';
 import { buildRecurringOutlook } from './calculations/recurring';
+import { monthFromOverview } from '../recurring/calculations';
 import { generateDeterministicInsights } from './calculations/insights';
 import { buildPeriodSummary } from './calculations/summary';
 import { calculateFinancialHealth } from './calculations/health';
@@ -59,6 +61,8 @@ export interface AnalyticsSources {
   accounts: Account[];
   goals: SavingsGoal[];
   recurring: RecurringTransaction[];
+  /** Server-built recurring overview: suggestions and this month's figures. */
+  recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
 }
@@ -109,7 +113,7 @@ export function useAnalyticsModel(
   selection: AnalyticsSelection,
   today: Date,
 ): AnalyticsModel {
-  const { transactions, categories, accounts, goals, recurring, snapshots, assets } = sources;
+  const { transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets } = sources;
   const { periodId, customMonth, netWorthWindow } = selection;
 
   const availableMonths = useMemo(() => {
@@ -175,6 +179,8 @@ export function useAnalyticsModel(
       categories,
       ctx,
       today,
+      suggestions: recurringOverview?.suggestions ?? [],
+      thisMonth: monthFromOverview(recurringOverview),
     });
 
     const insights = generateDeterministicInsights({
@@ -255,6 +261,6 @@ export function useAnalyticsModel(
     };
   }, [
     availableMonths, period, today, transactions, categories, accounts, goals,
-    recurring, snapshots, assets, ctx, netWorthWindow,
+    recurring, recurringOverview, snapshots, assets, ctx, netWorthWindow,
   ]);
 }

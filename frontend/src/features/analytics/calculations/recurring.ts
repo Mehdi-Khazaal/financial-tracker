@@ -2,32 +2,26 @@
  * Upcoming bills and subscription insight.
  *
  * Declared `RecurringTransaction` rows are the source of truth — the user told
- * us these repeat, so we can state their dates and amounts plainly. Detection
- * from transaction history only ever *supplements* that, and is deliberately
- * strict: three or more occurrences, a consistent interval, and a stable
- * amount. Anything short of that stays unreported rather than guessed at.
+ * us these repeat, so we can state their dates and amounts plainly. Finding
+ * *undeclared* recurring charges is the server's job (`GET /recurring/overview`
+ * returns them as suggestions), so every screen reports the same ones; this
+ * module only reshapes those suggestions for Analytics.
  */
 
-import type { Account, Category, RecurringTransaction, Transaction } from '../../../types';
+import type { Account, Category, RecurringSuggestion, RecurringTransaction, Transaction } from '../../../types';
+import { RECURRING_GROUPS, groupOf } from '../../recurring/groups';
 import type {
   ClassificationContext,
   DetectedSubscription,
   RecurringCharge,
   RecurringGroup,
-  RecurringKind,
+  RecurringMonth,
   RecurringOutlook,
   SubscriptionInsight,
   UpcomingBill,
 } from '../types';
 import { dateKey, daysBetween } from '../period';
-import {
-  classifyTransaction,
-  median,
-  merchantDisplayName,
-  merchantIdentity,
-  merchantKeyOf,
-  normalizeMerchantName,
-} from './transactions';
+import { classifyTransaction, merchantKeyOf, normalizeMerchantName } from './transactions';
 
 /** How many times a period fires per month, for normalising to a monthly cost. */
 const MONTHLY_FACTOR: Record<RecurringTransaction['period'], number> = {
@@ -118,82 +112,19 @@ export function upcomingBills(
   return bills.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
-/**
- * Subscription-shaped charges found in transaction history that the user has
- * *not* declared as recurring. Conservative by design — see module header.
- */
-export function detectRecurringTransactions(
-  transactions: Transaction[],
-  ctx: ClassificationContext,
-  options: { today: Date; declaredKeys?: Set<string>; minOccurrences?: number },
-): DetectedSubscription[] {
-  const minOccurrences = options.minOccurrences ?? 3;
-  const declared = options.declaredKeys ?? new Set<string>();
-
-  const groups = new Map<string, { name: string; dates: string[]; amounts: number[] }>();
-  transactions.forEach(tx => {
-    if (classifyTransaction(tx, ctx) !== 'expense') return;
-    // Group on the strongest identity available — Plaid's entity id merges
-    // string variants a regex never could. Suppression is checked against the
-    // string key, because a declared row has only a description to offer.
-    const identity = merchantIdentity(tx);
-    if (!identity || declared.has(merchantKeyOf(tx))) return;
-    const rec = groups.get(identity) ?? { name: merchantDisplayName(tx.description), dates: [], amounts: [] };
-    rec.dates.push(tx.transaction_date.slice(0, 10));
-    rec.amounts.push(Math.abs(Number(tx.amount)));
-    groups.set(identity, rec);
-  });
-
-  const detected: DetectedSubscription[] = [];
-  groups.forEach((rec, key) => {
-    if (rec.dates.length < minOccurrences) return;
-
-    const dates = [...rec.dates].sort();
-    const intervals: number[] = [];
-    for (let i = 1; i < dates.length; i += 1) {
-      intervals.push(daysBetween(dates[i - 1], dates[i]));
-    }
-    if (intervals.length === 0) return;
-
-    const medianInterval = median(intervals);
-    // Only well-known cadences count: weekly, biweekly, monthly, quarterly.
-    // The cadence is the true length of the cycle in days — 30.44 for a
-    // calendar month, not 30 — so normalising to a monthly figure leaves a
-    // monthly charge exactly as it is rather than inflating it by 1.5%.
-    const cadence =
-      medianInterval >= 6 && medianInterval <= 8 ? 7
-        : medianInterval >= 12 && medianInterval <= 16 ? 14
-          : medianInterval >= 26 && medianInterval <= 35 ? 30.44
-            : medianInterval >= 85 && medianInterval <= 95 ? 91.31
-              : null;
-    if (cadence == null) return;
-
-    // Intervals must be consistent, not merely average out to a cadence.
-    const intervalSpread = intervals.every(i => Math.abs(i - medianInterval) <= Math.max(4, medianInterval * 0.25));
-    if (!intervalSpread) return;
-
-    // And the amount must be stable — variable spend at a regular shop is not
-    // a subscription.
-    const medianAmount = median(rec.amounts);
-    if (medianAmount <= 0) return;
-    const amountStable = rec.amounts.every(a => Math.abs(a - medianAmount) <= medianAmount * 0.15);
-    if (!amountStable) return;
-
-    // Ignore anything that appears to have lapsed.
-    const lastSeen = dates[dates.length - 1];
-    if (daysBetween(lastSeen, dateKey(options.today)) > cadence * 2.5) return;
-
-    detected.push({
-      key,
-      name: rec.name,
-      monthlyAmount: medianAmount * (30.44 / cadence),
-      occurrences: rec.dates.length,
-      medianIntervalDays: Math.round(medianInterval),
-      lastSeen,
-    });
-  });
-
-  return detected.sort((a, b) => b.monthlyAmount - a.monthlyAmount).slice(0, 6);
+/** Server suggestions (expenses only) in the shape the Analytics card reads. */
+export function suggestionsToDetected(suggestions: RecurringSuggestion[]): DetectedSubscription[] {
+  return suggestions
+    .filter(s => !s.is_income)
+    .map(s => ({
+      key: s.identity,
+      name: s.name,
+      monthlyAmount: Math.abs(Number(s.monthly_amount) || 0),
+      occurrences: s.occurrences,
+      period: s.period,
+      lastSeen: s.last_date,
+    }))
+    .sort((a, b) => b.monthlyAmount - a.monthlyAmount);
 }
 
 /** Declared subscriptions whose amount rose since the previous comparable charge. */
@@ -247,13 +178,9 @@ function findPossibleDuplicates(names: string[]): SubscriptionInsight['possibleD
 }
 
 /**
- * Group declared recurring charges into bills, subscriptions and everything
- * else.
- *
- * The split uses fields the user actually set — `is_variable` and `period` —
- * rather than pattern-matching merchant names, which would misfile anything
- * unusual and could not explain itself. A charge whose amount changes every
- * cycle is a bill; a fixed amount on a regular cycle is a subscription.
+ * Group declared recurring charges by what they are — housing, utilities,
+ * subscriptions — using the group the server assigned (and the user may have
+ * moved), in the same order the Recurring page lists them.
  */
 export function groupRecurringCharges(
   recurring: RecurringTransaction[],
@@ -266,15 +193,10 @@ export function groupRecurringCharges(
     .map(r => {
       const category = r.category_id != null ? categoryById.get(r.category_id) : undefined;
       const amount = Math.abs(Number(r.amount));
-      const regularCycle = r.period === 'weekly' || r.period === 'monthly'
-        || r.period === 'quarterly' || r.period === 'yearly';
-      const kind: RecurringKind = r.is_variable
-        ? 'bill'
-        : regularCycle ? 'subscription' : 'other';
       return {
         id: r.id,
         name: r.description || category?.name || 'Recurring charge',
-        kind,
+        kind: groupOf(r),
         amount,
         monthlyAmount: monthlyEquivalent(amount, r.period),
         period: r.period,
@@ -285,19 +207,16 @@ export function groupRecurringCharges(
       };
     });
 
-  const definitions: { kind: RecurringKind; label: string; description: string }[] = [
-    { kind: 'bill', label: 'Bills', description: 'Amount changes each cycle' },
-    { kind: 'subscription', label: 'Subscriptions', description: 'Same amount every cycle' },
-    { kind: 'other', label: 'Other recurring charges', description: 'Irregular cycle' },
-  ];
-
-  return definitions
-    .map(definition => {
+  return RECURRING_GROUPS
+    .filter(group => group.key !== 'income')
+    .map(group => {
       const matching = charges
-        .filter(c => c.kind === definition.kind)
+        .filter(c => c.kind === group.key)
         .sort((a, b) => b.monthlyAmount - a.monthlyAmount);
       return {
-        ...definition,
+        kind: group.key,
+        label: group.label,
+        description: '',
         charges: matching,
         monthlyTotal: matching.reduce((s, c) => s + c.monthlyAmount, 0),
       };
@@ -312,20 +231,18 @@ export function buildRecurringOutlook(options: {
   categories: Category[];
   ctx: ClassificationContext;
   today: Date;
+  /** Undeclared recurring charges found by the server; omitted when unavailable. */
+  suggestions?: RecurringSuggestion[];
+  /** This calendar month's recurring cost from the server, when available. */
+  thisMonth?: RecurringMonth | null;
 }): RecurringOutlook {
-  const { recurring, transactions, accounts, categories, ctx, today } = options;
+  const { recurring, transactions, accounts, categories, ctx, today, suggestions = [], thisMonth = null } = options;
 
   const upcoming = upcomingBills(recurring, { accounts, categories, today });
   const within30 = upcoming.filter(b => b.daysUntil >= 0 && b.daysUntil <= 30);
 
   const activeExpenses = activeRecurringExpenses(recurring);
   const monthlyTotal = monthlyRecurringExpense(recurring);
-
-  const declaredKeys = new Set<string>();
-  activeExpenses.forEach(r => {
-    const key = normalizeMerchantName(r.description);
-    if (key) declaredKeys.add(key);
-  });
 
   const increased = findIncreases(activeExpenses, transactions, ctx);
   // The previous total is today's total less any increases we can evidence.
@@ -343,7 +260,8 @@ export function buildRecurringOutlook(options: {
     possibleDuplicates: findPossibleDuplicates(
       activeExpenses.map(r => r.description ?? '').filter(Boolean),
     ),
-    detected: detectRecurringTransactions(transactions, ctx, { today, declaredKeys }),
+    detected: suggestionsToDetected(suggestions),
+    thisMonth,
   };
 
   return {

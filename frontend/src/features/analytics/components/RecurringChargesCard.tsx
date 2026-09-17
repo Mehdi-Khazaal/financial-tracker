@@ -37,7 +37,7 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
         id="analytics-recurring-heading"
         eyebrow="Recurring charges"
         title="What repeats on a schedule"
-        hint="Weekly, quarterly and yearly charges are converted to a monthly equivalent so totals are comparable. Bills are charges whose amount changes each cycle; subscriptions are the same amount every time."
+        hint="Weekly, quarterly and yearly charges are converted to a monthly equivalent so totals are comparable. Charges are grouped by what they are — housing, utilities, subscriptions — and can be moved on the Recurring page."
         toggle={{ open, onToggle: () => setOpen(v => !v), controls: 'analytics-recurring-body' }}
         collapsedSummary={hasDeclared
           ? `${dollars(subscriptions.monthlyTotal)} a month across ${plural(subscriptions.count, 'charge')} · ${dollars(subscriptions.annualized, 0)} a year`
@@ -45,7 +45,7 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
         right={
           <button
             type="button"
-            onClick={() => onNavigate('/transactions', 'recurring')}
+            onClick={() => onNavigate('/recurring')}
             className="text-xs font-semibold pressable"
             style={{ color: 'var(--accent)' }}
           >
@@ -65,7 +65,7 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
           action={
             <button
               type="button"
-              onClick={() => onNavigate('/transactions', 'recurring')}
+              onClick={() => onNavigate('/recurring')}
               className="btn-gradient px-5 py-2.5 text-sm mt-1"
             >
               Add a recurring charge
@@ -89,10 +89,21 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
                 </dd>
               </div>
               <div className="ledger-cell p-3">
-                <dt className="label mb-1.5">Charges</dt>
-                <dd className="font-mono tabular-nums text-sm font-bold" style={{ color: 'var(--fg)' }}>
-                  {subscriptions.count}
-                </dd>
+                {subscriptions.thisMonth ? (
+                  <>
+                    <dt className="label mb-1.5">This month</dt>
+                    <dd className="font-mono tabular-nums text-sm font-bold" style={{ color: 'var(--fg)' }}>
+                      {dollars(subscriptions.thisMonth.expected)}
+                    </dd>
+                  </>
+                ) : (
+                  <>
+                    <dt className="label mb-1.5">Charges</dt>
+                    <dd className="font-mono tabular-nums text-sm font-bold" style={{ color: 'var(--fg)' }}>
+                      {subscriptions.count}
+                    </dd>
+                  </>
+                )}
               </div>
             </dl>
           )}
@@ -118,7 +129,9 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
                   </span>
                 }
               >
-                <p className="text-[10px] mb-2.5" style={{ color: 'var(--dim)' }}>{group.description}</p>
+                {group.description && (
+                  <p className="text-[10px] mb-2.5" style={{ color: 'var(--dim)' }}>{group.description}</p>
+                )}
                 <ul className="space-y-2">
                   {group.charges.map(charge => (
                     <li key={charge.id} className="flex items-center gap-3">
@@ -197,8 +210,8 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
                 {plural(subscriptions.detected.length, 'possible recurring charge')}
               </p>
               <p className="text-[11px] mb-2.5 leading-relaxed" style={{ color: 'var(--muted)' }}>
-                These charge on a regular cycle at a steady amount, but you have not set them up as
-                recurring. Fintrack has not confirmed what they are.
+                Found in your transactions on a regular cycle, but not tracked yet — so they are not in
+                the monthly total. Track or dismiss them on the Recurring page.
               </p>
               <ul className="space-y-1.5">
                 {subscriptions.detected.slice(0, 3).map(item => (
@@ -206,7 +219,7 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
                     <span className="min-w-0">
                       <span className="block text-xs font-medium truncate" style={{ color: 'var(--fg)' }}>{item.name}</span>
                       <span className="block text-[10px] mt-0.5" style={{ color: 'var(--dim)' }}>
-                        about every {item.medianIntervalDays} days · seen {plural(item.occurrences, 'time')}
+                        {PERIOD_LABEL[item.period] ?? item.period} · seen {plural(item.occurrences, 'time')}
                       </span>
                     </span>
                     <span className="font-mono tabular-nums text-xs shrink-0" style={{ color: 'var(--muted)' }}>

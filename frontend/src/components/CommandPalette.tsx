@@ -96,7 +96,7 @@ const CommandPalette: React.FC = () => {
     { id: 'nav-tx-review', label: 'Review transactions', group: 'Navigate', keywords: 'uncategorized categorize import inbox',
       icon: <I d="M4 5h12M4 10h8M4 15h6m5-3v6m-3-3h6" />, run: () => go('/transactions', 'transactions') },
     { id: 'nav-recurring', label: 'Recurring', group: 'Navigate', keywords: 'subscriptions salary repeat',
-      icon: <I d="M4 10a6 6 0 0110.5-4M16 10a6 6 0 01-10.5 4M14.5 3v3h-3M5.5 17v-3h3" />, run: () => go('/transactions', 'recurring') },
+      icon: <I d="M4 10a6 6 0 0110.5-4M16 10a6 6 0 01-10.5 4M14.5 3v3h-3M5.5 17v-3h3" />, run: () => go('/recurring') },
     { id: 'nav-invest', label: 'Investments', group: 'Navigate', keywords: 'portfolio stocks crypto',
       icon: <I d="M3 14l4-5 3 3 5-7m0 0v4m0-4h-4" />, run: () => go('/portfolio', 'investments') },
     { id: 'nav-assets', label: 'Assets', group: 'Navigate', keywords: 'portfolio physical property',

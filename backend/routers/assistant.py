@@ -41,6 +41,7 @@ from models.database import (
     get_db,
     utc_now,
 )
+from services import recurring_groups
 from services.recurring_schedule import UnsupportedPeriodError, occurrences_per_year
 from utils.auth import get_current_user
 from utils.dates import clean_timezone, user_now, user_today
@@ -392,6 +393,8 @@ def _t_list_recurring(db: Session, user: User, **_) -> list:
             "period": r.period,
             "next_date": _jsonable(r.next_date),
             "is_variable": r.is_variable,
+            "group": recurring_groups.label_for(r.group_key),
+            "last_paid_date": _jsonable(r.last_paid_date),
         }
         for r in rows
     ]

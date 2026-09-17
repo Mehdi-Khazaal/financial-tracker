@@ -62,9 +62,8 @@ export const linkToCategoryTransactions = (categoryId: number): string =>
 export const linkToReview = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.review}`;
 
-/** The recurring list. */
-export const linkToRecurring = (): string =>
-  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.recurring}`;
+/** The Recurring page — bills, subscriptions and suggestions. It has its own route. */
+export const linkToRecurring = (): string => '/recurring';
 
 /** Analytics with one category's detail drawer already open. */
 export const linkToCategoryAnalytics = (categoryId: number): string =>
