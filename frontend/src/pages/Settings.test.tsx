@@ -2691,6 +2691,50 @@ describe('Settings automation preference', () => {
     expect(screen.getByText(/still categorize anything yourself/i)).toBeInTheDocument();
   });
 
+  it('shows the alert switches with the saved values and the server defaults when absent', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: true, budget_alerts_enabled: false },
+    });
+    await openPreferences();
+    expect(await screen.findByRole('switch', { name: 'Bill reminders' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('switch', { name: 'Budget alerts' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: 'Low balance alerts' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByLabelText('Warn me below')).not.toBeInTheDocument();
+  });
+
+  it('saves an alert switch and reports it', async () => {
+    mockApi.updatePreferences.mockImplementation((changes: Record<string, unknown>) => Promise.resolve({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: true, ...changes },
+    }));
+    await openPreferences();
+    fireEvent.click(await screen.findByRole('switch', { name: 'Low balance alerts' }));
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalledWith({ low_balance_alerts_enabled: true }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Low balance alerts' })).toHaveAttribute('aria-checked', 'true'));
+    expect(mockToastSuccess).toHaveBeenCalledWith('Low balance alerts on');
+    expect(screen.getByLabelText('Warn me below')).toHaveValue('100.00');
+  });
+
+  it('saves the threshold as the typed decimal string, and rejects a non-amount', async () => {
+    mockApi.getPreferences.mockResolvedValue({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: true, low_balance_alerts_enabled: true, low_balance_threshold: '100.00' },
+    });
+    mockApi.updatePreferences.mockImplementation((changes: Record<string, unknown>) => Promise.resolve({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: true, low_balance_alerts_enabled: true, ...changes },
+    }));
+    await openPreferences();
+    const field = await screen.findByLabelText('Warn me below');
+    fireEvent.change(field, { target: { value: '250.5' } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalledWith({ low_balance_threshold: '250.5' }));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Threshold saved'));
+    await waitFor(() => expect(field).toHaveValue('250.5'));
+
+    fireEvent.change(field, { target: { value: 'lots' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter an amount like 150 or 150.00');
+    expect(mockApi.updatePreferences).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps implementation vocabulary out of the UI', async () => {
     await openPreferences();
     await automationSwitch();

@@ -356,7 +356,7 @@ export const cleanDescription = (desc: string | null | undefined): string => {
 // response is read-only: it folds in the deployment-level kill-switch, so the
 // UI can explain a switch that is on but currently doing nothing.
 export const getPreferences    = () => api.get('/preferences');
-export const updatePreferences = (changes: Record<string, boolean>) =>
+export const updatePreferences = (changes: Record<string, boolean | string>) =>
   api.patch('/preferences', changes);
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────

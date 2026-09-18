@@ -21,6 +21,29 @@ import { useToast } from '../../../context/ToastContext';
  */
 export type AutomationState = 'loading' | 'on' | 'off' | 'unavailable' | 'error';
 
+/**
+ * The alert switches ride on the same request. They are plain server
+ * preferences with no kill-switch, so they need none of the automation
+ * switch's extra states — but they share its loading and error state, since
+ * one answer covers them all.
+ */
+export type AlertKind = 'bill_reminders_enabled' | 'budget_alerts_enabled' | 'low_balance_alerts_enabled';
+
+export interface AlertSettings {
+  bill_reminders_enabled: boolean;
+  budget_alerts_enabled: boolean;
+  low_balance_alerts_enabled: boolean;
+  /** Decimal string, as the server sends it. */
+  low_balance_threshold: string;
+}
+
+export const ALERT_DEFAULTS: AlertSettings = {
+  bill_reminders_enabled: true,
+  budget_alerts_enabled: true,
+  low_balance_alerts_enabled: false,
+  low_balance_threshold: '100.00',
+};
+
 export interface UseAutomationPreference {
   state: AutomationState;
   /** What the user has chosen, regardless of whether it currently applies. */
@@ -31,12 +54,26 @@ export interface UseAutomationPreference {
   unavailable: boolean;
   toggle: () => Promise<void>;
   reload: () => void;
+  alerts: AlertSettings;
+  toggleAlert: (kind: AlertKind) => Promise<void>;
+  /** Saves a new low-balance threshold; resolves to an error message or null. */
+  setThreshold: (value: string) => Promise<string | null>;
 }
 
 interface PreferencesPayload {
   automatic_categorization_enabled?: boolean;
   automatic_categorization_effective?: boolean;
+  bill_reminders_enabled?: boolean;
+  budget_alerts_enabled?: boolean;
+  low_balance_alerts_enabled?: boolean;
+  low_balance_threshold?: string | number;
 }
+
+const ALERT_LABELS: Record<AlertKind, string> = {
+  bill_reminders_enabled: 'Bill reminders',
+  budget_alerts_enabled: 'Budget alerts',
+  low_balance_alerts_enabled: 'Low balance alerts',
+};
 
 export function useAutomationPreference(): UseAutomationPreference {
   const toast = useToast();
@@ -44,8 +81,16 @@ export function useAutomationPreference(): UseAutomationPreference {
   const [enabled, setEnabled] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [alerts, setAlerts] = useState<AlertSettings>(ALERT_DEFAULTS);
 
   const apply = useCallback((data: PreferencesPayload) => {
+    // An older server without the alert fields is not claiming they are off.
+    setAlerts({
+      bill_reminders_enabled: data.bill_reminders_enabled ?? ALERT_DEFAULTS.bill_reminders_enabled,
+      budget_alerts_enabled: data.budget_alerts_enabled ?? ALERT_DEFAULTS.budget_alerts_enabled,
+      low_balance_alerts_enabled: data.low_balance_alerts_enabled ?? ALERT_DEFAULTS.low_balance_alerts_enabled,
+      low_balance_threshold: data.low_balance_threshold != null ? String(data.low_balance_threshold) : ALERT_DEFAULTS.low_balance_threshold,
+    });
     const stored = data.automatic_categorization_enabled === true;
     // Absent rather than false: an older server that does not send the
     // effective field is not claiming the feature is off.
@@ -93,6 +138,37 @@ export function useAutomationPreference(): UseAutomationPreference {
     }
   }, [apply, enabled, toast]);
 
+  const toggleAlert = useCallback(async (kind: AlertKind) => {
+    const next = !alerts[kind];
+    setBusy(true);
+    try {
+      const response = await updatePreferences({ [kind]: next });
+      apply(response.data ?? {});
+      toast.success(`${ALERT_LABELS[kind]} ${next ? 'on' : 'off'}`);
+    } catch {
+      toast.error('Could not save that setting');
+    } finally {
+      setBusy(false);
+    }
+  }, [alerts, apply, toast]);
+
+  const setThreshold = useCallback(async (value: string) => {
+    const trimmed = value.trim();
+    if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return 'Enter an amount like 150 or 150.00';
+    setBusy(true);
+    try {
+      // Sent as the string the user typed: money never goes through a float.
+      const response = await updatePreferences({ low_balance_threshold: trimmed });
+      apply(response.data ?? {});
+      toast.success('Threshold saved');
+      return null;
+    } catch {
+      return 'Could not save the threshold';
+    } finally {
+      setBusy(false);
+    }
+  }, [apply, toast]);
+
   return {
     state,
     enabled,
@@ -100,5 +176,8 @@ export function useAutomationPreference(): UseAutomationPreference {
     unavailable,
     toggle,
     reload: () => { void load(); },
+    alerts,
+    toggleAlert,
+    setThreshold,
   };
 }

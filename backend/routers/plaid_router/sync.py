@@ -449,6 +449,18 @@ def _notify_budgets(db: Session, user_id: int) -> None:
         logger.exception("plaid_budget_notify_failed %s", kv(user_id=user_id))
 
 
+def _notify_balances(db: Session, user_id: int) -> None:
+    """Low-balance pushes after an import moved balances. Isolated like the rest."""
+    try:
+        from services import alerts
+        owner = db.query(User).filter(User.id == user_id).first()
+        if owner:
+            alerts.check_low_balances(db, owner, send_push_to_user)
+    except Exception:
+        db.rollback()
+        logger.exception("plaid_balance_notify_failed %s", kv(user_id=user_id))
+
+
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_SOURCE_OTHER):
     """Background task — owns its own DB session so it outlives the request.
 
@@ -471,6 +483,7 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_
         if count > 0:
             _reconcile_recurring(db, user_id)
             _notify_budgets(db, user_id)
+            _notify_balances(db, user_id)
             send_push_to_user(
                 db, user_id,
                 "Bank sync complete",

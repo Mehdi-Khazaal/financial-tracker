@@ -140,7 +140,7 @@ def build_export(db: Session, user: User) -> dict:
         },
         "preferences": _rows(
             db.query(UserPreferences).filter(UserPreferences.user_id == uid),
-            ("automatic_categorization_enabled",),
+            ("automatic_categorization_enabled", "bill_reminders_enabled", "budget_alerts_enabled", "low_balance_alerts_enabled", "low_balance_threshold"),
         ),
         "budgets": _rows(
             db.query(Budget).filter(Budget.user_id == uid).order_by(Budget.id),

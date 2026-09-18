@@ -464,6 +464,11 @@ class PreferencesUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     automatic_categorization_enabled: Optional[bool] = None
+    bill_reminders_enabled: Optional[bool] = None
+    budget_alerts_enabled: Optional[bool] = None
+    low_balance_alerts_enabled: Optional[bool] = None
+    # Money: a decimal, never a float. Zero means "only when overdrawn".
+    low_balance_threshold: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("9999999999999.99"))
 
 
 class PreferencesResponse(BaseModel):
@@ -478,5 +483,9 @@ class PreferencesResponse(BaseModel):
     # Read-only: `stored AND AUTO_CATEGORIZE`. Never writable — see
     # `routers/preferences.py`.
     automatic_categorization_effective: bool
+    bill_reminders_enabled: bool
+    budget_alerts_enabled: bool
+    low_balance_alerts_enabled: bool
+    low_balance_threshold: Decimal
 
     model_config = ConfigDict(from_attributes=True)

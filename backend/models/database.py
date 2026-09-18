@@ -120,6 +120,9 @@ class Account(Base):
     credit_limit = Column(Numeric(15, 2), nullable=True)
     currency = Column(String(3), default="USD")
     plaid_account_id = Column(String(200), nullable=True, unique=True)
+    # Set while the balance sits below the user's low-balance threshold, so
+    # the alert fires once per dip and re-arms when the balance recovers.
+    low_balance_notified_on = Column(Date, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -680,5 +683,13 @@ class UserPreferences(Base):
     automatic_categorization_enabled = Column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    # ── Alerts ──────────────────────────────────────────────────────────────
+    # Each switch gates a push the server would otherwise send. Bill reminders
+    # and budget alerts default on because that is what shipped; low-balance
+    # is new and defaults off so deploying it changes nothing for anyone.
+    bill_reminders_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    budget_alerts_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    low_balance_alerts_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    low_balance_threshold = Column(Numeric(15, 2), nullable=False, default=100, server_default="100")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

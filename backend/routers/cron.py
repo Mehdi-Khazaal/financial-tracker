@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.auth import User
 from models.database import get_db, RecurringTransaction, Account, Category
-from services import merchants, recurring_bills
+from services import alerts as alert_service
+from services import merchants, recurring_bills, user_preferences
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
 from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
@@ -147,7 +148,9 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
         try:
             today = user_today(owner)
             reconciled += recurring_bills.reconcile_user(db, owner, today=today)
-            alerts = recurring_bills.collect_alerts(db, owner, today)
+            # A user who turned reminders off gets none — and nothing is marked
+            # as sent, so turning them back on resumes from the next cycle.
+            alerts = recurring_bills.collect_alerts(db, owner, today) if user_preferences.alerts_enabled(db, owner.id, "bill") else []
             db.commit()
         except Exception:
             db.rollback()
@@ -249,6 +252,15 @@ def cron_check_budgets(request: Request, db: Session = Depends(get_db)):
             db.rollback()
             logger.exception("cron_budget_check_failed %s", kv(user_id=user_id))
     return {"users": len(user_ids), "alerts": sent}
+
+
+@router.post("/check-balances")
+def cron_check_balances(request: Request, db: Session = Depends(get_db)):
+    """Low-balance pushes for every user who asked for them. Nightly backstop
+    for the check that also runs after each bank import; manual entries move
+    balances without a sync. Once per dip per account, so re-running is safe."""
+    _require_cron_secret(request)
+    return alert_service.check_all_low_balances(db, send_push_to_user)
 
 
 @router.post("/prune-idempotency-keys")

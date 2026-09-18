@@ -160,6 +160,10 @@ def notify_over_budget(db: Session, user: User, send) -> int:
     tests). Marks each budget before sending, so a failed send is not retried
     every night — the next month gets its own notice.
     """
+    from services import user_preferences
+
+    if not user_preferences.alerts_enabled(db, user.id, "budget"):
+        return 0
     month = user_today(user).replace(day=1)
     sent = 0
     for item in progress_for_month(db, user, month):
