@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1–4.7 done (Budgets, Rules, Alerts, Search, CSV import, Splits, 2FA); 4.8 Assistant upgrades next.**
+- Current phase: **Phase 4 complete → Phase 5 (UX & accessibility polish) next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -443,5 +443,27 @@ Commit: `55bd2ae` feat(2fa).
 2. **Enabling 2FA signs out other sessions.** The threat 2FA answers is "someone has my password"; leaving that someone signed in would make enrolment theatre.
 3. **Passkeys deferred.** WebAuthn needs a verified library, per-origin RP configuration for Vercel previews vs production, and credential management UI; doing it properly is its own phase. Recorded for the final checklist.
 
-### Next step
+### Next step (done — see Phase 4.8)
 **Phase 4.8 — Assistant upgrades**: confirmed-write tools `add_budget`, `update_budget`, `add_rule` (pending-action flow, same as `add_transaction`), `list_alerts`-style awareness of alert preferences in the context, and routing/prompt updates so Fin offers "set a budget" / "make this a rule" when it fits. Then Phase 5 (UX/a11y).
+
+## Phase 4.8 — Assistant upgrades (2026-09-18) ✅
+
+Commit: `711d303` feat(assistant).
+
+### What changed
+- **Confirmed writes** (same pending-action flow as every other write: proposed in the model loop, shown as a card, executed only through `/assistant/execute` with the server-issued token):
+  - `set_budget` — creates the category's monthly budget or changes the one it has (amount quantised to cents from `Decimal`, optional rollover, starts this user-local month); expense categories only, matched case-insensitively by name; unknown or non-expense names are a 404, zero or negative amounts a 400.
+  - `add_rule` — a "contains" rule on description or merchant for a named category, validated by the rules service; `apply_to_past` also files matching past transactions through the same idempotent `apply_to_past` (never touching hand-filed rows) and reports how many.
+- **Awareness**: `get_alert_settings` (read, quick tier) — bill/budget/low-balance switches, the threshold, which watched accounts sit under it, and whether automatic categorisation is on; explicitly read-only. `list_budgets` and `list_rules` from 4.1/4.2 complete the picture.
+- **Prompt**: the "changing data" section names the new tools, and one line tells Fin to *offer* a rule when someone keeps re-filing a merchant and a budget when they worry about a category — offer, not insist. The persona block stays byte-identical across users (pinned by a test), so the prompt cache layout is unchanged.
+- **Frontend**: confirmation cards are labelled "Budget" and "Rule"; a "Budgets" suggestion chip. A backend test reads `Assistant.tsx` and fails if any write tool lacks a card label.
+
+### Checks
+- Backend: **832 passed** (8 new in `test_assistant_writes.py`).
+- Frontend: **1060 Vitest tests**, tsc clean, lint 2 pre-existing warnings, build and bundle within budget.
+
+### Phase 4 summary
+Budgets, categorisation rules, alerts, search, CSV import/export, split transactions, two-factor authentication and the assistant upgrades are all shipped with backend tests, component tests and one Playwright spec each (specs 7–12). Deferred with reasons: passkeys (4.7), amount-condition rules (4.2), per-user reminder window (4.3), trigram search index (4.4).
+
+### Next step
+**Phase 5 — UX & accessibility polish**: a 390 px / 1440 px pass over every page touched in Phase 4 (Overview with checklist + budgets card, Analytics budget card, Transactions search + import, Settings Rules / Two-factor / Alerts, Login code step), touch targets ≥44 px, visible focus, contrast of `--dim` text on the elevated surfaces, `prefers-reduced-motion` coverage, DESIGN.md token drift (audit U2), and refreshed Playwright screenshots for the changed pages.
