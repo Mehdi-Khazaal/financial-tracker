@@ -4,6 +4,10 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
 backend/.env
+# Coverage output (CI writes these; nothing to commit)
+backend/.coverage
+backend/coverage.json
+.cov-*.json
 
 # Frontend
 frontend/node_modules/
