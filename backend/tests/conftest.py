@@ -38,6 +38,7 @@ from routers import (
     budgets,
     rules,
     transaction_import,
+    two_factor,
     categories,
     cron,
     health,
@@ -105,6 +106,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(IdempotencyMiddleware, session_factory=TestingSessionLocal)
 app.include_router(auth.router)
+app.include_router(two_factor.router)
 app.include_router(admin.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)

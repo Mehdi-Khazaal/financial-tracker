@@ -63,7 +63,11 @@ api.interceptors.response.use(
     if (err.response?.status === 403 && err.response?.data?.detail?.code === 'email_unverified') {
       window.dispatchEvent(new CustomEvent(VERIFICATION_REQUIRED_EVENT));
     }
-    if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
+    // A 401 from a sign-in attempt means the password or code was wrong, not
+    // that a session expired — refreshing and retrying would only count a
+    // second failed guess against the lockout.
+    const isSignIn = typeof original?.url === 'string' && original.url.startsWith('/auth/login');
+    if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh' && !isSignIn) {
       original._retried = true;
       if (!_refreshing) {
         _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
@@ -87,6 +91,14 @@ api.interceptors.response.use(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (identifier: string, password: string) =>
   api.post('/auth/login', { identifier, password });
+/** Second step of a sign-in on an account with two-factor authentication. */
+export const loginTwoFactor = (challenge: string, code: string) =>
+  api.post('/auth/login/2fa', { challenge, code });
+export const getTwoFactorStatus = () => api.get('/auth/2fa');
+export const startTwoFactorSetup = (password: string) => api.post('/auth/2fa/setup', { password });
+export const enableTwoFactor = (code: string) => api.post('/auth/2fa/enable', { code });
+export const disableTwoFactor = (password: string, code: string) => api.post('/auth/2fa/disable', { password, code });
+export const regenerateRecoveryCodes = (password: string) => api.post('/auth/2fa/recovery-codes', { password });
 export const signup = (email: string, username: string, password: string, inviteCode?: string) =>
   api.post('/auth/signup', { email, username, password, invite_code: inviteCode || undefined });
 /** Whether new accounts are being accepted, and whether an invite code is needed. */
@@ -100,6 +112,7 @@ export const changePassword = (current_password: string, new_password: string) =
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminGetUsers = () => api.get('/admin/users');
 export const adminResetPassword = (userId: number) => api.post(`/admin/users/${userId}/reset-password`);
+export const adminDisableTwoFactor = (userId: number) => api.post(`/admin/users/${userId}/disable-2fa`);
 export interface AdminUsageRow { user_id: number; username: string; email: string; turns: number; cost_usd: string; last_active: string | null; }
 export interface AdminUsageSummary { days: number; turn_cap: number; cost_cap_usd: string; users: AdminUsageRow[]; }
 export const adminGetUsage = (days = 30) => api.get<AdminUsageSummary>('/admin/usage', { params: { days } });

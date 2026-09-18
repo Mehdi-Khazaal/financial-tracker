@@ -91,6 +91,12 @@ const mockApi = vi.hoisted(() => ({
   exportAccountJson: vi.fn(),
   exportTransactionsCsv: vi.fn(),
   deleteMyAccount: vi.fn(),
+  getTwoFactorStatus: vi.fn(),
+  startTwoFactorSetup: vi.fn(),
+  enableTwoFactor: vi.fn(),
+  disableTwoFactor: vi.fn(),
+  regenerateRecoveryCodes: vi.fn(),
+  adminDisableTwoFactor: vi.fn(),
   getRules: vi.fn(),
   createRule: vi.fn(),
   updateRule: vi.fn(),
@@ -232,6 +238,7 @@ beforeEach(() => {
     }));
   mockApi.plaidGetItems.mockResolvedValue({ data: [BANK] });
   mockApi.getRules.mockResolvedValue({ data: [] });
+  mockApi.getTwoFactorStatus.mockResolvedValue({ data: { enabled: false, recovery_codes_remaining: 0 } });
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
   mockApi.adminGetUsage.mockResolvedValue({ data: { days: 30, turn_cap: 150, cost_cap_usd: '3.00', users: [] } });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });

@@ -7,16 +7,26 @@ const mockApi = vi.hoisted(() => ({
   exportTransactionsCsv: vi.fn(),
   deleteMyAccount: vi.fn(),
   changePassword: vi.fn(),
+  getTwoFactorStatus: vi.fn(),
+  startTwoFactorSetup: vi.fn(),
+  enableTwoFactor: vi.fn(),
+  disableTwoFactor: vi.fn(),
+  regenerateRecoveryCodes: vi.fn(),
 }));
 vi.mock('../../../utils/api', () => mockApi);
 
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), confirm: vi.fn() }));
 vi.mock('../../../context/ToastContext', () => ({ useToast: () => mockToast }));
 
-const mockAuth = vi.hoisted(() => ({ logout: vi.fn().mockResolvedValue(undefined) }));
+const mockAuth = vi.hoisted(() => ({ logout: vi.fn().mockResolvedValue(undefined), refresh: vi.fn() }));
 vi.mock('../../../context/AuthContext', () => ({ useAuth: () => mockAuth }));
 
 import AccountSection from './AccountSection';
+
+// `mockReset` clears implementations between tests, so the 2FA status read is re-armed here.
+beforeEach(() => {
+  mockApi.getTwoFactorStatus.mockResolvedValue({ data: { enabled: false, recovery_codes_remaining: 0 } });
+});
 
 const renderSection = () =>
   render(

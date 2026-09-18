@@ -23,3 +23,6 @@ tzdata>=2026.1
 
 # Optional error reporting; inert unless SENTRY_DSN is set (see utils/monitoring.py).
 sentry-sdk[fastapi]>=2.30.0
+
+# QR codes for two-factor enrolment (pure Python, renders SVG).
+segno>=1.6.1

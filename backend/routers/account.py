@@ -75,7 +75,10 @@ def build_export(db: Session, user: User) -> dict:
     return {
         "export_version": EXPORT_VERSION,
         "exported_at": datetime.utcnow().isoformat() + "Z",
-        "user": {"id": user.id, "email": user.email, "username": user.username, "timezone": user.timezone, "created_at": _plain(user.created_at)},
+        "user": {
+            "id": user.id, "email": user.email, "username": user.username, "timezone": user.timezone,
+            "two_factor_enabled": bool(user.totp_enabled), "created_at": _plain(user.created_at),
+        },
         "accounts": _rows(
             db.query(Account).filter(Account.user_id == uid).order_by(Account.id),
             ("id", "name", "type", "balance", "credit_limit", "currency", "plaid_account_id", "created_at", "updated_at"),

@@ -232,6 +232,7 @@ export interface User {
   is_verified: boolean;
   is_admin: boolean;
   created_at: string;
+  two_factor_enabled?: boolean;
 }
 
 // ── Budgets ───────────────────────────────────────────────────────────────────

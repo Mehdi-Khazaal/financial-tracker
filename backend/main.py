@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import account, admin, assistant, budgets, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers
+from routers import account, admin, assistant, budgets, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, run_startup_migrations
@@ -192,6 +192,7 @@ app.include_router(budgets.router)
 app.include_router(rules.router)
 app.include_router(transaction_import.router)
 app.include_router(auth.router)
+app.include_router(two_factor.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
 app.include_router(transactions.router)

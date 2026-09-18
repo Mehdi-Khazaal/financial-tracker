@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/SettingsPrimitives';
 import PasswordSection from './PasswordSection';
+import TwoFactorSection from './TwoFactorSection';
 import { deleteMyAccount, exportAccountJson, exportTransactionsCsv } from '../../../utils/api';
 import { useToast } from '../../../context/ToastContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -161,6 +162,7 @@ const AccountSection: React.FC<Props> = ({ username, email, onSignOut }) => (
     </section>
 
     <PasswordSection />
+    <TwoFactorSection />
     <DataSection />
     <DeleteSection />
 

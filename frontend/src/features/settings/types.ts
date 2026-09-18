@@ -163,6 +163,7 @@ export interface AdminUserSummary {
   email: string;
   is_admin: boolean;
   is_verified: boolean;
+  two_factor_enabled?: boolean;
 }
 
 export type { Account, Category };

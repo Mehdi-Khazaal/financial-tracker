@@ -108,14 +108,27 @@ const AdminSection: React.FC<Props> = ({ admin, usage }) => (
               key={user.id}
               isLast={index === admin.items.length - 1}
               action={(
-                <button
-                  onClick={() => { void admin.requestReset(user); }}
-                  disabled={admin.resettingId === user.id}
-                  className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                  style={{ backgroundColor: 'rgba(245,158,11,.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}
-                >
-                  {admin.resettingId === user.id ? '…' : 'Reset PW'}
-                </button>
+                <div className="flex gap-1.5 shrink-0">
+                  {user.two_factor_enabled && (
+                    <button
+                      onClick={() => { void admin.disableTwoFactor(user); }}
+                      disabled={admin.resettingId === user.id}
+                      className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                      style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
+                      aria-label={`Turn off two-factor for ${user.username}`}
+                    >
+                      2FA off
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { void admin.requestReset(user); }}
+                    disabled={admin.resettingId === user.id}
+                    className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                    style={{ backgroundColor: 'rgba(245,158,11,.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}
+                  >
+                    {admin.resettingId === user.id ? '…' : 'Reset PW'}
+                  </button>
+                </div>
               )}
             >
               <div className="flex items-center gap-3 min-w-0">

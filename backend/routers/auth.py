@@ -11,7 +11,7 @@ from utils.auth import (
     get_current_user,
     SECRET_KEY, ALGORITHM,
 )
-from services import login_throttle
+from services import login_throttle, two_factor
 from utils.email import send_password_reset, send_verification
 from utils.limiter import limiter
 from utils.security import invite_code_ok, signup_policy
@@ -139,6 +139,12 @@ def login(request: Request, user: UserLogin, response: Response, db: Session = D
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    if db_user.totp_enabled:
+        # The password was right, but it is only half of this account's key.
+        # No session yet, and the failure counter is left alone until the
+        # code arrives — see `routers.two_factor.login_two_factor`.
+        return {"two_factor_required": True, "challenge": two_factor.issue_challenge(db_user, identifier)}
 
     login_throttle.clear(db, identifier)
     set_auth_cookies(response, db_user.id, db_user.session_version)

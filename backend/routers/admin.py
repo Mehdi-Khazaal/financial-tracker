@@ -45,6 +45,28 @@ def assistant_usage_summary(
     }
 
 
+@router.post("/users/{user_id}/disable-2fa")
+@limiter.limit("3/minute")
+def admin_disable_two_factor(
+    request: Request,
+    user_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_admin),
+):
+    """Turn off 2FA for someone who lost both their authenticator and their
+    recovery codes. Their password still applies. Like the reset link below,
+    this signs nobody out: an admin never revokes someone's sessions."""
+    from services import two_factor
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    two_factor.disable(db, user)
+    db.commit()
+    logger.info("admin_two_factor_disabled %s", kv(actor_id=actor.id, user_id=user.id))
+    return {"disabled": True}
+
+
 @router.post("/users/{user_id}/reset-password")
 @limiter.limit("3/minute")
 def admin_reset_password(

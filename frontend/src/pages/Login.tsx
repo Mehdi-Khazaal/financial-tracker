@@ -1,6 +1,40 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { linkToSettingsSection } from '../lib/deepLinks';
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: 'block',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '10px',
+  letterSpacing: '0.13em',
+  textTransform: 'uppercase',
+  color: 'var(--muted)',
+  marginBottom: '8px',
+};
+
+const fieldInputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.028)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: '12px',
+  padding: '14px 16px',
+  fontSize: '15px',
+  fontFamily: 'var(--font-mono)',
+  color: 'var(--fg)',
+  outline: 'none',
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+  boxSizing: 'border-box',
+};
+
+const ringOn = (e: React.FocusEvent<HTMLInputElement>) => {
+  e.target.style.borderColor = 'rgba(249,115,22,0.45)';
+  e.target.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.09), 0 0 22px rgba(249,115,22,0.06)';
+};
+const ringOff = (e: React.FocusEvent<HTMLInputElement>) => {
+  e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+  e.target.style.boxShadow = 'none';
+};
 
 const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
@@ -8,15 +42,46 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const { login } = useAuth();
+  // Set when the password was right and the account also wants a code.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [useRecovery, setUseRecovery] = useState(false);
+  const { login, completeTwoFactor } = useAuth();
   const navigate = useNavigate();
+
+  const handleCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!challenge) return;
+    setError('');
+    setLoading(true);
+    try {
+      const { recoveryCodesRemaining } = await completeTwoFactor(challenge, code.trim());
+      // Signed in with a recovery code and running out: go straight to where new ones are made.
+      navigate(recoveryCodesRemaining !== null && recoveryCodesRemaining <= 3 ? linkToSettingsSection('account') : '/');
+    } catch (requestError: any) {
+      const status = requestError?.response?.status;
+      const detail = requestError?.response?.data?.detail;
+      if (status === 429) setError('Too many attempts. Please wait a minute and try again.');
+      else if (typeof detail === 'string' && detail.includes('expired')) { setChallenge(null); setCode(''); setError(detail); }
+      else if (status === 401) setError(useRecovery ? "That recovery code didn't work" : "That code didn't work");
+      else setError('Sign-in service is temporarily unavailable. Please try again shortly.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await login(identifier, password);
+      const result = await login(identifier, password);
+      if (result.twoFactorChallenge) {
+        setChallenge(result.twoFactorChallenge);
+        setCode('');
+        setUseRecovery(false);
+        return;
+      }
       navigate('/');
     } catch (requestError: any) {
       const status = requestError?.response?.status;
@@ -124,7 +189,7 @@ const Login: React.FC = () => {
             color: 'var(--muted)',
             margin: 0,
           }}>
-            Sign in to your account
+            {challenge ? 'Two-step verification' : 'Sign in to your account'}
           </p>
         </div>
 
@@ -155,23 +220,68 @@ const Login: React.FC = () => {
             </div>
           )}
 
+          {challenge ? (
+            <form onSubmit={handleCode} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }} aria-label="Two-step verification">
+              <div>
+                <label htmlFor="login-code" style={fieldLabelStyle}>
+                  {useRecovery ? 'Recovery code' : 'Code from your authenticator app'}
+                </label>
+                <input
+                  id="login-code"
+                  type="text"
+                  value={code}
+                  onChange={e => setCode(e.target.value)}
+                  placeholder={useRecovery ? 'xxxxx-xxxxx' : '123 456'}
+                  inputMode={useRecovery ? 'text' : 'numeric'}
+                  autoComplete="one-time-code"
+                  required
+                  autoFocus
+                  style={{ ...fieldInputStyle, letterSpacing: useRecovery ? '0.04em' : '0.3em', textAlign: 'center' }}
+                  onFocus={ringOn}
+                  onBlur={ringOff}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || code.trim().length < 6}
+                style={{
+                  width: '100%', padding: '15px', borderRadius: '12px', border: 'none',
+                  background: loading ? 'rgba(249,115,22,0.45)' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                  color: '#fff', fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-sans)',
+                  cursor: loading ? 'not-allowed' : 'pointer', opacity: code.trim().length < 6 ? 0.6 : 1,
+                }}
+              >
+                {loading ? 'Checking…' : 'Verify'}
+              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setUseRecovery(v => !v); setCode(''); setError(''); }}
+                  style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: '44px', color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '11px', cursor: 'pointer' }}
+                >
+                  {useRecovery ? 'Use the app instead' : 'Use a recovery code'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setChallenge(null); setCode(''); setError(''); setPassword(''); }}
+                  style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: '44px', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '11px', cursor: 'pointer' }}
+                >
+                  Start over
+                </button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
             {/* Email / username */}
             <div>
-              <label style={{
-                display: 'block',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                letterSpacing: '0.13em',
-                textTransform: 'uppercase',
-                color: 'var(--muted)',
-                marginBottom: '8px',
-              }}>
+              <label htmlFor="login-identifier" style={fieldLabelStyle}>
                 Email or Username
               </label>
               <input
+                id="login-identifier"
                 type="text"
+                autoComplete="username"
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 placeholder="you@example.com"
@@ -204,13 +314,7 @@ const Login: React.FC = () => {
             {/* Password */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <label style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '10px',
-                  letterSpacing: '0.13em',
-                  textTransform: 'uppercase',
-                  color: 'var(--muted)',
-                }}>
+                <label htmlFor="login-password" style={{ ...fieldLabelStyle, marginBottom: 0 }}>
                   Password
                 </label>
                 <Link to="/forgot-password" style={{
@@ -229,7 +333,9 @@ const Login: React.FC = () => {
               </div>
               <div style={{ position: 'relative' }}>
                 <input
+                  id="login-password"
                   type={showPass ? 'text' : 'password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -260,6 +366,7 @@ const Login: React.FC = () => {
                   type="button"
                   onClick={() => setShowPass(p => !p)}
                   tabIndex={-1}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
                   style={{
                     position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
@@ -329,6 +436,7 @@ const Login: React.FC = () => {
             </button>
 
           </form>
+          )}
         </div>
 
         {/* Footer */}

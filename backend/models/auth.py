@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from typing import Optional
@@ -30,6 +30,30 @@ class User(Base):
     # IANA zone reported by the browser. The server runs in UTC, so without this
     # the assistant's idea of "today" is wrong for anyone east or west of it.
     timezone = Column(String(64), nullable=True)
+    # Two-factor authentication. Secrets are `secret_box` ciphertext; the
+    # pending one exists only between "show me the QR code" and the first
+    # correct code. See `services.two_factor`.
+    totp_secret = Column(Text, nullable=True)
+    totp_pending_secret = Column(Text, nullable=True)
+    totp_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
+    # Time step of the last accepted code; a code is never accepted twice.
+    totp_last_step = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    @property
+    def two_factor_enabled(self) -> bool:
+        return bool(self.totp_enabled)
+
+
+class RecoveryCode(Base):
+    """A single-use way in when the authenticator is lost. Stored hashed."""
+
+    __tablename__ = "recovery_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False)
+    used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
 
@@ -91,6 +115,7 @@ class UserResponse(BaseModel):
     is_verified: bool
     is_admin: bool
     created_at: datetime
+    two_factor_enabled: bool = False
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
