@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1–4.4 done (Budgets, Rules, Alerts, Search); 4.5 CSV import & export next.**
+- Current phase: **Phase 4 (features) in progress — 4.1–4.5 done (Budgets, Rules, Alerts, Search, CSV import); 4.6 Split transactions next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -365,5 +365,33 @@ Commit: `5c80431` feat(search).
 2. **No trigram index.** `ILIKE '%x%'` cannot use a b-tree; `pg_trgm` would need `CREATE EXTENSION` on Neon, which is a manual production step. At current volumes the per-user date index bounds the scan; noted for the ops checklist rather than done blind.
 3. **Search rides on the existing filter state** instead of a parallel mechanism, so nothing on the page has two ideas of "what is shown".
 
-### Next step
+### Next step (done — see Phase 4.5)
 **Phase 4.5 — CSV import & filtered export**: `POST /transactions/import/preview` (parse, column mapping suggestions, per-row validation, duplicate detection against existing rows by date+amount+description/merchant key) and `POST /transactions/import` (idempotent via the file hash + row fingerprint; balances moved through the ledger service), a Settings/Transactions import sheet with mapping UI and a preview table, and export that honours the active filters (already exports the current view — verify and extend to the server CSV with the same params). Then splits, 2FA, assistant upgrades.
+
+## Phase 4.5 — CSV import & filtered export (2026-09-17) ✅
+
+Commit: `de2e965` feat(import).
+
+### What changed
+- **Import service** (`services/csv_import.py`): sniffs the delimiter, strips a BOM, caps the file at 400 KB (under the idempotency middleware's 512 KB body cap, so an import is always replay-protected) and 5000 rows; suggests a column mapping from header words (date / amount, or debit + credit / description / category); parses amounts in every common shape (`-12.50`, `(12.50)`, `$1,200.00`, `1.234,56`, `12,50`) straight to `Decimal`; parses ISO, month-first, day-first and written dates with an explicit override; records per-row problems instead of failing the file; flags duplicates by (date, amount, merchant key) against the account's existing rows in the file's date range **and** within the file.
+- **API** (`routers/transaction_import.py`): `POST /transactions/import/preview` (writes nothing), `POST /transactions/import` (every valid, non-duplicate row staged through `LedgerService.stage_transaction` and committed once — enrichment, rules and atomic balance moves exactly as for typed entries; a category column is honoured only when it names one of the user's categories, never auto-created), `DELETE /transactions/import/{batch_id}` (undo: new `LedgerService.stage_delete` reverses each balance and removes the batch in one commit). Rate-limited. Rows carry `transactions.import_batch_id` (revision `20260917_000023`, nullable + index; round-tripped on SQLite and a local scratch Postgres).
+- **Filtered export**: `GET /account/export/transactions.csv` accepts the same filters as the list (`account_id`, `category_id`, `date_from/to`, `search`, `uncategorized`); still formula-safe. The Transactions page's own CSV/PDF export already follows the active filters and search.
+- **Frontend**: `ImportSheet` (file → account → mapping selects, date order, "money out is positive" flip, include-duplicates option, preview table with per-row reason, import, result with **Undo this import**), reachable from Transactions → Add → Import CSV, the `?import=1` deep link (`linkToImport`) and ⌘K "Import transactions from CSV".
+- **Foreign keys enforced on SQLite** (test harness and the app engine when it runs on SQLite, i.e. the e2e backend). Account deletion relies on `ON DELETE CASCADE`; SQLite ignores that unless asked per connection, so the deletion test only passed when an earlier test had flipped the pragma on the pooled connection. The suite now behaves like Postgres regardless of order; all 803 backend tests pass with enforcement on.
+
+### Checks
+- Backend: **803 passed** (11 new in `test_csv_import.py`: amount/date shapes, mapping suggestions, delimiter sniffing and bad files, preview normalisation + duplicate flags + writes nothing, mapping/date-order/flip/debit-credit, import through the ledger with balance check + re-import all duplicates + undo restores the balance exactly, rules and category column on import, Idempotency-Key replay, cross-tenant account rejected, filtered server export).
+- Frontend: **1036 Vitest tests** (60 files; `ImportSheet.test.tsx` 5 tests incl. a regression for the result panel surviving the page's account reload), tsc clean, lint 2 pre-existing warnings, bundle within budget.
+- Playwright: **16/16** (new `10-import-csv.spec.ts`: file → preview → import → rows and balance via API → undo).
+
+### Found and fixed on the way
+- The sheet's reset effect depended on the `accounts` prop, so the page reloading its accounts after an import wiped the result and its Undo button. It now resets on open only; accounts arriving late still preselect the single account.
+- Batch undo compounded balance deltas on an unflushed expression; `stage_delete` flushes each step so the stored balance is exact.
+
+### Decisions and reasoning
+1. **Text in JSON, not multipart.** The offline queue and the Idempotency-Key middleware both work on JSON bodies; a retried import cannot post twice.
+2. **Duplicates skipped by default, never silently**: the preview counts them and the user can include them.
+3. **Unknown category names are not created.** An import must not grow the category list behind the user's back; rules and history still apply.
+
+### Next step
+**Phase 4.6 — Split transactions**: a `transaction_splits` child table (transaction, category, amount, note) whose amounts must sum exactly to the parent; the parent keeps the account balance effect (splits never move money), analytics/budgets attribute spending per split; API to set/clear splits on a transaction; a split editor in the transaction sheet. Then 2FA and assistant upgrades.
