@@ -12,7 +12,55 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def engine_options(url: str) -> dict:
+    """Connection-pool settings sized for a small service behind Neon's pooler.
+
+    Neon closes idle connections and its pooler has a per-project cap, so the
+    pool is kept small, recycled before Neon's idle timeout, and every
+    connection is pinged before use. A statement timeout guards the whole
+    service against one runaway query holding a pooled connection. SQLite
+    (tests, local scratch databases) gets none of this — it has no pool to
+    tune and rejects the Postgres options.
+
+    Overridable per environment: `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`,
+    `DB_POOL_RECYCLE_SECONDS`, `DB_POOL_TIMEOUT_SECONDS`,
+    `DB_STATEMENT_TIMEOUT_MS`, `DB_CONNECT_TIMEOUT_SECONDS`.
+    """
+    if url.startswith("sqlite"):
+        return {}
+    options: dict = {
+        "pool_pre_ping": True,
+        "pool_size": _int_env("DB_POOL_SIZE", 5),
+        "max_overflow": _int_env("DB_MAX_OVERFLOW", 5),
+        "pool_recycle": _int_env("DB_POOL_RECYCLE_SECONDS", 300),
+        "pool_timeout": _int_env("DB_POOL_TIMEOUT_SECONDS", 10),
+    }
+    if url.startswith("postgres"):
+        statement_timeout_ms = _int_env("DB_STATEMENT_TIMEOUT_MS", 15_000)
+        options["connect_args"] = {
+            "connect_timeout": _int_env("DB_CONNECT_TIMEOUT_SECONDS", 10),
+            # Applied per session by the driver; psycopg2 passes `options`
+            # straight to libpq.
+            "options": f"-c statement_timeout={statement_timeout_ms}",
+            # Fintrack does its own idle handling; keepalives let a pooled
+            # connection survive a NAT/idle window instead of dying silently.
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 3,
+        }
+    return options
+
+
+engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
