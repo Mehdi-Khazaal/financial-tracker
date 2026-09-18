@@ -111,23 +111,38 @@ def _t_list_transactions(
             "description": t.description,
             "account_id": t.account_id,
             "category_id": t.category_id,
+            **({"split": [{"category_id": s.category_id, "amount": _jsonable(s.amount)} for s in t.splits]} if t.splits else {}),
         }
         for t in rows
     ]
 
 
 def _t_spending_by_category(db: Session, user: User, date_from: Optional[str] = None, date_to: Optional[str] = None, **_) -> list:
-    q = (
-        db.query(Category.name, func.sum(func.abs(Transaction.amount)).label("total"))
+    from models.database import TransactionSplit
+    from services.splits import split_parent_ids
+
+    whole = (
+        db.query(Category.name, Transaction.amount)
         .join(Category, Category.id == Transaction.category_id, isouter=True)
-        .filter(Transaction.user_id == user.id, Transaction.amount < 0)
+        .filter(Transaction.user_id == user.id, Transaction.amount < 0, ~Transaction.id.in_(split_parent_ids(user.id)))
+    )
+    lines = (
+        db.query(Category.name, TransactionSplit.amount)
+        .join(Transaction, Transaction.id == TransactionSplit.transaction_id)
+        .join(Category, Category.id == TransactionSplit.category_id, isouter=True)
+        .filter(TransactionSplit.user_id == user.id, TransactionSplit.amount < 0)
     )
     if date_from:
-        q = q.filter(Transaction.transaction_date >= _parse_date(date_from))
+        whole = whole.filter(Transaction.transaction_date >= _parse_date(date_from))
+        lines = lines.filter(Transaction.transaction_date >= _parse_date(date_from))
     if date_to:
-        q = q.filter(Transaction.transaction_date <= _parse_date(date_to))
-    rows = q.group_by(Category.name).order_by(func.sum(func.abs(Transaction.amount)).desc()).all()
-    return [{"category": name or "Uncategorized", "total_spent": _jsonable(total)} for name, total in rows]
+        whole = whole.filter(Transaction.transaction_date <= _parse_date(date_to))
+        lines = lines.filter(Transaction.transaction_date <= _parse_date(date_to))
+    totals: dict[Optional[str], Decimal] = {}
+    for name, amount in whole.union_all(lines).all():
+        totals[name] = totals.get(name, Decimal("0")) + abs(Decimal(str(amount)))
+    ordered = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+    return [{"category": name or "Uncategorized", "total_spent": _jsonable(total)} for name, total in ordered]
 
 
 def _t_cashflow_trend(db: Session, user: User, months: int = 6, **_) -> list:

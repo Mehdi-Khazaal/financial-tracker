@@ -420,3 +420,10 @@ export const applyRule = (id: number) => api.post(`/rules/${id}/apply`);
 export const previewImport = (data: ImportRequest) => api.post('/transactions/import/preview', data);
 export const importTransactions = (data: ImportRequest) => api.post('/transactions/import', data);
 export const undoImport = (batchId: string) => api.delete(`/transactions/import/${batchId}`);
+
+// ── Split transactions ────────────────────────────────────────────────────────
+export const setTransactionSplits = (
+  transactionId: number,
+  splits: { category_id: number; amount: string; note?: string | null }[],
+) => api.put(`/transactions/${transactionId}/splits`, { splits });
+export const clearTransactionSplits = (transactionId: number) => api.delete(`/transactions/${transactionId}/splits`);

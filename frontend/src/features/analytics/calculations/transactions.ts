@@ -58,6 +58,27 @@ export function classifyTransaction(
 }
 
 /**
+ * One row per category a transaction is filed under.
+ *
+ * A split transaction becomes one row per line, each carrying that line's
+ * category and amount; everything else passes through unchanged. Only the
+ * category views use this — totals, counts and activity lists keep one row
+ * per real transaction, and the sums are identical either way because the
+ * lines add up to the parent.
+ */
+export function expandSplits(transactions: Transaction[]): Transaction[] {
+  if (!transactions.some(tx => tx.splits && tx.splits.length > 0)) return transactions;
+  const out: Transaction[] = [];
+  transactions.forEach(tx => {
+    if (!tx.splits || tx.splits.length === 0) { out.push(tx); return; }
+    tx.splits.forEach(split => {
+      out.push({ ...tx, category_id: split.category_id, amount: Number(split.amount) });
+    });
+  });
+  return out;
+}
+
+/**
  * Signed contribution of a transaction to a category's spend total.
  * Expenses add, refunds subtract, everything else is zero.
  */

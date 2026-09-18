@@ -30,6 +30,7 @@ from models.database import (
     Asset,
     Budget,
     CategorizationRule,
+    TransactionSplit,
     AssistantConversation,
     AssistantMemory,
     AssistantMessage,
@@ -89,6 +90,10 @@ def build_export(db: Session, user: User) -> dict:
                 "id", "account_id", "category_id", "amount", "description", "transaction_date", "plaid_tx_id",
                 "plaid_merchant_name", "merchant_key", "category_source", "payment_channel", "iso_currency_code", "created_at",
             ),
+        ),
+        "transaction_splits": _rows(
+            db.query(TransactionSplit).filter(TransactionSplit.user_id == uid).order_by(TransactionSplit.transaction_id, TransactionSplit.id),
+            ("id", "transaction_id", "category_id", "amount", "note"),
         ),
         "transfers": _rows(
             db.query(Transfer).filter(Transfer.user_id == uid).order_by(Transfer.id),

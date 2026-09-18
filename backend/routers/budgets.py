@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from models.auth import User
-from models.database import Budget, Category, Transaction, get_db
+from models.database import Budget, Category, Transaction, TransactionSplit, get_db
 from services import budgets as budget_service
 from utils.auth import get_current_user
 from utils.dates import user_today
@@ -180,7 +180,7 @@ def budget_progress(
     Cached with an ETag over budgets *and* transactions, so a pull-to-refresh
     that changed nothing is a 304.
     """
-    etag = compute_user_etag(db, current_user.id, [Budget, Transaction]) + (f"-{month}" if month else "-current")
+    etag = compute_user_etag(db, current_user.id, [Budget, Transaction, TransactionSplit]) + (f"-{month}" if month else "-current")
     if check_etag(request, etag):
         return Response(status_code=304, headers={"ETag": f'W/"{etag}"', "Cache-Control": "private, no-cache"})
     set_etag_headers(response, etag)

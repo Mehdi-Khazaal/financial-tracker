@@ -73,7 +73,8 @@ def busy_ledger(db_session, user, account, second_account, category):
 # upgrade log for the before/after table.
 BUDGETS = [
     ("/accounts/", 4),
-    ("/transactions/?limit=500", 3),
+    # +1 since Phase 4.6: split lines load in one IN query for the page.
+    ("/transactions/?limit=500", 4),
     ("/categories/", 3),
     ("/savings-goals/", 5),
     ("/history/net-worth?months=12", 6),

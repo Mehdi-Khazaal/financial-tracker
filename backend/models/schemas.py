@@ -157,6 +157,25 @@ class TransactionUpdate(BaseModel):
     description: Optional[str] = None
     transaction_date: Optional[date] = None
 
+class TransactionSplitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    category_id: Optional[int] = None
+    amount: Decimal
+    note: Optional[str] = None
+
+
+class TransactionSplitIn(BaseModel):
+    category_id: int
+    amount: Decimal
+    note: Optional[str] = Field(default=None, max_length=200)
+
+
+class TransactionSplitsUpdate(BaseModel):
+    splits: List[TransactionSplitIn] = Field(min_length=2, max_length=20)
+
+
 class TransactionResponse(TransactionBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -174,6 +193,8 @@ class TransactionResponse(TransactionBase):
     plaid_merchant_name: Optional[str] = None
     plaid_merchant_entity_id: Optional[str] = None
     category_source: Optional[str] = None
+    # Empty unless the amount is filed across several categories.
+    splits: List[TransactionSplitOut] = []
 
 
 # ─── Transfer ─────────────────────────────────────────────────────────────────

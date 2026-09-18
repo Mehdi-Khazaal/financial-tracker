@@ -130,6 +130,13 @@ class LedgerService:
                 self._adjust_balance(accounts[old_account_id], -old_amount)
                 self._adjust_balance(accounts[new_account_id], new_amount)
 
+            # A split is only valid for the amount it was made for, and filing
+            # the whole transaction under a different category un-splits it.
+            recategorised = "category_id" in changes and changes["category_id"] != transaction.category_id
+            if new_amount != old_amount or recategorised:
+                from services import splits as split_service
+                split_service.clear(transaction)
+
             for field, value in changes.items():
                 setattr(transaction, field, value)
 

@@ -370,7 +370,13 @@ def _sync_item(db: Session, item: PlaidItem, user_id: int) -> int:
                 recovered_rows.append(_posted_row(db, tx, user_id, local_acct))
                 continue
 
-            existing.amount           = _plaid_amount(tx)
+            revised_amount = _plaid_amount(tx)
+            if Decimal(str(existing.amount)) != Decimal(str(revised_amount)):
+                # The bank changed the charge, so a split made for the old
+                # amount no longer adds up; the main category stays.
+                from services import splits as split_service
+                split_service.clear_by_id(db, existing.id)
+            existing.amount           = revised_amount
             existing.description      = _plaid_description(tx, existing.description)
             existing.transaction_date = date.fromisoformat(tx["date"])
             for field, value in _plaid_metadata(tx).items():

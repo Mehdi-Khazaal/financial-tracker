@@ -39,6 +39,13 @@ export interface Transaction {
   plaid_merchant_entity_id?: string | null;
   /** Plaid's cleaned merchant name, when the bank row was enriched. */
   plaid_merchant_name?: string | null;
+  /**
+   * How the amount is filed when it spans categories. Empty for most rows.
+   * Lines add up to `amount` exactly and carry its sign; the parent's own
+   * `category_id` is the largest line's, so split-unaware code still files
+   * the whole amount somewhere sensible.
+   */
+  splits?: TransactionSplit[];
   /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
   category_source?: string | null;
 }
@@ -343,4 +350,13 @@ export interface ImportResult {
   created: number;
   skipped_duplicates: number;
   skipped_invalid: number;
+}
+
+// ── Split transactions ────────────────────────────────────────────────────────
+export interface TransactionSplit {
+  id: number;
+  category_id: number | null;
+  /** Signed decimal string, same direction as the parent. */
+  amount: string;
+  note: string | null;
 }

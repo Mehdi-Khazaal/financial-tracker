@@ -7,6 +7,7 @@ import { updateTransaction, deleteTransaction, getAccounts, getCategories, clean
 import { Transaction, Account, Category } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { selectableCategories } from './categoryOptions';
+import SplitEditor from '../../features/transactions/components/SplitEditor';
 
 interface Props {
   isOpen: boolean;
@@ -21,7 +22,7 @@ const fmt = (n: number) =>
 const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
   const toast = useToast();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [mode, setMode] = useState<'view' | 'edit' | 'split'>('view');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -90,10 +91,12 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
     });
     const amtStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(transaction.amount)))}`;
 
+    const splits = transaction.splits ?? [];
     const rows = [
       { label: 'Date',     value: dateStr,                         color: undefined      },
       { label: 'Account',  value: accName,                         color: undefined      },
-      { label: 'Category', value: cat?.name ?? 'Uncategorized',    color: cat?.color     },
+      { label: 'Category', value: splits.length > 0 ? `Split · ${splits.length} categories` : cat?.name ?? 'Uncategorized',
+        color: splits.length > 0 ? undefined : cat?.color },
       // Mirrors how the ledger counts it, so this row cannot contradict the
       // "Investment" label the transaction carries everywhere else.
       { label: 'Type',     value: cat?.type === 'investment' ? 'Investment' : pos ? 'Income' : 'Expense',
@@ -140,6 +143,25 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
             ))}
           </div>
 
+          {splits.length > 0 && (
+            <ul className="mt-3 rounded-2xl overflow-hidden" aria-label="Split parts" style={{ border: '1px solid var(--line)', backgroundColor: 'var(--elev-sub)' }}>
+              {splits.map((split, i) => {
+                const splitCat = categories.find(c => c.id === split.category_id);
+                return (
+                  <li key={split.id} className="flex items-center justify-between gap-3 px-4 py-2.5"
+                    style={{ borderBottom: i < splits.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: splitCat?.color ?? 'var(--dim)' }} aria-hidden="true" />
+                      <span className="text-sm truncate" style={{ color: 'var(--fg)' }}>{splitCat?.name ?? 'Uncategorized'}</span>
+                      {split.note && <span className="text-xs truncate" style={{ color: 'var(--dim)' }}>· {split.note}</span>}
+                    </div>
+                    <span className="font-mono tabular-nums text-sm shrink-0" style={{ color: 'var(--muted)' }}>${fmt(Math.abs(Number(split.amount)))}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
           {/* A rule from this transaction: the most common reason to want one
               is a row that just arrived uncategorised or misfiled. */}
           {cleanDescription(transaction.description) && (
@@ -163,12 +185,33 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
               {loading ? '…' : 'Delete'}
             </button>
             <button
+              onClick={() => setMode('split')}
+              className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
+              style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
+              {splits.length > 0 ? 'Edit split' : 'Split'}
+            </button>
+            <button
               onClick={() => setMode('edit')}
               className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
               style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
               Edit
             </button>
           </div>
+        </div>
+      </BottomSheet>
+    );
+  }
+
+  if (mode === 'split' && transaction) {
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose} title="Split transaction">
+        <div className="px-5 pb-6">
+          <SplitEditor
+            transaction={transaction}
+            categories={categories}
+            onDone={() => { onSuccess(); onClose(); }}
+            onCancel={() => setMode('view')}
+          />
         </div>
       </BottomSheet>
     );

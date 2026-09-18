@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, or_
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal
 from models.database import get_db, Transaction
 from models.auth import User
-from models.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
+from models.schemas import TransactionCreate, TransactionResponse, TransactionSplitsUpdate, TransactionUpdate
+from services import splits as split_service
 from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 
@@ -75,7 +76,15 @@ def get_transactions(
         q = q.filter(func.abs(Transaction.amount) >= amount_min)
     if amount_max is not None:
         q = q.filter(func.abs(Transaction.amount) <= amount_max)
-    return q.order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc()).offset(skip).limit(limit).all()
+    # Split lines ride along in one extra query for the whole page, so the
+    # client can attribute spending per category without a request per row.
+    return (
+        q.options(selectinload(Transaction.splits))
+        .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -96,6 +105,50 @@ def update_transaction(transaction_id: int, update: TransactionUpdate, db: Sessi
         )
     except LedgerResourceNotFound as error:
         raise _not_found(error) from error
+
+
+def _own_transaction(db: Session, user_id: int, transaction_id: int) -> Transaction:
+    tx = (
+        db.query(Transaction)
+        .filter(Transaction.id == transaction_id, Transaction.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return tx
+
+
+@router.put("/{transaction_id}/splits", response_model=TransactionResponse)
+def set_splits(transaction_id: int, body: TransactionSplitsUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """File the transaction across categories. Replaces any existing split.
+
+    The lines must add up to the transaction exactly; the balance is not
+    touched, because a split only changes how the amount is filed.
+    """
+    tx = _own_transaction(db, current_user.id, transaction_id)
+    lines = [split_service.SplitLine(line.category_id, line.amount, line.note) for line in body.splits]
+    try:
+        split_service.replace(db, current_user.id, tx, lines)
+        db.commit()
+    except split_service.InvalidSplit as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except split_service.SplitCategoryNotFound:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Category not found")
+    db.refresh(tx)
+    return tx
+
+
+@router.delete("/{transaction_id}/splits", response_model=TransactionResponse)
+def clear_splits(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """File the whole transaction under its main category again."""
+    tx = _own_transaction(db, current_user.id, transaction_id)
+    split_service.clear(tx)
+    db.commit()
+    db.refresh(tx)
+    return tx
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)

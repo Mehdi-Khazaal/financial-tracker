@@ -262,6 +262,34 @@ class Transaction(Base):
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+    # How the amount is filed when it spans categories. Never moves money —
+    # see `services.splits`.
+    splits = relationship(
+        "TransactionSplit",
+        back_populates="transaction",
+        cascade="all, delete-orphan",
+        order_by="TransactionSplit.id",
+    )
+
+
+class TransactionSplit(Base):
+    """One line of a split transaction: part of the parent's amount, filed
+    under one category. Lines always sum to the parent exactly."""
+
+    __tablename__ = "transaction_splits"
+    __table_args__ = (
+        Index("ix_transaction_splits_user_category", "user_id", "category_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    amount = Column(Numeric(15, 2), nullable=False)
+    note = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    transaction = relationship("Transaction", back_populates="splits")
 
 
 class Transfer(Base):

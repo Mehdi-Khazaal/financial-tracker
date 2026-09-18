@@ -88,16 +88,33 @@ def _spent_by_month(db: Session, user_id: int, category_ids: list[int], start: d
     """Net spend per (category, month) over [start, end]. One query."""
     if not category_ids:
         return {}
-    rows = (
+    from models.database import TransactionSplit
+    from services.splits import split_parent_ids
+
+    # Whole transactions, except those filed across categories — for those the
+    # lines are read instead, so a $100 shop split 60/40 counts $60 against
+    # groceries rather than $100. Still one round trip.
+    whole = (
         db.query(Transaction.category_id, Transaction.transaction_date, Transaction.amount)
         .filter(
             Transaction.user_id == user_id,
             Transaction.category_id.in_(category_ids),
             Transaction.transaction_date >= start,
             Transaction.transaction_date <= end,
+            ~Transaction.id.in_(split_parent_ids(user_id)),
         )
-        .all()
     )
+    lines = (
+        db.query(TransactionSplit.category_id, Transaction.transaction_date, TransactionSplit.amount)
+        .join(Transaction, Transaction.id == TransactionSplit.transaction_id)
+        .filter(
+            TransactionSplit.user_id == user_id,
+            TransactionSplit.category_id.in_(category_ids),
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        )
+    )
+    rows = whole.union_all(lines).all()
     totals: dict[tuple[int, str], Decimal] = {}
     for category_id, day, amount in rows:
         key = (category_id, month_key(day))
