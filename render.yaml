@@ -1,0 +1,91 @@
+# Render Blueprint for the Fintrack API.
+#
+# Describes the one web service this repo deploys to Render. Values marked
+# `sync: false` are secrets or per-environment settings you enter in the Render
+# dashboard; the blueprint only declares that they exist. Nothing here is a
+# secret.
+#
+# Apply with "New → Blueprint" in the Render dashboard pointing at this repo,
+# or keep managing the existing service by hand and use this file as the
+# authoritative list of settings — either way, the dashboard and this file
+# must agree on runtime, commands and env var names.
+services:
+  - type: web
+    name: financial-tracker-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    # Migrations run at boot (see `main.py`, RUN_MIGRATIONS_ON_BOOT); the
+    # start command stays a plain uvicorn so a failed migration is loud in
+    # the logs rather than hidden in a pre-deploy step Render Free lacks.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: ENVIRONMENT
+        value: production
+      # ── Required secrets (enter in the dashboard) ──────────────────────────
+      - key: DATABASE_URL          # Neon pooled connection string
+        sync: false
+      - key: SECRET_KEY            # ≥ 32 bytes; signs JWTs
+        sync: false
+      - key: PLAID_TOKEN_ENCRYPTION_KEY   # Fernet source for stored Plaid tokens; set BEFORE rotating SECRET_KEY
+        sync: false
+      # ── Plaid ──────────────────────────────────────────────────────────────
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV             # sandbox | production
+        sync: false
+      - key: PLAID_WEBHOOK_URL     # https://<this service>/plaid/webhook
+        sync: false
+      # ── Email (Resend) ─────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false
+      - key: FRONTEND_URL          # https://<vercel app>; used in email links
+        sync: false
+      # ── Web push ───────────────────────────────────────────────────────────
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT         # mailto:you@example.com
+        sync: false
+      # ── Assistant ──────────────────────────────────────────────────────────
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # ── Scheduling / operations ───────────────────────────────────────────
+      - key: CRON_SECRET           # X-Cron-Secret header for /cron/*
+        sync: false
+      - key: ALLOWED_ORIGINS       # CSV of extra browser origins (previews, custom domain)
+        sync: false
+      # ── Optional switches (documented defaults) ────────────────────────────
+      - key: AUTO_CATEGORIZE       # default true
+        value: "true"
+      - key: RUN_MIGRATIONS_ON_BOOT  # default true; runs `alembic upgrade head` when the DB is stamped
+        value: "true"
+      - key: AUTO_PREPARE_DB       # legacy boot-time repairs; default true
+        value: "true"
+      - key: EXPOSE_API_DOCS       # default false in production
+        value: "false"
+      - key: LOG_FORMAT            # text | json
+        value: json
+      - key: SENTRY_DSN            # leave empty to disable
+        sync: false
+      # ── Public launch controls (see docs/DEPLOY.md) ───────────────────────
+      - key: SIGNUPS_ENABLED       # "false" closes registration
+        value: "true"
+      - key: SIGNUP_INVITE_CODE    # set to require an invite code at sign-up
+        sync: false
+      - key: REQUIRE_EMAIL_VERIFICATION  # "true" gates data routes on a verified email
+        value: "false"
+      - key: ASSISTANT_DAILY_TURN_CAP     # per user per day; 0 disables
+        value: "150"
+      - key: ASSISTANT_DAILY_COST_CAP_USD # per user per day; 0 disables
+        value: "3.00"

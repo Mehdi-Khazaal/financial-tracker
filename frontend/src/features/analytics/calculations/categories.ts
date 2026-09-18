@@ -24,6 +24,7 @@ import { transactionsInRange } from './metrics';
 import {
   categorySpendDelta,
   classifyTransaction,
+  expandSplits,
   merchantDisplayName,
   merchantIdentity,
   pctChange,
@@ -66,7 +67,9 @@ export interface CategoryComparisonOptions {
 export function calculateCategoryComparisons(
   options: CategoryComparisonOptions,
 ): CategoryComparison[] {
-  const { transactions, categories, period, baseline, ctx } = options;
+  const { categories, period, baseline, ctx } = options;
+  // Split transactions count against each of their categories.
+  const transactions = expandSplits(options.transactions);
 
   const currentTxs = inRangeFilter(transactions, period);
   const current = spendByCategory(currentTxs, ctx);
@@ -199,11 +202,12 @@ export function topMerchants(
  */
 export function buildCategoryDetail(
   comparison: CategoryComparison,
-  transactions: Transaction[],
+  allTransactions: Transaction[],
   period: ResolvedPeriod,
   ctx: ClassificationContext,
   trendMonths = 6,
 ): CategoryDetail {
+  const transactions = expandSplits(allTransactions);
   const periodTxs = inRangeFilter(transactions, period)
     .filter(t => t.category_id === comparison.id)
     .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));

@@ -8,7 +8,7 @@ import {
 import {
   calculatePeriodMetrics, investedInYear, monthlyMetrics, transactionsInRange,
 } from './metrics';
-import { calculateCategoryComparisons } from './categories';
+import { buildCategoryDetail, calculateCategoryComparisons } from './categories';
 import { calculateSavingsMetrics, selectPrimaryGoal } from './savings';
 import { calculateNetWorthChange } from './netWorth';
 import { buildCashFlow } from './cashflow';
@@ -16,7 +16,7 @@ import {
   buildRecurringOutlook, groupRecurringCharges, suggestionsToDetected,
   monthlyEquivalent, monthlyRecurringExpense,
 } from './recurring';
-import { KIND_LABELS } from './transactions';
+import { KIND_LABELS, expandSplits } from './transactions';
 import { percentagePoints, plural, pluralize, rateTransition } from '../format';
 import { calculateFinancialHealth } from './health';
 import { calculateForecast } from './forecast';
@@ -961,5 +961,42 @@ describe('normalizeMerchantName', () => {
 
   it('keeps genuinely different merchants apart', () => {
     expect(normalizeMerchantName('Apple Store')).not.toBe(normalizeMerchantName('Apple Bakery'));
+  });
+});
+
+// ── Split transactions (Phase 4.6) ────────────────────────────────────────────
+describe('split transactions in the category views', () => {
+  const shop: Transaction = {
+    ...tx('2026-07-08', -100, GROCERIES, CHECKING, 'COSTCO'),
+    splits: [
+      { id: 1, category_id: GROCERIES, amount: '-60.00', note: null },
+      { id: 2, category_id: FUEL, amount: '-40.00', note: 'gas station' },
+    ],
+  };
+
+  it('expands a split into one row per line and leaves everything else alone', () => {
+    const plain = tx('2026-07-09', -5, GROCERIES);
+    const expanded = expandSplits([shop, plain]);
+    expect(expanded.map(t => [t.category_id, t.amount])).toEqual([[GROCERIES, -60], [FUEL, -40], [GROCERIES, -5]]);
+    expect(expandSplits([plain])).toEqual([plain]);
+  });
+
+  it('counts each line against its own category and keeps the total', () => {
+    const rows = calculateCategoryComparisons({
+      transactions: [shop], categories, period: period('this-month'), baseline: [], ctx,
+    });
+    expect(rows.find(r => r.id === GROCERIES)!.current).toBe(60);
+    expect(rows.find(r => r.id === FUEL)!.current).toBe(40);
+    expect(rows.reduce((sum, r) => sum + r.current, 0)).toBe(100);
+  });
+
+  it('shows the line, not the whole shop, in a category drawer', () => {
+    const rows = calculateCategoryComparisons({
+      transactions: [shop], categories, period: period('this-month'), baseline: [], ctx,
+    });
+    const fuel = rows.find(r => r.id === FUEL)!;
+    const detail = buildCategoryDetail(fuel, [shop], period('this-month'), ctx);
+    expect(detail.transactions.map(t => Number(t.amount))).toEqual([-40]);
+    expect(detail.monthlyTrend[detail.monthlyTrend.length - 1].value).toBe(40);
   });
 });

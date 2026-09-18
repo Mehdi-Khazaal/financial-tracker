@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import BottomSheet from '../BottomSheet';
+import { linkToNewRule } from '../../lib/deepLinks';
 import AmountInput from '../AmountInput';
 import { updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { selectableCategories } from './categoryOptions';
+import SplitEditor from '../../features/transactions/components/SplitEditor';
 
 interface Props {
   isOpen: boolean;
@@ -18,7 +21,8 @@ const fmt = (n: number) =>
 
 const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
   const toast = useToast();
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'view' | 'edit' | 'split'>('view');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -87,10 +91,12 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
     });
     const amtStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(transaction.amount)))}`;
 
+    const splits = transaction.splits ?? [];
     const rows = [
       { label: 'Date',     value: dateStr,                         color: undefined      },
       { label: 'Account',  value: accName,                         color: undefined      },
-      { label: 'Category', value: cat?.name ?? 'Uncategorized',    color: cat?.color     },
+      { label: 'Category', value: splits.length > 0 ? `Split · ${splits.length} categories` : cat?.name ?? 'Uncategorized',
+        color: splits.length > 0 ? undefined : cat?.color },
       // Mirrors how the ledger counts it, so this row cannot contradict the
       // "Investment" label the transaction carries everywhere else.
       { label: 'Type',     value: cat?.type === 'investment' ? 'Investment' : pos ? 'Income' : 'Expense',
@@ -102,8 +108,8 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
         <div className="px-5 pb-8 pt-1">
           {/* Close */}
           <div className="flex justify-end pt-2">
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center"
+            <button onClick={onClose} aria-label="Close"
+              className="w-11 h-11 rounded-full flex items-center justify-center"
               style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -137,6 +143,38 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
             ))}
           </div>
 
+          {splits.length > 0 && (
+            <ul className="mt-3 rounded-2xl overflow-hidden" aria-label="Split parts" style={{ border: '1px solid var(--line)', backgroundColor: 'var(--elev-sub)' }}>
+              {splits.map((split, i) => {
+                const splitCat = categories.find(c => c.id === split.category_id);
+                return (
+                  <li key={split.id} className="flex items-center justify-between gap-3 px-4 py-2.5"
+                    style={{ borderBottom: i < splits.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: splitCat?.color ?? 'var(--dim)' }} aria-hidden="true" />
+                      <span className="text-sm truncate" style={{ color: 'var(--fg)' }}>{splitCat?.name ?? 'Uncategorized'}</span>
+                      {split.note && <span className="text-xs truncate" style={{ color: 'var(--dim)' }}>· {split.note}</span>}
+                    </div>
+                    <span className="font-mono tabular-nums text-sm shrink-0" style={{ color: 'var(--muted)' }}>${fmt(Math.abs(Number(split.amount)))}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {/* A rule from this transaction: the most common reason to want one
+              is a row that just arrived uncategorised or misfiled. */}
+          {cleanDescription(transaction.description) && (
+            <button
+              type="button"
+              onClick={() => { onClose(); navigate(linkToNewRule(cleanDescription(transaction.description), transaction.category_id)); }}
+              className="w-full mt-3 text-xs font-medium pressable text-left px-1"
+              style={{ color: 'var(--accent)', minHeight: 44 }}
+            >
+              Always file “{cleanDescription(transaction.description)}” as… →
+            </button>
+          )}
+
           {/* Action buttons */}
           <div className="flex gap-2 mt-4">
             <button
@@ -147,12 +185,33 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
               {loading ? '…' : 'Delete'}
             </button>
             <button
+              onClick={() => setMode('split')}
+              className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
+              style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
+              {splits.length > 0 ? 'Edit split' : 'Split'}
+            </button>
+            <button
               onClick={() => setMode('edit')}
               className="flex-1 py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95"
               style={{ backgroundColor: 'var(--elev-1)', color: 'var(--fg)', border: '1px solid var(--line-strong)' }}>
               Edit
             </button>
           </div>
+        </div>
+      </BottomSheet>
+    );
+  }
+
+  if (mode === 'split' && transaction) {
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose} title="Split transaction">
+        <div className="px-5 pb-6">
+          <SplitEditor
+            transaction={transaction}
+            categories={categories}
+            onDone={() => { onSuccess(); onClose(); }}
+            onCancel={() => setMode('view')}
+          />
         </div>
       </BottomSheet>
     );
@@ -221,7 +280,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
 
           <button type="submit" disabled={loading || !amount}
             className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-            style={{ backgroundColor: accentColor, color: 'white' }}>
+            style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
             {loading ? 'Saving…' : 'Save Changes'}
           </button>
         </form>

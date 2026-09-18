@@ -1,4 +1,5 @@
-import { APIRequestContext, Page, expect, test as base } from '@playwright/test';
+import { expect, test as base } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 /**
  * Playwright fixture that provisions a fresh authenticated user before each

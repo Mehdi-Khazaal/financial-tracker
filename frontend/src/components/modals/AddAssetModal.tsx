@@ -163,7 +163,10 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
               className="input-dark font-mono tracking-widest"
               placeholder={assetType === 'crypto' ? 'BTC' : assetType === 'etf' ? 'SPY' : 'AAPL'}
               maxLength={10}
-              required
+              // Either a ticker or a name identifies the holding; the submit
+              // button enforces the same rule. Removing a ticker on edit must
+              // not make the browser refuse the form.
+              required={!name.trim()}
             />
             <p className="text-[11px] text-muted mt-1">Enter the exchange ticker, e.g. AAPL, BTC, ETH, SPY</p>
           </div>

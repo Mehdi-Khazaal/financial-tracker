@@ -76,7 +76,7 @@ const ProgressBar: React.FC<Props> = ({
           : {})}
       >
         <div
-          className="h-full rounded-full transition-all duration-700"
+          className="h-full rounded-full transition-[width] duration-200 ease-out motion-reduce:transition-none"
           style={{
             width: `${pct}%`,
             backgroundColor: barColor,

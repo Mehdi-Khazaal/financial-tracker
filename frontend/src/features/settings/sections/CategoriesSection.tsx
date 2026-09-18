@@ -30,7 +30,8 @@ export const CATEGORY_TABS = ['expense', 'income', 'investment'] as const;
 export type CategoryTab = typeof CATEGORY_TABS[number];
 
 const TAB_ACCENT: Record<CategoryTab, { tint: string; color: string }> = {
-  expense: { tint: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' },
+  // Lighter than --neg: #EF4444 on its own tint is 4.06:1; this is 5.5:1.
+  expense: { tint: 'oklch(70% 0.17 25 / 0.15)', color: '#F87171' },
   income: { tint: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' },
   investment: { tint: 'var(--accent-dim)', color: 'var(--accent)' },
 };
@@ -101,7 +102,7 @@ const CategoriesSection: React.FC<Props> = ({ categories }) => {
               : { color: 'var(--muted)' }}
           >
             {candidate}
-            <span className="ml-1.5 opacity-70 font-mono text-xs">{countOf(candidate)}</span>
+            <span className="ml-1.5 font-mono text-xs">{countOf(candidate)}</span>
           </button>
         ))}
       </div>

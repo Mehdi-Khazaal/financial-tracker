@@ -154,7 +154,9 @@ def test_the_user_listing_never_exposes_password_hashes(client, admin_headers, u
     assert "hashed_password" not in response.text
     assert "$2b$" not in response.text
     for row in response.json():
-        assert set(row) == {"id", "email", "username", "is_verified", "is_admin", "created_at"}
+        assert set(row) == {"id", "email", "username", "is_verified", "is_admin", "created_at", "two_factor_enabled"}
+    # The flag is shown so an admin can help someone locked out; the secret never is.
+    assert "totp" not in response.text and "enc:v1:" not in response.text
 
 
 # --- Session semantics -------------------------------------------------------

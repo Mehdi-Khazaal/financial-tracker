@@ -1,22 +1,23 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import AddAccountModal from './AddAccountModal';
 import { createAccount } from '../../utils/api';
 
-jest.mock('../../utils/api', () => ({
+vi.mock('../../utils/api', () => ({
   __esModule: true,
-  createAccount: jest.fn(),
+  createAccount: vi.fn(),
 }));
 
-jest.mock('../../context/ToastContext', () => ({
-  useToast: () => ({ error: jest.fn(), success: jest.fn(), info: jest.fn(), confirm: jest.fn() }),
+vi.mock('../../context/ToastContext', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn(), info: vi.fn(), confirm: vi.fn() }),
 }));
 
 // CRA's Jest preset sets `resetMocks: true`, so the factory implementation is
 // cleared before each test and has to be re-established here.
 beforeEach(() => {
-  (createAccount as jest.Mock).mockResolvedValue({ data: {} });
+  (createAccount as Mock).mockResolvedValue({ data: {} });
 });
 
 /**
@@ -32,7 +33,7 @@ beforeEach(() => {
  */
 
 const setup = () =>
-  render(<AddAccountModal isOpen onClose={jest.fn()} onSuccess={jest.fn()} />);
+  render(<AddAccountModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} />);
 
 const chooseCreditCard = () =>
   fireEvent.click(screen.getByRole('button', { name: /^credit card:/i }));

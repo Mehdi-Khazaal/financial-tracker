@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List, Optional
-from models.database import get_db, Category
+from models.database import get_db, Category, Budget, CategorizationRule
 from models.auth import User
 from models.schemas import CategoryCreate, CategoryUpdate, CategoryResponse
 from utils.auth import get_current_user
@@ -151,5 +151,11 @@ def delete_category(category_id: int, db: Session = Depends(get_db), current_use
     # uncategorized: both foreign keys are ON DELETE SET NULL. Nothing is
     # reassigned to a different category, because a wrong category is worse
     # than none — it silently distorts every total the user reads.
+    #
+    # Budgets and rules *for* this category go with it (ON DELETE CASCADE in
+    # Postgres); deleting them here too keeps the behaviour identical on a
+    # database that does not enforce foreign keys.
+    db.query(Budget).filter(Budget.user_id == current_user.id, Budget.category_id == cat.id).delete(synchronize_session=False)
+    db.query(CategorizationRule).filter(CategorizationRule.user_id == current_user.id, CategorizationRule.category_id == cat.id).delete(synchronize_session=False)
     db.delete(cat)
     db.commit()

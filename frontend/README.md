@@ -1,46 +1,37 @@
-# Getting Started with Create React App
+# Fintrack — frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React 19 + TypeScript 5 on Vite, Tailwind 3, tested with Vitest and Playwright.
+Deployed to Vercel; `/api/*` is rewritten to the FastAPI backend on Render so the
+app is same-origin in every environment (locally, Vite's dev server does the same).
 
-## Available Scripts
+## Scripts
 
-In the project directory, you can run:
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on http://localhost:3000 with `/api` proxied to `http://127.0.0.1:8000` |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Serve `dist/` on :3000 with the same `/api` proxy |
+| `npm test` / `npm run test:ci` | Vitest (watch / single run) |
+| `npm run test:coverage` | Vitest with coverage, then per-module floors on `features/*/calculations` (`scripts/coverage-report.mjs`) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint (flat config) |
+| `npm run check:bundle` | Fail if `dist/` exceeds the gzip budget in `scripts/check-bundle.mjs` |
+| `npm run e2e` | Build, then Playwright against `vite preview` + a scratch backend: one spec per feature and `a11y.spec.ts` (axe, WCAG 2.2 AA, 390 px and 1440 px, sheets included; screenshots in `e2e/__screenshots__/phase5/`) |
 
-### `npm start`
+## Environment
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Copy `.env.example` to `.env.local`. Only `VITE_`-prefixed variables reach the bundle.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+| Variable | Purpose |
+|---|---|
+| `VITE_VAPID_PUBLIC_KEY` | Web-push public key (was `REACT_APP_VAPID_PUBLIC_KEY` under CRA). Empty hides the push switch. |
+| `VITE_DEV_API_TARGET` | Dev/preview proxy target for `/api` (default `http://127.0.0.1:8000`) |
 
-### `npm test`
+## Layout
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+- `src/pages` — one component per route; `src/lib/routes.tsx` lazy-loads all but login, signup and the dashboard.
+- `src/features/<area>` — calculations (pure, unit-tested), hooks and components per feature.
+- `src/components` — shared UI; `src/index.css` holds the "Ledger" design tokens (see `../DESIGN.md`).
+- `src/utils/api.ts` — every backend call; `src/utils/mutationQueue.ts` — offline write queue keyed by `Idempotency-Key`.
+- `public/sw.js` — hand-written service worker (static-asset cache, push). `src/lib/serviceWorker.ts` registers it and surfaces "new version" prompts.
+- `e2e/` — Playwright specs; `playwright.config.ts` boots the backend with a scratch SQLite DB.

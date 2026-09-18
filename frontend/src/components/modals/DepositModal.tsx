@@ -157,7 +157,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               type="submit"
               disabled={loading || !amount || parseFloat(amount) <= 0}
               className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-              style={{ backgroundColor: 'var(--pos)', color: 'white' }}>
+              style={{ backgroundColor: 'var(--pos)', color: 'var(--ink-on-fill)' }}>
               {loading ? 'Processing…' : `Deposit${amount ? ` · $${parseFloat(amount || '0').toFixed(2)}` : ''}`}
             </button>
           </form>

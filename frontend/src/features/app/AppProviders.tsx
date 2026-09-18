@@ -1,5 +1,7 @@
 import React from 'react';
 import CommandPalette from '../../components/CommandPalette';
+import UpdatePrompt from '../../components/UpdatePrompt';
+import VerificationGate from '../../components/VerificationGate';
 import { AuthProvider } from '../../context/AuthContext';
 import { TabProvider } from '../../context/TabContext';
 import { ToastProvider } from '../../context/ToastContext';
@@ -24,6 +26,8 @@ export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
         <TabProvider>
           <UIProvider>
             <CommandPalette />
+            <UpdatePrompt />
+            <VerificationGate />
             {children}
           </UIProvider>
         </TabProvider>

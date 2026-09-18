@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from models.auth import User
 from models.database import get_db
 from utils.logging import get_logger, kv
+from utils.security import email_verification_required
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
@@ -23,6 +25,12 @@ if len(SECRET_KEY.encode("utf-8")) < 32:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+# bcrypt work factor. 12 is the production default; the test suite sets 4 so a
+# fixture that creates a user costs milliseconds rather than a quarter second.
+# Clamped so a bad value can never weaken production hashing below bcrypt's
+# own minimum or push it into multi-second logins.
+BCRYPT_ROUNDS = max(4, min(int(os.getenv("BCRYPT_ROUNDS", "12")), 16))
 
 IS_PROD = os.getenv("ENVIRONMENT") == "production"
 logger = get_logger(__name__)
@@ -40,7 +48,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def _make_token(data: dict, expires_delta: timedelta, token_type: str) -> str:
@@ -54,7 +62,10 @@ def create_access_token(data: dict) -> str:
 
 
 def create_refresh_token(data: dict) -> str:
-    return _make_token(data, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "refresh")
+    # A random `jti` makes every issued refresh token distinct, so rotation on
+    # `/auth/refresh` produces a genuinely new credential rather than the same
+    # bytes whenever two are minted in the same second.
+    return _make_token({**data, "jti": secrets.token_urlsafe(16)}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "refresh")
 
 
 def create_reset_token(user_id: int, session_version: int = 0) -> str:
@@ -115,4 +126,20 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
     if payload.get("sv", 0) != user.session_version:
         logger.info("revoked_access_token %s", kv(path=request.url.path, user_id=user_id))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
+    if not user.is_verified and email_verification_required() and not _verification_exempt(request.url.path):
+        # Signed in, but the address has never been confirmed. The account
+        # routes stay open so the person can resend the mail, sign out, or
+        # leave; everything holding financial data waits.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "email_unverified", "message": "Verify your email address to continue."},
+        )
     return user
+
+
+# Paths an unverified user may still reach when verification is enforced.
+_VERIFICATION_EXEMPT_PREFIXES = ("/auth/", "/account/delete", "/healthz", "/readyz")
+
+
+def _verification_exempt(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in _VERIFICATION_EXEMPT_PREFIXES)

@@ -58,7 +58,7 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
       hero: pick('.hero-card'),
     };
   });
-  // eslint-disable-next-line no-console
+   
   console.log('DESKTOP BOXES', JSON.stringify(boxes));
 
   const tabStyles = await page.evaluate(() => {
@@ -82,7 +82,7 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
       buttons: buttons.map(b => ({ text: b.textContent, ...cs(b) })),
     };
   });
-  // eslint-disable-next-line no-console
+   
   console.log('TAB STYLES', JSON.stringify(tabStyles));
 
   // ── Phone: does the final card clear the dock and the segmented control? ────
@@ -107,7 +107,7 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
       viewportHeight: window.innerHeight,
     };
   });
-  // eslint-disable-next-line no-console
+   
   console.log('PHONE CLEARANCE', JSON.stringify(clearance));
 
   await page.screenshot({ path: 'e2e/__screenshots__/probe-phone-bottom-390.png', fullPage: false });
@@ -128,9 +128,9 @@ test('measure dashboard spacing and verify bottom clearance', async ({ page, req
       overflow.push({ route, w, h, ...result, overflows: result.scrollWidth > result.clientWidth + 1 });
     }
   }
-  // eslint-disable-next-line no-console
+   
   console.log('OVERFLOW', JSON.stringify(overflow.filter(r => r.overflows)));
-  // eslint-disable-next-line no-console
+   
   console.log('OVERFLOW_CHECKED', overflow.length);
   expect(overflow.filter(r => r.overflows)).toEqual([]);
 

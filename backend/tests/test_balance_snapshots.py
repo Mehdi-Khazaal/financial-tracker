@@ -64,4 +64,4 @@ def test_net_worth_history_uses_snapshots(client, db_session, user, auth_headers
     # With no future-dated transactions, every month should reflect the
     # current balance since snapshots exist for each.
     for entry in payload:
-        assert entry["net_worth"] == 500.00
+        assert entry["net_worth"] == "500.00"  # money is a decimal string, never a float

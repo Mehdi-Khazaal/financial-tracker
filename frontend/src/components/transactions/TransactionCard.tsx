@@ -56,6 +56,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
   const amountStr = `${pos ? '+' : '-'}$${fmt(Math.abs(Number(tx.amount)))}`;
   const description = cleanDescription(tx.description);
   const showKind = kind != null && NEEDS_LABEL.includes(kind);
+  const categoryLabel = tx.splits && tx.splits.length > 0 ? `Split · ${tx.splits.length}` : categoryName;
 
   if (compact) {
     return (
@@ -160,7 +161,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
           {description}
         </p>
         <p className={`${mobileCard ? 'text-xs' : 'text-[11px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
-          {[accountName, categoryName, shortDate].filter(Boolean).join(' · ')}
+          {[accountName, categoryLabel, shortDate].filter(Boolean).join(' · ')}
         </p>
         {showKind && (
           <span

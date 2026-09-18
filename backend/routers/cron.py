@@ -2,12 +2,15 @@ import os
 import hmac
 from datetime import date, timedelta
 from decimal import Decimal
+from time import monotonic
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.auth import User
-from models.database import get_db, RecurringTransaction, Transaction, Account, Category
-from services import merchants, recurring_bills
+from models.database import get_db, RecurringTransaction, Account, Category
+from services import alerts as alert_service
+from services import merchants, recurring_bills, user_preferences
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
+from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
 from utils.dates import user_today
 from utils.logging import get_logger, kv
@@ -28,6 +31,11 @@ def _require_cron_secret(request: Request) -> None:
 # with this margin and then filtered against each user's own calendar day, so a
 # user east of UTC is not skipped for a day.
 _MAX_UTC_OFFSET_DAYS = 1
+
+# Render's proxy gives a request 30 s. The nightly snapshot refresh stops
+# handing out work before that and reports what is left, rather than being
+# killed mid-user. Overridable for a bigger plan or a local run.
+SNAPSHOT_TIME_BUDGET_SECONDS = float(os.getenv("CRON_TIME_BUDGET_SECONDS", "20"))
 
 
 @router.post("/process-recurring")
@@ -100,18 +108,22 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
             )
             continue
 
-        tx = Transaction(
-            user_id=rec.user_id,
-            account_id=rec.account_id,
-            category_id=rec.category_id,
-            amount=rec.amount,
-            description=rec.description,
-            merchant_key=rec.merchant_key or merchants.merchant_key(rec.description) or None,
-            transaction_date=rec.next_date,
-        )
-        db.add(tx)
-        db.flush()
-        account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
+        try:
+            tx = LedgerService(db).stage_transaction(
+                rec.user_id,
+                {
+                    "account_id": rec.account_id,
+                    "category_id": rec.category_id,
+                    "amount": rec.amount,
+                    "description": rec.description,
+                    "merchant_key": rec.merchant_key or merchants.merchant_key(rec.description) or None,
+                    "transaction_date": rec.next_date,
+                },
+            )
+        except LedgerResourceNotFound:
+            # Ownership is checked before anything is staged, so nothing for
+            # this row is pending and the rows already staged are kept.
+            continue
         rec.last_paid_date = rec.next_date
         rec.last_paid_amount = abs(Decimal(str(rec.amount)))
         rec.last_transaction_id = tx.id
@@ -136,7 +148,9 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
         try:
             today = user_today(owner)
             reconciled += recurring_bills.reconcile_user(db, owner, today=today)
-            alerts = recurring_bills.collect_alerts(db, owner, today)
+            # A user who turned reminders off gets none — and nothing is marked
+            # as sent, so turning them back on resumes from the next cycle.
+            alerts = recurring_bills.collect_alerts(db, owner, today) if user_preferences.alerts_enabled(db, owner.id, "bill") else []
             db.commit()
         except Exception:
             db.rollback()
@@ -165,15 +179,41 @@ def cron_refresh_balance_snapshots(request: Request, db: Session = Depends(get_d
     """
     _require_cron_secret(request)
 
-    user_ids = [uid for (uid,) in db.query(User.id).all()]
+    users = db.query(User).order_by(User.id).all()
     total_rows = 0
-    for uid in user_ids:
-        total_rows += refresh_snapshots_for_user(db, uid, months_back=24, include_today=True)
+    refreshed = 0
+    failed = 0
+    deadline = monotonic() + SNAPSHOT_TIME_BUDGET_SECONDS
+    for owner in users:
+        if monotonic() > deadline:
+            # Stop cleanly before the platform's request timeout would. Every
+            # user processed so far is committed; the rest are picked up on
+            # the next run, and the response says so.
+            break
+        try:
+            # Month-ends in the user's own zone, so their chart's "this month"
+            # is the month they are in. `refresh_snapshots_for_user` commits,
+            # so one user's failure cannot take another's rows with it.
+            total_rows += refresh_snapshots_for_user(
+                db, owner.id, months_back=24, include_today=True, today=user_today(owner)
+            )
+            refreshed += 1
+        except Exception:
+            db.rollback()
+            failed += 1
+            logger.exception("cron_snapshot_refresh_failed %s", kv(user_id=owner.id))
 
     cutoff = date.today().replace(year=date.today().year - 3)
     pruned = prune_snapshots_older_than(db, cutoff)
 
-    return {"users": len(user_ids), "snapshots_written": total_rows, "pruned": pruned}
+    return {
+        "users": len(users),
+        "refreshed": refreshed,
+        "failed": failed,
+        "remaining": len(users) - refreshed - failed,
+        "snapshots_written": total_rows,
+        "pruned": pruned,
+    }
 
 
 @router.post("/refresh-merchant-categories")
@@ -187,15 +227,58 @@ def cron_refresh_merchant_categories(request: Request, db: Session = Depends(get
     return {"canonical_updated": updated}
 
 
+@router.post("/check-budgets")
+def cron_check_budgets(request: Request, db: Session = Depends(get_db)):
+    """Send over-budget pushes for every user with a budget. Nightly.
+
+    Manual entries change spending without a sync, so the nightly pass is the
+    backstop for the check that also runs after each bank import. Each budget
+    is announced once per month (`Budget.notified_month`), so running this any
+    number of times is safe.
+    """
+    _require_cron_secret(request)
+    from models.database import Budget
+    from services import budgets as budget_service
+
+    user_ids = [row[0] for row in db.query(Budget.user_id).filter(Budget.is_active.is_(True)).distinct().all()]
+    sent = 0
+    for user_id in user_ids:
+        owner = db.query(User).filter(User.id == user_id).first()
+        if owner is None:
+            continue
+        try:
+            sent += budget_service.notify_over_budget(db, owner, send_push_to_user)
+        except Exception:
+            db.rollback()
+            logger.exception("cron_budget_check_failed %s", kv(user_id=user_id))
+    return {"users": len(user_ids), "alerts": sent}
+
+
+@router.post("/check-balances")
+def cron_check_balances(request: Request, db: Session = Depends(get_db)):
+    """Low-balance pushes for every user who asked for them. Nightly backstop
+    for the check that also runs after each bank import; manual entries move
+    balances without a sync. Once per dip per account, so re-running is safe."""
+    _require_cron_secret(request)
+    return alert_service.check_all_low_balances(db, send_push_to_user)
+
+
 @router.post("/prune-idempotency-keys")
 def cron_prune_idempotency_keys(request: Request, db: Session = Depends(get_db)):
-    """Drop idempotency records past their 24h TTL. Runs hourly."""
+    """Drop short-lived bookkeeping past its TTL. Runs hourly.
+
+    Idempotency records (24 h) and the assistant's pending-action rows (10
+    min, or already confirmed) share this job: both are small, both expire on
+    their own, and one scheduled call is easier to keep configured than two.
+    """
     _require_cron_secret(request)
     from models.database import IdempotencyKey, utc_now
+    from routers.assistant.pending import prune_expired_pending_actions
     now = utc_now()
     deleted = db.query(IdempotencyKey).filter(IdempotencyKey.expires_at <= now).delete()
     db.commit()
-    return {"deleted": deleted}
+    pending = prune_expired_pending_actions(db, now=now)
+    return {"deleted": deleted, "pending_actions_deleted": pending}
 
 
 @router.post("/run-jobs")

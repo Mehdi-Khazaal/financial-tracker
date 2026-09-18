@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
 from decimal import Decimal
-from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account, Transaction
+from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account
 from models.auth import User
 from models.schemas import (
     SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse,
     AllocationResponse, SetAllocationsRequest, SpendFromGoalRequest,
     TransactionResponse,
 )
+from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 from utils.etag import check_etag, compute_user_etag, set_etag_headers
 from utils.push_sender import send_push_to_user
@@ -38,6 +39,20 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
         allocations=allocs,
         current_amount=current,
     )
+
+
+MILESTONES = (100, 75, 50)
+
+
+def milestone_reached(current: Decimal, target: Decimal) -> int:
+    """The highest milestone (percent of target) the goal currently sits at, or 0."""
+    if target <= 0:
+        return 0
+    pct = current / target * 100
+    for level in MILESTONES:
+        if pct >= level:
+            return level
+    return 0
 
 
 def _load_goal(goal_id: int, user_id: int, db: Session) -> SavingsGoal:
@@ -145,21 +160,24 @@ def set_allocations(
             ))
 
     db.commit()
-    result = _serialize_goal(_load_goal(goal_id, current_user.id, db))
+    goal = _load_goal(goal_id, current_user.id, db)
+    result = _serialize_goal(goal)
 
-    # Push notification on milestone (50%, 75%, 100%)
-    target = Decimal(str(result.target_amount))
-    current = Decimal(str(result.current_amount))
-    if target > 0:
-        pct = current / target
-        for milestone, label in [(1.0, "100%"), (0.75, "75%"), (0.5, "50%")]:
-            if pct >= milestone:
-                icon = "🎉" if milestone == 1.0 else "🎯"
-                msg = f"Goal reached!" if milestone == 1.0 else f"You're {label} of the way there!"
-                background.add_task(send_push_to_user, db, current_user.id,
-                                    f"{icon} {result.name}",
-                                    msg, url="/savings", tag=f"goal-{goal_id}")
-                break
+    # Announce a milestone (50 / 75 / 100 %) only when this save crosses it.
+    # The last announced level is stored on the goal, so re-saving the same
+    # allocations, or nudging an amount, stays silent. Falling back below a
+    # level resets it, so climbing past it again is worth announcing again.
+    reached = milestone_reached(Decimal(str(result.current_amount)), Decimal(str(result.target_amount)))
+    previous = goal.milestone_notified or 0
+    if reached != previous:
+        goal.milestone_notified = reached
+        db.commit()
+    if reached > previous:
+        icon = "🎉" if reached == 100 else "🎯"
+        msg = "Goal reached!" if reached == 100 else f"You're {reached}% of the way there!"
+        background.add_task(send_push_to_user, db, current_user.id,
+                            f"{icon} {result.name}",
+                            msg, url="/savings", tag=f"goal-{goal_id}")
 
     return result
 
@@ -184,10 +202,6 @@ def spend_from_goal(
     if body.amount > alloc_amount:
         raise HTTPException(status_code=400, detail=f"Only ${alloc_amount:.2f} allocated from this account")
 
-    account = db.query(Account).filter(Account.id == body.account_id, Account.user_id == current_user.id).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
     # Reduce allocation
     new_alloc_amount = alloc_amount - body.amount
     if new_alloc_amount <= 0:
@@ -195,18 +209,25 @@ def spend_from_goal(
     else:
         alloc.amount = new_alloc_amount
 
-    # Create expense transaction
-    tx = Transaction(
-        user_id=current_user.id,
-        account_id=body.account_id,
-        amount=-abs(body.amount),
-        description=body.description or f"Spent from {goal.name}",
-        transaction_date=body.transaction_date,
-    )
-    db.add(tx)
-    account.balance = Decimal(str(account.balance)) - body.amount
-
-    db.commit()
+    # The spend is an ordinary expense and goes through the ledger like one:
+    # ownership check, merchant identity, and an atomic balance update.
+    try:
+        LedgerService(db).stage_transaction(
+            current_user.id,
+            {
+                "account_id": body.account_id,
+                "amount": -abs(body.amount),
+                "description": body.description or f"Spent from {goal.name}",
+                "transaction_date": body.transaction_date,
+            },
+        )
+        db.commit()
+    except LedgerResourceNotFound as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=error.detail) from error
+    except Exception:
+        db.rollback()
+        raise
     return _serialize_goal(_load_goal(goal_id, current_user.id, db))
 
 

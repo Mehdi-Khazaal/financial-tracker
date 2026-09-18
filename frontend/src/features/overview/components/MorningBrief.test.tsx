@@ -1,13 +1,14 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import MorningBrief, { SensitiveSentence } from './MorningBrief';
 import type { BriefItem } from '../calculations/brief';
 
-jest.mock('react-router-dom', () => {
-  const react = jest.requireActual('react');
+vi.mock('react-router-dom', async () => {
+  const react = await vi.importActual<typeof import('react')>('react');
   return {
-    Link: ({ to, children, ...rest }: { to: string; children: unknown }) =>
+    Link: ({ to, children, ...rest }: { to: string; children: import('react').ReactNode }) =>
       react.createElement('a', { href: to, ...rest }, children),
   };
 });

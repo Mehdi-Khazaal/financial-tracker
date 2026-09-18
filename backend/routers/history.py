@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+from typing import Dict, List
 from datetime import date
 from decimal import Decimal
 import calendar
@@ -8,17 +9,37 @@ import calendar
 from models.database import get_db, Account, AccountBalanceSnapshot, Transaction
 from models.auth import User
 from utils.auth import get_current_user
+from utils.dates import user_today
 
 router = APIRouter(prefix="/history", tags=["history"])
+
+CENTS = Decimal("0.01")
+
+
+# Money leaves this router as `Decimal`, serialised like every other money
+# field in the API (a decimal string), never as a float. The client already
+# coerces with `Number()` at its boundary.
+class MonthBalance(BaseModel):
+    month: str
+    balance: Decimal
+
+
+class NetWorthPoint(BaseModel):
+    month: str
+    net_worth: Decimal
+    accounts: Decimal
 
 
 def _end_of_month(year: int, month: int) -> date:
     return date(year, month, calendar.monthrange(year, month)[1])
 
 
-def _month_range(months_back: int):
-    """Return list of (year, month) tuples from oldest to current."""
-    today = date.today()
+def _month_range(months_back: int, today: date):
+    """Return list of (year, month) tuples from oldest to current.
+
+    `today` is the *user's* calendar day, so the current month is the one
+    they are living in rather than the server's UTC month.
+    """
     result = []
     for i in range(months_back - 1, -1, -1):
         m = today.month - i
@@ -30,22 +51,22 @@ def _month_range(months_back: int):
     return result
 
 
-def _balance_history(current_balance: Decimal, transactions, months: int) -> list[dict]:
+def _balance_history(current_balance: Decimal, transactions, months: int, today: date) -> list[MonthBalance]:
     result = []
-    for year, month in _month_range(months):
+    for year, month in _month_range(months, today):
         end = _end_of_month(year, month)
         future_tx_sum = sum(
             (Decimal(str(amount)) for amount, transaction_date in transactions if transaction_date > end),
             Decimal("0"),
         )
-        result.append({
-            "month": f"{year}-{month:02d}",
-            "balance": round(float(current_balance - future_tx_sum), 2),
-        })
+        result.append(MonthBalance(
+            month=f"{year}-{month:02d}",
+            balance=(current_balance - future_tx_sum).quantize(CENTS),
+        ))
     return result
 
 
-@router.get("/net-worth")
+@router.get("/net-worth", response_model=List[NetWorthPoint])
 def net_worth_history(
     months: int = Query(default=12, ge=1, le=36),
     db: Session = Depends(get_db),
@@ -69,7 +90,8 @@ def net_worth_history(
         return []
 
     account_ids = {a.id for a in accounts}
-    month_targets = [(_end_of_month(y, m), f"{y}-{m:02d}") for (y, m) in _month_range(months)]
+    today = user_today(current_user)
+    month_targets = [(_end_of_month(y, m), f"{y}-{m:02d}") for (y, m) in _month_range(months, today)]
     target_dates = {d for d, _ in month_targets}
 
     # Pre-computed month-end snapshots — one row per (account, date). Use the
@@ -113,15 +135,12 @@ def net_worth_history(
                 Decimal("0"),
             )
             total = current_accounts_total - future_tx_sum
-        result.append({
-            "month": label,
-            "net_worth": round(float(total), 2),
-            "accounts": round(float(total), 2),
-        })
+        total = total.quantize(CENTS)
+        result.append(NetWorthPoint(month=label, net_worth=total, accounts=total))
     return result
 
 
-@router.get("/account/{account_id}")
+@router.get("/account/{account_id}", response_model=List[MonthBalance])
 def account_balance_history(
     account_id: int,
     months: int = Query(default=6, ge=1, le=24),
@@ -143,10 +162,10 @@ def account_balance_history(
         )
         .all()
     )
-    return _balance_history(Decimal(str(account.balance)), transactions, months)
+    return _balance_history(Decimal(str(account.balance)), transactions, months, user_today(current_user))
 
 
-@router.get("/accounts")
+@router.get("/accounts", response_model=Dict[int, List[MonthBalance]])
 def account_balances_history(
     months: int = Query(default=6, ge=1, le=24),
     db: Session = Depends(get_db),
@@ -170,11 +189,13 @@ def account_balances_history(
     for account_id, amount, transaction_date in transaction_rows:
         transactions_by_account[account_id].append((amount, transaction_date))
 
+    today = user_today(current_user)
     return {
         account.id: _balance_history(
             Decimal(str(account.balance)),
             transactions_by_account[account.id],
             months,
+            today,
         )
         for account in accounts
     }

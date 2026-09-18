@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -10,11 +11,11 @@ import OverviewTab from './OverviewTab';
 // react-router-dom v7 exposes `react-router/dom` through package exports that
 // CRA's Jest resolver cannot follow. Overview only needs `Link`, so the module
 // is stubbed. The factory must not close over anything outside itself —
-// `jest.mock` is hoisted above the imports.
-jest.mock('react-router-dom', () => {
-  const react = jest.requireActual('react');
+// `vi.mock` is hoisted above the imports.
+vi.mock('react-router-dom', async () => {
+  const react = await vi.importActual<typeof import('react')>('react');
   return {
-    Link: ({ to, children, ...rest }: { to: string; children: unknown }) =>
+    Link: ({ to, children, ...rest }: { to: string; children: import('react').ReactNode }) =>
       react.createElement('a', { href: to, ...rest }, children),
   };
 });

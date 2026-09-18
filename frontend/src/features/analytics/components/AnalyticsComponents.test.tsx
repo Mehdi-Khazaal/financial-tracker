@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -46,20 +47,20 @@ describe('RecommendedInsights', () => {
   ];
 
   it('renders each insight with its explanation', () => {
-    render(<RecommendedInsights insights={insights} onOpenCategory={jest.fn()} onNavigate={jest.fn()} />);
+    render(<RecommendedInsights insights={insights} onOpenCategory={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText('Groceries is 40% above your usual')).toBeInTheDocument();
     expect(screen.getByText('Explanation here.')).toBeInTheDocument();
   });
 
   it('labels tone in text as well as colour', () => {
-    render(<RecommendedInsights insights={insights} onOpenCategory={jest.fn()} onNavigate={jest.fn()} />);
+    render(<RecommendedInsights insights={insights} onOpenCategory={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText('Keep an eye on')).toBeInTheDocument();
     expect(screen.getByText('To review')).toBeInTheDocument();
   });
 
   it('opens a category drawer rather than navigating for category actions', () => {
-    const onOpenCategory = jest.fn();
-    const onNavigate = jest.fn();
+    const onOpenCategory = vi.fn();
+    const onNavigate = vi.fn();
     render(<RecommendedInsights insights={insights} onOpenCategory={onOpenCategory} onNavigate={onNavigate} />);
 
     fireEvent.click(screen.getByRole('button', { name: /view groceries/i }));
@@ -68,22 +69,22 @@ describe('RecommendedInsights', () => {
   });
 
   it('navigates with the target tab for page actions', () => {
-    const onNavigate = jest.fn();
-    render(<RecommendedInsights insights={insights} onOpenCategory={jest.fn()} onNavigate={onNavigate} />);
+    const onNavigate = vi.fn();
+    render(<RecommendedInsights insights={insights} onOpenCategory={vi.fn()} onNavigate={onNavigate} />);
 
     fireEvent.click(screen.getByRole('button', { name: /review subscriptions/i }));
     expect(onNavigate).toHaveBeenCalledWith('/transactions', 'recurring');
   });
 
   it('shows a calm empty state rather than inventing advice', () => {
-    render(<RecommendedInsights insights={[]} onOpenCategory={jest.fn()} onNavigate={jest.fn()} />);
+    render(<RecommendedInsights insights={[]} onOpenCategory={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText('Nothing needs your attention')).toBeInTheDocument();
   });
 });
 
 describe('SavingsOverviewCard', () => {
   it('prompts to create a goal when none exists, without hiding what was left over', () => {
-    render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={jest.fn()} />);
+    render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={vi.fn()} />);
     expect(screen.getByText(/You had \$2,800\.00 left after expenses this month\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create a goal/i })).toBeInTheDocument();
   });
@@ -92,7 +93,7 @@ describe('SavingsOverviewCard', () => {
     render(
       <SavingsOverviewCard
         period={PERIOD}
-        onNavigate={jest.fn()}
+        onNavigate={vi.fn()}
         savings={savings({ savingsRate: 0.791, previousRate: 0.272, rateDelta: 0.519 })}
       />,
     );
@@ -105,7 +106,7 @@ describe('SavingsOverviewCard', () => {
     render(
       <SavingsOverviewCard
         period={PERIOD}
-        onNavigate={jest.fn()}
+        onNavigate={vi.fn()}
         savings={savings({
           goalCount: 3,
           allocatedTotal: 16000,
@@ -127,7 +128,7 @@ describe('SavingsOverviewCard', () => {
     render(
       <SavingsOverviewCard
         period={PERIOD}
-        onNavigate={jest.fn()}
+        onNavigate={vi.fn()}
         savings={savings({
           goalCount: 2,
           primaryGoal: {
@@ -149,7 +150,7 @@ describe('SavingsOverviewCard', () => {
     render(
       <SavingsOverviewCard
         period={PERIOD}
-        onNavigate={jest.fn()}
+        onNavigate={vi.fn()}
         savings={savings({
           averageMonthlySaved: null, averageMonths: 0, goalCount: 1,
           primaryGoal: {
@@ -164,7 +165,7 @@ describe('SavingsOverviewCard', () => {
   });
 
   it('links out to the full savings page instead of duplicating it', () => {
-    const onNavigate = jest.fn();
+    const onNavigate = vi.fn();
     render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole('button', { name: /view savings/i }));
     expect(onNavigate).toHaveBeenCalledWith('/portfolio', 'savings');
@@ -332,8 +333,8 @@ describe('CategoryDetailDrawer', () => {
         period={periodOver ?? PERIOD}
         accounts={accounts}
         ctx={ctx}
-        onClose={jest.fn()}
-        onNavigate={jest.fn()}
+        onClose={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
 
@@ -402,7 +403,7 @@ describe('PeriodComparisonTable', () => {
         period={PERIOD}
         baselineLabel="Average of the previous 4 completed months"
         baselineCount={4}
-        onOpenCategory={jest.fn()}
+        onOpenCategory={vi.fn()}
       />,
     );
     expect(screen.getByText(/Spending was \$70\.00 above your recent average\./)).toBeInTheDocument();
@@ -416,7 +417,7 @@ describe('PeriodComparisonTable', () => {
         period={PERIOD}
         baselineLabel="Average of the previous 4 completed months"
         baselineCount={4}
-        onOpenCategory={jest.fn()}
+        onOpenCategory={vi.fn()}
       />,
     );
     expect(
@@ -431,14 +432,14 @@ describe('PeriodComparisonTable', () => {
         period={PERIOD}
         baselineLabel="Based on 1 earlier month — treat as a rough guide"
         baselineCount={1}
-        onOpenCategory={jest.fn()}
+        onOpenCategory={vi.fn()}
       />,
     );
     expect(screen.getAllByText('1mo avg').length).toBeGreaterThan(0);
   });
 
   it('opens the drawer when a category is chosen', () => {
-    const onOpenCategory = jest.fn();
+    const onOpenCategory = vi.fn();
     render(
       <PeriodComparisonTable
         categories={rows}
@@ -460,7 +461,7 @@ describe('PeriodComparisonTable', () => {
         period={PERIOD}
         baselineLabel="No completed months to average yet"
         baselineCount={0}
-        onOpenCategory={jest.fn()}
+        onOpenCategory={vi.fn()}
       />,
     );
     expect(screen.getByText('Nothing to compare yet')).toBeInTheDocument();

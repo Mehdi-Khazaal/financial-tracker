@@ -271,6 +271,10 @@ def test_the_response_carries_nothing_but_preferences(client, auth_headers):
     assert set(body) == {
         "automatic_categorization_enabled",
         "automatic_categorization_effective",
+        "bill_reminders_enabled",
+        "budget_alerts_enabled",
+        "low_balance_alerts_enabled",
+        "low_balance_threshold",
     }
 
 

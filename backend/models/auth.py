@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from typing import Optional
 from models.database import Base, utc_now
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -29,13 +30,59 @@ class User(Base):
     # IANA zone reported by the browser. The server runs in UTC, so without this
     # the assistant's idea of "today" is wrong for anyone east or west of it.
     timezone = Column(String(64), nullable=True)
+    # Two-factor authentication. Secrets are `secret_box` ciphertext; the
+    # pending one exists only between "show me the QR code" and the first
+    # correct code. See `services.two_factor`.
+    totp_secret = Column(Text, nullable=True)
+    totp_pending_secret = Column(Text, nullable=True)
+    totp_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
+    # Time step of the last accepted code; a code is never accepted twice.
+    totp_last_step = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, default=utc_now)
+
+    @property
+    def two_factor_enabled(self) -> bool:
+        return bool(self.totp_enabled)
+
+
+class RecoveryCode(Base):
+    """A single-use way in when the authenticator is lost. Stored hashed."""
+
+    __tablename__ = "recovery_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class AuthFailure(Base):
+    """Consecutive failed logins per identifier, for per-account lockout.
+
+    The IP rate limit on `/auth/login` is the first line; this is the second.
+    An attacker rotating addresses is still slowed to a crawl against any one
+    account, and a stolen-password guess from a botnet meets the same wall.
+    Stored in the database rather than process memory so a restart or a
+    second worker does not reset the counter. See `services.login_throttle`.
+    """
+
+    __tablename__ = "auth_failures"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Lower-cased email or username as typed, capped at the schema's max.
+    identifier = Column(String(320), unique=True, index=True, nullable=False)
+    failures = Column(Integer, nullable=False, default=0, server_default="0")
+    last_failure_at = Column(DateTime, nullable=True)
+    locked_until = Column(DateTime, nullable=True)
 
 # ============ PYDANTIC SCHEMAS ============
 class UserCreate(BaseModel):
     email: EmailStr
     username: str = Field(min_length=1, max_length=100)
     password: str
+    # Required only when the deployment sets SIGNUP_INVITE_CODE.
+    invite_code: Optional[str] = Field(default=None, max_length=128)
 
     @field_validator("username")
     @classmethod
@@ -68,6 +115,7 @@ class UserResponse(BaseModel):
     is_verified: bool
     is_admin: bool
     created_at: datetime
+    two_factor_enabled: bool = False
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

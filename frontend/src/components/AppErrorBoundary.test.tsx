@@ -1,10 +1,11 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { AppErrorBoundary } from './AppErrorBoundary';
 
 
 it('recovers from a transient render failure', () => {
-  const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   let shouldThrow = true;
   const FlakyChild = () => {
     if (shouldThrow) throw new Error('transient failure');

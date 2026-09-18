@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -5,14 +6,14 @@ import type { Asset } from '../../types';
 import AddAssetModal from './AddAssetModal';
 import { createAsset, updateAsset } from '../../utils/api';
 
-jest.mock('../../utils/api', () => ({
-  createAsset: jest.fn().mockResolvedValue({ data: {} }),
-  updateAsset: jest.fn().mockResolvedValue({ data: {} }),
+vi.mock('../../utils/api', () => ({
+  createAsset: vi.fn().mockResolvedValue({ data: {} }),
+  updateAsset: vi.fn().mockResolvedValue({ data: {} }),
 }));
 
-const mockError = jest.fn();
-jest.mock('../../context/ToastContext', () => ({
-  useToast: () => ({ error: mockError, success: jest.fn(), info: jest.fn(), confirm: jest.fn() }),
+const mockError = vi.fn();
+vi.mock('../../context/ToastContext', () => ({
+  useToast: () => ({ error: mockError, success: vi.fn(), info: vi.fn(), confirm: vi.fn() }),
 }));
 
 /**
@@ -41,8 +42,8 @@ const asset = (overrides: Partial<Asset> = {}): Asset => ({
 });
 
 const setup = (props: Partial<React.ComponentProps<typeof AddAssetModal>> = {}) => {
-  const onClose = jest.fn();
-  const onSuccess = jest.fn();
+  const onClose = vi.fn();
+  const onSuccess = vi.fn();
   const view = render(
     <AddAssetModal
       isOpen
@@ -55,7 +56,7 @@ const setup = (props: Partial<React.ComponentProps<typeof AddAssetModal>> = {}) 
   return { ...view, onClose, onSuccess };
 };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => vi.clearAllMocks());
 
 describe('add mode', () => {
   it('is titled as an addition', () => {
@@ -101,7 +102,7 @@ describe('add mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add Investment/ }));
 
     await waitFor(() => expect(createAsset).toHaveBeenCalled());
-    expect((createAsset as jest.Mock).mock.calls[0][0]).toMatchObject({ asset_class: 'investment' });
+    expect((createAsset as Mock).mock.calls[0][0]).toMatchObject({ asset_class: 'investment' });
   });
 });
 
@@ -141,7 +142,7 @@ describe('edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
-    expect((updateAsset as jest.Mock).mock.calls[0][1]).toMatchObject({ name: 'Vanguard ETF (VTI)' });
+    expect((updateAsset as Mock).mock.calls[0][1]).toMatchObject({ name: 'Vanguard ETF (VTI)' });
   });
 
   it('updates the right asset by id', async () => {
@@ -158,7 +159,7 @@ describe('edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
-    expect((updateAsset as jest.Mock).mock.calls[0][1]).not.toHaveProperty('asset_class');
+    expect((updateAsset as Mock).mock.calls[0][1]).not.toHaveProperty('asset_class');
   });
 
   it('never sends identifiers', async () => {
@@ -167,7 +168,7 @@ describe('edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
-    const payload = (updateAsset as jest.Mock).mock.calls[0][1];
+    const payload = (updateAsset as Mock).mock.calls[0][1];
     expect(payload).not.toHaveProperty('id');
     expect(payload).not.toHaveProperty('user_id');
   });
@@ -179,7 +180,7 @@ describe('edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
-    expect((updateAsset as jest.Mock).mock.calls[0][1]).toMatchObject({ total_value: 11500 });
+    expect((updateAsset as Mock).mock.calls[0][1]).toMatchObject({ total_value: 11500 });
   });
 
   it('recalculates the recorded total when quantity and unit value change', () => {
@@ -200,7 +201,7 @@ describe('edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
-    const payload = (updateAsset as jest.Mock).mock.calls[0][1];
+    const payload = (updateAsset as Mock).mock.calls[0][1];
     expect(payload.total_value).toBe(10000);
     expect(payload.name).toBe('Vanguard ETF');
   });
@@ -214,13 +215,13 @@ describe('edit mode', () => {
     await waitFor(() => expect(updateAsset).toHaveBeenCalled());
     // Pricing is a display concern; an unrecognised symbol must not zero the
     // value the user recorded.
-    expect((updateAsset as jest.Mock).mock.calls[0][1].total_value).toBe(10000);
+    expect((updateAsset as Mock).mock.calls[0][1].total_value).toBe(10000);
   });
 });
 
 describe('failure and cancellation', () => {
   it('keeps the modal open and reports the failure', async () => {
-    (updateAsset as jest.Mock).mockRejectedValueOnce(new Error('nope'));
+    (updateAsset as Mock).mockRejectedValueOnce(new Error('nope'));
     const { onClose, onSuccess } = setup({ asset: asset() });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));

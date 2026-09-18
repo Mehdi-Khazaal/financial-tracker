@@ -12,6 +12,8 @@ TEST_DB_PATH = Path(tempfile.gettempdir()) / f"financial_tracker_backend_tests_{
 os.environ.setdefault("SECRET_KEY", "0123456789abcdef0123456789abcdef")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 os.environ.setdefault("ENVIRONMENT", "test")
+# Cheap hashing for fixtures — see `utils.auth.BCRYPT_ROUNDS`.
+os.environ.setdefault("BCRYPT_ROUNDS", "4")
 
 if TEST_DB_PATH.exists():
     TEST_DB_PATH.unlink()
@@ -21,12 +23,36 @@ from fastapi.testclient import TestClient
 import pytest
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
-from routers import accounts, admin, assets, assistant, auth, categories, cron, history, plaid_router, preferences, recurring_transactions, savings_goals, stocks, transactions
+from routers import (
+    account,
+    accounts,
+    admin,
+    assets,
+    assistant,
+    auth,
+    budgets,
+    rules,
+    transaction_import,
+    two_factor,
+    categories,
+    cron,
+    health,
+    history,
+    loans,
+    plaid_router,
+    preferences,
+    push,
+    recurring_transactions,
+    savings_goals,
+    stocks,
+    transactions,
+    transfers,
+)
 from utils import auth as auth_utils
 from utils.idempotency import IdempotencyMiddleware
 from utils.limiter import limiter
@@ -37,6 +63,34 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _fast_sqlite(dbapi_connection, _record):
+    """Trade durability for speed on the throwaway test database.
+
+    Every test drops and recreates the schema, and SQLite fsyncs on each DDL
+    and commit by default. On a file-backed database that is the whole cost of
+    the suite. Nothing here survives the run, so nothing needs to be durable.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA synchronous=OFF")
+    cursor.execute("PRAGMA journal_mode=MEMORY")
+    cursor.execute("PRAGMA temp_store=MEMORY")
+    # Enforce foreign keys the way Postgres does. Without this, ON DELETE
+    # CASCADE / SET NULL silently did nothing here unless an earlier test had
+    # switched the pragma on for the pooled connection, so account deletion
+    # passed or failed depending on test order.
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+# Both engines point at the same file: the test engine used by fixtures and the
+# request session, and the application's own `models.database.engine`, which
+# background tasks (Plaid sync, idempotency) still reach through `SessionLocal`.
+from models import database as _database  # noqa: E402
+
+event.listen(engine, "connect", _fast_sqlite)
+event.listen(_database.engine, "connect", _fast_sqlite)
 
 
 def override_get_db():
@@ -52,6 +106,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(IdempotencyMiddleware, session_factory=TestingSessionLocal)
 app.include_router(auth.router)
+app.include_router(two_factor.router)
 app.include_router(admin.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
@@ -65,6 +120,14 @@ app.include_router(cron.router)
 app.include_router(plaid_router.router)
 app.include_router(stocks.router)
 app.include_router(assistant.router)
+app.include_router(loans.router)
+app.include_router(transfers.router)
+app.include_router(push.router)
+app.include_router(health.router)
+app.include_router(account.router)
+app.include_router(budgets.router)
+app.include_router(rules.router)
+app.include_router(transaction_import.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 
@@ -73,6 +136,12 @@ app.dependency_overrides[auth_utils.get_db] = override_get_db
 def reset_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    # Per-address rate limits are process-wide; a test must never inherit
+    # another test's request count. Same for the detection cache: users get
+    # the same ids from one test to the next.
+    limiter.reset()
+    from services import recurring_detection
+    recurring_detection.clear_cache()
     yield
 
 

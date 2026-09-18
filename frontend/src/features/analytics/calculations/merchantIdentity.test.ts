@@ -7,8 +7,7 @@
  * carry no key at all — still group correctly through the local fallback.
  */
 
-import type { Account, Category, Transaction } from '../../../types';
-import { buildClassificationContext } from './transactions';
+import type { Transaction } from '../../../types';
 import {
   merchantDisplayName,
   merchantIdentity,
@@ -17,16 +16,6 @@ import {
 } from './transactions';
 
 const CHECKING = 1;
-
-const accounts: Account[] = [
-  {
-    id: CHECKING, user_id: 1, name: 'Everyday', type: 'checking', balance: 4000,
-    credit_limit: null, currency: 'USD', created_at: '', updated_at: '',
-  },
-];
-const categories: Category[] = [];
-const ctx = buildClassificationContext(accounts, categories);
-const TODAY = new Date('2026-07-20T00:00:00');
 
 let nextId = 1;
 const tx = (

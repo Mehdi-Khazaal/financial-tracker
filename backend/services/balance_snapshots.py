@@ -19,7 +19,7 @@ from __future__ import annotations
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Iterable
+from typing import Iterable, Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -47,6 +47,8 @@ def refresh_snapshots_for_user(
     user_id: int,
     months_back: int = 24,
     include_today: bool = True,
+    *,
+    today: Optional[date] = None,
 ) -> int:
     """Refresh materialized snapshots for one user over the trailing window.
 
@@ -54,8 +56,12 @@ def refresh_snapshots_for_user(
     transactions backward to reconstruct historical balances — same math as
     the old inline endpoint, but done once per snapshot instead of once per
     request. Returns the number of snapshot rows written.
+
+    `today` should be the user's own calendar day (`utils.dates.user_today`)
+    so the "current month" and the mid-month snapshot line up with what they
+    see; callers without a user object fall back to the server's date.
     """
-    today = date.today()
+    today = today or date.today()
     start = _end_of_month(
         today.year if today.month > months_back else today.year - 1,
         ((today.month - months_back - 1) % 12) + 1,

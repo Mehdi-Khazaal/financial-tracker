@@ -108,7 +108,7 @@ const AddLoanModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           type="submit"
           disabled={loading || !borrowerName.trim() || !amount}
           className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-          style={{ backgroundColor: '#f59e0b', color: 'white' }}>
+          style={{ backgroundColor: '#f59e0b', color: 'var(--ink-on-fill)' }}>
           {loading ? 'Saving…' : `Record Loan${amount ? ` · $${parseFloat(amount || '0').toFixed(2)}` : ''}`}
         </button>
       </form>

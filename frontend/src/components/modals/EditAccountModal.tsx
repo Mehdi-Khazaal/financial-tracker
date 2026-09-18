@@ -97,7 +97,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
                 onClick={() => setType(t.value)}
                 className="py-2.5 rounded-xl text-xs font-semibold transition-all"
                 style={type === t.value
-                  ? { backgroundColor: 'var(--accent)', color: 'white', opacity: 1 }
+                  ? { backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)', opacity: 1 }
                   : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
               >
                 {t.label}
@@ -125,7 +125,10 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
           </p>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono font-bold text-muted">$</span>
-            <input type="number" step="0.01" min="0" value={balance}
+            {/* No `min`: the checkbox decides the side of zero for a card and
+                the value is normalised on save, so a stray minus sign must not
+                make the browser refuse the form. */}
+            <input type="number" step="0.01" value={balance}
               onChange={e => setBalance(e.target.value)}
               className="input-dark pl-8" placeholder="0.00" />
           </div>

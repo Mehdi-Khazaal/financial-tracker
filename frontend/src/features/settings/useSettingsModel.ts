@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useDeepLinkParams } from '../../hooks/useDeepLinkParams';
-import { DEEP_LINK_KEYS } from '../../lib/deepLinks';
+import { DEEP_LINK_KEYS, parseIdParam } from '../../lib/deepLinks';
+import type { RuleDraft } from '../../types';
 import { useCategories, type UseCategories } from './hooks/useCategories';
+import { useRules, type UseRules } from './hooks/useRules';
 import { usePlaidConnections, type UsePlaidConnections } from './hooks/usePlaidConnections';
 import { usePushPreference, type UsePushPreference } from './hooks/usePushPreference';
 import { useAutomationPreference, type UseAutomationPreference } from './hooks/useAutomationPreference';
 import { useAdminUsers, type UseAdminUsers } from './hooks/useAdminUsers';
+import { useAdminUsage, type UseAdminUsage } from './hooks/useAdminUsage';
 import {
   DEFAULT_SECTION,
   SECTION_DEFINITIONS,
@@ -41,10 +44,15 @@ export interface SettingsModel {
   summaries: Partial<Record<SettingsSection, string>>;
 
   categories: UseCategories;
+  rules: UseRules;
+  /** A rule to start from, handed over by a transaction deep link. */
+  ruleDraft: Partial<RuleDraft> | null;
+  clearRuleDraft: () => void;
   connections: UsePlaidConnections;
   push: UsePushPreference;
   automation: UseAutomationPreference;
   admin: UseAdminUsers;
+  usage: UseAdminUsage;
 }
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -56,10 +64,13 @@ export function useSettingsModel(): SettingsModel {
   const [activeSection, setActiveSection] = useState<SettingsSection | null>(null);
 
   const categories = useCategories();
+  const rules = useRules();
+  const [ruleDraft, setRuleDraft] = useState<Partial<RuleDraft> | null>(null);
   const connections = usePlaidConnections();
   const push = usePushPreference();
   const automation = useAutomationPreference();
   const admin = useAdminUsers(isAdmin);
+  const usage = useAdminUsage(isAdmin);
 
   // Same convention every other route uses: apply the arriving parameter once,
   // then strip it, so the URL never lingers describing a section the user has
@@ -68,6 +79,11 @@ export function useSettingsModel(): SettingsModel {
   useDeepLinkParams(params => {
     const requested = resolveSection(params.get(DEEP_LINK_KEYS.tab), isAdmin);
     if (requested) setActiveSection(requested);
+    const pattern = params.get(DEEP_LINK_KEYS.rulePattern);
+    if (requested === 'rules' && pattern) {
+      const categoryId = parseIdParam(params.get(DEEP_LINK_KEYS.category));
+      setRuleDraft({ pattern, field: 'description', match_type: 'contains', ...(categoryId ? { category_id: categoryId } : {}) });
+    }
   });
 
   const sections = useMemo(
@@ -80,13 +96,16 @@ export function useSettingsModel(): SettingsModel {
     if (categories.status === 'ready') {
       result.categories = plural(categories.items.length, 'category').replace('categorys', 'categories');
     }
+    if (rules.status === 'ready') {
+      result.rules = rules.items.length === 0 ? 'No rules yet' : plural(rules.items.length, 'rule');
+    }
     if (connections.status === 'ready') {
       result.connections = connections.items.length === 0
         ? 'No banks connected'
         : plural(connections.items.length, 'connected bank');
     }
     return result;
-  }, [categories.status, categories.items.length, connections.status, connections.items.length]);
+  }, [categories.status, categories.items.length, rules.status, rules.items.length, connections.status, connections.items.length]);
 
   const selectSection = useCallback((section: SettingsSection) => {
     // Defence in depth: the rail never offers admin to a non-admin, but a
@@ -115,9 +134,13 @@ export function useSettingsModel(): SettingsModel {
     sections,
     summaries,
     categories,
+    rules,
+    ruleDraft,
+    clearRuleDraft: () => setRuleDraft(null),
     connections,
     push,
     automation,
     admin,
+    usage,
   };
 }

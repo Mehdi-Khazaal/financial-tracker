@@ -131,7 +131,7 @@ const PortfolioPage: React.FC = () => {
     localStorage.setItem('stock_prices_cache', JSON.stringify(prices));
     localStorage.setItem('stock_prices_cache_time', Date.now().toString());
     setFetchingPrices(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const load = useCallback(async () => {
     setLoading(true);

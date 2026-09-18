@@ -37,6 +37,15 @@ export interface Transaction {
   merchant_key?: string | null;
   /** Plaid's stable merchant id. Takes precedence over `merchant_key`. */
   plaid_merchant_entity_id?: string | null;
+  /** Plaid's cleaned merchant name, when the bank row was enriched. */
+  plaid_merchant_name?: string | null;
+  /**
+   * How the amount is filed when it spans categories. Empty for most rows.
+   * Lines add up to `amount` exactly and carry its sign; the parent's own
+   * `category_id` is the largest line's, so split-unaware code still files
+   * the whole amount somewhere sensible.
+   */
+  splits?: TransactionSplit[];
   /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
   category_source?: string | null;
 }
@@ -223,4 +232,132 @@ export interface User {
   is_verified: boolean;
   is_admin: boolean;
   created_at: string;
+  two_factor_enabled?: boolean;
+}
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+/** A monthly allowance for one expense category. Money arrives as strings. */
+export interface Budget {
+  id: number;
+  category_id: number;
+  amount: string;
+  rollover: boolean;
+  starts_on: string;
+  is_active: boolean;
+}
+
+/** One budget's figures for a month, computed by the server from the ledger. */
+export interface BudgetProgress {
+  id: number;
+  category_id: number;
+  category_name: string;
+  category_color: string;
+  month: string;
+  amount: string;
+  carried: string;
+  available: string;
+  spent: string;
+  remaining: string;
+  percent: string;
+  over: boolean;
+  rollover: boolean;
+}
+
+export interface BudgetProgressSummary {
+  month: string;
+  budgeted: string;
+  spent: string;
+  remaining: string;
+  over_count: number;
+  budgets: BudgetProgress[];
+}
+
+// ── Categorization rules ──────────────────────────────────────────────────────
+export type RuleField = 'description' | 'merchant';
+export type RuleMatchType = 'contains' | 'regex';
+
+/** "When the description contains X, file it under Y." */
+export interface CategorizationRule {
+  id: number;
+  category_id: number;
+  field: RuleField;
+  match_type: RuleMatchType;
+  pattern: string;
+  priority: number;
+  is_active: boolean;
+  applied_count: number;
+}
+
+export interface RuleDraft {
+  category_id: number;
+  field: RuleField;
+  match_type: RuleMatchType;
+  pattern: string;
+  priority?: number;
+  is_active?: boolean;
+}
+
+export interface RulePreviewRow {
+  id: number;
+  description: string | null;
+  amount: string;
+  transaction_date: string;
+  category_id: number | null;
+  category_source: string | null;
+  would_change: boolean;
+}
+
+export interface RulePreview {
+  matched: number;
+  would_change: number;
+  protected: number;
+  sample: RulePreviewRow[];
+}
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+export interface ImportRequest {
+  account_id: number;
+  /** The file's text; sent inside JSON so the write goes through the usual queue. */
+  text: string;
+  mapping?: Partial<Record<'date' | 'amount' | 'debit' | 'credit' | 'description' | 'category', string | null>>;
+  date_format: 'auto' | 'ymd' | 'mdy' | 'dmy';
+  flip_sign: boolean;
+  include_duplicates: boolean;
+}
+
+export interface ImportPreviewRow {
+  row_number: number;
+  date: string | null;
+  amount: string | null;
+  description: string;
+  category_name: string;
+  category_id: number | null;
+  errors: string[];
+  duplicate: boolean;
+}
+
+export interface ImportPreview {
+  headers: string[];
+  mapping: Record<'date' | 'amount' | 'debit' | 'credit' | 'description' | 'category', string | null>;
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicates: number;
+  sample: ImportPreviewRow[];
+}
+
+export interface ImportResult {
+  batch_id: string;
+  created: number;
+  skipped_duplicates: number;
+  skipped_invalid: number;
+}
+
+// ── Split transactions ────────────────────────────────────────────────────────
+export interface TransactionSplit {
+  id: number;
+  category_id: number | null;
+  /** Signed decimal string, same direction as the parent. */
+  amount: string;
+  note: string | null;
 }

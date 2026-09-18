@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { adminGetUsers, adminResetPassword } from '../../../utils/api';
+import { adminDisableTwoFactor, adminGetUsers, adminResetPassword } from '../../../utils/api';
 import { useToast } from '../../../context/ToastContext';
 import type { AdminUserSummary, AsyncCollection, LoadStatus } from '../types';
 
 export interface UseAdminUsers extends AsyncCollection<AdminUserSummary> {
   resettingId: number | null;
   requestReset: (user: AdminUserSummary) => Promise<void>;
+  /** For someone who lost their authenticator and recovery codes. Signs nobody out. */
+  disableTwoFactor: (user: AdminUserSummary) => Promise<void>;
 }
 
 /**
@@ -54,5 +56,23 @@ export function useAdminUsers(enabled: boolean): UseAdminUsers {
     }
   }, [toast]);
 
-  return { status, items, reload: () => { void reload(); }, resettingId, requestReset };
+  const disableTwoFactor = useCallback(async (user: AdminUserSummary) => {
+    const confirmed = await toast.confirm(
+      `Turn off two-factor authentication for ${user.email}? They will sign in with their password alone until they set it up again.`,
+      { danger: true },
+    );
+    if (!confirmed) return;
+    setResettingId(user.id);
+    try {
+      await adminDisableTwoFactor(user.id);
+      toast.success(`Two-factor turned off for ${user.email}`);
+      await reload();
+    } catch {
+      toast.error('Could not turn off two-factor');
+    } finally {
+      setResettingId(null);
+    }
+  }, [reload, toast]);
+
+  return { status, items, reload: () => { void reload(); }, resettingId, requestReset, disableTwoFactor };
 }

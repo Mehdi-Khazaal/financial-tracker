@@ -157,6 +157,25 @@ class TransactionUpdate(BaseModel):
     description: Optional[str] = None
     transaction_date: Optional[date] = None
 
+class TransactionSplitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    category_id: Optional[int] = None
+    amount: Decimal
+    note: Optional[str] = None
+
+
+class TransactionSplitIn(BaseModel):
+    category_id: int
+    amount: Decimal
+    note: Optional[str] = Field(default=None, max_length=200)
+
+
+class TransactionSplitsUpdate(BaseModel):
+    splits: List[TransactionSplitIn] = Field(min_length=2, max_length=20)
+
+
 class TransactionResponse(TransactionBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -171,8 +190,11 @@ class TransactionResponse(TransactionBase):
     # Null on rows written before Phase 5A, until the backfill has run — the
     # client falls back to local normalization for those.
     merchant_key: Optional[str] = None
+    plaid_merchant_name: Optional[str] = None
     plaid_merchant_entity_id: Optional[str] = None
     category_source: Optional[str] = None
+    # Empty unless the amount is filed across several categories.
+    splits: List[TransactionSplitOut] = []
 
 
 # ─── Transfer ─────────────────────────────────────────────────────────────────
@@ -464,6 +486,11 @@ class PreferencesUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     automatic_categorization_enabled: Optional[bool] = None
+    bill_reminders_enabled: Optional[bool] = None
+    budget_alerts_enabled: Optional[bool] = None
+    low_balance_alerts_enabled: Optional[bool] = None
+    # Money: a decimal, never a float. Zero means "only when overdrawn".
+    low_balance_threshold: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("9999999999999.99"))
 
 
 class PreferencesResponse(BaseModel):
@@ -478,5 +505,9 @@ class PreferencesResponse(BaseModel):
     # Read-only: `stored AND AUTO_CATEGORIZE`. Never writable — see
     # `routers/preferences.py`.
     automatic_categorization_effective: bool
+    bill_reminders_enabled: bool
+    budget_alerts_enabled: bool
+    low_balance_alerts_enabled: bool
+    low_balance_threshold: Decimal
 
     model_config = ConfigDict(from_attributes=True)

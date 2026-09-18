@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { isPushSupported } from '../../../utils/push';
 import type { UsePushPreference } from '../hooks/usePushPreference';
 import type { UseAutomationPreference } from '../hooks/useAutomationPreference';
@@ -66,6 +66,52 @@ const AUTOMATION_DESCRIPTION =
   'Choose a category for new transactions when you have not picked one, based on how you '
   + 'have filed the same place before.';
 
+/**
+ * The low-balance threshold: typed, saved on blur or Enter, shown as the
+ * server stored it. Local state holds the draft so a keystroke is not a
+ * request; the parent's value wins whenever it changes.
+ */
+const ThresholdField: React.FC<{
+  value: string;
+  disabled: boolean;
+  onSave: (value: string) => Promise<string | null>;
+}> = ({ value, disabled, onSave }) => {
+  const [draft, setDraft] = useState(value);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setDraft(value); setError(null); }, [value]);
+
+  const commit = async () => {
+    if (draft.trim() === value) return;
+    setError(await onSave(draft));
+  };
+
+  return (
+    <div className="mt-3">
+      <label className="label mb-2 block" htmlFor="low-balance-threshold">Warn me below</label>
+      <div className="relative w-40">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono" style={{ color: 'var(--muted)' }}>$</span>
+        <input
+          id="low-balance-threshold"
+          type="text"
+          inputMode="decimal"
+          value={draft}
+          disabled={disabled}
+          onChange={event => setDraft(event.target.value)}
+          onBlur={() => { void commit(); }}
+          onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void commit(); } }}
+          className="input-dark pl-7 font-mono text-sm"
+          aria-invalid={!!error}
+          aria-describedby={error ? 'low-balance-threshold-error' : undefined}
+        />
+      </div>
+      {error && <p id="low-balance-threshold-error" className="text-xs mt-1.5" role="alert" style={{ color: 'var(--neg)' }}>{error}</p>}
+      <p className="text-xs mt-1.5" style={{ color: 'var(--dim)' }}>
+        Checking, savings and cash accounts. Sent once when a balance drops under this, again only after it recovers.
+      </p>
+    </div>
+  );
+};
+
 const PreferencesSection: React.FC<Props> = ({ push, automation }) => (
   <div className="space-y-4">
     <section className="card p-5" aria-labelledby="settings-automation-heading">
@@ -131,6 +177,61 @@ const PreferencesSection: React.FC<Props> = ({ push, automation }) => (
           filed changes, and you can still categorize anything yourself.
         </p>
       )}
+    </section>
+
+    <section className="card p-5" aria-labelledby="settings-alerts-heading">
+      <h2 className="label mb-4" id="settings-alerts-heading">Alerts</h2>
+      <div className="space-y-4">
+        <Row
+          title="Bill reminders"
+          description="A few days before a tracked bill is due, and when a bank-linked bill has not shown up or went up in price."
+          control={(
+            <Switch
+              label="Bill reminders"
+              checked={automation.alerts.bill_reminders_enabled}
+              disabled={automation.busy || automation.state === 'loading' || automation.state === 'error'}
+              busy={automation.busy}
+              onToggle={() => { void automation.toggleAlert('bill_reminders_enabled'); }}
+            />
+          )}
+        />
+        <Row
+          title="Budget alerts"
+          description="Once a month per budget, the first time spending passes the allowance."
+          control={(
+            <Switch
+              label="Budget alerts"
+              checked={automation.alerts.budget_alerts_enabled}
+              disabled={automation.busy || automation.state === 'loading' || automation.state === 'error'}
+              busy={automation.busy}
+              onToggle={() => { void automation.toggleAlert('budget_alerts_enabled'); }}
+            />
+          )}
+        />
+        <Row
+          title="Low balance alerts"
+          description="When an account drops below an amount you choose."
+          control={(
+            <Switch
+              label="Low balance alerts"
+              checked={automation.alerts.low_balance_alerts_enabled}
+              disabled={automation.busy || automation.state === 'loading' || automation.state === 'error'}
+              busy={automation.busy}
+              onToggle={() => { void automation.toggleAlert('low_balance_alerts_enabled'); }}
+            />
+          )}
+        />
+        {automation.alerts.low_balance_alerts_enabled && (
+          <ThresholdField
+            value={automation.alerts.low_balance_threshold}
+            disabled={automation.busy || automation.state !== 'on' && automation.state !== 'off' && automation.state !== 'unavailable'}
+            onSave={automation.setThreshold}
+          />
+        )}
+      </div>
+      <p className="text-xs mt-4" style={{ color: 'var(--dim)' }}>
+        These are account settings: they decide what Fintrack sends. Whether this device receives it is the switch below.
+      </p>
     </section>
 
     <section className="card p-5" aria-labelledby="settings-preferences-heading">

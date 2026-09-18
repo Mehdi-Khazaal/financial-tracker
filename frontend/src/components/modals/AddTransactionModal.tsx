@@ -181,7 +181,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                   </div>
                   <button type="button" onClick={handleAddCat} disabled={addingCat || !newCatName.trim()}
                     className="w-full py-2 text-sm font-semibold rounded-lg disabled:opacity-40 transition-opacity"
-                    style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                    style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}>
                     {addingCat ? 'Adding…' : 'Add Category'}
                   </button>
                 </div>
@@ -222,7 +222,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
 
             <button type="submit" disabled={loading || !amount}
               className="w-full min-h-[48px] py-3 font-bold text-sm rounded-lg transition-all active:scale-95 disabled:opacity-40"
-              style={{ backgroundColor: accentColor, color: 'white' }}>
+              style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
               {loading ? 'Saving…' : `Save ${type === 'expense' ? 'Expense' : 'Income'} · $${parseFloat(amount || '0').toFixed(2)}`}
             </button>
           </form>

@@ -47,6 +47,6 @@ def test_account_histories_are_batched_and_tenant_scoped(
     assert response.status_code == 200
     body = response.json()
     assert set(body) == {str(account.id), str(second_account.id)}
-    assert [row["balance"] for row in body[str(account.id)]] == [1000.0, 900.0]
-    assert [row["balance"] for row in body[str(second_account.id)]] == [250.0, 250.0]
+    assert [row["balance"] for row in body[str(account.id)]] == ["1000.00", "900.00"]
+    assert [row["balance"] for row in body[str(second_account.id)]] == ["250.00", "250.00"]
     assert str(other_account.id) not in body

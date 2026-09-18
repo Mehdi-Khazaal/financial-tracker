@@ -1,12 +1,16 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { login as apiLogin, signup as apiSignup, logout as apiLogout, getMe } from '../utils/api';
+import { login as apiLogin, signup as apiSignup, logout as apiLogout, getMe, loginTwoFactor as apiLoginTwoFactor } from '../utils/api';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
-  signup: (email: string, username: string, password: string) => Promise<void>;
+  /** Resolves to a challenge when the account also needs a code; otherwise the user is signed in. */
+  login: (identifier: string, password: string) => Promise<{ twoFactorChallenge?: string }>;
+  completeTwoFactor: (challenge: string, code: string) => Promise<{ recoveryCodesRemaining: number | null }>;
+  signup: (email: string, username: string, password: string, inviteCode?: string) => Promise<void>;
+  /** Re-read the session after something server-side changed (e.g. verification). */
+  refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -28,15 +32,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (identifier: string, password: string) => {
-    await apiLogin(identifier, password);
+    const res = await apiLogin(identifier, password);
+    if (res.data?.two_factor_required) return { twoFactorChallenge: String(res.data.challenge) };
+    const me = await getMe();
+    setUser(me.data);
+    return {};
+  };
+
+  const completeTwoFactor = async (challenge: string, code: string) => {
+    const res = await apiLoginTwoFactor(challenge, code);
+    const me = await getMe();
+    setUser(me.data);
+    const remaining = res.data?.recovery_codes_remaining;
+    return { recoveryCodesRemaining: typeof remaining === 'number' ? remaining : null };
+  };
+
+  const signup = async (email: string, username: string, password: string, inviteCode?: string) => {
+    await apiSignup(email, username, password, inviteCode);
     const me = await getMe();
     setUser(me.data);
   };
 
-  const signup = async (email: string, username: string, password: string) => {
-    await apiSignup(email, username, password);
-    const me = await getMe();
-    setUser(me.data);
+  const refresh = async () => {
+    try {
+      const me = await getMe();
+      setUser(me.data);
+    } catch {
+      /* keep the current session; a transient failure is not a sign-out */
+    }
   };
 
   const logout = async () => {
@@ -45,7 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, completeTwoFactor, signup, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

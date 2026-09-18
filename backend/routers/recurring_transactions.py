@@ -23,6 +23,7 @@ from models.schemas import (
     TransactionResponse,
 )
 from services import merchants, recurring_bills, recurring_detection, recurring_groups
+from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
 from utils.auth import get_current_user
 from utils.dates import user_today
@@ -254,7 +255,7 @@ def recurring_overview(db: Session = Depends(get_db), current_user: User = Depen
             max_amount=s.max_amount,
             monthly_amount=(abs(s.amount) * Decimal(str(round(30.44 / recurring_detection.CYCLE_DAYS[s.period], 6)))).quantize(Decimal("0.01")),
         )
-        for s in recurring_detection.detect(db, current_user.id, today)
+        for s in recurring_detection.detect_cached(db, current_user.id, today)
     ]
 
     return RecurringOverviewOut(
@@ -282,7 +283,7 @@ def confirm_suggestion(data: ConfirmSuggestionRequest, db: Session = Depends(get
     """Track a detected charge. The server re-runs detection rather than
     trusting amounts and dates from the client."""
     today = user_today(current_user)
-    match = next((s for s in recurring_detection.detect(db, current_user.id, today) if s.identity == data.identity), None)
+    match = next((s for s in recurring_detection.detect_cached(db, current_user.id, today) if s.identity == data.identity), None)
     if match is None:
         raise HTTPException(status_code=404, detail="This suggestion is no longer available")
 
@@ -381,18 +382,22 @@ def process_due(background: BackgroundTasks, db: Session = Depends(get_db), curr
                 kv(recurring_id=rec.id, user_id=current_user.id, period=rec.period),
             )
             continue
-        tx = Transaction(
-            user_id=current_user.id,
-            account_id=rec.account_id,
-            category_id=category.id if category else None,
-            amount=rec.amount,
-            description=rec.description,
-            merchant_key=rec.merchant_key or merchants.merchant_key(rec.description) or None,
-            transaction_date=rec.next_date,
-        )
-        db.add(tx)
-        db.flush()
-        account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
+        try:
+            tx = LedgerService(db).stage_transaction(
+                current_user.id,
+                {
+                    "account_id": rec.account_id,
+                    "category_id": category.id if category else None,
+                    "amount": rec.amount,
+                    "description": rec.description,
+                    "merchant_key": rec.merchant_key or merchants.merchant_key(rec.description) or None,
+                    "transaction_date": rec.next_date,
+                },
+            )
+        except LedgerResourceNotFound:
+            # Ownership is checked before anything is staged, so nothing for
+            # this row is pending and the rows already staged are kept.
+            continue
         rec.last_paid_date = rec.next_date
         rec.last_paid_amount = abs(Decimal(str(rec.amount)))
         rec.last_transaction_id = tx.id
@@ -441,24 +446,30 @@ def log_variable(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
     tx_date = data.transaction_date or due_date
-    tx = Transaction(
-        user_id=current_user.id,
-        account_id=rec.account_id,
-        category_id=category.id if category else None,
-        amount=data.amount,
-        description=rec.description,
-        merchant_key=rec.merchant_key or merchants.merchant_key(rec.description) or None,
-        transaction_date=tx_date,
-    )
-    db.add(tx)
-    db.flush()
-    account.balance = Decimal(str(account.balance)) + Decimal(str(data.amount))
-    # Save this amount as the new estimate for next time
-    rec.amount = data.amount
-    rec.last_paid_date = tx_date
-    rec.last_paid_amount = abs(Decimal(str(data.amount)))
-    rec.last_transaction_id = tx.id
-    rec.next_date = advanced
-    db.commit()
+    try:
+        tx = LedgerService(db).stage_transaction(
+            current_user.id,
+            {
+                "account_id": rec.account_id,
+                "category_id": category.id if category else None,
+                "amount": data.amount,
+                "description": rec.description,
+                "merchant_key": rec.merchant_key or merchants.merchant_key(rec.description) or None,
+                "transaction_date": tx_date,
+            },
+        )
+        # Save this amount as the new estimate for next time
+        rec.amount = data.amount
+        rec.last_paid_date = tx_date
+        rec.last_paid_amount = abs(Decimal(str(data.amount)))
+        rec.last_transaction_id = tx.id
+        rec.next_date = advanced
+        db.commit()
+    except LedgerResourceNotFound as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=error.detail) from error
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(tx)
     return tx

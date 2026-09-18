@@ -1,18 +1,25 @@
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import admin, assistant, cron, history, loans, plaid_router, preferences, push, recurring_transactions, savings_goals, stocks, transfers
+from routers import account, admin, assistant, budgets, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
-from utils.security import BrowserOriginMiddleware
+from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, record_schema_state, run_startup_migrations
+from utils.monitoring import init_sentry
+from utils.request_context import RequestIdMiddleware
+from utils.security import (
+    BrowserOriginMiddleware,
+    SecurityHeadersMiddleware,
+    allowed_browser_origins,
+    api_docs_enabled,
+)
 from utils.idempotency import IdempotencyMiddleware
 # Registers background job handlers with the dispatcher at import time.
 from services import job_handlers  # noqa: F401
@@ -111,6 +118,9 @@ def _prepare_database() -> None:
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS missed_alert_sent_for DATE",
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS price_alert_sent_on DATE",
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        # ── Savings-goal milestone bookkeeping ────────────────────────────────
+        # Mirrors Alembic revision 20260917_000015; both must be updated together.
+        "ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS milestone_notified INTEGER NOT NULL DEFAULT 0",
     ]
     with engine.begin() as conn:
         for sql in migrations:
@@ -124,25 +134,52 @@ def _prepare_database() -> None:
                 logger.info("database compatibility migration skipped %s", kv(error=str(exc), sql=sql))
 
 
-_prepare_database()
+# Schema management, in order of preference:
+#   1. Alembic (`utils.migrations`): a stamped database is upgraded to head.
+#   2. The legacy boot-time repairs above, for a database that has never been
+#      stamped — production until `alembic stamp` is run once — and as the
+#      fallback if a migration fails, so a bad revision degrades to "yesterday's
+#      behaviour" rather than "no service".
+_migration_outcome = run_startup_migrations(engine)
+if _migration_outcome in {OUTCOME_INITIALIZED, OUTCOME_UPGRADED}:
+    # Alembic owns the schema. `create_all` is kept as a no-op safety net for
+    # any ORM table a revision might lag behind; it never alters a column.
+    Base.metadata.create_all(bind=engine)
+else:
+    _prepare_database()
+
+# Whatever path ran, verify the result: a deploy that reached an unstamped
+# production database cannot add the columns this release needs, and
+# `/healthz` then refuses traffic so the previous release keeps serving.
+record_schema_state(engine)
+
+init_sentry()
 
 
-app = FastAPI(title="Fintrack API", version="2.0.0")
+_docs_enabled = api_docs_enabled()
+app = FastAPI(
+    title="Fintrack API",
+    version="2.0.0",
+    # The schema is a map for anyone probing the API. Off in production
+    # unless `EXPOSE_API_DOCS=true` — see `utils.security.api_docs_enabled`.
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_extra_origin = os.getenv("EXTRA_ALLOWED_ORIGIN", "")
-_allowed_origins = [
-    origin
-    for origin in [
+# Trusted browser origins: the defaults below plus `ALLOWED_ORIGINS` (CSV) and
+# the legacy `EXTRA_ALLOWED_ORIGIN`, so a custom domain or a preview deploy is
+# configuration rather than a code change.
+_allowed_origins = allowed_browser_origins(
+    [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://financial-tracker-gamma-sable.vercel.app",
-        _extra_origin,
     ]
-    if origin
-]
+)
 
 
 app.add_middleware(
@@ -154,7 +191,13 @@ app.add_middleware(
 )
 app.add_middleware(BrowserOriginMiddleware, allowed_origins=_allowed_origins)
 
+app.include_router(health.router)
+app.include_router(account.router)
+app.include_router(budgets.router)
+app.include_router(rules.router)
+app.include_router(transaction_import.router)
 app.include_router(auth.router)
+app.include_router(two_factor.router)
 app.include_router(accounts.router)
 app.include_router(categories.router)
 app.include_router(transactions.router)
@@ -173,25 +216,17 @@ app.include_router(plaid_router.router)
 app.include_router(assistant.router)
 
 
-class NoCacheMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        if os.getenv("ENVIRONMENT") == "production":
-            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
-        return response
-
-
-app.add_middleware(NoCacheMiddleware)
+# No-store caching plus the security headers (CSP, COOP, CORP, HSTS in prod).
+# See `utils.security.security_headers` for the exact policy.
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(IdempotencyMiddleware)
+# Outermost, so the id covers every other middleware's work and every log line.
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.get("/")
 def root():
-    return {"message": "Fintrack API v2", "docs": "/docs"}
+    payload = {"message": "Fintrack API v2"}
+    if _docs_enabled:
+        payload["docs"] = "/docs"
+    return payload

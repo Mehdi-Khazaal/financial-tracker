@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { ImportRequest, RuleDraft } from '../types';
 
 const api = axios.create({
   // Keep browser authentication same-origin. Production API traffic is
@@ -41,6 +42,9 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+/** Dispatched on `window` when a request is refused because the email is unverified. */
+export const VERIFICATION_REQUIRED_EVENT = 'fintrack:verification-required';
+
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
 
@@ -54,17 +58,28 @@ api.interceptors.response.use(
   },
   async err => {
     const original = err.config;
-    if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
+    // The server refuses data routes for an unverified address when enforcement
+    // is on. Tell the app once so it can show the "check your inbox" gate.
+    if (err.response?.status === 403 && err.response?.data?.detail?.code === 'email_unverified') {
+      window.dispatchEvent(new CustomEvent(VERIFICATION_REQUIRED_EVENT));
+    }
+    // A 401 from a sign-in attempt means the password or code was wrong, not
+    // that a session expired — refreshing and retrying would only count a
+    // second failed guess against the lockout.
+    const isSignIn = typeof original?.url === 'string' && original.url.startsWith('/auth/login');
+    if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh' && !isSignIn) {
       original._retried = true;
       if (!_refreshing) {
         _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
       }
-      const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
+      const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email', '/privacy', '/terms'];
       try {
         await _refreshing;
         return api(original);
       } catch {
-        if (!PUBLIC.some(p => window.location.pathname.startsWith(p))) {
+        const path = window.location.pathname;
+        // `/` is the public landing page for a signed-out visitor; leave them on it.
+        if (path !== '/' && !PUBLIC.some(p => path.startsWith(p))) {
           window.location.href = '/login';
         }
       }
@@ -76,8 +91,19 @@ api.interceptors.response.use(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (identifier: string, password: string) =>
   api.post('/auth/login', { identifier, password });
-export const signup = (email: string, username: string, password: string) =>
-  api.post('/auth/signup', { email, username, password });
+/** Second step of a sign-in on an account with two-factor authentication. */
+export const loginTwoFactor = (challenge: string, code: string) =>
+  api.post('/auth/login/2fa', { challenge, code });
+export const getTwoFactorStatus = () => api.get('/auth/2fa');
+export const startTwoFactorSetup = (password: string) => api.post('/auth/2fa/setup', { password });
+export const enableTwoFactor = (code: string) => api.post('/auth/2fa/enable', { code });
+export const disableTwoFactor = (password: string, code: string) => api.post('/auth/2fa/disable', { password, code });
+export const regenerateRecoveryCodes = (password: string) => api.post('/auth/2fa/recovery-codes', { password });
+export const signup = (email: string, username: string, password: string, inviteCode?: string) =>
+  api.post('/auth/signup', { email, username, password, invite_code: inviteCode || undefined });
+/** Whether new accounts are being accepted, and whether an invite code is needed. */
+export const getSignupPolicy = () => api.get<{ open: boolean; invite_required: boolean }>('/auth/signup-policy');
+export const resendVerification = () => api.post<{ message: string }>('/auth/resend-verification');
 export const getMe    = () => api.get('/auth/me');
 export const logout   = () => api.post('/auth/logout');
 export const changePassword = (current_password: string, new_password: string) =>
@@ -86,13 +112,26 @@ export const changePassword = (current_password: string, new_password: string) =
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminGetUsers = () => api.get('/admin/users');
 export const adminResetPassword = (userId: number) => api.post(`/admin/users/${userId}/reset-password`);
+export const adminDisableTwoFactor = (userId: number) => api.post(`/admin/users/${userId}/disable-2fa`);
+export interface AdminUsageRow { user_id: number; username: string; email: string; turns: number; cost_usd: string; last_active: string | null; }
+export interface AdminUsageSummary { days: number; turn_cap: number; cost_cap_usd: string; users: AdminUsageRow[]; }
+export const adminGetUsage = (days = 30) => api.get<AdminUsageSummary>('/admin/usage', { params: { days } });
+
+// ── Account lifecycle ─────────────────────────────────────────────────────────
+// Downloads come back as blobs so the browser saves a file rather than
+// rendering JSON; the server sets the filename via Content-Disposition.
+export const exportAccountJson = () => api.get<Blob>('/account/export', { responseType: 'blob' });
+export const exportTransactionsCsv = () => api.get<Blob>('/account/export/transactions.csv', { responseType: 'blob' });
+// Named to keep clear of `deleteAccount(id)` below, which removes one ledger account.
+export const deleteMyAccount = (password: string, confirmation: string) =>
+  api.post<{ deleted: boolean; bank_connections_removed: number; bank_connections_unremoved: number }>('/account/delete', { password, confirmation });
 
 export const forgotPassword = (email: string) =>
   api.post('/auth/forgot-password', { email });
 export const resetPassword = (token: string, new_password: string) =>
   api.post('/auth/reset-password', { token, new_password });
 export const verifyEmail = (token: string) =>
-  api.get(`/auth/verify-email?token=${token}`);
+  api.get('/auth/verify-email', { params: { token } });
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
 export const getAccounts    = () => api.get('/accounts');
@@ -330,7 +369,7 @@ export const cleanDescription = (desc: string | null | undefined): string => {
 // response is read-only: it folds in the deployment-level kill-switch, so the
 // UI can explain a switch that is on but currently doing nothing.
 export const getPreferences    = () => api.get('/preferences');
-export const updatePreferences = (changes: Record<string, boolean>) =>
+export const updatePreferences = (changes: Record<string, boolean | string>) =>
   api.patch('/preferences', changes);
 
 // ── Plaid ─────────────────────────────────────────────────────────────────────
@@ -368,3 +407,36 @@ export const plaidSyncHealth       = () => api.get('/plaid/sync-health');
 export const plaidSyncStatus       = () => api.get('/plaid/sync-status');
 
 export default api;
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+export const getBudgets = () => api.get('/budgets');
+export const createBudget = (data: { category_id: number; amount: number | string; rollover?: boolean; starts_month?: string }) =>
+  api.post('/budgets', data);
+export const updateBudget = (id: number, data: { amount?: number | string; rollover?: boolean; is_active?: boolean }) =>
+  api.put(`/budgets/${id}`, data);
+export const deleteBudget = (id: number) => api.delete(`/budgets/${id}`);
+/** Spent / available per budget for one month (`YYYY-MM`), default the current one. */
+export const getBudgetProgress = (month?: string) =>
+  api.get('/budgets/progress', { params: month ? { month } : undefined });
+
+// ── Categorization rules ──────────────────────────────────────────────────────
+export const getRules = () => api.get('/rules');
+export const createRule = (data: RuleDraft) => api.post('/rules', data);
+export const updateRule = (id: number, data: Partial<RuleDraft>) => api.put(`/rules/${id}`, data);
+export const deleteRule = (id: number) => api.delete(`/rules/${id}`);
+/** What an unsaved rule would match today. Reads only. */
+export const previewRule = (data: RuleDraft) => api.post('/rules/preview', data);
+/** File past matches under the rule's category; never touches hand-set categories. */
+export const applyRule = (id: number) => api.post(`/rules/${id}/apply`);
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+export const previewImport = (data: ImportRequest) => api.post('/transactions/import/preview', data);
+export const importTransactions = (data: ImportRequest) => api.post('/transactions/import', data);
+export const undoImport = (batchId: string) => api.delete(`/transactions/import/${batchId}`);
+
+// ── Split transactions ────────────────────────────────────────────────────────
+export const setTransactionSplits = (
+  transactionId: number,
+  splits: { category_id: number; amount: string; note?: string | null }[],
+) => api.put(`/transactions/${transactionId}/splits`, { splits });
+export const clearTransactionSplits = (transactionId: number) => api.delete(`/transactions/${transactionId}/splits`);

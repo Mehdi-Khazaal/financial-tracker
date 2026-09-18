@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -5,19 +6,19 @@ import EditAccountModal from './EditAccountModal';
 import { updateAccount } from '../../utils/api';
 import type { Account } from '../../types';
 
-jest.mock('../../utils/api', () => ({
+vi.mock('../../utils/api', () => ({
   __esModule: true,
-  updateAccount: jest.fn(),
+  updateAccount: vi.fn(),
 }));
 
-jest.mock('../../context/ToastContext', () => ({
-  useToast: () => ({ error: jest.fn(), success: jest.fn(), info: jest.fn(), confirm: jest.fn() }),
+vi.mock('../../context/ToastContext', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn(), info: vi.fn(), confirm: vi.fn() }),
 }));
 
 // CRA's Jest preset sets `resetMocks: true`, so factory implementations are
 // cleared before each test and have to be re-established here.
 beforeEach(() => {
-  (updateAccount as jest.Mock).mockResolvedValue({ data: {} });
+  (updateAccount as Mock).mockResolvedValue({ data: {} });
 });
 
 /**
@@ -50,8 +51,8 @@ const setup = (account: Account) =>
   render(
     <EditAccountModal
       isOpen
-      onClose={jest.fn()}
-      onSuccess={jest.fn()}
+      onClose={vi.fn()}
+      onSuccess={vi.fn()}
       account={account}
     />,
   );

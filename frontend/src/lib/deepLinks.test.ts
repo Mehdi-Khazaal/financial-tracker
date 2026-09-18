@@ -9,6 +9,10 @@ import {
   linkToRecurring,
   linkToReview,
   linkToSavings,
+  linkToImport,
+  linkToNewRule,
+  linkToSettingsSection,
+  linkToTransactionSearch,
   parseIdParam,
 } from './deepLinks';
 import { CONTEXT_TABS } from '../components/layout/routeLayout';
@@ -91,6 +95,30 @@ describe('every link names a tab its destination actually has', () => {
 
     expect(pathOf(link)).toBe(route);
     expect(available).toContain(tab);
+  });
+});
+
+describe('links added in Phase 4', () => {
+  it('searches the timeline, encoding whatever was typed', () => {
+    expect(linkToTransactionSearch('coffee & bagels')).toBe('/transactions?tab=list&q=coffee%20%26%20bagels');
+  });
+
+  it('opens the CSV import sheet on the timeline', () => {
+    expect(linkToImport()).toBe('/transactions?tab=list&import=1');
+  });
+
+  it('starts a rule prefilled from a transaction, with its category when it has one', () => {
+    expect(linkToNewRule('NETFLIX.COM', 7)).toBe('/settings?tab=rules&pattern=NETFLIX.COM&category=7');
+    expect(linkToNewRule('Café #1', null)).toBe('/settings?tab=rules&pattern=Caf%C3%A9+%231');
+  });
+
+  it('addresses the Rules section directly', () => {
+    expect(linkToSettingsSection('rules')).toBe('/settings?tab=rules');
+  });
+
+  it('links a card to the Cards tab and a checking account to Banking', () => {
+    expect(linkToAccount(3, true)).toBe('/accounts?tab=cards&focusAccount=3');
+    expect(linkToAccount(4)).toBe('/accounts?tab=wallet&focusAccount=4');
   });
 });
 

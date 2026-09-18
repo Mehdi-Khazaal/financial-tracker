@@ -16,7 +16,8 @@ nothing.
 
 from __future__ import annotations
 
-from typing import Optional
+from decimal import Decimal
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -28,9 +29,15 @@ from services.transaction_enrichment import auto_categorize_enabled
 # also exactly the behaviour that shipped before this table existed. Any new
 # preference must default to whatever production already does, or deploying it
 # would change behaviour for everyone who never asked.
-DEFAULTS: dict[str, bool] = {
+DEFAULTS: dict[str, Any] = {
     "automatic_categorization_enabled": True,
+    "bill_reminders_enabled": True,
+    "budget_alerts_enabled": True,
+    "low_balance_alerts_enabled": False,
+    "low_balance_threshold": Decimal("100.00"),
 }
+
+CENTS = Decimal("0.01")
 
 # Memo key for the per-session cache below.
 _CACHE_KEY = "fintrack_user_preferences"
@@ -45,7 +52,7 @@ def get_row(session: Session, user_id: int) -> Optional[UserPreferences]:
     )
 
 
-def stored_values(session: Session, user_id: int) -> dict[str, bool]:
+def stored_values(session: Session, user_id: int) -> dict[str, Any]:
     """What the user has chosen, falling back to the defaults per field.
 
     Reading field by field rather than returning the row means a preference
@@ -56,7 +63,25 @@ def stored_values(session: Session, user_id: int) -> dict[str, bool]:
         return dict(DEFAULTS)
     return {
         "automatic_categorization_enabled": bool(row.automatic_categorization_enabled),
+        "bill_reminders_enabled": _flag(row.bill_reminders_enabled, DEFAULTS["bill_reminders_enabled"]),
+        "budget_alerts_enabled": _flag(row.budget_alerts_enabled, DEFAULTS["budget_alerts_enabled"]),
+        "low_balance_alerts_enabled": _flag(row.low_balance_alerts_enabled, DEFAULTS["low_balance_alerts_enabled"]),
+        "low_balance_threshold": (
+            Decimal(str(row.low_balance_threshold)).quantize(CENTS)
+            if row.low_balance_threshold is not None else DEFAULTS["low_balance_threshold"]
+        ),
     }
+
+
+def _flag(value, default: bool) -> bool:
+    """A column that may be NULL on a row written before it existed."""
+    return default if value is None else bool(value)
+
+
+def alerts_enabled(session: Session, user_id: int, kind: str) -> bool:
+    """Whether one kind of alert may be sent: 'bill', 'budget' or 'low_balance'."""
+    values = stored_values(session, user_id)
+    return bool(values[{"bill": "bill_reminders_enabled", "budget": "budget_alerts_enabled", "low_balance": "low_balance_alerts_enabled"}[kind]])
 
 
 def automatic_categorization_enabled(session: Session, user_id: int) -> bool:
@@ -97,7 +122,7 @@ def forget_cached(session: Session, user_id: int) -> None:
         cache.pop(user_id, None)
 
 
-def upsert(session: Session, user_id: int, changes: dict[str, bool]) -> UserPreferences:
+def upsert(session: Session, user_id: int, changes: dict[str, Any]) -> UserPreferences:
     """Apply a partial update, creating the row on first use.
 
     Does not commit — the caller owns the transaction, matching every other
@@ -109,6 +134,8 @@ def upsert(session: Session, user_id: int, changes: dict[str, bool]) -> UserPref
         session.add(row)
 
     for field, value in changes.items():
+        if field == "low_balance_threshold" and value is not None:
+            value = Decimal(str(value)).quantize(CENTS)
         setattr(row, field, value)
 
     forget_cached(session, user_id)

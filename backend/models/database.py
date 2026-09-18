@@ -12,7 +12,68 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def engine_options(url: str) -> dict:
+    """Connection-pool settings sized for a small service behind Neon's pooler.
+
+    Neon closes idle connections and its pooler has a per-project cap, so the
+    pool is kept small, recycled before Neon's idle timeout, and every
+    connection is pinged before use. A statement timeout guards the whole
+    service against one runaway query holding a pooled connection. SQLite
+    (tests, local scratch databases) gets none of this — it has no pool to
+    tune and rejects the Postgres options.
+
+    Overridable per environment: `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`,
+    `DB_POOL_RECYCLE_SECONDS`, `DB_POOL_TIMEOUT_SECONDS`,
+    `DB_STATEMENT_TIMEOUT_MS`, `DB_CONNECT_TIMEOUT_SECONDS`.
+    """
+    if url.startswith("sqlite"):
+        return {}
+    options: dict = {
+        "pool_pre_ping": True,
+        "pool_size": _int_env("DB_POOL_SIZE", 5),
+        "max_overflow": _int_env("DB_MAX_OVERFLOW", 5),
+        "pool_recycle": _int_env("DB_POOL_RECYCLE_SECONDS", 300),
+        "pool_timeout": _int_env("DB_POOL_TIMEOUT_SECONDS", 10),
+    }
+    if url.startswith("postgres"):
+        statement_timeout_ms = _int_env("DB_STATEMENT_TIMEOUT_MS", 15_000)
+        options["connect_args"] = {
+            "connect_timeout": _int_env("DB_CONNECT_TIMEOUT_SECONDS", 10),
+            # Applied per session by the driver; psycopg2 passes `options`
+            # straight to libpq.
+            "options": f"-c statement_timeout={statement_timeout_ms}",
+            # Fintrack does its own idle handling; keepalives let a pooled
+            # connection survive a NAT/idle window instead of dying silently.
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 3,
+        }
+    return options
+
+
+engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
+
+
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite ignores foreign keys unless asked, per connection. Asking makes a
+    # local or e2e database cascade and null-out exactly as Postgres does, so
+    # deleting an account or a category behaves the same everywhere.
+    from sqlalchemy import event as _event
+
+    @_event.listens_for(engine, "connect")
+    def _sqlite_foreign_keys(dbapi_connection, _record):  # pragma: no cover - exercised by the e2e backend
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -72,6 +133,9 @@ class Account(Base):
     credit_limit = Column(Numeric(15, 2), nullable=True)
     currency = Column(String(3), default="USD")
     plaid_account_id = Column(String(200), nullable=True, unique=True)
+    # Set while the balance sits below the user's low-balance threshold, so
+    # the alert fires once per dip and re-arms when the balance recovers.
+    low_balance_notified_on = Column(Date, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -131,6 +195,8 @@ class Transaction(Base):
         Index("ix_transactions_user_date", "user_id", "transaction_date"),
         Index("ix_transactions_user_merchant_key", "user_id", "merchant_key"),
         Index("ix_transactions_user_merchant_entity", "user_id", "plaid_merchant_entity_id"),
+        # One CSV import is one batch, so it can be undone as a unit.
+        Index("ix_transactions_user_import_batch", "user_id", "import_batch_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -141,6 +207,7 @@ class Transaction(Base):
     description = Column(Text)
     plaid_tx_id = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
+    import_batch_id = Column(String(32), nullable=True)
 
     # ── Merchant identity ────────────────────────────────────────────────────
     # Plaid's stable merchant identifier. When present this *is* the merchant;
@@ -195,6 +262,34 @@ class Transaction(Base):
 
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
+    # How the amount is filed when it spans categories. Never moves money —
+    # see `services.splits`.
+    splits = relationship(
+        "TransactionSplit",
+        back_populates="transaction",
+        cascade="all, delete-orphan",
+        order_by="TransactionSplit.id",
+    )
+
+
+class TransactionSplit(Base):
+    """One line of a split transaction: part of the parent's amount, filed
+    under one category. Lines always sum to the parent exactly."""
+
+    __tablename__ = "transaction_splits"
+    __table_args__ = (
+        Index("ix_transaction_splits_user_category", "user_id", "category_id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    amount = Column(Numeric(15, 2), nullable=False)
+    note = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+    transaction = relationship("Transaction", back_populates="splits")
 
 
 class Transfer(Base):
@@ -296,6 +391,65 @@ class RecurringDismissal(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class Budget(Base):
+    """A monthly spending limit for one expense category.
+
+    `amount` is the allowance for each calendar month from `starts_on` (always
+    the first of a month) onward. With `rollover` set, the unspent part of a
+    month carries into the next — overspending never carries, so a bad month
+    cannot poison the following one. Progress is never stored: it is computed
+    from the ledger on read (`services.budgets`), so a late import or a
+    re-categorised transaction is reflected immediately. `notified_month`
+    remembers the last month an over-budget push went out, so it is sent once.
+    """
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("user_id", "category_id", name="uq_budgets_user_category"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    rollover = Column(Boolean, nullable=False, default=False, server_default="false")
+    starts_on = Column(Date, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    notified_month = Column(String(7), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    category = relationship("Category")
+
+
+class CategorizationRule(Base):
+    """"When a transaction looks like X, file it under Y" — the user's own words.
+
+    Rules outrank every inference (merchant history, Plaid's category) because
+    they are an explicit instruction rather than a guess; they never outrank a
+    category the user set on a specific transaction. Matching is on the
+    description (case-insensitive substring or a regular expression) or on the
+    normalised merchant key. Lower `priority` wins; ties break on id.
+    """
+
+    __tablename__ = "categorization_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    # "description" or "merchant" (the normalised merchant key).
+    field = Column(String(20), nullable=False, default="description")
+    # "contains" or "regex".
+    match_type = Column(String(20), nullable=False, default="contains")
+    pattern = Column(String(200), nullable=False)
+    priority = Column(Integer, nullable=False, default=100)
+    is_active = Column(Boolean, nullable=False, default=True)
+    # How many transactions this rule has filed, for the settings list.
+    applied_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    category = relationship("Category")
+
+
 class Loan(Base):
     __tablename__ = "loans"
 
@@ -321,6 +475,10 @@ class SavingsGoal(Base):
     name = Column(String(100), nullable=False)
     target_amount = Column(Numeric(15, 2), nullable=False)
     deadline = Column(Date, nullable=True)
+    # The highest milestone (0, 50, 75, 100 — percent of target) the user has
+    # been notified about. A push goes out only when a save *crosses* a
+    # milestone, never merely because the goal still sits above one.
+    milestone_notified = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -372,6 +530,47 @@ class AssistantMessage(Base):
     conversation = relationship("AssistantConversation", back_populates="messages")
 
 
+class AssistantPendingAction(Base):
+    """A write the assistant proposed and the user has not yet confirmed.
+
+    Stored rather than held in process memory so a restart, a cold start, or a
+    second worker between "propose" and "confirm" does not lose the action.
+    The client holds the raw token; only its SHA-256 is stored, so a database
+    read cannot be replayed as a confirmation. `consumed_at` makes execution
+    exactly-once under concurrent confirms.
+    """
+
+    __tablename__ = "assistant_pending_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("assistant_conversations.id", ondelete="CASCADE"), nullable=True)
+    tool = Column(String(50), nullable=False)
+    input = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=utc_now)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    consumed_at = Column(DateTime, nullable=True)
+
+
+class AssistantUsageDaily(Base):
+    """One row per user per (their) calendar day: turns and estimated cost.
+
+    Read before every chat turn to enforce the daily caps, and by the admin
+    usage view. See `services.assistant_usage`.
+    """
+
+    __tablename__ = "assistant_usage_daily"
+    __table_args__ = (UniqueConstraint("user_id", "day", name="uq_assistant_usage_user_day"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    day = Column(Date, nullable=False, index=True)
+    turns = Column(Integer, nullable=False, default=0, server_default="0")
+    cost_usd = Column(Numeric(12, 6), nullable=False, default=0, server_default="0")
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class AssistantMemory(Base):
     """Durable facts the assistant has learned about the user — its persistent notebook."""
 
@@ -400,6 +599,9 @@ class AccountBalanceSnapshot(Base):
     __tablename__ = "account_balance_snapshots"
     __table_args__ = (
         UniqueConstraint("account_id", "snapshot_date", name="uq_snapshot_account_date"),
+        # Per-user range scans (history charts). Created by revision 5 but only
+        # declared here in Phase 6, so production gains it at revision 26.
+        Index("ix_snapshot_user_date", "user_id", "snapshot_date"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -528,5 +730,13 @@ class UserPreferences(Base):
     automatic_categorization_enabled = Column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    # ── Alerts ──────────────────────────────────────────────────────────────
+    # Each switch gates a push the server would otherwise send. Bill reminders
+    # and budget alerts default on because that is what shipped; low-balance
+    # is new and defaults off so deploying it changes nothing for anyone.
+    bill_reminders_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    budget_alerts_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    low_balance_alerts_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    low_balance_threshold = Column(Numeric(15, 2), nullable=False, default=100, server_default="100")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

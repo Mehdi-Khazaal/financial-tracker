@@ -31,6 +31,7 @@ export const ROUTE_TABS = {
     account: 'account',
     preferences: 'preferences',
     categories: 'categories',
+    rules: 'rules',
     connections: 'connections',
     admin: 'admin',
   },
@@ -48,6 +49,12 @@ export const DEEP_LINK_KEYS = {
   focusAccount: 'focusAccount',
   /** Scroll to and highlight one savings goal. */
   focusGoal: 'focusGoal',
+  /** Prefill the new-rule sheet with this text (Settings → Rules). */
+  rulePattern: 'pattern',
+  /** Free-text search applied to the transaction timeline. */
+  query: 'q',
+  /** Open the CSV import sheet on the Transactions page. */
+  importCsv: 'import',
 } as const;
 
 /** The timeline, filtered to a single account. */
@@ -57,6 +64,14 @@ export const linkToAccountTransactions = (accountId: number): string =>
 /** The timeline, filtered to a single category. */
 export const linkToCategoryTransactions = (categoryId: number): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.category}=${categoryId}`;
+
+/** The timeline filtered to transactions matching `query` (⌘K search). */
+export const linkToTransactionSearch = (query: string): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.query}=${encodeURIComponent(query)}`;
+
+/** The Transactions page with the CSV import sheet open. */
+export const linkToImport = (): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.importCsv}=1`;
 
 /** The import review queue. */
 export const linkToReview = (): string =>
@@ -95,6 +110,17 @@ export const linkToCards = (): string =>
 export const linkToSettingsSection = (
   section: keyof typeof ROUTE_TABS.settings,
 ): string => `/settings?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.settings[section]}`;
+
+/**
+ * Settings → Rules with the new-rule sheet open and prefilled: "always file
+ * transactions like this one as…". The category is optional because the
+ * transaction may not have one yet — that is often why the rule is wanted.
+ */
+export const linkToNewRule = (pattern: string, categoryId?: number | null): string => {
+  const params = new URLSearchParams({ [DEEP_LINK_KEYS.tab]: ROUTE_TABS.settings.rules, [DEEP_LINK_KEYS.rulePattern]: pattern });
+  if (categoryId) params.set(DEEP_LINK_KEYS.category, String(categoryId));
+  return `/settings?${params.toString()}`;
+};
 
 /** Parse a positive integer id from a query value. Returns null when absent or malformed. */
 export const parseIdParam = (value: string | null): number | null => {

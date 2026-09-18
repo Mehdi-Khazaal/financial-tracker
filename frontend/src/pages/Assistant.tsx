@@ -44,6 +44,7 @@ const SUGGESTIONS = [
   { label: 'Categories', prompt: 'What are my biggest spending categories this month?' },
   { label: 'Record expense', prompt: 'Add a $12 coffee expense to my main account' },
   { label: 'Savings', prompt: 'Am I on track with my savings goals?' },
+  { label: 'Budgets', prompt: 'How am I doing against my budgets this month?' },
 ];
 
 const ACTION_LABELS: Record<string, string> = {
@@ -51,6 +52,11 @@ const ACTION_LABELS: Record<string, string> = {
   add_account: 'Account',
   add_savings_goal: 'Savings goal',
   add_loan: 'Loan',
+  set_budget: 'Budget',
+  add_rule: 'Rule',
+  // A remembered fact is a durable write like any other, so it is confirmed
+  // here rather than saved silently inside the model loop.
+  save_memory: 'Memory',
 };
 
 const FOLLOW_UPS: Record<AssistantVisualBlock['type'], string> = {
@@ -129,7 +135,7 @@ const VisualBlock: React.FC<{ block: AssistantVisualBlock; onFollowUp: (prompt: 
           {rows.length ? rows.map((row, index) => (
             <div className="assistant-breakdown-row" key={`${row.label}-${index}`}>
               <div className="assistant-row-copy"><span>{row.label}</span><strong>{currency(row.value)}</strong></div>
-              <div className="assistant-bar" aria-label={`${Math.round((row.share ?? 0) * 100)} percent`}>
+              <div className="assistant-bar" role="img" aria-label={`${Math.round((row.share ?? 0) * 100)} percent`}>
                 <span style={{ width: `${Math.max(2, (row.share ?? 0) * 100)}%`, background: `var(--cat-${(index % 8) + 1})` }} />
               </div>
             </div>

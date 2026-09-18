@@ -165,7 +165,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                   type="submit"
                   disabled={loading || !amount || parseFloat(amount || '0') <= 0}
                   className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-                  style={{ backgroundColor: 'var(--neg)', color: 'white' }}>
+                  style={{ backgroundColor: 'var(--neg)', color: 'var(--ink-on-fill)' }}>
                   {loading ? 'Saving…' : `Record $${parseFloat(amount || '0').toFixed(2)} spend`}
                 </button>
               </>

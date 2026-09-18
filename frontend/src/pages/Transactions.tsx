@@ -20,12 +20,15 @@ import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
+import ImportSheet from '../components/modals/ImportSheet';
 import TransactionCard from '../components/transactions/TransactionCard';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
 import DayHeader from '../features/transactions/components/DayHeader';
 import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
 import { groupByDay } from '../features/transactions/calculations/timeline';
+import { applyTransactionFilters, type TransactionFilters } from '../features/transactions/calculations/filters';
+import { readableOn } from '../utils/contrast';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -143,7 +146,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                   onClick={() => setLocalMonth(m)}
                   className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all"
                   style={effectiveMonth === m
-                    ? { backgroundColor: cat.color, color: 'white' }
+                    ? { backgroundColor: cat.color, color: readableOn(cat.color) }
                     : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
                 >
                   {formatMonth(m)}
@@ -234,6 +237,7 @@ const Transactions: React.FC = () => {
   const [showTx, setShowTx]             = useState(false);
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showImport, setShowImport]     = useState(false);
   const [editTx, setEditTx]             = useState<Transaction | null>(null);
 
   const [selectedMonth, setSelectedMonth]   = useState('');
@@ -255,10 +259,17 @@ const Transactions: React.FC = () => {
   const [pendingType, setPendingType]         = useState<'all' | 'income' | 'expense'>('all');
   const [pendingAmountMin, setPendingAmountMin] = useState('');
   const [pendingAmountMax, setPendingAmountMax] = useState('');
-  const [appliedFilters, setAppliedFilters]   = useState({
+  const [appliedFilters, setAppliedFilters]   = useState<TransactionFilters>({
     dateFrom: '', dateTo: '', account: '', category: '',
-    type: 'all' as 'all' | 'income' | 'expense', amountMin: '', amountMax: '',
+    type: 'all', amountMin: '', amountMax: '', query: '',
   });
+  // Search is applied as it is typed — the ledger is already in memory, so
+  // there is nothing to wait for — and sits in the same filter set as the
+  // panel so "Clear" and the count treat it like any other filter.
+  const [searchQuery, setSearchQuery] = useState('');
+  useEffect(() => {
+    setAppliedFilters(prev => (prev.query === searchQuery ? prev : { ...prev, query: searchQuery }));
+  }, [searchQuery]);
 
   const MAX_TX_SHOWN = 3;
 
@@ -316,6 +327,10 @@ const Transactions: React.FC = () => {
     if (requestedTab === 'list' || requestedTab === 'transactions' || requestedTab === 'recurring') {
       setTab(requestedTab);
     }
+
+    const query = params.get(DEEP_LINK_KEYS.query);
+    if (query) setSearchQuery(query);
+    if (params.get(DEEP_LINK_KEYS.importCsv)) setShowImport(true);
 
     const account = parseIdParam(params.get(DEEP_LINK_KEYS.account));
     const category = parseIdParam(params.get(DEEP_LINK_KEYS.category));
@@ -389,23 +404,10 @@ const Transactions: React.FC = () => {
 
   const reviewedCount = Math.max(0, monthTransactions.length - uncategorized.length);
   const reviewRate = monthTransactions.length > 0 ? Math.round((reviewedCount / monthTransactions.length) * 100) : 100;
-  const filteredList = useMemo(() => {
-    const f = appliedFilters;
-    return transactions.filter(t => {
-      if (f.dateFrom  && t.transaction_date < f.dateFrom) return false;
-      if (f.dateTo    && t.transaction_date > f.dateTo)   return false;
-      if (f.account   && t.account_id !== parseInt(f.account)) return false;
-      if (f.category) {
-        if (f.category === 'none') { if (t.category_id !== null) return false; }
-        else if (t.category_id !== parseInt(f.category)) return false;
-      }
-      if (f.type === 'income'  && Number(t.amount) <= 0) return false;
-      if (f.type === 'expense' && Number(t.amount) >= 0) return false;
-      if (f.amountMin && Math.abs(Number(t.amount)) < parseFloat(f.amountMin)) return false;
-      if (f.amountMax && Math.abs(Number(t.amount)) > parseFloat(f.amountMax)) return false;
-      return true;
-    }).sort((a, b) => b.transaction_date.localeCompare(a.transaction_date));
-  }, [transactions, appliedFilters]);
+  const filteredList = useMemo(
+    () => applyTransactionFilters(transactions, appliedFilters),
+    [transactions, appliedFilters],
+  );
 
   const filteredMetrics = useMemo(
     () => calculatePeriodMetrics(filteredList, classification),
@@ -524,6 +526,7 @@ const Transactions: React.FC = () => {
   ].filter(Boolean).length + (appliedFilters.type !== 'all' ? 1 : 0);
 
   const applyFilters = () => setAppliedFilters({
+    query: searchQuery,
     dateFrom: pendingDateFrom, dateTo: pendingDateTo,
     account: pendingAccount, category: pendingCategory,
     type: pendingType, amountMin: pendingAmountMin, amountMax: pendingAmountMax,
@@ -532,7 +535,8 @@ const Transactions: React.FC = () => {
   const clearFilters = () => {
     setPendingDateFrom(''); setPendingDateTo(''); setPendingAccount('');
     setPendingCategory(''); setPendingType('all'); setPendingAmountMin(''); setPendingAmountMax('');
-    setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '' });
+    setSearchQuery('');
+    setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '', query: '' });
   };
 
   const getCategory = (id: number | null) => categories.find(c => c.id === id);
@@ -630,6 +634,27 @@ const Transactions: React.FC = () => {
             </div>
           )}
 
+          {/* Search (list tab): instant, over the loaded ledger. */}
+          {tab === 'list' && (
+            <div className="relative shrink-0" style={{ width: 'min(220px, 42vw)' }}>
+              <label className="sr-only" htmlFor="transaction-search">Search transactions</label>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"
+                className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--dim)' }} aria-hidden="true">
+                <path d="M13.5 13.5L17 17M9 14.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z" />
+              </svg>
+              <input
+                id="transaction-search"
+                type="search"
+                value={searchQuery}
+                onChange={event => setSearchQuery(event.target.value)}
+                className="input-dark w-full text-sm pl-8"
+                style={{ minHeight: 40 }}
+                placeholder="Search…"
+                autoComplete="off"
+              />
+            </div>
+          )}
+
           {/* Filters button (list tab) */}
           {tab === 'list' && (
             <button
@@ -647,7 +672,7 @@ const Transactions: React.FC = () => {
               <span>Filters</span>
               {hasActiveFilters && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                  style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}>
                   {activeFilterCount}
                 </span>
               )}
@@ -763,6 +788,21 @@ const Transactions: React.FC = () => {
                     <div className="text-left">
                       <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>Transfer</p>
                       <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>Between accounts</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setShowImport(true); setShowAddMenu(false); }}
+                    className="menu-item"
+                    role="menuitem"
+                  >
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }}>
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>Import CSV</p>
+                      <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>From a bank export</p>
                     </div>
                   </button>
                 </div>
@@ -1111,7 +1151,7 @@ const Transactions: React.FC = () => {
                 <div className="flex gap-2">
                   <button onClick={() => { applyFilters(); setShowFilters(false); }}
                     className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
-                    style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                    style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}>
                     Apply Filters
                   </button>
                   <button onClick={clearFilters}
@@ -1217,6 +1257,7 @@ const Transactions: React.FC = () => {
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
+      <ImportSheet isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { void load(); }} accounts={accounts} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
       <CategoryDetailModal
         cat={detailCat}

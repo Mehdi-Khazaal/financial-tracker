@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -31,17 +32,17 @@ const queue = [tx(1, -12.5, 'Corner Shop'), tx(2, -40, 'Petrol'), tx(3, -9, 'Cof
 interface Overrides {
   initialTransaction?: Transaction | null;
   queue?: Transaction[];
-  onAssign?: jest.Mock;
-  onClose?: jest.Mock;
-  onDelete?: jest.Mock;
-  onEdit?: jest.Mock;
+  onAssign?: Mock;
+  onClose?: Mock;
+  onDelete?: Mock;
+  onEdit?: Mock;
 }
 
 const setup = (overrides: Overrides = {}) => {
-  const onAssign = overrides.onAssign ?? jest.fn().mockResolvedValue(true);
-  const onClose = overrides.onClose ?? jest.fn();
-  const onDelete = overrides.onDelete ?? jest.fn();
-  const onEdit = overrides.onEdit ?? jest.fn();
+  const onAssign = overrides.onAssign ?? vi.fn().mockResolvedValue(true);
+  const onClose = overrides.onClose ?? vi.fn();
+  const onDelete = overrides.onDelete ?? vi.fn();
+  const onEdit = overrides.onEdit ?? vi.fn();
 
   const view = render(
     <CategorizeSheet
@@ -173,7 +174,7 @@ describe('undo', () => {
 
 describe('rollback on failure', () => {
   it('returns to the transaction whose write failed', async () => {
-    const onAssign = jest.fn().mockResolvedValue(false);
+    const onAssign = vi.fn().mockResolvedValue(false);
     setup({ onAssign });
 
     fireEvent.click(screen.getByRole('button', { name: /Groceries/ }));
@@ -184,7 +185,7 @@ describe('rollback on failure', () => {
   });
 
   it('does not offer undo for an assignment that never landed', async () => {
-    const onAssign = jest.fn().mockResolvedValue(false);
+    const onAssign = vi.fn().mockResolvedValue(false);
     setup({ onAssign });
 
     fireEvent.click(screen.getByRole('button', { name: /Groceries/ }));
@@ -194,7 +195,7 @@ describe('rollback on failure', () => {
   });
 
   it('does not reach the success state when the last write failed', async () => {
-    const onAssign = jest.fn().mockResolvedValue(false);
+    const onAssign = vi.fn().mockResolvedValue(false);
     setup({ initialTransaction: queue[2], queue: [queue[2]], onAssign });
 
     fireEvent.click(screen.getByRole('button', { name: /Groceries/ }));
@@ -240,10 +241,10 @@ describe('suggested categories', () => {
         queue={queue}
         categories={categories}
         suggestions={[]}
-        onAssign={jest.fn().mockResolvedValue(true)}
-        onClose={jest.fn()}
-        onDelete={jest.fn()}
-        onEdit={jest.fn()}
+        onAssign={vi.fn().mockResolvedValue(true)}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
       />,
     );
 
