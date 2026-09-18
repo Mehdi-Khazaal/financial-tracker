@@ -26,9 +26,6 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from alembic import command
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
@@ -42,20 +39,37 @@ OUTCOME_DISABLED = "disabled"
 OUTCOME_INITIALIZED = "initialized"
 OUTCOME_UPGRADED = "upgraded"
 OUTCOME_UNSTAMPED = "unstamped"
+OUTCOME_UNAVAILABLE = "unavailable"
 OUTCOME_FAILED = "failed"
 
 
-def alembic_config() -> Config:
+def _alembic():
+    """Import Alembic on demand.
+
+    It is a hard requirement (`requirements.txt`), but a process that somehow
+    lacks it must still boot on the legacy path rather than die at import —
+    the service is worth more than the upgrade step.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    return command, Config, ScriptDirectory
+
+
+def alembic_config():
+    _, Config, _ = _alembic()
     # Deliberately *not* loading alembic.ini: its `[loggers]` section would
     # make env.py call `logging.config.fileConfig`, which replaces the
     # process's log handlers (and, by default, silences every logger created
     # before it). The CLI keeps that behaviour; in-process runs keep ours.
     cfg = Config()
-    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
     return cfg
 
 
 def head_revision() -> str:
+    _, _, ScriptDirectory = _alembic()
     return ScriptDirectory.from_config(alembic_config()).get_current_head() or ""
 
 
@@ -81,6 +95,12 @@ def run_startup_migrations(engine: Engine) -> str:
     if not migrations_enabled():
         logger.info("startup_migrations_disabled")
         return OUTCOME_DISABLED
+
+    try:
+        command, _, _ = _alembic()
+    except ImportError:
+        logger.error("startup_migrations_unavailable %s", kv(hint="pip install -r requirements.txt"))
+        return OUTCOME_UNAVAILABLE
 
     try:
         with engine.connect() as conn:

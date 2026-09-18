@@ -1,8 +1,5 @@
 """The boot-time migration switch, exercised against throwaway SQLite files."""
 
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect
@@ -65,5 +62,15 @@ def test_a_broken_migration_reports_failed_instead_of_crashing(scratch, monkeypa
     def explode(*_a, **_k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(migrations.command, "upgrade", explode)
+    real_command, real_config, real_script = migrations._alembic()
+    monkeypatch.setattr(migrations, "_alembic", lambda: (type("C", (), {"upgrade": staticmethod(explode)}), real_config, real_script))
     assert migrations.run_startup_migrations(scratch) == migrations.OUTCOME_FAILED
+
+
+def test_missing_alembic_reports_unavailable_instead_of_crashing(scratch, monkeypatch):
+    def no_alembic():
+        raise ImportError("No module named 'alembic'")
+
+    monkeypatch.setattr(migrations, "_alembic", no_alembic)
+    assert migrations.run_startup_migrations(scratch) == migrations.OUTCOME_UNAVAILABLE
+    assert inspect(scratch).get_table_names() == []

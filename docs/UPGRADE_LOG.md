@@ -221,6 +221,9 @@ No N+1 was found on the hot read paths: every list endpoint is one query plus th
 - Backend: **725 passed** (~28 s). `pip-audit`: clean after adding `sentry-sdk`.
 - Frontend: lint clean (2 pre-existing warnings), 985 Vitest tests, build 1.2 s, bundle within budget (initial 131.8 kB, total 515 kB, largest 142 kB), Playwright 12/12 against `vite preview` with the new backend boot path (fresh SQLite is initialised by Alembic).
 
+### A bug the e2e suite caught before production did
+The first Playwright run after wiring migrations at boot failed to start the backend: `ImportError: cannot import name 'command' from 'alembic'`. With `backend/` as the working directory (exactly how Render and uvicorn run it), the `backend/alembic/` *folder* shadowed the installed `alembic` package. It never mattered before because nothing imported Alembic at runtime. The folder is now `backend/migrations/` (`alembic.ini` `script_location` updated; the CLI is unchanged), the boot switch imports Alembic lazily and reports `unavailable` — falling back to the legacy path — if the package is missing, and the boot path is smoke-tested with the system interpreter from `backend/`.
+
 ### Skipped / deferred
 - Job-queue fan-out for snapshots (see decision 5).
 - Deleting the legacy boot repairs (after production is stamped).
