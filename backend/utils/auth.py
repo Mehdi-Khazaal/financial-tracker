@@ -24,6 +24,12 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
+# bcrypt work factor. 12 is the production default; the test suite sets 4 so a
+# fixture that creates a user costs milliseconds rather than a quarter second.
+# Clamped so a bad value can never weaken production hashing below bcrypt's
+# own minimum or push it into multi-second logins.
+BCRYPT_ROUNDS = max(4, min(int(os.getenv("BCRYPT_ROUNDS", "12")), 16))
+
 IS_PROD = os.getenv("ENVIRONMENT") == "production"
 logger = get_logger(__name__)
 
@@ -40,7 +46,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def _make_token(data: dict, expires_delta: timedelta, token_type: str) -> str:
