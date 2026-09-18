@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1–4.6 done (Budgets, Rules, Alerts, Search, CSV import, Splits); 4.7 Two-factor auth next.**
+- Current phase: **Phase 4 (features) in progress — 4.1–4.7 done (Budgets, Rules, Alerts, Search, CSV import, Splits, 2FA); 4.8 Assistant upgrades next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -418,5 +418,30 @@ Commit: `24d157f` feat(splits).
 2. **Drop, don't rescale, when the amount changes.** Rescaling lines proportionally invents numbers the user never entered; dropping keeps the main category and asks them to split again if they care.
 3. **One category per line.** Two lines in one category are one line; it keeps drawers and budgets free of duplicate rows.
 
-### Next step
+### Next step (done — see Phase 4.7)
 **Phase 4.7 — 2FA**: TOTP (RFC 6238, ±1 step window, secret encrypted with `secret_box`, provisioning URI + QR on the client), ten single-use recovery codes stored hashed, enable/verify/disable flows behind the current password, login step-up (`/auth/login` returns `{two_factor_required, challenge}`; `/auth/login/2fa` completes it; lockout counts failed codes), Settings → Account → Two-factor section. Passkeys only if time allows. Then assistant upgrades.
+
+## Phase 4.7 — Two-factor authentication (2026-09-18) ✅
+
+Commit: `55bd2ae` feat(2fa).
+
+### What changed
+- **TOTP** (`utils/totp.py`, standard library only): RFC 6238 over RFC 4226, six digits, 30 s steps, HMAC-SHA1, ±1 step window, constant-time compare, and **no replays** — the step of the last accepted code is stored (`users.totp_last_step`) and nothing at or before it is accepted again. Pinned by the RFC's SHA-1 test vectors.
+- **Storage** (revision `20260918_000025`, additive; everyone starts with 2FA off): `users.totp_secret` / `totp_pending_secret` are `secret_box` ciphertext (the Fernet key that protects Plaid tokens), `totp_enabled`, `totp_last_step`; `recovery_codes` table with SHA-256 hashes of ten 50-bit single-use codes (cascade on account deletion). Round-tripped on SQLite and a local scratch Postgres.
+- **Enrolment** (`routers/two_factor.py`): `POST /auth/2fa/setup` (password) → pending secret, grouped key, `otpauth://` URI and an SVG QR code as a `data:` URI (rendered by `segno`, a new pure-Python dependency; the CSP already allows `data:` images); `POST /auth/2fa/enable` (first code) → turns it on, returns the recovery codes once, and **bumps `session_version`** so any session opened with the password alone is signed out (this browser gets fresh cookies). `POST /auth/2fa/disable` needs the password **and** a code; `POST /auth/2fa/recovery-codes` (password) replaces them; `GET /auth/2fa` reports state and codes left. `/auth/me` and the admin user list carry `two_factor_enabled`.
+- **Login step-up**: a correct password on a 2FA account returns `{two_factor_required, challenge}` with **no cookies** and leaves the password lockout counter untouched; `POST /auth/login/2fa` takes the 5-minute challenge JWT (type `2fa_challenge`, bound to `session_version`, so a password reset kills it) plus an app code or a recovery code. Wrong codes count against their own lockout key (`2fa:<user id>`) with the same thresholds as passwords; success clears both counters. The API client no longer runs its refresh-and-retry dance on `/auth/login*` 401s — a retried wrong code would have counted twice.
+- **Admin escape hatch**: `POST /admin/users/{id}/disable-2fa` for someone who lost both factors — and, like the admin reset, it signs nobody out (the existing policy test documents why).
+- **Frontend**: Login shows a second step ("Code from your authenticator app", `autocomplete="one-time-code"`, numeric keypad, "Use a recovery code", "Start over"); an expired challenge returns to the password step with the server's message; someone who signs in with a recovery code and has ≤3 left lands on Settings → Account. Settings → Account → **Two-factor authentication** walks off → password → QR/key → first code → recovery codes (copy/download, shown once) → on; on-state shows codes left (warns at ≤3), "New recovery codes", "Turn off". Admin rows get "2FA off" for enrolled users. The login form's labels are now associated with their inputs (audit U1) and the eye button has a name.
+
+### Checks
+- Backend: **824 passed** (11 new in `test_two_factor.py`: RFC vectors, window/replay/format, enrolment with password + code + recovery codes + session revocation, status and `/me`, step-up without cookies, replay refused, recovery codes single-use and replaceable, challenge expiry / password change / wrong token type, lockout on guessed codes with `Retry-After`, disable needs both, admin reset without sign-out, deletion cascade). `test_admin` pins the new field and asserts no secret leaks.
+- Frontend: **1060 Vitest tests** (64 files; `Login.test.tsx` 6, `TwoFactorSection.test.tsx` 4), tsc clean, lint 2 pre-existing warnings, bundle 540 kB / 600.
+- Playwright: **18/18** (new `12-two-factor.spec.ts`: enrol via API, sign in through the UI, code step, a code computed in the test, lands signed in).
+
+### Decisions and reasoning
+1. **No TOTP dependency on the server**, only for the QR image: the algorithm is 20 lines and pinned by the RFC's own vectors; `segno` renders SVG server-side so the client bundle stays untouched and no QR library ships to every visitor.
+2. **Enabling 2FA signs out other sessions.** The threat 2FA answers is "someone has my password"; leaving that someone signed in would make enrolment theatre.
+3. **Passkeys deferred.** WebAuthn needs a verified library, per-origin RP configuration for Vercel previews vs production, and credential management UI; doing it properly is its own phase. Recorded for the final checklist.
+
+### Next step
+**Phase 4.8 — Assistant upgrades**: confirmed-write tools `add_budget`, `update_budget`, `add_rule` (pending-action flow, same as `add_transaction`), `list_alerts`-style awareness of alert preferences in the context, and routing/prompt updates so Fin offers "set a budget" / "make this a rule" when it fits. Then Phase 5 (UX/a11y).
