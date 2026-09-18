@@ -46,6 +46,7 @@ const mockSetSearchParams = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/settings' }),
+  useNavigate: () => vi.fn(),
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }));
@@ -86,6 +87,10 @@ const mockApi = vi.hoisted(() => ({
   plaidRebuildHistory: vi.fn(),
   plaidSyncHealth: vi.fn(),
   plaidSyncStatus: vi.fn(),
+  adminGetUsage: vi.fn(),
+  exportAccountJson: vi.fn(),
+  exportTransactionsCsv: vi.fn(),
+  deleteMyAccount: vi.fn(),
 }));
 // Vitest builds the mocked namespace from the factory's *own keys*, so the
 // Jest-era Proxy (which answered any name lazily) exposed nothing. A plain
@@ -221,6 +226,7 @@ beforeEach(() => {
     }));
   mockApi.plaidGetItems.mockResolvedValue({ data: [BANK] });
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
+  mockApi.adminGetUsage.mockResolvedValue({ data: { days: 30, turn_cap: 150, cost_cap_usd: '3.00', users: [] } });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });
   mockApi.plaidReset.mockResolvedValue({ data: { message: 'cleared' } });
   mockApi.plaidRebuildHistory.mockResolvedValue({ data: { message: 'queued' } });

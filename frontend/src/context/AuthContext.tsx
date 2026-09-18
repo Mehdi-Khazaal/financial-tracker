@@ -6,7 +6,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (identifier: string, password: string) => Promise<void>;
-  signup: (email: string, username: string, password: string) => Promise<void>;
+  signup: (email: string, username: string, password: string, inviteCode?: string) => Promise<void>;
+  /** Re-read the session after something server-side changed (e.g. verification). */
+  refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -33,10 +35,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(me.data);
   };
 
-  const signup = async (email: string, username: string, password: string) => {
-    await apiSignup(email, username, password);
+  const signup = async (email: string, username: string, password: string, inviteCode?: string) => {
+    await apiSignup(email, username, password, inviteCode);
     const me = await getMe();
     setUser(me.data);
+  };
+
+  const refresh = async () => {
+    try {
+      const me = await getMe();
+      setUser(me.data);
+    } catch {
+      /* keep the current session; a transient failure is not a sign-out */
+    }
   };
 
   const logout = async () => {
@@ -45,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

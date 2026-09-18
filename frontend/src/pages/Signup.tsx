@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getSignupPolicy } from '../utils/api';
 
 const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,6 +10,18 @@ const Signup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  // Read without a session so the page can say up front whether sign-ups are
+  // open and whether an invite code is needed, instead of failing on submit.
+  const [policy, setPolicy] = useState<{ open: boolean; invite_required: boolean } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSignupPolicy()
+      .then(res => { if (!cancelled) setPolicy(res.data); })
+      .catch(() => { if (!cancelled) setPolicy({ open: true, invite_required: false }); });
+    return () => { cancelled = true; };
+  }, []);
   const { signup } = useAuth();
   const navigate = useNavigate();
 
@@ -17,7 +30,7 @@ const Signup: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await signup(email, username, password);
+      await signup(email, username, password, policy?.invite_required ? inviteCode : undefined);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Signup failed. Try again.');
@@ -253,10 +266,34 @@ const Signup: React.FC = () => {
               </div>
             </div>
 
+            {policy?.invite_required && (
+              <div>
+                <label style={labelStyle} htmlFor="signup-invite">Invite code</label>
+                <input
+                  id="signup-invite"
+                  type="text"
+                  value={inviteCode}
+                  onChange={e => setInviteCode(e.target.value)}
+                  placeholder="From your invitation"
+                  required
+                  autoComplete="off"
+                  style={inputStyle}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                />
+              </div>
+            )}
+
+            {policy && !policy.open && (
+              <p role="status" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--muted)', lineHeight: 1.6 }}>
+                Sign-ups are closed for now. If you already have an account you can still sign in.
+              </p>
+            )}
+
             {/* Submit */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (policy !== null && !policy.open)}
               style={{
                 width: '100%',
                 padding: '15px',
@@ -307,6 +344,20 @@ const Signup: React.FC = () => {
           animation: 'authReveal 0.65s cubic-bezier(.32,1,.4,1) both',
           animationDelay: '0.32s',
         }}>
+          <p style={{
+            textAlign: 'center',
+            marginTop: '1.25rem',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            color: 'var(--dim)',
+            lineHeight: 1.7,
+          }}>
+            By creating an account you agree to the{' '}
+            <Link to="/terms" style={{ color: 'var(--muted)', textDecoration: 'underline' }}>Terms</Link>
+            {' '}and{' '}
+            <Link to="/privacy" style={{ color: 'var(--muted)', textDecoration: 'underline' }}>Privacy Policy</Link>.
+          </p>
+
           <p style={{
             textAlign: 'center',
             marginTop: '1.5rem',

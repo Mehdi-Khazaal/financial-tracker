@@ -6,7 +6,8 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 3 complete → Public-launch track (§5 of the brief) next, then Phase 4.**
+- Current phase: **Public-launch track complete → Phase 4 (features) next, starting with Budgets.**
+- Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
   secrets printed); preserve ETag/idempotency/offline queue/privacy mode/⌘K/
@@ -229,5 +230,35 @@ The first Playwright run after wiring migrations at boot failed to start the bac
 - Deleting the legacy boot repairs (after production is stamped).
 - Postgres `EXPLAIN`-driven index work (Phase 6, needs a preview DB).
 
+### Next step (done — see the public-launch track)
+
+---
+
+## Public-launch track (§5 of the brief) (2026-09-17) ✅
+
+Commits: `d091d07` chain fix + isolation proof for jobs · launch controls (backend) · launch surfaces (frontend, this commit).
+
+### What changed
+- **Tenant isolation beyond HTTP** (`tests/test_tenant_isolation_jobs.py`): two users with a full ledger each; cron posting touches only the due user's bill and balance; snapshot refresh writes per user; the job dispatcher handles each payload with only its own user's rows; `send_push_to_user` reaches only the addressed user's devices; cron alerts go only to the user they concern; every assistant read tool called as user B never sees user A's markers; the live context and system prompt are per user. Together with `test_tenant_isolation.py` (50 route cases) this is the zero-cross-visibility proof.
+- **Migration chain completed and pinned** (revisions `000016` assistant tables, `000018` `users.timezone`; `tests/test_schema_chain.py` fails if the ORM ever gains a table or column the chain lacks). Found because the fresh e2e database could not sign a user up.
+- **Signup protection**: `SIGNUPS_ENABLED=false` closes registration (403); `SIGNUP_INVITE_CODE` requires an invite code in the signup body (constant-time compare). `GET /auth/signup-policy` is public so the sign-up page explains itself: closed notice + disabled button, or an invite field.
+- **Email verification gate** (`REQUIRE_EMAIL_VERIFICATION=true`, default off): unverified users get `403 {code: email_unverified}` on data routes; `/auth/*`, `/account/delete` and health stay open. `POST /auth/resend-verification` (3/hour). Frontend: the API client dispatches `fintrack:verification-required`; `VerificationGate` renders a full-screen Ledger-style card with resend, "check again", and sign out; it dismisses itself once the session says verified.
+- **Assistant cost controls**: `assistant_usage_daily` (revision `000019`) records turns and estimated cost per user per *their* calendar day; `ASSISTANT_DAILY_TURN_CAP` (150) and `ASSISTANT_DAILY_COST_CAP_USD` (3.00) are enforced **before** the model is called (429, 0 disables); every turn is recorded whatever the reply. `GET /admin/usage?days=` gives per-user turns/cost; Settings → Admin shows it as a table with the caps.
+- **Account lifecycle** (`routers/account.py`): `GET /account/export` (every table as JSON, money as decimal strings, versioned) and `GET /account/export/transactions.csv` (spreadsheet-safe: formula-leading cells are quoted); `POST /account/delete` needs the password and the literal `DELETE`, removes Items at Plaid first (best effort, counted and reported), clears lockout counters, deletes the user (every table cascades — verified in tests: accounts, transactions, push subscriptions, Plaid items), clears cookies. Rate-limited. Settings → Account has "Your data" (Export JSON / CSV) and a guarded "Delete account" form; on success it signs out and lands on `/`.
+- **Legal pages** `/privacy` and `/terms` (public, draft-bannered, Ledger typography, one column at 390 px) linked from the signup form, the landing footer and Settings → Account. Content names the real processors (Plaid, Anthropic, Neon, Render, Vercel, Resend, Sentry, CoinGecko/Yahoo) and the real controls (export, disconnect, delete, forget memory).
+- **Landing page** at `/` for a signed-out visitor (`HomeRoute` renders `Landing` or `Dashboard`; no more bounce to `/login`): hero question in DM Serif, an example hero card labelled as an example, four feature blocks (Ledger, Banks, Recurring, Fin), a trust row, footer. No images, no new dependencies; lazy-loaded so the app bundle is untouched.
+- **`PRODUCT.md`** now describes the two kinds of user, the multi-user rules, and principle 6 ("Nothing happens without you").
+
+### Checks
+- Backend: **748 passed**. Migration chain round-tripped on Postgres up to `000019`.
+- Frontend: **999 Vitest tests** (52 files), typecheck and lint clean; build, bundle budget and Playwright run at the end of this commit (see next entry if anything changed).
+
+### Decisions and reasoning
+1. **Onboarding's budget step is deferred to Phase 4.1**, because Budgets do not exist yet; the onboarding flow will be built together with it so the step is real rather than a placeholder. The rest of the brief's onboarding (create first account or connect a bank, default categories) already exists at signup and on the empty Overview.
+2. **Deletion does not wait for Plaid.** A failed `/item/remove` is logged, counted and shown to the user ("could not be removed at Plaid; it will expire on its own") rather than blocking deletion — a person leaving must be able to leave.
+3. **Caps are per user-local day** so the reset happens at their midnight, consistent with every other date rule in the backend.
+4. **Verification is opt-in per deployment.** The owner's own account may be unverified today (the flag exists but was never enforced); turning enforcement on is a manual step listed in the final checklist, after verifying the operator's address.
+5. **Invite code over CAPTCHA**: one env var, no third party, and exactly right for a private beta.
+
 ### Next step
-**Public-launch track (§5)**: tenant-isolation proof extended to jobs, cron, push and assistant tools; onboarding flow; data export (JSON + CSV) and self-serve deletion (with Plaid `/item/remove` and push cleanup); draft Privacy/Terms pages; per-user assistant caps + admin usage view; landing page at `/` for logged-out visitors; `PRODUCT.md` update. Then Phase 4 features in order.
+**Phase 4.1 — Budgets**: model + migration (`budgets`: user, category, monthly amount, rollover flag, effective month), `/budgets` CRUD, a `/budgets/progress?month=` read that returns spent/remaining per budget from the ledger, over-budget push (once per budget per month, via the nightly cron), Overview and Analytics progress surfaces, onboarding budget step, assistant read tool. Then rules, alerts, search, CSV import, splits, 2FA, assistant upgrades.

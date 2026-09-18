@@ -41,6 +41,9 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+/** Dispatched on `window` when a request is refused because the email is unverified. */
+export const VERIFICATION_REQUIRED_EVENT = 'fintrack:verification-required';
+
 // ── 401 → try refresh → retry once ───────────────────────────────────────────
 let _refreshing: Promise<unknown> | null = null;
 
@@ -54,17 +57,24 @@ api.interceptors.response.use(
   },
   async err => {
     const original = err.config;
+    // The server refuses data routes for an unverified address when enforcement
+    // is on. Tell the app once so it can show the "check your inbox" gate.
+    if (err.response?.status === 403 && err.response?.data?.detail?.code === 'email_unverified') {
+      window.dispatchEvent(new CustomEvent(VERIFICATION_REQUIRED_EVENT));
+    }
     if (err.response?.status === 401 && original && !original._retried && original.url !== '/auth/refresh') {
       original._retried = true;
       if (!_refreshing) {
         _refreshing = api.post('/auth/refresh').finally(() => { _refreshing = null; });
       }
-      const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email'];
+      const PUBLIC = ['/login', '/signup', '/forgot-password', '/reset-password', '/verify-email', '/privacy', '/terms'];
       try {
         await _refreshing;
         return api(original);
       } catch {
-        if (!PUBLIC.some(p => window.location.pathname.startsWith(p))) {
+        const path = window.location.pathname;
+        // `/` is the public landing page for a signed-out visitor; leave them on it.
+        if (path !== '/' && !PUBLIC.some(p => path.startsWith(p))) {
           window.location.href = '/login';
         }
       }
@@ -76,8 +86,11 @@ api.interceptors.response.use(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (identifier: string, password: string) =>
   api.post('/auth/login', { identifier, password });
-export const signup = (email: string, username: string, password: string) =>
-  api.post('/auth/signup', { email, username, password });
+export const signup = (email: string, username: string, password: string, inviteCode?: string) =>
+  api.post('/auth/signup', { email, username, password, invite_code: inviteCode || undefined });
+/** Whether new accounts are being accepted, and whether an invite code is needed. */
+export const getSignupPolicy = () => api.get<{ open: boolean; invite_required: boolean }>('/auth/signup-policy');
+export const resendVerification = () => api.post<{ message: string }>('/auth/resend-verification');
 export const getMe    = () => api.get('/auth/me');
 export const logout   = () => api.post('/auth/logout');
 export const changePassword = (current_password: string, new_password: string) =>
@@ -86,6 +99,18 @@ export const changePassword = (current_password: string, new_password: string) =
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminGetUsers = () => api.get('/admin/users');
 export const adminResetPassword = (userId: number) => api.post(`/admin/users/${userId}/reset-password`);
+export interface AdminUsageRow { user_id: number; username: string; email: string; turns: number; cost_usd: string; last_active: string | null; }
+export interface AdminUsageSummary { days: number; turn_cap: number; cost_cap_usd: string; users: AdminUsageRow[]; }
+export const adminGetUsage = (days = 30) => api.get<AdminUsageSummary>('/admin/usage', { params: { days } });
+
+// ── Account lifecycle ─────────────────────────────────────────────────────────
+// Downloads come back as blobs so the browser saves a file rather than
+// rendering JSON; the server sets the filename via Content-Disposition.
+export const exportAccountJson = () => api.get<Blob>('/account/export', { responseType: 'blob' });
+export const exportTransactionsCsv = () => api.get<Blob>('/account/export/transactions.csv', { responseType: 'blob' });
+// Named to keep clear of `deleteAccount(id)` below, which removes one ledger account.
+export const deleteMyAccount = (password: string, confirmation: string) =>
+  api.post<{ deleted: boolean; bank_connections_removed: number; bank_connections_unremoved: number }>('/account/delete', { password, confirmation });
 
 export const forgotPassword = (email: string) =>
   api.post('/auth/forgot-password', { email });

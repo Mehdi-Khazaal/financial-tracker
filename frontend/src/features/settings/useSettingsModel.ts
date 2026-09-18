@@ -7,6 +7,7 @@ import { usePlaidConnections, type UsePlaidConnections } from './hooks/usePlaidC
 import { usePushPreference, type UsePushPreference } from './hooks/usePushPreference';
 import { useAutomationPreference, type UseAutomationPreference } from './hooks/useAutomationPreference';
 import { useAdminUsers, type UseAdminUsers } from './hooks/useAdminUsers';
+import { useAdminUsage, type UseAdminUsage } from './hooks/useAdminUsage';
 import {
   DEFAULT_SECTION,
   SECTION_DEFINITIONS,
@@ -45,6 +46,7 @@ export interface SettingsModel {
   push: UsePushPreference;
   automation: UseAutomationPreference;
   admin: UseAdminUsers;
+  usage: UseAdminUsage;
 }
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -60,6 +62,7 @@ export function useSettingsModel(): SettingsModel {
   const push = usePushPreference();
   const automation = useAutomationPreference();
   const admin = useAdminUsers(isAdmin);
+  const usage = useAdminUsage(isAdmin);
 
   // Same convention every other route uses: apply the arriving parameter once,
   // then strip it, so the URL never lingers describing a section the user has
@@ -119,5 +122,6 @@ export function useSettingsModel(): SettingsModel {
     push,
     automation,
     admin,
+    usage,
   };
 }

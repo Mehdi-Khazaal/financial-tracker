@@ -66,7 +66,7 @@ const Settings: React.FC = () => {
         // Belt and braces: the rail never offers this to a non-admin and
         // `resolvedSection` cannot return it, but the switch should not be the
         // only thing standing between a non-admin and admin markup.
-        return model.isAdmin ? <AdminSection admin={model.admin} /> : null;
+        return model.isAdmin ? <AdminSection admin={model.admin} usage={model.usage} /> : null;
       default:
         return null;
     }
