@@ -17,8 +17,9 @@ import csv
 import io
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -168,15 +169,36 @@ def export_json(request: Request, db: Session = Depends(get_db), current_user: U
 
 @router.get("/export/transactions.csv")
 @limiter.limit("10/hour")
-def export_transactions_csv(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def export_transactions_csv(
+    request: Request,
+    account_id: Optional[int] = Query(None),
+    category_id: Optional[int] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    search: Optional[str] = Query(None, max_length=100),
+    uncategorized: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every transaction, or the subset the same filters as `GET /transactions` select."""
+    from routers.transactions import search_clause
+
     accounts = {a.id: a.name for a in db.query(Account).filter(Account.user_id == current_user.id)}
     categories = {c.id: c.name for c in db.query(Category).filter(Category.user_id == current_user.id)}
-    rows = (
-        db.query(Transaction)
-        .filter(Transaction.user_id == current_user.id)
-        .order_by(Transaction.transaction_date, Transaction.id)
-        .all()
-    )
+    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    if account_id:
+        query = query.filter(Transaction.account_id == account_id)
+    if category_id:
+        query = query.filter(Transaction.category_id == category_id)
+    if date_from:
+        query = query.filter(Transaction.transaction_date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.transaction_date <= date_to)
+    if search:
+        query = query.filter(search_clause(search))
+    if uncategorized:
+        query = query.filter(Transaction.category_id.is_(None))
+    rows = query.order_by(Transaction.transaction_date, Transaction.id).all()
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(["date", "account", "category", "amount", "description", "merchant", "source"])

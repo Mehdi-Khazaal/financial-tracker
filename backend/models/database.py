@@ -61,6 +61,19 @@ def engine_options(url: str) -> dict:
 
 
 engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
+
+
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite ignores foreign keys unless asked, per connection. Asking makes a
+    # local or e2e database cascade and null-out exactly as Postgres does, so
+    # deleting an account or a category behaves the same everywhere.
+    from sqlalchemy import event as _event
+
+    @_event.listens_for(engine, "connect")
+    def _sqlite_foreign_keys(dbapi_connection, _record):  # pragma: no cover - exercised by the e2e backend
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -182,6 +195,8 @@ class Transaction(Base):
         Index("ix_transactions_user_date", "user_id", "transaction_date"),
         Index("ix_transactions_user_merchant_key", "user_id", "merchant_key"),
         Index("ix_transactions_user_merchant_entity", "user_id", "plaid_merchant_entity_id"),
+        # One CSV import is one batch, so it can be undone as a unit.
+        Index("ix_transactions_user_import_batch", "user_id", "import_batch_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -192,6 +207,7 @@ class Transaction(Base):
     description = Column(Text)
     plaid_tx_id = Column(String(200), nullable=True, unique=True)
     transaction_date = Column(Date, nullable=False)
+    import_batch_id = Column(String(32), nullable=True)
 
     # ── Merchant identity ────────────────────────────────────────────────────
     # Plaid's stable merchant identifier. When present this *is* the merchant;

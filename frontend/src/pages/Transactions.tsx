@@ -20,6 +20,7 @@ import BottomSheet from '../components/BottomSheet';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
+import ImportSheet from '../components/modals/ImportSheet';
 import TransactionCard from '../components/transactions/TransactionCard';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
@@ -235,6 +236,7 @@ const Transactions: React.FC = () => {
   const [showTx, setShowTx]             = useState(false);
   const [txType, setTxType]             = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showImport, setShowImport]     = useState(false);
   const [editTx, setEditTx]             = useState<Transaction | null>(null);
 
   const [selectedMonth, setSelectedMonth]   = useState('');
@@ -327,6 +329,7 @@ const Transactions: React.FC = () => {
 
     const query = params.get(DEEP_LINK_KEYS.query);
     if (query) setSearchQuery(query);
+    if (params.get(DEEP_LINK_KEYS.importCsv)) setShowImport(true);
 
     const account = parseIdParam(params.get(DEEP_LINK_KEYS.account));
     const category = parseIdParam(params.get(DEEP_LINK_KEYS.category));
@@ -786,6 +789,21 @@ const Transactions: React.FC = () => {
                       <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>Between accounts</p>
                     </div>
                   </button>
+                  <button
+                    onClick={() => { setShowImport(true); setShowAddMenu(false); }}
+                    className="menu-item"
+                    role="menuitem"
+                  >
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }}>
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--fg)' }}>Import CSV</p>
+                      <p className="text-[10px] leading-none mt-0.5" style={{ color: 'var(--dim)' }}>From a bank export</p>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
@@ -1238,6 +1256,7 @@ const Transactions: React.FC = () => {
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
+      <ImportSheet isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { void load(); }} accounts={accounts} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
       <CategoryDetailModal
         cat={detailCat}

@@ -53,6 +53,8 @@ export const DEEP_LINK_KEYS = {
   rulePattern: 'pattern',
   /** Free-text search applied to the transaction timeline. */
   query: 'q',
+  /** Open the CSV import sheet on the Transactions page. */
+  importCsv: 'import',
 } as const;
 
 /** The timeline, filtered to a single account. */
@@ -67,6 +69,10 @@ export const linkToCategoryTransactions = (categoryId: number): string =>
 /** The timeline filtered to transactions matching `query` (⌘K search). */
 export const linkToTransactionSearch = (query: string): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.query}=${encodeURIComponent(query)}`;
+
+/** The Transactions page with the CSV import sheet open. */
+export const linkToImport = (): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.importCsv}=1`;
 
 export const linkToReview = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.review}`;

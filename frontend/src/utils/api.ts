@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { RuleDraft } from '../types';
+import type { ImportRequest, RuleDraft } from '../types';
 
 const api = axios.create({
   // Keep browser authentication same-origin. Production API traffic is
@@ -415,3 +415,8 @@ export const deleteRule = (id: number) => api.delete(`/rules/${id}`);
 export const previewRule = (data: RuleDraft) => api.post('/rules/preview', data);
 /** File past matches under the rule's category; never touches hand-set categories. */
 export const applyRule = (id: number) => api.post(`/rules/${id}/apply`);
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+export const previewImport = (data: ImportRequest) => api.post('/transactions/import/preview', data);
+export const importTransactions = (data: ImportRequest) => api.post('/transactions/import', data);
+export const undoImport = (batchId: string) => api.delete(`/transactions/import/${batchId}`);

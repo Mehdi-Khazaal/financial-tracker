@@ -151,6 +151,23 @@ class LedgerService:
             self._session.rollback()
             raise
 
+    def stage_delete(self, user_id: int, transaction: Transaction) -> None:
+        """Remove a row and reverse its balance effect — without committing.
+
+        The batch form of `delete_transaction`: an import undo removes every
+        row of the batch under one commit, so a failure part-way leaves the
+        ledger exactly as it was.
+        """
+        if transaction.user_id != user_id:
+            raise LedgerResourceNotFound("Transaction")
+        account = self._get_accounts(user_id, [transaction.account_id])[transaction.account_id]
+        self._adjust_balance(account, -self._as_decimal(transaction.amount))
+        self._session.delete(transaction)
+        # Each delta is a SQL expression on the row; flushing now means the
+        # next row in the batch compounds on the stored balance instead of
+        # replacing an unflushed expression on the same account object.
+        self._session.flush()
+
     def _get_transaction(self, user_id: int, transaction_id: int) -> Transaction:
         transaction = (
             self._session.query(Transaction)

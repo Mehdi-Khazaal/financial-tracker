@@ -305,3 +305,42 @@ export interface RulePreview {
   protected: number;
   sample: RulePreviewRow[];
 }
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+export interface ImportRequest {
+  account_id: number;
+  /** The file's text; sent inside JSON so the write goes through the usual queue. */
+  text: string;
+  mapping?: Partial<Record<'date' | 'amount' | 'debit' | 'credit' | 'description' | 'category', string | null>>;
+  date_format: 'auto' | 'ymd' | 'mdy' | 'dmy';
+  flip_sign: boolean;
+  include_duplicates: boolean;
+}
+
+export interface ImportPreviewRow {
+  row_number: number;
+  date: string | null;
+  amount: string | null;
+  description: string;
+  category_name: string;
+  category_id: number | null;
+  errors: string[];
+  duplicate: boolean;
+}
+
+export interface ImportPreview {
+  headers: string[];
+  mapping: Record<'date' | 'amount' | 'debit' | 'credit' | 'description' | 'category', string | null>;
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicates: number;
+  sample: ImportPreviewRow[];
+}
+
+export interface ImportResult {
+  batch_id: string;
+  created: number;
+  skipped_duplicates: number;
+  skipped_invalid: number;
+}

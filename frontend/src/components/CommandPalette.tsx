@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TabContext } from '../context/TabContext';
 import { useUI, requestQuickAction, QuickAction } from '../context/UIContext';
-import { linkToTransactionSearch } from '../lib/deepLinks';
+import { linkToImport, linkToTransactionSearch } from '../lib/deepLinks';
 
 type Cmd = {
   id: string;
@@ -83,6 +83,8 @@ const CommandPalette: React.FC = () => {
       icon: <I d="M4 7h12m0 0l-3-3m3 3l-3 3M16 13H4m0 0l3 3m-3-3l3-3" />, run: () => quick('transfer') },
     { id: 'qa-budget', label: 'Set a budget', group: 'Quick actions', keywords: 'budgets allowance limit category monthly',
       icon: <I d="M3 5h14v10H3zM3 9h14M7 13h3" />, run: () => quick('budget') },
+    { id: 'qa-import', label: 'Import transactions from CSV', group: 'Quick actions', keywords: 'import csv upload bank export file',
+      icon: <I d="M10 13V4m0 0L7 7m3-3l3 3M4 16h12" />, run: () => go(linkToImport(), 'list') },
 
     { id: 'nav-dash', label: 'Dashboard', group: 'Navigate', keywords: 'home overview net worth',
       icon: <I d="M3 10l7-6 7 6v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1v-7z" />, run: () => go('/', 'overview') },

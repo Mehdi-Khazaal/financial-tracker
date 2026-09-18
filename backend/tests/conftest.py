@@ -37,6 +37,7 @@ from routers import (
     auth,
     budgets,
     rules,
+    transaction_import,
     categories,
     cron,
     health,
@@ -74,6 +75,11 @@ def _fast_sqlite(dbapi_connection, _record):
     cursor.execute("PRAGMA synchronous=OFF")
     cursor.execute("PRAGMA journal_mode=MEMORY")
     cursor.execute("PRAGMA temp_store=MEMORY")
+    # Enforce foreign keys the way Postgres does. Without this, ON DELETE
+    # CASCADE / SET NULL silently did nothing here unless an earlier test had
+    # switched the pragma on for the pooled connection, so account deletion
+    # passed or failed depending on test order.
+    cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 
@@ -119,6 +125,7 @@ app.include_router(health.router)
 app.include_router(account.router)
 app.include_router(budgets.router)
 app.include_router(rules.router)
+app.include_router(transaction_import.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 
