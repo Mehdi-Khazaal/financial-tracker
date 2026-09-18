@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -15,11 +16,11 @@ import { CONTEXT_TABS, hasContextTabs } from './routeLayout';
 
 let mockPathname = '/';
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: mockPathname }),
 }));
 
-jest.mock('../Navigation', () => () => null);
+vi.mock('../Navigation', () => ({ default: () => null }));
 
 describe('AppShell mobile bottom reserve', () => {
   const renderShell = (path: string) => {

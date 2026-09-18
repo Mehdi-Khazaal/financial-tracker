@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -5,10 +6,10 @@ import type { SavingsGoal } from '../../../types';
 import { describeGoalProgress } from '../calculations/goals';
 import GoalCard from './GoalCard';
 
-jest.mock('react-router-dom', () => {
-  const react = jest.requireActual('react');
+vi.mock('react-router-dom', async () => {
+  const react = await vi.importActual<typeof import('react')>('react');
   return {
-    Link: ({ to, children, ...rest }: { to: string; children: unknown }) =>
+    Link: ({ to, children, ...rest }: { to: string; children: import('react').ReactNode }) =>
       react.createElement('a', { href: to, ...rest }, children),
   };
 });
@@ -44,9 +45,9 @@ const renderGoal = (
   allocationAccounts: { id: number; name: string; amount: number }[] = [],
 ) => {
   const progress = describeGoalProgress(g, { today: TODAY, averageMonthlySaved, averageMonths });
-  const onManageAllocations = jest.fn();
-  const onSpend = jest.fn();
-  const onDelete = jest.fn();
+  const onManageAllocations = vi.fn();
+  const onSpend = vi.fn();
+  const onDelete = vi.fn();
   const view = render(
     <GoalCard
       progress={progress}

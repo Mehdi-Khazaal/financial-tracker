@@ -1,12 +1,17 @@
 import api from './api';
 
-const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY ?? '';
+// Injected at build time by Vite. Was REACT_APP_VAPID_PUBLIC_KEY under CRA.
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '';
 
-function urlBase64ToUint8Array(base64: string): Uint8Array {
+function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
   const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64);
-  return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)));
+  // Backed by a plain ArrayBuffer so it satisfies `BufferSource` for
+  // `pushManager.subscribe` under TypeScript 5.9's stricter typed arrays.
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
 }
 
 export async function subscribeToPush(): Promise<boolean> {

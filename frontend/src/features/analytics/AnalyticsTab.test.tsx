@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -9,9 +10,9 @@ import AnalyticsTab from './AnalyticsTab';
 // CRA's Jest resolver cannot follow, so importing it here fails to resolve.
 // AnalyticsTab only needs `useNavigate`, so stubbing the module keeps the
 // smoke tests running without touching the shared Jest config.
-// The factory must not close over anything outside itself — `jest.mock` is
+// The factory must not close over anything outside itself — `vi.mock` is
 // hoisted above the imports, so an outer const would still be in its TDZ.
-jest.mock('react-router-dom', () => ({ useNavigate: () => () => {} }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => () => {} }));
 
 /**
  * Mount smoke tests.

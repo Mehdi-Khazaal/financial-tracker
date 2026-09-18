@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -36,8 +37,8 @@ const tx = (amount: number, categoryId: number, description = 'Entry'): Transact
 const month = [tx(-80, groceries.id), tx(-20, groceries.id), tx(-1400, rent.id)];
 
 const renderBoard = (overrides: Partial<React.ComponentProps<typeof CategoryBoard>> = {}) => {
-  const onDrop = jest.fn(() => jest.fn());
-  const onOpenCategory = jest.fn();
+  const onDrop = vi.fn(() => vi.fn());
+  const onOpenCategory = vi.fn();
   const props: React.ComponentProps<typeof CategoryBoard> = {
     layout: buildBoard(categories, month, ctx),
     maxPreview: 3,
@@ -127,7 +128,7 @@ describe('empty categories', () => {
 
 describe('drag and drop survives the redesign', () => {
   it('still drops onto an active column', () => {
-    const onDrop = jest.fn(() => jest.fn());
+    const onDrop = vi.fn(() => vi.fn());
     renderBoard({ onDrop });
 
     const column = screen.getByRole('button', { name: /Rent: .* Open details/ }).closest('div');
@@ -137,7 +138,7 @@ describe('drag and drop survives the redesign', () => {
   });
 
   it('still drops onto a collapsed empty category once revealed', () => {
-    const onDrop = jest.fn(() => jest.fn());
+    const onDrop = vi.fn(() => vi.fn());
     renderBoard({ onDrop, draggingTxId: 5 });
 
     fireEvent.drop(screen.getByRole('button', { name: 'Zoo Trips' }));

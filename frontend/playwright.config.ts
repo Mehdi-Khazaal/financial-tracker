@@ -11,7 +11,11 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Servers are spun up via `webServer`:
  *   - Backend: FastAPI on :8000 with a scratch SQLite DB.
- *   - Frontend: production build served on :3000 by `serve`.
+ *   - Frontend: the *production build* served by `vite preview` on :3000,
+ *     with `/api` proxied to the backend exactly as the dev server does.
+ *     Testing the real bundle is the point — it is what Vercel ships — and
+ *     preview starts in a second where the old dev server took a minute.
+ *     Run `npm run build` first (CI does; locally `npm run e2e` does).
  * Both are torn down when the run finishes.
  */
 export default defineConfig({
@@ -50,9 +54,9 @@ export default defineConfig({
       },
     },
     {
-      command: 'npx cross-env BROWSER=none npm start',
+      command: 'npx vite preview --port 3000 --strictPort',
       port: 3000,
-      timeout: 120_000,
+      timeout: 60_000,
       reuseExistingServer: !process.env.CI,
     },
   ],

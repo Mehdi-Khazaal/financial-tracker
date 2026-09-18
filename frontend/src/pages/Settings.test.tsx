@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -20,18 +21,18 @@ import '@testing-library/jest-dom';
 
 const mockUser = { id: 1, username: 'khaza', email: 'khaza@example.com', is_admin: false };
 let mockCurrentUser: typeof mockUser & { is_admin: boolean } = { ...mockUser };
-const mockLogout = jest.fn();
+const mockLogout = vi.fn();
 
-jest.mock('../context/AuthContext', () => ({
+vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ user: mockCurrentUser, logout: mockLogout }),
 }));
 
-const mockConfirm = jest.fn().mockResolvedValue(true);
-const mockToastSuccess = jest.fn();
-const mockToastError = jest.fn();
-const mockToastInfo = jest.fn();
+const mockConfirm = vi.fn().mockResolvedValue(true);
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+const mockToastInfo = vi.fn();
 
-jest.mock('../context/ToastContext', () => ({
+vi.mock('../context/ToastContext', () => ({
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -41,73 +42,76 @@ jest.mock('../context/ToastContext', () => ({
 }));
 
 let mockSearchParams = new URLSearchParams();
-const mockSetSearchParams = jest.fn();
+const mockSetSearchParams = vi.fn();
 
-jest.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/settings' }),
   useSearchParams: () => [mockSearchParams, mockSetSearchParams],
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }));
 
-jest.mock('../components/Navigation', () => () => null);
+vi.mock('../components/Navigation', () => ({ default: () => null }));
 
 // Plaid Link pulls a CDN script; the page lazy-mounts it for that reason, and
 // it has no place in a unit test.
 // Typed to receive the config so tests can drive `onSuccess`/`onExit` exactly
 // as react-plaid-link would, which is the only way to exercise the connect
 // versus update success branch.
-const mockUsePlaidLink = jest.fn((_config?: any) => ({ open: jest.fn(), ready: true }));
-jest.mock('react-plaid-link', () => ({
+// `vi.mock` factories are hoisted above every import, so anything they
+// reference must be hoisted too — otherwise the mocked module is evaluated
+// before these constants exist.
+const mockUsePlaidLink = vi.hoisted(() => vi.fn((_config?: any) => ({ open: vi.fn(), ready: true })));
+vi.mock('react-plaid-link', () => ({
   usePlaidLink: (...args: unknown[]) => mockUsePlaidLink(...(args as [])),
 }));
 
-const mockApi = {
-  getCategories: jest.fn(),
-  createCategory: jest.fn(),
-  updateCategory: jest.fn(),
-  deleteCategory: jest.fn(),
-  changePassword: jest.fn(),
-  adminGetUsers: jest.fn(),
-  adminResetPassword: jest.fn(),
-  getPreferences: jest.fn(),
-  updatePreferences: jest.fn(),
-  plaidCreateLinkToken: jest.fn(),
-  plaidCreateUpdateLinkToken: jest.fn(),
-  plaidExchangeToken: jest.fn(),
-  plaidGetItems: jest.fn(),
-  plaidDeleteItem: jest.fn(),
-  plaidRemoveItemLocally: jest.fn(),
-  plaidSyncAll: jest.fn(),
-  plaidReset: jest.fn(),
-  plaidRebuildHistory: jest.fn(),
-  plaidSyncHealth: jest.fn(),
-  plaidSyncStatus: jest.fn(),
-};
-jest.mock('../utils/api', () => new Proxy({}, {
-  get: (_t, prop: string) => {
-    if (prop === '__esModule') return true;
-    if (prop === 'default') return { post: jest.fn(), get: jest.fn() };
-    return (mockApi as Record<string, jest.Mock>)[prop];
-  },
+const mockApi = vi.hoisted(() => ({
+  getCategories: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategory: vi.fn(),
+  deleteCategory: vi.fn(),
+  changePassword: vi.fn(),
+  adminGetUsers: vi.fn(),
+  adminResetPassword: vi.fn(),
+  getPreferences: vi.fn(),
+  updatePreferences: vi.fn(),
+  plaidCreateLinkToken: vi.fn(),
+  plaidCreateUpdateLinkToken: vi.fn(),
+  plaidExchangeToken: vi.fn(),
+  plaidGetItems: vi.fn(),
+  plaidDeleteItem: vi.fn(),
+  plaidRemoveItemLocally: vi.fn(),
+  plaidSyncAll: vi.fn(),
+  plaidReset: vi.fn(),
+  plaidRebuildHistory: vi.fn(),
+  plaidSyncHealth: vi.fn(),
+  plaidSyncStatus: vi.fn(),
+}));
+// Vitest builds the mocked namespace from the factory's *own keys*, so the
+// Jest-era Proxy (which answered any name lazily) exposed nothing. A plain
+// object spread from the hoisted table gives every section the same mock
+// instances the tests configure below.
+vi.mock('../utils/api', () => ({
+  __esModule: true,
+  default: { post: vi.fn(), get: vi.fn() },
+  ...mockApi,
 }));
 
-const mockPush = {
-  subscribeToPush: jest.fn(),
-  unsubscribeFromPush: jest.fn(),
-  isPushSupported: jest.fn(),
-  hasPushSubscription: jest.fn(),
-};
-jest.mock('../utils/push', () => ({
+const mockPush = vi.hoisted(() => ({
+  subscribeToPush: vi.fn(),
+  unsubscribeFromPush: vi.fn(),
+  isPushSupported: vi.fn(),
+  hasPushSubscription: vi.fn(),
+}));
+vi.mock('../utils/push', () => ({
   subscribeToPush: (...a: unknown[]) => mockPush.subscribeToPush(...a),
   unsubscribeFromPush: (...a: unknown[]) => mockPush.unsubscribeFromPush(...a),
   isPushSupported: () => mockPush.isPushSupported(),
   hasPushSubscription: () => mockPush.hasPushSubscription(),
 }));
 
-/* eslint-disable import/first */
 import Settings from './Settings';
 import { RESET_CONFIRMATION } from '../features/settings/hooks/usePlaidConnections';
-/* eslint-enable import/first */
 
 // --- Harness -----------------------------------------------------------------
 
@@ -121,11 +125,11 @@ const setViewport = (mode: Viewport) => {
       matches: mode === 'desktop' && query.includes('min-width: 1024px'),
       media: query,
       onchange: null,
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }),
   });
 };
@@ -197,11 +201,11 @@ const OTHER_USER = {
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   mockCurrentUser = { ...mockUser };
   mockSearchParams = new URLSearchParams();
   mockConfirm.mockResolvedValue(true);
-  mockUsePlaidLink.mockReturnValue({ open: jest.fn(), ready: true });
+  mockUsePlaidLink.mockReturnValue({ open: vi.fn(), ready: true });
   mockApi.getCategories.mockResolvedValue({
     data: [SYSTEM_CATEGORY, CUSTOM_EXPENSE, CUSTOM_CATEGORY, SALARY],
   });
@@ -1085,7 +1089,7 @@ describe('Settings reset', () => {
   const openConnections = () => openSettings('Connections');
 
   it('uses the app confirm, not a blocking browser dialog', async () => {
-    const nativeConfirm = jest.spyOn(window, 'confirm');
+    const nativeConfirm = vi.spyOn(window, 'confirm');
     await openConnections();
 
     fireEvent.click(await screen.findByRole('button', { name: /reset & start fresh/i }));
@@ -1450,19 +1454,19 @@ describe('Settings sync now', () => {
   /** Advance past one poll interval and let that poll's promises resolve. */
   const tick = async () => {
     await act(async () => {
-      jest.advanceTimersByTime(4_000);
+      vi.advanceTimersByTime(4_000);
     });
     await flush();
   };
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('starts idle', async () => {
@@ -2073,18 +2077,18 @@ describe('Settings rebuild bank history', () => {
   };
 
   const tick = async () => {
-    await act(async () => { jest.advanceTimersByTime(4_000); });
+    await act(async () => { vi.advanceTimersByTime(4_000); });
     await flush();
   };
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('is offered when there are banks to rebuild from', async () => {
@@ -2186,11 +2190,11 @@ describe('Settings rebuild bank history', () => {
     await pressRebuild();
 
     // Past a sync's 36s deadline: a rebuild is still legitimately running.
-    await act(async () => { jest.advanceTimersByTime(40_000); });
+    await act(async () => { vi.advanceTimersByTime(40_000); });
     await flush();
     expect(screen.queryByText(/taking longer than expected/i)).not.toBeInTheDocument();
 
-    await act(async () => { jest.advanceTimersByTime(150_000); });
+    await act(async () => { vi.advanceTimersByTime(150_000); });
     await flush();
     const message = await screen.findByText(/taking longer than expected/i);
     expect(message).toHaveTextContent(/still be sending history/i);
@@ -2351,7 +2355,7 @@ describe('Settings danger zone', () => {
   });
 
   it('uses the app confirm, not a blocking browser dialog', async () => {
-    const nativeConfirm = jest.spyOn(window, 'confirm');
+    const nativeConfirm = vi.spyOn(window, 'confirm');
     await openConnections();
     await pressReset();
 
@@ -2398,18 +2402,18 @@ describe('Settings connections cross-flow', () => {
   };
 
   const tick = async () => {
-    await act(async () => { jest.advanceTimersByTime(4_000); });
+    await act(async () => { vi.advanceTimersByTime(4_000); });
     await flush();
   };
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockApi.plaidSyncStatus.mockResolvedValue({ data: { items: [statusRow({ last_sync_at: BASE })] } });
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('refuses to rebuild while a sync is running', async () => {
@@ -2462,7 +2466,7 @@ describe('Settings connections cross-flow', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Account' }));
     const callsAfterLeaving = mockApi.plaidSyncStatus.mock.calls.length;
 
-    await act(async () => { jest.advanceTimersByTime(20_000); });
+    await act(async () => { vi.advanceTimersByTime(20_000); });
     await flush();
 
     expect(mockApi.plaidSyncStatus.mock.calls.length).toBe(callsAfterLeaving);

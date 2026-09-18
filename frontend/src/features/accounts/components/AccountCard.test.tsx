@@ -1,13 +1,14 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { Account, MonthSnapshot } from '../../../types';
 import AccountCard from './AccountCard';
 
-jest.mock('react-router-dom', () => {
-  const react = jest.requireActual('react');
+vi.mock('react-router-dom', async () => {
+  const react = await vi.importActual<typeof import('react')>('react');
   return {
-    Link: ({ to, children, ...rest }: { to: string; children: unknown }) =>
+    Link: ({ to, children, ...rest }: { to: string; children: import('react').ReactNode }) =>
       react.createElement('a', { href: to, ...rest }, children),
   };
 });
@@ -42,9 +43,9 @@ const renderCard = (
   history?: MonthSnapshot[],
   extra: Partial<React.ComponentProps<typeof AccountCard>> = {},
 ) => {
-  const onEdit = jest.fn();
-  const onDelete = jest.fn();
-  const onRecordPayment = jest.fn();
+  const onEdit = vi.fn();
+  const onDelete = vi.fn();
+  const onRecordPayment = vi.fn();
   const view = render(
     <AccountCard
       account={acct}

@@ -1,13 +1,14 @@
+import { vi, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import TransferModal from './TransferModal';
 import { createTransfer, getAccounts } from '../../utils/api';
 
-jest.mock('../../utils/api', () => ({
+vi.mock('../../utils/api', () => ({
   __esModule: true,
-  createTransfer: jest.fn(),
-  getAccounts: jest.fn(),
+  createTransfer: vi.fn(),
+  getAccounts: vi.fn(),
 }));
 
 const ACCOUNTS = [
@@ -19,12 +20,12 @@ const ACCOUNTS = [
 // defined in the factory before every test. They have to be re-established
 // here or `getAccounts()` resolves to undefined.
 beforeEach(() => {
-  (getAccounts as jest.Mock).mockResolvedValue({ data: ACCOUNTS });
-  (createTransfer as jest.Mock).mockResolvedValue({ data: {} });
+  (getAccounts as Mock).mockResolvedValue({ data: ACCOUNTS });
+  (createTransfer as Mock).mockResolvedValue({ data: {} });
 });
 
-jest.mock('../../context/ToastContext', () => ({
-  useToast: () => ({ error: jest.fn(), success: jest.fn(), info: jest.fn(), confirm: jest.fn() }),
+vi.mock('../../context/ToastContext', () => ({
+  useToast: () => ({ error: vi.fn(), success: vi.fn(), info: vi.fn(), confirm: vi.fn() }),
 }));
 
 /**
@@ -38,7 +39,7 @@ jest.mock('../../context/ToastContext', () => ({
 
 const setup = (props: Partial<React.ComponentProps<typeof TransferModal>> = {}) =>
   render(
-    <TransferModal isOpen onClose={jest.fn()} onSuccess={jest.fn()} {...props} />,
+    <TransferModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} {...props} />,
   );
 
 describe('card-payment wording', () => {
@@ -50,9 +51,14 @@ describe('card-payment wording', () => {
   });
 
   it('still calls a plain transfer a transfer', async () => {
-    setup();
+    // Destination is the chequing account. Without a preselection the modal
+    // defaults to the second account, which here is the card — so the old
+    // assertion only held while the accounts were still loading.
+    setup({ preselectedFromId: 2, preselectedToId: 1 });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Transfer' })).toBeInTheDocument());
+    // Wait until the accounts have actually loaded into the selects.
+    await waitFor(() => expect(screen.getAllByRole('option', { name: /Everyday/ }).length).toBeGreaterThan(0));
+    expect(screen.getByRole('button', { name: 'Transfer' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
   });
 });
