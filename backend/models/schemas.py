@@ -171,6 +171,7 @@ class TransactionResponse(TransactionBase):
     # Null on rows written before Phase 5A, until the backfill has run — the
     # client falls back to local normalization for those.
     merchant_key: Optional[str] = None
+    plaid_merchant_name: Optional[str] = None
     plaid_merchant_entity_id: Optional[str] = None
     category_source: Optional[str] = None
 

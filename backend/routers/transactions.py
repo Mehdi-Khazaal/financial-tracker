@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal
@@ -11,6 +11,19 @@ from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+def search_clause(text: str):
+    """Free-text match over what a person would type: the description as
+    the bank sent it, Plaid's merchant name, and the normalised merchant key —
+    so "netflix" finds "NETFLIX.COM 866-579-7172" whichever field carries it.
+    Case-insensitive substring; wildcards in the input are literal."""
+    needle = "%" + text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    return or_(
+        Transaction.description.ilike(needle, escape="\\"),
+        Transaction.plaid_merchant_name.ilike(needle, escape="\\"),
+        Transaction.merchant_key.ilike(needle, escape="\\"),
+    )
 
 
 def _not_found(error: LedgerResourceNotFound) -> HTTPException:
@@ -32,7 +45,8 @@ def get_transactions(
     type: Optional[str] = Query(None),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
-    search: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=100),
+    uncategorized: bool = Query(False),
     amount_min: Optional[Decimal] = Query(None),
     amount_max: Optional[Decimal] = Query(None),
     limit: int = Query(500, le=1000),
@@ -54,7 +68,9 @@ def get_transactions(
     if date_to:
         q = q.filter(Transaction.transaction_date <= date_to)
     if search:
-        q = q.filter(Transaction.description.ilike(f"%{search}%"))
+        q = q.filter(search_clause(search))
+    if uncategorized:
+        q = q.filter(Transaction.category_id.is_(None))
     if amount_min is not None:
         q = q.filter(func.abs(Transaction.amount) >= amount_min)
     if amount_max is not None:

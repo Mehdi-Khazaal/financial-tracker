@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TabContext } from '../context/TabContext';
 import { useUI, requestQuickAction, QuickAction } from '../context/UIContext';
+import { linkToTransactionSearch } from '../lib/deepLinks';
 
 type Cmd = {
   id: string;
   label: string;
-  group: 'Quick actions' | 'Navigate' | 'Preferences';
+  group: 'Search' | 'Quick actions' | 'Navigate' | 'Preferences';
   keywords: string;
   hint?: string;
   icon: React.ReactNode;
@@ -121,10 +122,21 @@ const CommandPalette: React.FC = () => {
   ], [privacy]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const raw = query.trim();
+    const q = raw.toLowerCase();
     if (!q) return commands;
-    return commands.filter(c =>
+    const matches = commands.filter(c =>
       c.label.toLowerCase().includes(q) || c.keywords.toLowerCase().includes(q));
+    // Whatever was typed can always be looked for in the ledger. It leads
+    // when no command matches, and trails otherwise, so Enter still runs the
+    // command someone was reaching for.
+    const search: Cmd = {
+      id: 'search-tx', label: `Search transactions for “${raw}”`, group: 'Search', keywords: '',
+      icon: <I d="M13.5 13.5L17 17M9 14.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z" />,
+      run: () => go(linkToTransactionSearch(raw), 'list'),
+    };
+    return matches.length === 0 ? [search] : [...matches, search];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commands, query]);
 
   useEffect(() => { setSelected(0); }, [query]);
@@ -166,11 +178,6 @@ const CommandPalette: React.FC = () => {
         </div>
 
         <div ref={listRef} className="app-scrollbar overflow-y-auto p-2" style={{ maxHeight: '46vh' }}>
-          {filtered.length === 0 && (
-            <p className="text-sm text-center py-8" style={{ color: 'var(--muted)' }}>
-              No results for “{query}”
-            </p>
-          )}
           {filtered.map((c, i) => {
             const showGroup = c.group !== lastGroup;
             lastGroup = c.group;

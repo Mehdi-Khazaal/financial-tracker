@@ -42,7 +42,7 @@ def _all_tool_schemas() -> list:
                     "date_from": {"type": "string", "description": "ISO date YYYY-MM-DD (inclusive)"},
                     "date_to": {"type": "string", "description": "ISO date YYYY-MM-DD (inclusive)"},
                     "type": {"type": "string", "enum": ["income", "expense"]},
-                    "search": {"type": "string", "description": "Text to match in the description"},
+                    "search": {"type": "string", "description": "Text to match in the description or merchant name (case-insensitive)"},
                     "limit": {"type": "integer", "description": "Max rows (default 25, max 100)"},
                 },
             },

@@ -51,6 +51,8 @@ export const DEEP_LINK_KEYS = {
   focusGoal: 'focusGoal',
   /** Prefill the new-rule sheet with this text (Settings → Rules). */
   rulePattern: 'pattern',
+  /** Free-text search applied to the transaction timeline. */
+  query: 'q',
 } as const;
 
 /** The timeline, filtered to a single account. */
@@ -62,6 +64,10 @@ export const linkToCategoryTransactions = (categoryId: number): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.category}=${categoryId}`;
 
 /** The import review queue. */
+/** The timeline filtered to transactions matching `query` (⌘K search). */
+export const linkToTransactionSearch = (query: string): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.query}=${encodeURIComponent(query)}`;
+
 export const linkToReview = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.review}`;
 

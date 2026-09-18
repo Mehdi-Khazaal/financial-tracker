@@ -100,7 +100,8 @@ def _t_list_transactions(
     elif type == "expense":
         q = q.filter(Transaction.amount < 0)
     if search:
-        q = q.filter(Transaction.description.ilike(f"%{search}%"))
+        from routers.transactions import search_clause
+        q = q.filter(search_clause(str(search)[:100]))
     rows = q.order_by(Transaction.transaction_date.desc(), Transaction.id.desc()).limit(min(int(limit), 100)).all()
     return [
         {

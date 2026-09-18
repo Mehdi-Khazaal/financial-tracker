@@ -37,6 +37,8 @@ export interface Transaction {
   merchant_key?: string | null;
   /** Plaid's stable merchant id. Takes precedence over `merchant_key`. */
   plaid_merchant_entity_id?: string | null;
+  /** Plaid's cleaned merchant name, when the bank row was enriched. */
+  plaid_merchant_name?: string | null;
   /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
   category_source?: string | null;
 }
