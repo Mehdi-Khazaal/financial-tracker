@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Public-launch track complete → Phase 4 (features) next, starting with Budgets.**
+- Current phase: **Phase 4 (features) in progress — 4.1 Budgets done; 4.2 Auto-categorization rules next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -260,5 +260,33 @@ Commits: `d091d07` chain fix + isolation proof for jobs · launch controls (back
 4. **Verification is opt-in per deployment.** The owner's own account may be unverified today (the flag exists but was never enforced); turning enforcement on is a manual step listed in the final checklist, after verifying the operator's address.
 5. **Invite code over CAPTCHA**: one env var, no third party, and exactly right for a private beta.
 
-### Next step
+### Next step (done — see Phase 4.1)
 **Phase 4.1 — Budgets**: model + migration (`budgets`: user, category, monthly amount, rollover flag, effective month), `/budgets` CRUD, a `/budgets/progress?month=` read that returns spent/remaining per budget from the ledger, over-budget push (once per budget per month, via the nightly cron), Overview and Analytics progress surfaces, onboarding budget step, assistant read tool. Then rules, alerts, search, CSV import, splits, 2FA, assistant upgrades.
+
+## Phase 4.1 — Budgets (2026-09-17) ✅
+
+Commit: `cbc8070` feat(budgets).
+
+### What changed
+- **Model + migration**: `budgets` table (revision `20260917_000020`, additive, reversible; unique per user × category; `amount Numeric(15,2)`, `rollover`, `starts_on`, `is_active`, `notified_month`). `test_schema_chain.py` keeps the chain pinned to the ORM.
+- **Service** (`services/budgets.py`): month maths (`parse_month`, `month_end`, `add_months`), one-query spend per category per month (expenses negative, refunds net), `progress_for_month` with rollover that carries **unspent only** (an overspend never reduces next month), `notify_over_budget` (once per budget per month via `notified_month`, push tag `budget-{id}-{month}`, deep-links to Analytics).
+- **API** (`routers/budgets.py`): `GET/POST /budgets/`, `PUT/DELETE /budgets/{id}`, `GET /budgets/progress?month=YYYY-MM` (ETag over budgets + transactions). Expense categories only; duplicates are 409; money in and out as decimal strings.
+- **Triggers**: over-budget push runs after every Plaid sync (`_notify_budgets` in `plaid_router/sync.py`) and nightly via `POST /cron/check-budgets`.
+- **Assistant**: `list_budgets` read tool (also a quick tool), so Fin can answer "how am I doing on groceries?" without a write.
+- **Frontend**: `BudgetsCard` on Overview (worst first, ember/amber/red only where a decision changes, pace verdict against the calendar), `BudgetProgressCard` on Analytics (follows the month picker: other months fetch on demand), `BudgetsSheet` (add with expense-category select + rollover, inline amount edit, rollover toggle, confirmed delete), ⌘K "Set a budget" quick action, and the **first-run `SetupChecklist`** on Overview (account → categories → budget; per-user localStorage for the two flags data cannot infer; hides itself when done or dismissed). `/budgets` added to the dev proxy collection list and the Vercel rewrites.
+- **Bundle budget**: total gz raised 520 → 600 kB with the reason in the script (lazy Sentry + public pages are counted but rarely fetched); initial JS is 136 kB / 150.
+
+### Checks
+- Backend: **760 passed** (11 new in `test_budgets.py`: CRUD, expense-only, duplicate, progress maths incl. rollover and refunds, once-per-month push, isolation, assistant tool).
+- Frontend: **1016 Vitest tests** (56 files; new: `budgets.test.ts`, `BudgetsCard.test.tsx`, `BudgetsSheet.test.tsx`, `SetupChecklist.test.tsx`), tsc clean, lint 2 pre-existing warnings, build ok, bundle within budget.
+- Playwright: **13/13** (new `7-budgets.spec.ts`: set from the Overview card, see this month's spend in the sheet, remove with confirmation).
+
+### Decisions and reasoning
+1. **No "budget period" beyond monthly.** Every date rule in the app is monthly and user-local; a weekly/annual budget would need its own carry rules for little gain in a v1.
+2. **Rollover carries unspent only.** Carrying an overspend forward turns one bad month into a red bar for the rest of the year and teaches people to delete the budget. The sheet says so in one line.
+3. **Colour changes where decisions change** (90 % amber, over red), not on the credit-card utilisation scale — a third of a budget gone by the tenth is fine.
+4. **Onboarding is a checklist, not a wizard**: it sits on Overview, uses live data for two of three steps, and disappears; nothing is gated behind it.
+5. **Assistant budget payloads stay floats** like every other assistant tool result (documented deviation from decimal strings; the API itself is strings).
+
+### Next step
+**Phase 4.2 — Auto-categorization rules**: `categorization_rules` (user, match field — merchant/description contains or regex —, category, priority, active), applied at Plaid sync and manual create; a preview endpoint that shows which existing transactions a rule would hit; optional retroactive apply (idempotent, only uncategorised or same-source rows); Settings → Rules UI with preview; assistant read tool; tests first for the sync path. Then alerts, search, CSV import, splits, 2FA, assistant upgrades.
