@@ -7,7 +7,7 @@
  * attached to a report beyond the error itself and the route it happened on.
  */
 
-type SentryModule = typeof import('@sentry/react');
+type SentryModule = typeof import('@sentry/browser');
 
 let loading: Promise<SentryModule | null> | null = null;
 
@@ -17,7 +17,7 @@ export function monitoringEnabled(env: Record<string, string | undefined> = impo
 
 export function initMonitoring(
   env: Record<string, string | undefined> = import.meta.env as Record<string, string | undefined>,
-  load: () => Promise<SentryModule> = () => import('@sentry/react'),
+  load: () => Promise<SentryModule> = () => import('@sentry/browser'),
 ): Promise<SentryModule | null> {
   if (!monitoringEnabled(env)) return Promise.resolve(null);
   if (loading) return loading;

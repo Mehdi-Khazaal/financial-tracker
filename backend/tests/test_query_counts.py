@@ -79,7 +79,9 @@ BUDGETS = [
     ("/history/net-worth?months=12", 6),
     ("/history/accounts?months=6", 4),
     ("/recurring/", 6),
-    ("/recurring/overview", 16),
+    # Cold: includes the detection pass plus the four fingerprint aggregates
+    # that decide whether the cached result can be reused (see the warm test).
+    ("/recurring/overview", 20),
     ("/loans/", 2),
     ("/assets/", 4),
 ]
@@ -94,3 +96,17 @@ def test_hot_read_paths_stay_within_their_query_budget(client, auth_headers, bus
     assert len(statements) <= ceiling, (
         f"{path} issued {len(statements)} queries (budget {ceiling}):\n" + "\n".join(statements)
     )
+
+
+def test_recurring_overview_warm_path_skips_detection(client, auth_headers, busy_ledger):
+    """The second load of the Recurring page reuses cached detection.
+
+    Detection itself costs five queries and a Python pass over up to 800 days
+    of rows; the cache check costs four aggregate queries. So a warm load is
+    cheaper by at least one query and, more importantly, by all the Python.
+    """
+    client.get("/recurring/overview", headers=auth_headers)
+    with count_queries(busy_ledger) as statements:
+        response = client.get("/recurring/overview", headers=auth_headers)
+    assert response.status_code == 200
+    assert len(statements) <= 15, "\n".join(statements)

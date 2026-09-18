@@ -255,7 +255,7 @@ def recurring_overview(db: Session = Depends(get_db), current_user: User = Depen
             max_amount=s.max_amount,
             monthly_amount=(abs(s.amount) * Decimal(str(round(30.44 / recurring_detection.CYCLE_DAYS[s.period], 6)))).quantize(Decimal("0.01")),
         )
-        for s in recurring_detection.detect(db, current_user.id, today)
+        for s in recurring_detection.detect_cached(db, current_user.id, today)
     ]
 
     return RecurringOverviewOut(
@@ -283,7 +283,7 @@ def confirm_suggestion(data: ConfirmSuggestionRequest, db: Session = Depends(get
     """Track a detected charge. The server re-runs detection rather than
     trusting amounts and dates from the client."""
     today = user_today(current_user)
-    match = next((s for s in recurring_detection.detect(db, current_user.id, today) if s.identity == data.identity), None)
+    match = next((s for s in recurring_detection.detect_cached(db, current_user.id, today) if s.identity == data.identity), None)
     if match is None:
         raise HTTPException(status_code=404, detail="This suggestion is no longer available")
 

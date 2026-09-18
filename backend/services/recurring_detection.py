@@ -43,6 +43,8 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from statistics import median
+from threading import Lock
+from time import monotonic
 from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
@@ -50,6 +52,7 @@ from sqlalchemy.orm import Session
 from models.database import Account, Category, RecurringDismissal, RecurringTransaction, Transaction
 from services import merchants, recurring_groups
 from services.recurring_schedule import next_occurrence
+from utils.etag import compute_user_etag
 
 # (period, cycle length in days, accepted median-gap range, minimum charges)
 CADENCES: list[tuple[str, float, tuple[int, int], int]] = [
@@ -367,3 +370,48 @@ def _evaluate(
         is_income=is_income,
         transaction_ids=[c.id for c in charges],
     )
+
+
+# ─── Per-user result cache ────────────────────────────────────────────────────
+# Detection reads up to 800 days of transactions and groups them in Python on
+# every Recurring page load, and `confirm_suggestion` runs it a second time to
+# re-find the suggestion the client named. The result only changes when the
+# user's transactions, tracked bills, dismissals or accounts do, so it is
+# cached per user behind a fingerprint of exactly those tables — four cheap
+# aggregate queries instead of the full pass. A TTL bounds staleness in the
+# unlikely event a write bypasses the fingerprint; the cache itself is
+# process-local and bounded.
+_CACHE_TTL_SECONDS = 5 * 60
+_CACHE_MAX_USERS = 500
+_cache: dict[int, tuple[str, date, float, list[Suggestion]]] = {}
+_cache_lock = Lock()
+
+
+def _fingerprint(db: Session, user_id: int) -> str:
+    return compute_user_etag(db, user_id, [Transaction, RecurringTransaction, RecurringDismissal, Account])
+
+
+def detect_cached(db: Session, user_id: int, today: date) -> list[Suggestion]:
+    """`detect()` with the result reused while nothing relevant has changed."""
+    fingerprint = _fingerprint(db, user_id)
+    now = monotonic()
+    with _cache_lock:
+        entry = _cache.get(user_id)
+        if entry is not None:
+            cached_fp, cached_day, cached_at, result = entry
+            if cached_fp == fingerprint and cached_day == today and now - cached_at < _CACHE_TTL_SECONDS:
+                return result
+    result = detect(db, user_id, today)
+    with _cache_lock:
+        _cache[user_id] = (fingerprint, today, now, result)
+        while len(_cache) > _CACHE_MAX_USERS:
+            _cache.pop(next(iter(_cache)))
+    return result
+
+
+def clear_cache(user_id: Optional[int] = None) -> None:
+    with _cache_lock:
+        if user_id is None:
+            _cache.clear()
+        else:
+            _cache.pop(user_id, None)

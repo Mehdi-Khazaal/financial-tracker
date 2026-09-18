@@ -122,8 +122,11 @@ def reset_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     # Per-address rate limits are process-wide; a test must never inherit
-    # another test's request count.
+    # another test's request count. Same for the detection cache: users get
+    # the same ids from one test to the next.
     limiter.reset()
+    from services import recurring_detection
+    recurring_detection.clear_cache()
     yield
 
 

@@ -17,8 +17,10 @@ const BUDGET = {
   initialJsGzipKb: 150,
   // Everything under dist/assets/*.js, gzip.
   totalJsGzipKb: 520,
-  // Any single chunk, gzip. Recharts is the largest by design.
-  maxChunkGzipKb: 140,
+  // Any single chunk, gzip. The two biggest are deliberate: Analytics carries
+  // Recharts (~132 kB) and the optional Sentry SDK (~142 kB) is a lazy chunk
+  // that is only fetched when VITE_SENTRY_DSN is set.
+  maxChunkGzipKb: 150,
   cssGzipKb: 32,
 };
 
