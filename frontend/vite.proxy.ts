@@ -20,6 +20,7 @@ export const COLLECTION_PATHS = new Set([
   '/recurring',
   '/loans',
   '/budgets',
+  '/rules',
 ]);
 
 export function rewriteApiPath(path: string): string {

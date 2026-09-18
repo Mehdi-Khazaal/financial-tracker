@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { RuleDraft } from '../types';
 
 const api = axios.create({
   // Keep browser authentication same-origin. Production API traffic is
@@ -404,3 +405,13 @@ export const deleteBudget = (id: number) => api.delete(`/budgets/${id}`);
 /** Spent / available per budget for one month (`YYYY-MM`), default the current one. */
 export const getBudgetProgress = (month?: string) =>
   api.get('/budgets/progress', { params: month ? { month } : undefined });
+
+// ── Categorization rules ──────────────────────────────────────────────────────
+export const getRules = () => api.get('/rules');
+export const createRule = (data: RuleDraft) => api.post('/rules', data);
+export const updateRule = (id: number, data: Partial<RuleDraft>) => api.put(`/rules/${id}`, data);
+export const deleteRule = (id: number) => api.delete(`/rules/${id}`);
+/** What an unsaved rule would match today. Reads only. */
+export const previewRule = (data: RuleDraft) => api.post('/rules/preview', data);
+/** File past matches under the rule's category; never touches hand-set categories. */
+export const applyRule = (id: number) => api.post(`/rules/${id}/apply`);

@@ -16,6 +16,9 @@ Category precedence — the exact rules
 ──────────────────────────────────────────────────────────────────────────────
 1. **An explicit category always wins.** If the caller supplied `category_id`,
    nothing here touches it. Source is recorded as "user".
+1b. **The user's own rules** (`services.categorization_rules`): "anything
+   containing X is Y". An instruction, not a guess, so it runs even when the
+   automatic-categorization preference is off. Source "rule".
 2. **The user's own history for this merchant entity** (Plaid
    `merchant_entity_id`), if it clears the confidence bar below.
 3. **The user's own history for this merchant key** (normalized description),
@@ -93,6 +96,7 @@ MIN_HISTORY_DOMINANCE = 0.6
 
 # Category source markers, stored on `Transaction.category_source`.
 SOURCE_USER = "user"
+SOURCE_RULE = "rule"
 SOURCE_MERCHANT_HISTORY = "merchant_history"
 SOURCE_PLAID_PFC = "plaid_pfc"
 
@@ -133,6 +137,9 @@ class MerchantIdentity:
 
     entity_id: Optional[str]
     key: str
+    # The raw description the identity was derived from, kept so a
+    # description rule can see the original text rather than the key.
+    description: Optional[str] = None
 
     @property
     def is_resolvable(self) -> bool:
@@ -150,7 +157,7 @@ def resolve_transaction_merchant(
     tests without a session.
     """
     entity_id = (plaid_merchant_entity_id or "").strip() or None
-    return MerchantIdentity(entity_id=entity_id, key=merchants.merchant_key(description))
+    return MerchantIdentity(entity_id=entity_id, key=merchants.merchant_key(description), description=description)
 
 
 # How many un-backfilled rows the legacy fallback will normalize in Python.
@@ -284,7 +291,17 @@ def suggest_transaction_category(
     Imported locally to keep the module import graph acyclic:
     `services.user_preferences` reads the global switch from here.
     """
-    from services import user_preferences
+    from services import categorization_rules, user_preferences
+
+    # Rules first, and outside the preference gate: the user wrote them.
+    rule = categorization_rules.first_match(
+        categorization_rules.active_rules(session, user_id),
+        identity.description,
+        identity.key or None,
+    )
+    if rule is not None:
+        categorization_rules.record_hit(session, rule.id)
+        return rule.category_id, SOURCE_RULE
 
     if not user_preferences.automatic_categorization_enabled(session, user_id):
         return None, None

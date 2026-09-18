@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import BottomSheet from '../BottomSheet';
+import { linkToNewRule } from '../../lib/deepLinks';
 import AmountInput from '../AmountInput';
 import { updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
 import { Transaction, Account, Category } from '../../types';
@@ -18,6 +20,7 @@ const fmt = (n: number) =>
 
 const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
   const toast = useToast();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -136,6 +139,19 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
               </div>
             ))}
           </div>
+
+          {/* A rule from this transaction: the most common reason to want one
+              is a row that just arrived uncategorised or misfiled. */}
+          {cleanDescription(transaction.description) && (
+            <button
+              type="button"
+              onClick={() => { onClose(); navigate(linkToNewRule(cleanDescription(transaction.description), transaction.category_id)); }}
+              className="w-full mt-3 text-xs font-medium pressable text-left px-1"
+              style={{ color: 'var(--accent)', minHeight: 44 }}
+            >
+              Always file “{cleanDescription(transaction.description)}” as… →
+            </button>
+          )}
 
           {/* Action buttons */}
           <div className="flex gap-2 mt-4">

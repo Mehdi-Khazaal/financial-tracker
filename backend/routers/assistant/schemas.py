@@ -184,6 +184,16 @@ def _all_tool_schemas() -> list:
             },
         },
         {
+            "name": "list_rules",
+            "description": (
+                "The user's automatic categorization rules — 'anything containing X is filed "
+                "under Y' — with priority, whether each is active, and how many transactions "
+                "each has filed. Use for questions about why something was categorized a "
+                "certain way or what rules exist."
+            ),
+            "input_schema": {"type": "object", "properties": {}},
+        },
+        {
             "name": "save_memory",
             "description": "Save a durable fact about the user that should be remembered across all future chats — goals, preferences, habits, rules, recurring context. Use this whenever you learn something lasting. This is your persistent notebook.",
             "input_schema": {

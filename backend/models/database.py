@@ -373,6 +373,36 @@ class Budget(Base):
     category = relationship("Category")
 
 
+class CategorizationRule(Base):
+    """"When a transaction looks like X, file it under Y" — the user's own words.
+
+    Rules outrank every inference (merchant history, Plaid's category) because
+    they are an explicit instruction rather than a guess; they never outrank a
+    category the user set on a specific transaction. Matching is on the
+    description (case-insensitive substring or a regular expression) or on the
+    normalised merchant key. Lower `priority` wins; ties break on id.
+    """
+
+    __tablename__ = "categorization_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    # "description" or "merchant" (the normalised merchant key).
+    field = Column(String(20), nullable=False, default="description")
+    # "contains" or "regex".
+    match_type = Column(String(20), nullable=False, default="contains")
+    pattern = Column(String(200), nullable=False)
+    priority = Column(Integer, nullable=False, default=100)
+    is_active = Column(Boolean, nullable=False, default=True)
+    # How many transactions this rule has filed, for the settings list.
+    applied_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    category = relationship("Category")
+
+
 class Loan(Base):
     __tablename__ = "loans"
 

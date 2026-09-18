@@ -27,6 +27,8 @@ from models.auth import AuthFailure, User
 from models.database import (
     Account,
     Asset,
+    Budget,
+    CategorizationRule,
     AssistantConversation,
     AssistantMemory,
     AssistantMessage,
@@ -139,6 +141,14 @@ def build_export(db: Session, user: User) -> dict:
         "preferences": _rows(
             db.query(UserPreferences).filter(UserPreferences.user_id == uid),
             ("automatic_categorization_enabled",),
+        ),
+        "budgets": _rows(
+            db.query(Budget).filter(Budget.user_id == uid).order_by(Budget.id),
+            ("id", "category_id", "amount", "rollover", "starts_on", "is_active", "created_at"),
+        ),
+        "categorization_rules": _rows(
+            db.query(CategorizationRule).filter(CategorizationRule.user_id == uid).order_by(CategorizationRule.priority, CategorizationRule.id),
+            ("id", "category_id", "field", "match_type", "pattern", "priority", "is_active", "applied_count", "created_at"),
         ),
     }
 

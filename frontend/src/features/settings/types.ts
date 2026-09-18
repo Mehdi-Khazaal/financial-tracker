@@ -14,6 +14,7 @@ export const SETTINGS_SECTIONS = [
   'account',
   'preferences',
   'categories',
+  'rules',
   'connections',
   'admin',
 ] as const;
@@ -36,6 +37,7 @@ export const SECTION_DEFINITIONS: readonly SectionDefinition[] = [
   { id: 'account', label: 'Account', description: 'Profile, password and sign out' },
   { id: 'preferences', label: 'Preferences', description: 'Automation and notifications' },
   { id: 'categories', label: 'Categories', description: 'How your spending is filed' },
+  { id: 'rules', label: 'Rules', description: 'File transactions automatically' },
   { id: 'connections', label: 'Connections', description: 'Connected banks and syncing' },
   { id: 'admin', label: 'Admin', description: 'User management', adminOnly: true },
 ];

@@ -261,3 +261,45 @@ export interface BudgetProgressSummary {
   over_count: number;
   budgets: BudgetProgress[];
 }
+
+// ── Categorization rules ──────────────────────────────────────────────────────
+export type RuleField = 'description' | 'merchant';
+export type RuleMatchType = 'contains' | 'regex';
+
+/** "When the description contains X, file it under Y." */
+export interface CategorizationRule {
+  id: number;
+  category_id: number;
+  field: RuleField;
+  match_type: RuleMatchType;
+  pattern: string;
+  priority: number;
+  is_active: boolean;
+  applied_count: number;
+}
+
+export interface RuleDraft {
+  category_id: number;
+  field: RuleField;
+  match_type: RuleMatchType;
+  pattern: string;
+  priority?: number;
+  is_active?: boolean;
+}
+
+export interface RulePreviewRow {
+  id: number;
+  description: string | null;
+  amount: string;
+  transaction_date: string;
+  category_id: number | null;
+  category_source: string | null;
+  would_change: boolean;
+}
+
+export interface RulePreview {
+  matched: number;
+  would_change: number;
+  protected: number;
+  sample: RulePreviewRow[];
+}

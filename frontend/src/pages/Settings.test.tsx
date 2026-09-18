@@ -91,6 +91,12 @@ const mockApi = vi.hoisted(() => ({
   exportAccountJson: vi.fn(),
   exportTransactionsCsv: vi.fn(),
   deleteMyAccount: vi.fn(),
+  getRules: vi.fn(),
+  createRule: vi.fn(),
+  updateRule: vi.fn(),
+  deleteRule: vi.fn(),
+  previewRule: vi.fn(),
+  applyRule: vi.fn(),
 }));
 // Vitest builds the mocked namespace from the factory's *own keys*, so the
 // Jest-era Proxy (which answered any name lazily) exposed nothing. A plain
@@ -225,6 +231,7 @@ beforeEach(() => {
       },
     }));
   mockApi.plaidGetItems.mockResolvedValue({ data: [BANK] });
+  mockApi.getRules.mockResolvedValue({ data: [] });
   mockApi.adminGetUsers.mockResolvedValue({ data: [OTHER_USER] });
   mockApi.adminGetUsage.mockResolvedValue({ data: { days: 30, turn_cap: 150, cost_cap_usd: '3.00', users: [] } });
   mockApi.plaidSyncAll.mockResolvedValue({ data: {} });

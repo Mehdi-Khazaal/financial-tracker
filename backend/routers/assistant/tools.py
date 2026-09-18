@@ -765,6 +765,33 @@ def _t_list_budgets(db: Session, user: User, month: Optional[str] = None, **_) -
         "note": "No budgets means the user has not set any; suggest add_budget only if they ask." if not items else None,
     }
 
+def _t_list_rules(db: Session, user: User, **_) -> dict:
+    """The user's categorization rules, best first, with how often each has fired."""
+    from models.database import CategorizationRule
+
+    rows = (
+        db.query(CategorizationRule)
+        .filter(CategorizationRule.user_id == user.id)
+        .order_by(CategorizationRule.priority.asc(), CategorizationRule.id.asc())
+        .all()
+    )
+    names = {c.id: c.name for c in db.query(Category).filter(Category.user_id == user.id).all()}
+    return {
+        "rules": [
+            {
+                "id": r.id,
+                "when": f"{r.field} {'matches regex' if r.match_type == 'regex' else 'contains'} \"{r.pattern}\"",
+                "category": names.get(r.category_id, "Unknown"),
+                "priority": r.priority,
+                "active": bool(r.is_active),
+                "times_applied": int(r.applied_count or 0),
+            }
+            for r in rows
+        ],
+        "note": "Rules file new transactions automatically; they never change a category the user set by hand.",
+    }
+
+
 READ_TOOLS = {
     "get_overview": _t_get_overview,
     "list_accounts": _t_list_accounts,
@@ -783,6 +810,7 @@ READ_TOOLS = {
     "analyze_spending_trends": _t_analyze_spending_trends,
     "find_recurring_waste": _t_find_recurring_waste,
     "list_budgets": _t_list_budgets,
+    "list_rules": _t_list_rules,
 }
 
 # Every tool that changes stored state, including memory. None of these run

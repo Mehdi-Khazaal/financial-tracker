@@ -11,6 +11,7 @@ import PlaidLinkLauncher from '../features/settings/components/PlaidLinkLauncher
 import AccountSection from '../features/settings/sections/AccountSection';
 import PreferencesSection from '../features/settings/sections/PreferencesSection';
 import CategoriesSection from '../features/settings/sections/CategoriesSection';
+import RulesSection from '../features/settings/sections/RulesSection';
 import ConnectionsSection from '../features/settings/sections/ConnectionsSection';
 import AdminSection from '../features/settings/sections/AdminSection';
 import type { SettingsSection } from '../features/settings/types';
@@ -38,6 +39,7 @@ const SECTION_TITLES: Record<SettingsSection, string> = {
   account: 'Account',
   preferences: 'Preferences',
   categories: 'Categories',
+  rules: 'Rules',
   connections: 'Connections',
   admin: 'Admin',
 };
@@ -60,6 +62,15 @@ const Settings: React.FC = () => {
         return <PreferencesSection push={model.push} automation={model.automation} />;
       case 'categories':
         return <CategoriesSection categories={model.categories} />;
+      case 'rules':
+        return (
+          <RulesSection
+            rules={model.rules}
+            categories={model.categories}
+            initialDraft={model.ruleDraft}
+            onDraftConsumed={model.clearRuleDraft}
+          />
+        );
       case 'connections':
         return <ConnectionsSection connections={model.connections} />;
       case 'admin':

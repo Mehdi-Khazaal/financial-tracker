@@ -76,6 +76,14 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/budgets/"
     },
     {
+      "source": "/api/rules",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/rules/"
+    },
+    {
+      "source": "/api/rules/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/rules/"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://financial-tracker-api-1osn.onrender.com/:path*"
     },

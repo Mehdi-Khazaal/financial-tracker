@@ -16,4 +16,13 @@ describe('development API proxy', () => {
     expect(apiProxy['/api'].changeOrigin).toBe(true);
     expect(apiProxy['/api'].rewrite('/api/loans')).toBe('/loans/');
   });
+
+  it('canonicalises every collection route added since, so a POST is never redirected', () => {
+    // A missing entry here surfaces as a 307 to the backend's own origin,
+    // which drops the cookie and the body — the rules sheet saved nothing
+    // until '/rules' was listed.
+    expect(rewriteApiPath('/api/budgets')).toBe('/budgets/');
+    expect(rewriteApiPath('/api/rules')).toBe('/rules/');
+    expect(rewriteApiPath('/api/rules/preview')).toBe('/rules/preview');
+  });
 });
