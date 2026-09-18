@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 1 complete → Phase 2 (CRA → Vite) next.**
+- Current phase: **Phase 2 complete → Phase 3 (backend architecture & reliability) next.**
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
   secrets printed); preserve ETag/idempotency/offline queue/privacy mode/⌘K/
@@ -23,9 +23,9 @@ SECRET_KEY=0123456789abcdef0123456789abcdef DATABASE_URL=sqlite:///./ci.db ENVIR
 venv/Scripts/python -m pip_audit -r requirements.txt
 
 # frontend (from frontend/)
-npm run typecheck && CI=true npm run test:ci && npm run build
+npm run lint && npm run typecheck && npm run test:ci && npm run build && npm run check:bundle
 npx audit-ci --config audit-ci.jsonc
-CI=1 npx playwright test          # spins up backend :8000 (SQLite) + CRA dev server :3000
+CI=1 npx playwright test          # spins up backend :8000 (SQLite) + `vite preview` :3000 on dist/
 ```
 
 Local Postgres is available at `localhost:5432` (dev DB in `backend/.env`,
@@ -123,5 +123,53 @@ Commits, in order: `7cad142` test speed · `ca9b64a` ledger unification · `a6b5
 - R2 (pending actions in process memory) → Phase 3, with the assistant split.
 - No Vercel preview was pushed yet; first push happens with the Phase 2 migration so the preview exercises the new build.
 
+### Next step (done — see Phase 2)
+
+---
+
+## Phase 2 — Frontend foundation: CRA → Vite (2026-09-17) ✅
+
+### What changed
+- **Toolchain**: `react-scripts` 5 → **Vite 8.3** (rolldown) + `@vitejs/plugin-react` 6; Jest → **Vitest 5** (jsdom 30); TypeScript 4.9 → **5.9.3**; ESLint flat config (`eslint.config.js`: `@eslint/js`, `typescript-eslint`, `react-hooks` classic rules, `react-refresh`); `@types/node` 24. Removed `http-proxy-middleware`, `@types/jest`, `cross-env`, `web-vitals`, `yaml`, `sharp`, `serve`, `@testing-library/user-event` (all unused or CRA-only). `@playwright/test` 1.48 → 1.63. `package.json` is `"type": "module"`; Tailwind/PostCSS configs are ESM.
+- **Entry**: `frontend/index.html` at the root (`%PUBLIC_URL%` gone, `<script type="module" src="/src/index.tsx">`); `public/` is copied verbatim so `sw.js`, `manifest.json`, icons and `robots.txt` keep their paths.
+- **Proxy**: `vite.proxy.ts` carries the exact `setupProxy.js` rules (strip `/api`, add the trailing slash on the eight FastAPI collection routes) and is used by both `server.proxy` and `preview.proxy`; its test moved with it (`vite.proxy.test.ts`).
+- **Env vars**: `REACT_APP_VAPID_PUBLIC_KEY` → `VITE_VAPID_PUBLIC_KEY` (the only one in use); optional `VITE_DEV_API_TARGET`. Documented in `frontend/.env.example` and `frontend/README.md` (which replaces the CRA boilerplate).
+- **Tests ported, none deleted**: 44 Jest suites → Vitest by a mechanical script (`jest.*` → `vi.*`, `jest.requireActual` → `await vi.importActual`, `jest.Mock` → `Mock`) plus hand fixes: `vi.hoisted` for factory-referenced tables in `Settings.test.tsx`, a real object instead of a `Proxy` for the API mock (Vitest builds the namespace from own keys), `{ default }` for component mocks, a `globalThis.jest.advanceTimersByTime` shim in `setupTests.ts` so Testing Library's `waitFor` drives Vitest fake timers, and `mockReset`/`clearMocks` in config to mirror CRA's `resetMocks: true`. **982 tests pass (973 ported + 9 new).**
+- **Two real bugs surfaced by jsdom 30's form validation** (it now enforces `required`/`min` on submit like a browser): `EditAccountModal` had `min="0"` on the balance input although the checkbox decides the sign; `AddAssetModal` marked the ticker `required` although name-or-ticker is the rule. Both components fixed; the tests that had only passed because old jsdom skipped validation now pass for the right reason. `TransferModal.test` had a race (asserted before accounts loaded); fixed to wait for the list.
+- **SW update flow** (`src/lib/serviceWorker.ts`, `src/components/UpdatePrompt.tsx`): `updatefound` → `installed` with an existing controller (or a waiting worker on load) dispatches `fintrack:sw-update`; the prompt is a Ledger-style toast ("A new version of Fintrack is ready · Reload"). Periodic `registration.update()` every 30 min and on tab focus. `vite:preloadError` reloads once (session-flag guarded) when a lazy chunk 404s after a deploy. `sw.js` cache bumped to `fintrack-v5` so old CRA assets are purged. Unit tests for both.
+- **Build output** `dist/`; `vercel.json` sets `framework: vite`, `outputDirectory: dist`, adds the SPA fallback rewrite (after the `/api/*` rules, excluding assets/sw/manifest), `Cache-Control: immutable` for `/assets/*` and `no-cache` for `/sw.js`.
+- **Bundle budget** `frontend/scripts/check-bundle.mjs` (`npm run check:bundle`): initial JS ≤ 150 kB gz, total JS ≤ 520 kB, largest chunk ≤ 140 kB, CSS ≤ 32 kB. Enforced in CI.
+- **CI** (`.github/workflows/ci.yml`): Node 24, pip/npm caching, `lint` + `typecheck` + `test:ci` + `build` + `check:bundle` + `audit-ci`; Alembic `upgrade head → downgrade base → upgrade head` on SQLite in the backend job; e2e now runs on **pull requests too**, reuses the uploaded `dist/` and tests `vite preview` (the real bundle) instead of a dev server; concurrency cancels superseded runs.
+
+### Before / after
+
+| Metric | CRA (Phase 0) | Vite (Phase 2) |
+|---|---|---|
+| Production build | 1 m 36 s | **2.3 s** |
+| Unit tests | 973 in 41 s (Jest) | 982 in ~25 s (Vitest) |
+| Type-check | 21 s | ~18 s |
+| Initial JS (gzip, what `/login` downloads) | 140.0 kB | **131.3 kB** |
+| Total JS (gzip) | ≈ 430 kB | 372 kB |
+| Largest chunk (gzip) | 116 kB (Recharts) | 132 kB (`AnalyticsTab` incl. Recharts) |
+| CSS (gzip) | 15.8 kB | 14.5 kB |
+| Lighthouse mobile `/login` (Perf / A11y / BP) | 91 / 88 / 100 | 91 / 88 / 96 |
+| FCP · LCP · TBT · CLS · SI | 2.7 s · 2.9 s · 20 ms · 0 · 2.7 s | 2.4 s · 3.0 s · 30 ms · 0 · 2.4 s |
+| Playwright smoke | 12 pass (dev server) | 12 pass (`vite preview`) |
+
+Lighthouse Best Practices dropped 4 points only because `vite preview` (unlike the `serve` run) proxies `/api/auth/me` to a backend that was not running, which logs a console error; on Vercel the headers and backend are present. Accessibility 88 is the pre-existing login-form labelling (AUDIT U1, Phase 5).
+
+### Decisions and reasoning
+1. **TypeScript 5.9, not 7.** `typescript@latest` is 7.0.2 (the native compiler). The brief says 5.x; `typescript-eslint` 8.70 and Vite's plugin are validated against 5.x; adopting 7 is a one-line bump later once the ecosystem catches up.
+2. **Vite 8 / Vitest 5 (latest)** as the brief asks. One rolldown-specific lesson: the `manualChunks` compat layer pulled shared helpers into the vendor chunks and made the entry *preload* Recharts and markdown (initial JS 272 kB). Removing manual chunks restored the natural lazy graph (131 kB). The budget script exists so this cannot regress silently.
+3. **e2e against `vite preview`** rather than the dev server: it tests the deployed artefact, starts in a second, and lets CI reuse the build artefact.
+4. **`react-hooks` 7's compiler-era rules are off** (`set-state-in-effect`, `refs`, …): they flag ~40 existing call sites. Turning them on is a Phase 5 code-quality decision, not a tooling side effect. `no-unused-vars` is a warning, as under CRA.
+5. **Kept the hand-written `sw.js`** instead of `vite-plugin-pwa`/Workbox: it is small, understood, and the brief says keep it working exactly as before. The update prompt is layered on top of it.
+6. **SPA fallback rewrite added** to `vercel.json`: the CRA preset did this implicitly; the Vite preset does not.
+
+### Skipped / deferred
+- No Vercel preview push yet — the branch is pushed at the end of Phase 3 together with the backend changes, so the first preview exercises both. (Manual step remains: rename the Vercel env var to `VITE_VAPID_PUBLIC_KEY`.)
+- `@testing-library/user-event` was unused and removed rather than upgraded.
+- The two remaining lint warnings are pre-existing unused variables in `merchantIdentity.test.ts`.
+
 ### Next step
-**Phase 2 — CRA → Vite.** Plan first (in this log), then: `vite`, `@vitejs/plugin-react`, `vitest` + `jsdom`, TS 5, ESLint flat config; `index.html` to root with `%PUBLIC_URL%` removed; `REACT_APP_VAPID_PUBLIC_KEY` → `VITE_VAPID_PUBLIC_KEY` (only env var in use); `server.proxy` replicating `setupProxy.js` incl. the trailing-slash collection rewrite; keep `public/sw.js` verbatim; add SW update toast + chunk-load reload; port 45 Jest suites to Vitest; `vercel.json` `outputDirectory: dist`; CI Node 24; bundle budget; before/after bundle + Lighthouse.
+**Phase 3 — Backend architecture & reliability**: characterization tests → split `routers/assistant.py` and `routers/plaid_router.py` into packages with zero behaviour change; `.python-version` + `render.yaml`, delete `nixpacks.toml`; `/healthz` + `/readyz`; Neon pool/timeout settings; N+1 and index hunt with query-count tests; env-gated JSON logging + request IDs + optional Sentry; idempotent jobs; persist assistant pending actions (AUDIT R2); make Alembic authoritative at boot (AUDIT R1) with the prod `alembic stamp` as a manual step.
