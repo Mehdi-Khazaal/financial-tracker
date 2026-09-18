@@ -58,7 +58,7 @@ Declared in `render.yaml`; secrets are entered in the Render dashboard.
 | `ASSISTANT_DAILY_TURN_CAP` (150), `ASSISTANT_DAILY_COST_CAP_USD` (3.00) | optional | per user per day; 0 disables |
 | `AUTO_CATEGORIZE` (true) | optional | operator kill switch for inferred categories (rules still apply) |
 | `RUN_MIGRATIONS_ON_BOOT` (true), `AUTO_PREPARE_DB` (true) | optional | boot-time migrations / legacy repairs |
-| `DB_POOL_SIZE` (5), `DB_MAX_OVERFLOW` (5), `DB_POOL_RECYCLE_SECONDS` (300), `DB_POOL_TIMEOUT_SECONDS` (10), `DB_STATEMENT_TIMEOUT_MS` (15000), `DB_CONNECT_TIMEOUT_SECONDS` (10) | optional | Neon pool tuning |
+| `DB_POOL_SIZE` (5), `DB_MAX_OVERFLOW` (5), `DB_POOL_RECYCLE_SECONDS` (300), `DB_POOL_TIMEOUT_SECONDS` (10), `DB_STATEMENT_TIMEOUT_MS` (15000), `DB_CONNECT_TIMEOUT_SECONDS` (10) | optional | Neon pool tuning. The statement timeout is only sent to direct (non-`-pooler`) hosts: Neon's pooler rejects startup parameters. |
 | `CRON_TIME_BUDGET_SECONDS` (20) | optional | stops long cron work before Render's 30 s proxy limit |
 | `LOG_FORMAT` (json), `LOG_LEVEL`, `EXPOSE_API_DOCS` (false), `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE` | optional | observability |
 
