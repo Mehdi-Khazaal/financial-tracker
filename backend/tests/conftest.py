@@ -28,7 +28,25 @@ from sqlalchemy.orm import sessionmaker
 
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
-from routers import accounts, admin, assets, assistant, auth, categories, cron, history, plaid_router, preferences, recurring_transactions, savings_goals, stocks, transactions
+from routers import (
+    accounts,
+    admin,
+    assets,
+    assistant,
+    auth,
+    categories,
+    cron,
+    history,
+    loans,
+    plaid_router,
+    preferences,
+    push,
+    recurring_transactions,
+    savings_goals,
+    stocks,
+    transactions,
+    transfers,
+)
 from utils import auth as auth_utils
 from utils.idempotency import IdempotencyMiddleware
 from utils.limiter import limiter
@@ -90,6 +108,9 @@ app.include_router(cron.router)
 app.include_router(plaid_router.router)
 app.include_router(stocks.router)
 app.include_router(assistant.router)
+app.include_router(loans.router)
+app.include_router(transfers.router)
+app.include_router(push.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 
