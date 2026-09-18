@@ -32,3 +32,6 @@ Thumbs.db
 .agents/
 .claude/skills/
 skills-lock.json
+
+# Launch-video renders (brag skill output)
+brag-output*/
