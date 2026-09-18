@@ -21,7 +21,7 @@ import type {
   SavingsMetrics,
 } from '../types';
 import {
-  dollars, monthLabel, percent, percentagePoints, rateTransition, signedPercent,
+  dollars, monthLabel, percent, rateTransition, signedPercent,
 } from '../format';
 import { pctChange } from './transactions';
 
@@ -144,8 +144,9 @@ export function buildPeriodSummary(ctx: SummaryContext): PeriodSummaryData {
     // itself — 27.2% to 79.1% is a 51.9-point rise, not a 191% one.
     if (savings.rateDelta != null && savings.previousRate != null && Math.abs(savings.rateDelta) >= 0.03) {
       sentences.push(
+        // "up 15.0 pp", not "up +15.0 pp": the word carries the direction.
         `Your savings rate was ${percent(metrics.savingsRate)}, ${savings.rateDelta > 0 ? 'up' : 'down'} `
-        + `${percentagePoints(Math.abs(savings.rateDelta), 1)} compared with ${versus} `
+        + `${(Math.abs(savings.rateDelta) * 100).toFixed(1)} pp compared with ${versus} `
         + `(${rateTransition(savings.previousRate, metrics.savingsRate)}), ${left}.`,
       );
     } else {

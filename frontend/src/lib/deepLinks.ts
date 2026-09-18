@@ -65,7 +65,6 @@ export const linkToAccountTransactions = (accountId: number): string =>
 export const linkToCategoryTransactions = (categoryId: number): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.category}=${categoryId}`;
 
-/** The import review queue. */
 /** The timeline filtered to transactions matching `query` (⌘K search). */
 export const linkToTransactionSearch = (query: string): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.query}=${encodeURIComponent(query)}`;
@@ -74,6 +73,7 @@ export const linkToTransactionSearch = (query: string): string =>
 export const linkToImport = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.importCsv}=1`;
 
+/** The import review queue. */
 export const linkToReview = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.review}`;
 

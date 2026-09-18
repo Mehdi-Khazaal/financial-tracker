@@ -48,5 +48,12 @@ export default defineConfig({
     css: false,
     mockReset: true,
     clearMocks: true,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/setupTests.ts', 'src/vite-env.d.ts', 'src/types/**'],
+      reporter: ['text-summary', 'json-summary'],
+      reportsDirectory: 'coverage',
+    },
   },
 });
