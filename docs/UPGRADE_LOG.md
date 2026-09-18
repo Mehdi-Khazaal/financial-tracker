@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1 Budgets and 4.2 Rules done; 4.3 Bill & low-balance alerts next.**
+- Current phase: **Phase 4 (features) in progress — 4.1 Budgets, 4.2 Rules, 4.3 Alerts done; 4.4 Search & filters next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -317,5 +317,31 @@ Commit: `103d66f` feat(rules).
 4. **Regex is allowed but bounded**: 200-character cap, case-insensitive search, compiled once per session, preview scan capped at 5000 rows. No regex timeout exists in Python's `re`; the bounds are the protection.
 5. **The transaction sheet is the primary entry point**, because that is where a misfiled row is discovered; the Settings list is for management.
 
-### Next step
+### Next step (done — see Phase 4.3)
 **Phase 4.3 — Bill & low-balance alerts**: per-user alert preferences (`bill_reminders`, `low_balance`, `budget_alerts` toggles + low-balance threshold), nightly cron that pushes "bill due in N days" for tracked recurring bills and "balance below threshold" once per account per day, Settings → Preferences toggles wired to real behaviour (the section's docstring says an inert toggle is a lie — these must be honoured server-side), tests first for the cron paths. Then search & filters in ⌘K, CSV import/export, splits, 2FA, assistant upgrades.
+
+## Phase 4.3 — Bill & low-balance alerts (2026-09-17) ✅
+
+Commit: `6af22f0` feat(alerts).
+
+### What changed
+- **Alert preferences** on `user_preferences` (revision `20260917_000022`, additive with server defaults): `bill_reminders_enabled` (default on), `budget_alerts_enabled` (default on), `low_balance_alerts_enabled` (default **off**), `low_balance_threshold` (Numeric, default 100.00). Defaults are exactly what shipped, so the migration changes nothing for anyone. `accounts.low_balance_notified_on` (nullable date) carries the once-per-dip state.
+- **Gates honoured server-side**: the nightly `/cron/process-recurring` skips `collect_alerts` for a user with bill reminders off **without marking anything as sent**, so switching them back on resumes at the next cycle; `notify_over_budget` (post-sync and nightly) returns early with budget alerts off and leaves `notified_month` untouched.
+- **Low balance** (`services/alerts.py`): checking/savings/cash only; once per dip (set the marker when sent, clear it when a later check finds the balance ≥ threshold), so a balance that stays low is announced once; overdrawn wording when negative; `POST /cron/check-balances` nightly (only opted-in users are even queried) and a post-sync hook `_notify_balances` in `plaid_router/sync.py`, isolated like the budget hook. When the alert is off nothing is marked, so switching it on announces anything currently low on the next check.
+- **API**: `GET/PATCH /preferences` carry the four fields; threshold is a decimal string in and out (`ge=0`, non-numeric → 422). Export includes them.
+- **Frontend**: Settings → Preferences gained an **Alerts** card (Bill reminders / Budget alerts / Low balance alerts switches, and a "Warn me below" decimal field that appears when low-balance is on, saved on blur or Enter as the typed string). The alert settings ride on the same `/preferences` request as the automation switch (`useAutomationPreference` now exposes `alerts`, `toggleAlert`, `setThreshold`) so the section still makes one read. The section's own rule — no inert toggles — holds: every switch changes what the server sends.
+
+### Checks
+- Backend: **787 passed** (8 new in `test_alerts.py`: defaults, decimal threshold + validation, bill reminders skipped-and-unmarked when off then resumed, budget alerts likewise, low-balance once-per-dip / re-arm / overdrawn wording, threshold and account-type filter, off marks nothing, cron covers only opted-in users and needs the secret, sync hook). `test_preferences` key-set test updated for the new fields.
+- Frontend: **1025 Vitest tests** (57 files; 3 new Settings tests: switches read saved values with server defaults for absent fields, a switch saves and reports, the threshold saves as the typed string and rejects a non-amount), tsc clean, lint 2 pre-existing warnings, bundle 137 kB initial / 533 kB total.
+- Playwright: **14/14**. Migration chain: up → down to 000020 → up on SQLite and on a scratch database on the local Postgres server.
+
+### Decisions and reasoning
+1. **Once per dip, not once per day.** A nightly "still low" push trains people to disable the alert. The marker re-arms on recovery, so the next real dip is announced.
+2. **Low balance defaults off.** It is new behaviour; a preference that defaults to a change in behaviour would notify everyone on deploy.
+3. **Turning an alert off marks nothing.** Otherwise switching it back on would silently skip the current cycle/month/dip.
+4. **No reminder-days setting yet.** `REMINDER_DAYS` in `recurring_bills` is the existing window; making it per-user is cheap later and was not asked for.
+5. **Credit cards and investments are not watched** for low balance: neither balance means "running out of money".
+
+### Next step
+**Phase 4.4 — Search & filters**: a `/transactions/search` (or extended `GET /transactions` params: `q`, `category_id`, `account_id`, `amount_min/max`, `date_from/to`, `uncategorized`) with an index plan, a filter bar on the Transactions page, and ⌘K "Search transactions…" that jumps into the timeline with the query applied. Then CSV import/export, splits, 2FA, assistant upgrades.
