@@ -31,7 +31,7 @@ _QUICK_MAX_CHARS = 120
 QUICK_TOOL_NAMES = (
     "get_overview", "list_accounts", "list_transactions", "spending_by_category",
     "cashflow_trend", "list_savings_goals", "list_loans", "list_assets", "list_recurring",
-    "list_budgets", "list_rules",
+    "list_budgets", "list_rules", "get_alert_settings",
 )
 
 

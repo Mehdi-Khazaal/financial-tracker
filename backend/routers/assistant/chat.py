@@ -306,6 +306,72 @@ def chat(
     }
 
 
+def _category_named(db: Session, user: User, name, *, expense_only: bool = False) -> Category:
+    cleaned = _clean_text(name, "category", 100)
+    query = (
+        db.query(Category)
+        .filter(func.lower(Category.name) == cleaned.lower())
+        .filter((Category.user_id == user.id) | (Category.user_id.is_(None)))
+    )
+    if expense_only:
+        query = query.filter(Category.type == "expense")
+    category = query.first()
+    if category is None:
+        kind = "expense category" if expense_only else "category"
+        raise HTTPException(status_code=404, detail=f"No {kind} called \"{cleaned}\"")
+    return category
+
+
+def _execute_set_budget(db: Session, user: User, inp: dict) -> str:
+    """Create the category's budget, or change the one it has. Money stays Decimal."""
+    from models.database import Budget
+    from services.budgets import CENTS
+
+    amount = _num(inp.get("amount")).quantize(CENTS)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be greater than zero")
+    category = _category_named(db, user, inp.get("category"), expense_only=True)
+    budget = db.query(Budget).filter(Budget.user_id == user.id, Budget.category_id == category.id).first()
+    if budget is None:
+        budget = Budget(
+            user_id=user.id, category_id=category.id, amount=amount,
+            rollover=bool(inp.get("rollover", False)), starts_on=_user_today(user).replace(day=1), is_active=True,
+        )
+        db.add(budget)
+        verb = "set"
+    else:
+        budget.amount = amount
+        budget.is_active = True
+        if "rollover" in inp:
+            budget.rollover = bool(inp.get("rollover"))
+        verb = "updated"
+    db.commit()
+    return f"Budget {verb}: ${amount:,.2f} a month for {category.name}."
+
+
+def _execute_add_rule(db: Session, user: User, inp: dict) -> str:
+    from models.database import CategorizationRule
+    from services import categorization_rules as rules_service
+
+    pattern = _clean_text(inp.get("pattern"), "pattern", rules_service.MAX_PATTERN_LENGTH)
+    field = inp.get("field") or "description"
+    try:
+        rules_service.validate(field, "contains", pattern)
+    except rules_service.InvalidRule as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    category = _category_named(db, user, inp.get("category"))
+    rule = CategorizationRule(
+        user_id=user.id, category_id=category.id, field=field, match_type="contains",
+        pattern=pattern, priority=100, is_active=True, applied_count=0,
+    )
+    db.add(rule)
+    db.flush()
+    changed = rules_service.apply_to_past(db, user.id, rule) if inp.get("apply_to_past") else 0
+    db.commit()
+    tail = f" {changed} past transaction{'s' if changed != 1 else ''} filed." if inp.get("apply_to_past") else ""
+    return f"Rule added: \"{pattern}\" → {category.name}.{tail}"
+
+
 @router.post("/execute")
 @limiter.limit("30/minute")
 def execute_action(
@@ -412,6 +478,12 @@ def execute_action(
         db.add(loan)
         db.commit()
         message = "Loan recorded."
+
+    elif tool == "set_budget":
+        message = _execute_set_budget(db, current_user, inp)
+
+    elif tool == "add_rule":
+        message = _execute_add_rule(db, current_user, inp)
 
     elif tool == "save_memory":
         message = _save_memory(db, current_user, inp.get("content"))

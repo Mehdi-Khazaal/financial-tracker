@@ -44,6 +44,7 @@ const SUGGESTIONS = [
   { label: 'Categories', prompt: 'What are my biggest spending categories this month?' },
   { label: 'Record expense', prompt: 'Add a $12 coffee expense to my main account' },
   { label: 'Savings', prompt: 'Am I on track with my savings goals?' },
+  { label: 'Budgets', prompt: 'How am I doing against my budgets this month?' },
 ];
 
 const ACTION_LABELS: Record<string, string> = {
@@ -51,6 +52,8 @@ const ACTION_LABELS: Record<string, string> = {
   add_account: 'Account',
   add_savings_goal: 'Savings goal',
   add_loan: 'Loan',
+  set_budget: 'Budget',
+  add_rule: 'Rule',
   // A remembered fact is a durable write like any other, so it is confirmed
   // here rather than saved silently inside the model loop.
   save_memory: 'Memory',

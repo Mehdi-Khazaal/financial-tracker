@@ -778,7 +778,7 @@ def _t_list_budgets(db: Session, user: User, month: Optional[str] = None, **_) -
         ],
         "total_available": _jsonable(sum((i.available for i in items), Decimal("0"))),
         "total_spent": _jsonable(sum((i.spent for i in items), Decimal("0"))),
-        "note": "No budgets means the user has not set any; suggest add_budget only if they ask." if not items else None,
+        "note": "No budgets means the user has not set any; propose set_budget only if they ask." if not items else None,
     }
 
 def _t_list_rules(db: Session, user: User, **_) -> dict:
@@ -808,6 +808,29 @@ def _t_list_rules(db: Session, user: User, **_) -> dict:
     }
 
 
+def _t_get_alert_settings(db: Session, user: User, **_) -> dict:
+    """What Fintrack will push about, and which accounts sit under the low-balance line."""
+    from services import user_preferences
+    from services.alerts import WATCHED_ACCOUNT_TYPES
+
+    values = user_preferences.stored_values(db, user.id)
+    threshold = Decimal(str(values["low_balance_threshold"]))
+    low = [
+        {"account": a.name, "balance": _jsonable(a.balance)}
+        for a in db.query(Account).filter(Account.user_id == user.id, Account.type.in_(WATCHED_ACCOUNT_TYPES)).all()
+        if Decimal(str(a.balance or 0)) < threshold
+    ]
+    return {
+        "bill_reminders": bool(values["bill_reminders_enabled"]),
+        "budget_alerts": bool(values["budget_alerts_enabled"]),
+        "low_balance_alerts": bool(values["low_balance_alerts_enabled"]),
+        "low_balance_threshold": _jsonable(threshold),
+        "accounts_below_threshold": low,
+        "automatic_categorization": bool(values["automatic_categorization_enabled"]),
+        "note": "Alerts are changed in Settings → Preferences; the assistant cannot change them.",
+    }
+
+
 READ_TOOLS = {
     "get_overview": _t_get_overview,
     "list_accounts": _t_list_accounts,
@@ -827,9 +850,10 @@ READ_TOOLS = {
     "find_recurring_waste": _t_find_recurring_waste,
     "list_budgets": _t_list_budgets,
     "list_rules": _t_list_rules,
+    "get_alert_settings": _t_get_alert_settings,
 }
 
 # Every tool that changes stored state, including memory. None of these run
 # inside the model loop; they surface as confirmation cards and execute only
 # through `/execute` with a server-issued action token.
-WRITE_TOOLS = {"add_transaction", "add_account", "add_savings_goal", "add_loan", "save_memory"}
+WRITE_TOOLS = {"add_transaction", "add_account", "add_savings_goal", "add_loan", "set_budget", "add_rule", "save_memory"}

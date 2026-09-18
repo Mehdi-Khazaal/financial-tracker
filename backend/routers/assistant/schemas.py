@@ -194,6 +194,15 @@ def _all_tool_schemas() -> list:
             "input_schema": {"type": "object", "properties": {}},
         },
         {
+            "name": "get_alert_settings",
+            "description": (
+                "Which alerts are on (bill reminders, budget alerts, low-balance alerts and its "
+                "threshold), which accounts are currently below that threshold, and whether "
+                "automatic categorization is on. Read-only: alerts are changed in Settings."
+            ),
+            "input_schema": {"type": "object", "properties": {}},
+        },
+        {
             "name": "save_memory",
             "description": "Save a durable fact about the user that should be remembered across all future chats — goals, preferences, habits, rules, recurring context. Use this whenever you learn something lasting. This is your persistent notebook.",
             "input_schema": {
@@ -245,6 +254,42 @@ def _all_tool_schemas() -> list:
             },
         },
         {
+            "name": "set_budget",
+            "description": (
+                "Propose a monthly budget for one expense category, or change an existing one. "
+                "Shown to the user for confirmation; not executed automatically. Call list_budgets "
+                "first to see what exists, and use the category's exact name."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "description": "Name of an existing expense category"},
+                    "amount": {"type": "number", "description": "Monthly allowance, positive"},
+                    "rollover": {"type": "boolean", "description": "Carry unspent money into next month (overspending never carries)"},
+                },
+                "required": ["category", "amount"],
+            },
+        },
+        {
+            "name": "add_rule",
+            "description": (
+                "Propose a categorization rule: transactions whose description (or merchant) contains "
+                "the text are filed under the category automatically from now on. Optionally also "
+                "files matching past transactions, never ones the user categorized by hand. Shown "
+                "for confirmation; not executed automatically. Call list_rules first to avoid duplicates."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "string", "description": "Text to look for, e.g. 'netflix'"},
+                    "category": {"type": "string", "description": "Name of an existing category"},
+                    "field": {"type": "string", "enum": ["description", "merchant"]},
+                    "apply_to_past": {"type": "boolean", "description": "Also file matching past transactions"},
+                },
+                "required": ["pattern", "category"],
+            },
+        },
+        {
             "name": "add_loan",
             "description": "Propose recording money lent to someone. Shown to the user for confirmation; not executed automatically.",
             "input_schema": {
@@ -272,6 +317,13 @@ def _action_summary(tool: str, inp: dict) -> str:
         return f"Create savings goal \"{inp.get('name')}\" targeting {inp.get('target_amount')}"
     if tool == "add_loan":
         return f"Record loan of {inp.get('amount')} to {inp.get('borrower_name')}"
+    if tool == "set_budget":
+        rollover = " with rollover" if inp.get("rollover") else ""
+        return f"Budget {inp.get('amount')} a month for \"{inp.get('category')}\"{rollover}"
+    if tool == "add_rule":
+        past = ", and file matching past transactions" if inp.get("apply_to_past") else ""
+        where = "merchant" if inp.get("field") == "merchant" else "description"
+        return f"File transactions whose {where} contains \"{inp.get('pattern')}\" under \"{inp.get('category')}\"{past}"
     if tool == "save_memory":
         content = str(inp.get("content") or "").strip()
         return f"Remember: \"{content[:200]}{'…' if len(content) > 200 else ''}\""
