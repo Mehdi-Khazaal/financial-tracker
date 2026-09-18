@@ -424,6 +424,29 @@ class AssistantMessage(Base):
     conversation = relationship("AssistantConversation", back_populates="messages")
 
 
+class AssistantPendingAction(Base):
+    """A write the assistant proposed and the user has not yet confirmed.
+
+    Stored rather than held in process memory so a restart, a cold start, or a
+    second worker between "propose" and "confirm" does not lose the action.
+    The client holds the raw token; only its SHA-256 is stored, so a database
+    read cannot be replayed as a confirmation. `consumed_at` makes execution
+    exactly-once under concurrent confirms.
+    """
+
+    __tablename__ = "assistant_pending_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("assistant_conversations.id", ondelete="CASCADE"), nullable=True)
+    tool = Column(String(50), nullable=False)
+    input = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=utc_now)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    consumed_at = Column(DateTime, nullable=True)
+
+
 class AssistantMemory(Base):
     """Durable facts the assistant has learned about the user — its persistent notebook."""
 

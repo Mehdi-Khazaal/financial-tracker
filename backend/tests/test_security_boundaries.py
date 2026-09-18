@@ -201,13 +201,12 @@ def test_cron_requires_header_secret_and_skips_cross_tenant_rows(
 def test_assistant_execute_requires_server_pending_action_and_is_one_time(
     client, db_session, user, auth_headers
 ):
-    assistant._pending_actions.clear()
     conversation = AssistantConversation(user_id=user.id, title="Test")
     db_session.add(conversation)
     db_session.commit()
     db_session.refresh(conversation)
     payload = {"name": "AI checking", "type": "checking", "balance": 10}
-    token = assistant._register_pending_action(user.id, conversation.id, "add_account", payload)
+    token = assistant._register_pending_action(db_session, user.id, conversation.id, "add_account", payload)
     body = {
         "conversation_id": conversation.id,
         "tool": "add_account",
@@ -226,14 +225,13 @@ def test_assistant_execute_requires_server_pending_action_and_is_one_time(
 def test_assistant_pending_action_cannot_cross_users(
     client, db_session, user, auth_headers
 ):
-    assistant._pending_actions.clear()
     other_user, other_headers = _create_second_user(db_session)
     conversation = AssistantConversation(user_id=user.id, title="Test")
     db_session.add(conversation)
     db_session.commit()
     db_session.refresh(conversation)
     payload = {"name": "Private savings", "type": "savings", "balance": 0}
-    token = assistant._register_pending_action(user.id, conversation.id, "add_account", payload)
+    token = assistant._register_pending_action(db_session, user.id, conversation.id, "add_account", payload)
     body = {
         "conversation_id": conversation.id,
         "tool": "add_account",

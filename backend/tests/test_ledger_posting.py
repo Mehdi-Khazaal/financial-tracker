@@ -92,7 +92,6 @@ def test_savings_spend_beyond_the_allocation_writes_nothing(client, db_session, 
 
 
 def test_assistant_confirmed_transaction_moves_the_balance(client, db_session, user, auth_headers, account, category):
-    assistant._pending_actions.clear()
     payload = {
         "account_id": account.id,
         "amount": 40,
@@ -101,7 +100,7 @@ def test_assistant_confirmed_transaction_moves_the_balance(client, db_session, u
         "transaction_date": "2026-06-12",
         "category": category.name,
     }
-    token = assistant._register_pending_action(user.id, None, "add_transaction", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "add_transaction", payload)
     opening = Decimal(str(account.balance))
 
     response = client.post(
@@ -120,9 +119,8 @@ def test_assistant_confirmed_transaction_moves_the_balance(client, db_session, u
 
 
 def test_assistant_confirmed_income_is_positive(client, db_session, user, auth_headers, account):
-    assistant._pending_actions.clear()
     payload = {"account_id": account.id, "amount": 12.5, "direction": "income", "transaction_date": "2026-06-12"}
-    token = assistant._register_pending_action(user.id, None, "add_transaction", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "add_transaction", payload)
 
     response = client.post(
         "/assistant/execute",
@@ -180,9 +178,8 @@ def test_savings_spend_row_carries_merchant_identity(client, db_session, user, a
 
 
 def test_assistant_confirmed_transaction_carries_merchant_identity(client, db_session, user, auth_headers, account):
-    assistant._pending_actions.clear()
     payload = {"account_id": account.id, "amount": 9, "direction": "expense", "description": "NETFLIX.COM", "transaction_date": "2026-06-12"}
-    token = assistant._register_pending_action(user.id, None, "add_transaction", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "add_transaction", payload)
 
     client.post("/assistant/execute", headers=auth_headers, json={"tool": "add_transaction", "input": payload, "action_token": token})
 

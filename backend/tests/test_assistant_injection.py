@@ -119,9 +119,8 @@ def test_injected_description_cannot_write_memory_and_is_framed_as_data(
 
 
 def test_confirmed_memory_is_stored_and_capped(client, db_session, user, auth_headers):
-    assistant._pending_actions.clear()
     payload = {"content": "  Prefers index funds over single stocks.  "}
-    token = assistant._register_pending_action(user.id, None, "save_memory", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "save_memory", payload)
 
     response = client.post(
         "/assistant/execute", headers=auth_headers,
@@ -134,11 +133,10 @@ def test_confirmed_memory_is_stored_and_capped(client, db_session, user, auth_he
 
 
 def test_memory_limit_is_enforced_on_execute(client, db_session, user, auth_headers):
-    assistant._pending_actions.clear()
     db_session.add_all(AssistantMemory(user_id=user.id, content=f"fact {i}") for i in range(assistant.MAX_MEMORIES))
     db_session.commit()
     payload = {"content": "one more"}
-    token = assistant._register_pending_action(user.id, None, "save_memory", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "save_memory", payload)
 
     response = client.post(
         "/assistant/execute", headers=auth_headers,
@@ -150,9 +148,8 @@ def test_memory_limit_is_enforced_on_execute(client, db_session, user, auth_head
 
 
 def test_empty_memory_is_rejected_on_execute(client, db_session, user, auth_headers):
-    assistant._pending_actions.clear()
     payload = {"content": "   "}
-    token = assistant._register_pending_action(user.id, None, "save_memory", payload)
+    token = assistant._register_pending_action(db_session, user.id, None, "save_memory", payload)
 
     response = client.post(
         "/assistant/execute", headers=auth_headers,
@@ -163,9 +160,8 @@ def test_empty_memory_is_rejected_on_execute(client, db_session, user, auth_head
     assert db_session.query(AssistantMemory).count() == 0
 
 
-def test_execute_cannot_run_a_read_tool(client, user, auth_headers):
-    assistant._pending_actions.clear()
-    token = assistant._register_pending_action(user.id, None, "list_accounts", {})
+def test_execute_cannot_run_a_read_tool(client, db_session, user, auth_headers):
+    token = assistant._register_pending_action(db_session, user.id, None, "list_accounts", {})
 
     response = client.post(
         "/assistant/execute", headers=auth_headers,

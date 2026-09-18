@@ -280,6 +280,7 @@ def chat(
 
     for action in pending_actions:
         action["action_token"] = _register_pending_action(
+            db,
             user_id,
             conv.id,
             action["tool"],
@@ -308,7 +309,7 @@ def execute_action(
 ):
     """Run a write action the user has confirmed."""
     del request
-    action = _consume_pending_action(req.action_token, current_user.id, req.conversation_id)
+    action = _consume_pending_action(db, req.action_token, current_user.id, req.conversation_id)
     if req.tool != action["tool"] or req.input != action["input"]:
         raise HTTPException(status_code=400, detail="Pending action payload does not match")
     tool, inp = action["tool"], action["input"]

@@ -20,9 +20,7 @@ registry; the behaviour lives in the submodules and is re-exported here so
 - `chat`           the `/chat` loop and `/execute`
 """
 
-from collections import OrderedDict
 from decimal import Decimal
-from threading import Lock
 
 from fastapi import APIRouter
 
@@ -72,12 +70,6 @@ MAX_CONVERSATIONS = 100
 MAX_STORED_MESSAGES = 200
 MAX_LISTED_CONVERSATIONS = 100
 PENDING_ACTION_TTL_SECONDS = 10 * 60
-MAX_PENDING_ACTIONS = 2000
-
-# A schema migration is intentionally avoided here. Pending confirmations are
-# process-local, short-lived, unguessable, and consumed atomically on execute.
-_pending_actions: OrderedDict[str, dict] = OrderedDict()
-_pending_actions_lock = Lock()
 
 
 # ─── Time ────────────────────────────────────────────────────────────────────

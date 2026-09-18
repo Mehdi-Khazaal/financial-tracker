@@ -5,7 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.auth import User
-from models.database import get_db, RecurringTransaction, Transaction, Account, Category
+from models.database import get_db, RecurringTransaction, Account, Category
 from services import merchants, recurring_bills
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
 from services.ledger import LedgerResourceNotFound, LedgerService
@@ -198,13 +198,20 @@ def cron_refresh_merchant_categories(request: Request, db: Session = Depends(get
 
 @router.post("/prune-idempotency-keys")
 def cron_prune_idempotency_keys(request: Request, db: Session = Depends(get_db)):
-    """Drop idempotency records past their 24h TTL. Runs hourly."""
+    """Drop short-lived bookkeeping past its TTL. Runs hourly.
+
+    Idempotency records (24 h) and the assistant's pending-action rows (10
+    min, or already confirmed) share this job: both are small, both expire on
+    their own, and one scheduled call is easier to keep configured than two.
+    """
     _require_cron_secret(request)
     from models.database import IdempotencyKey, utc_now
+    from routers.assistant.pending import prune_expired_pending_actions
     now = utc_now()
     deleted = db.query(IdempotencyKey).filter(IdempotencyKey.expires_at <= now).delete()
     db.commit()
-    return {"deleted": deleted}
+    pending = prune_expired_pending_actions(db, now=now)
+    return {"deleted": deleted, "pending_actions_deleted": pending}
 
 
 @router.post("/run-jobs")
