@@ -11,6 +11,9 @@ from routers import accounts, assets, auth, categories, transactions
 from routers import admin, assistant, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
+from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, run_startup_migrations
+from utils.monitoring import init_sentry
+from utils.request_context import RequestIdMiddleware
 from utils.security import (
     BrowserOriginMiddleware,
     SecurityHeadersMiddleware,
@@ -131,7 +134,21 @@ def _prepare_database() -> None:
                 logger.info("database compatibility migration skipped %s", kv(error=str(exc), sql=sql))
 
 
-_prepare_database()
+# Schema management, in order of preference:
+#   1. Alembic (`utils.migrations`): a stamped database is upgraded to head.
+#   2. The legacy boot-time repairs above, for a database that has never been
+#      stamped — production until `alembic stamp` is run once — and as the
+#      fallback if a migration fails, so a bad revision degrades to "yesterday's
+#      behaviour" rather than "no service".
+_migration_outcome = run_startup_migrations(engine)
+if _migration_outcome in {OUTCOME_INITIALIZED, OUTCOME_UPGRADED}:
+    # Alembic owns the schema. `create_all` is kept as a no-op safety net for
+    # any ORM table a revision might lag behind; it never alters a column.
+    Base.metadata.create_all(bind=engine)
+else:
+    _prepare_database()
+
+init_sentry()
 
 
 _docs_enabled = api_docs_enabled()
@@ -193,6 +210,8 @@ app.include_router(assistant.router)
 # See `utils.security.security_headers` for the exact policy.
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(IdempotencyMiddleware)
+# Outermost, so the id covers every other middleware's work and every log line.
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.get("/")

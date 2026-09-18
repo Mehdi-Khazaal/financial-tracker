@@ -1,6 +1,6 @@
 """Pending-action tokens: a proposed write waits here until the user confirms.
 
-Rows live in `assistant_pending_actions` (revision 20260917_000016). The
+Rows live in `assistant_pending_actions` (revision 20260917_000017). The
 client receives a random token; the row stores its SHA-256, the owner, the
 conversation, the tool and its input, and an expiry. Confirmation consumes
 the row exactly once — the `consumed_at IS NULL` guard on the update is what

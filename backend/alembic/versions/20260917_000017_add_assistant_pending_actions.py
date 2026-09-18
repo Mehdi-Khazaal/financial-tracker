@@ -1,7 +1,7 @@
 """Persist the assistant's pending (unconfirmed) actions.
 
-Revision ID: 20260917_000016
-Revises: 20260917_000015
+Revision ID: 20260917_000017
+Revises: 20260917_000016
 
 Proposed writes used to wait in process memory for the user's confirmation,
 so a restart, a cold start or a second worker turned "Confirm" into
@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260917_000016"
-down_revision = "20260917_000015"
+revision = "20260917_000017"
+down_revision = "20260917_000016"
 branch_labels = None
 depends_on = None
 

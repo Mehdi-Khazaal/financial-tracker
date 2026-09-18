@@ -20,7 +20,9 @@ from routers.plaid_router import PlaidItem  # noqa: F401
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep the application's loggers alive when Alembic is driven from a
+    # process that already configured logging (tests, the boot-time upgrade).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 database_url = os.getenv("DATABASE_URL")
 if not database_url:

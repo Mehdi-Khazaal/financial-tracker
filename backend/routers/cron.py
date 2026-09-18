@@ -2,6 +2,7 @@ import os
 import hmac
 from datetime import date, timedelta
 from decimal import Decimal
+from time import monotonic
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from models.auth import User
@@ -29,6 +30,11 @@ def _require_cron_secret(request: Request) -> None:
 # with this margin and then filtered against each user's own calendar day, so a
 # user east of UTC is not skipped for a day.
 _MAX_UTC_OFFSET_DAYS = 1
+
+# Render's proxy gives a request 30 s. The nightly snapshot refresh stops
+# handing out work before that and reports what is left, rather than being
+# killed mid-user. Overridable for a bigger plan or a local run.
+SNAPSHOT_TIME_BUDGET_SECONDS = float(os.getenv("CRON_TIME_BUDGET_SECONDS", "20"))
 
 
 @router.post("/process-recurring")
@@ -170,19 +176,41 @@ def cron_refresh_balance_snapshots(request: Request, db: Session = Depends(get_d
     """
     _require_cron_secret(request)
 
-    users = db.query(User).all()
+    users = db.query(User).order_by(User.id).all()
     total_rows = 0
+    refreshed = 0
+    failed = 0
+    deadline = monotonic() + SNAPSHOT_TIME_BUDGET_SECONDS
     for owner in users:
-        # Month-ends in the user's own zone, so their chart's "this month" is
-        # the month they are in.
-        total_rows += refresh_snapshots_for_user(
-            db, owner.id, months_back=24, include_today=True, today=user_today(owner)
-        )
+        if monotonic() > deadline:
+            # Stop cleanly before the platform's request timeout would. Every
+            # user processed so far is committed; the rest are picked up on
+            # the next run, and the response says so.
+            break
+        try:
+            # Month-ends in the user's own zone, so their chart's "this month"
+            # is the month they are in. `refresh_snapshots_for_user` commits,
+            # so one user's failure cannot take another's rows with it.
+            total_rows += refresh_snapshots_for_user(
+                db, owner.id, months_back=24, include_today=True, today=user_today(owner)
+            )
+            refreshed += 1
+        except Exception:
+            db.rollback()
+            failed += 1
+            logger.exception("cron_snapshot_refresh_failed %s", kv(user_id=owner.id))
 
     cutoff = date.today().replace(year=date.today().year - 3)
     pruned = prune_snapshots_older_than(db, cutoff)
 
-    return {"users": len(users), "snapshots_written": total_rows, "pruned": pruned}
+    return {
+        "users": len(users),
+        "refreshed": refreshed,
+        "failed": failed,
+        "remaining": len(users) - refreshed - failed,
+        "snapshots_written": total_rows,
+        "pruned": pruned,
+    }
 
 
 @router.post("/refresh-merchant-categories")
