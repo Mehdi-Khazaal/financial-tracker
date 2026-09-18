@@ -2,6 +2,7 @@ import os
 import hmac
 import hashlib
 import json
+import re
 import requests
 import time
 from collections import OrderedDict
@@ -179,7 +180,7 @@ def _plaid_post(path: str, body: dict) -> dict:
     try:
         resp = requests.post(url, json=body, timeout=30)
     except requests.RequestException as exc:
-        logger.warning("plaid_request_failed %s", kv(path=path, error=str(exc)))
+        logger.warning("plaid_request_failed %s", kv(path=path, error=_scrub_secrets(str(exc))))
         raise HTTPException(status_code=502, detail="Plaid is temporarily unavailable")
     if not resp.ok:
         logger.warning("plaid_response_error %s", kv(path=path, status_code=resp.status_code))
@@ -224,9 +225,25 @@ SYNC_SOURCE_OTHER = "other"
 _MAX_STORED_ERROR = 280
 
 
+# Plaid credential shapes. Nothing in this module should ever log or store
+# one, but an exception message from a lower layer (a URL echoed back, a
+# request body in a library error) might carry it, so every string that is
+# logged or stored passes through `_scrub_secrets` first.
+_PLAID_SECRET_PATTERN = re.compile(
+    r"(?:access|public|link)-(?:sandbox|development|production)-[0-9a-zA-Z-]+"
+)
+
+
+def _scrub_secrets(text: str) -> str:
+    text = _PLAID_SECRET_PATTERN.sub("<redacted-plaid-token>", text)
+    if PLAID_SECRET and PLAID_SECRET in text:
+        text = text.replace(PLAID_SECRET, "<redacted-plaid-secret>")
+    return text
+
+
 def _safe_error(exc: BaseException) -> str:
     """A short, credential-free description of a failure."""
-    return f"{type(exc).__name__}: {exc}"[:_MAX_STORED_ERROR]
+    return _scrub_secrets(f"{type(exc).__name__}: {exc}")[:_MAX_STORED_ERROR]
 
 
 def record_sync_health(

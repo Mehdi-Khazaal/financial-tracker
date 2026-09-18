@@ -321,6 +321,10 @@ class SavingsGoal(Base):
     name = Column(String(100), nullable=False)
     target_amount = Column(Numeric(15, 2), nullable=False)
     deadline = Column(Date, nullable=True)
+    # The highest milestone (0, 50, 75, 100 — percent of target) the user has
+    # been notified about. A push goes out only when a save *crosses* a
+    # milestone, never merely because the goal still sits above one.
+    milestone_notified = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

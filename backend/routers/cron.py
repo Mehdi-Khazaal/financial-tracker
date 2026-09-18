@@ -170,15 +170,19 @@ def cron_refresh_balance_snapshots(request: Request, db: Session = Depends(get_d
     """
     _require_cron_secret(request)
 
-    user_ids = [uid for (uid,) in db.query(User.id).all()]
+    users = db.query(User).all()
     total_rows = 0
-    for uid in user_ids:
-        total_rows += refresh_snapshots_for_user(db, uid, months_back=24, include_today=True)
+    for owner in users:
+        # Month-ends in the user's own zone, so their chart's "this month" is
+        # the month they are in.
+        total_rows += refresh_snapshots_for_user(
+            db, owner.id, months_back=24, include_today=True, today=user_today(owner)
+        )
 
     cutoff = date.today().replace(year=date.today().year - 3)
     pruned = prune_snapshots_older_than(db, cutoff)
 
-    return {"users": len(user_ids), "snapshots_written": total_rows, "pruned": pruned}
+    return {"users": len(users), "snapshots_written": total_rows, "pruned": pruned}
 
 
 @router.post("/refresh-merchant-categories")

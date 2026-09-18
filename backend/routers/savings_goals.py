@@ -41,6 +41,20 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
     )
 
 
+MILESTONES = (100, 75, 50)
+
+
+def milestone_reached(current: Decimal, target: Decimal) -> int:
+    """The highest milestone (percent of target) the goal currently sits at, or 0."""
+    if target <= 0:
+        return 0
+    pct = current / target * 100
+    for level in MILESTONES:
+        if pct >= level:
+            return level
+    return 0
+
+
 def _load_goal(goal_id: int, user_id: int, db: Session) -> SavingsGoal:
     goal = (
         db.query(SavingsGoal)
@@ -146,21 +160,24 @@ def set_allocations(
             ))
 
     db.commit()
-    result = _serialize_goal(_load_goal(goal_id, current_user.id, db))
+    goal = _load_goal(goal_id, current_user.id, db)
+    result = _serialize_goal(goal)
 
-    # Push notification on milestone (50%, 75%, 100%)
-    target = Decimal(str(result.target_amount))
-    current = Decimal(str(result.current_amount))
-    if target > 0:
-        pct = current / target
-        for milestone, label in [(1.0, "100%"), (0.75, "75%"), (0.5, "50%")]:
-            if pct >= milestone:
-                icon = "🎉" if milestone == 1.0 else "🎯"
-                msg = f"Goal reached!" if milestone == 1.0 else f"You're {label} of the way there!"
-                background.add_task(send_push_to_user, db, current_user.id,
-                                    f"{icon} {result.name}",
-                                    msg, url="/savings", tag=f"goal-{goal_id}")
-                break
+    # Announce a milestone (50 / 75 / 100 %) only when this save crosses it.
+    # The last announced level is stored on the goal, so re-saving the same
+    # allocations, or nudging an amount, stays silent. Falling back below a
+    # level resets it, so climbing past it again is worth announcing again.
+    reached = milestone_reached(Decimal(str(result.current_amount)), Decimal(str(result.target_amount)))
+    previous = goal.milestone_notified or 0
+    if reached != previous:
+        goal.milestone_notified = reached
+        db.commit()
+    if reached > previous:
+        icon = "🎉" if reached == 100 else "🎯"
+        msg = "Goal reached!" if reached == 100 else f"You're {reached}% of the way there!"
+        background.add_task(send_push_to_user, db, current_user.id,
+                            f"{icon} {result.name}",
+                            msg, url="/savings", tag=f"goal-{goal_id}")
 
     return result
 

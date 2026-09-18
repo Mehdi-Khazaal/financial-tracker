@@ -115,6 +115,9 @@ def _prepare_database() -> None:
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS missed_alert_sent_for DATE",
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS price_alert_sent_on DATE",
         "ALTER TABLE recurring_transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        # ── Savings-goal milestone bookkeeping ────────────────────────────────
+        # Mirrors Alembic revision 20260917_000015; both must be updated together.
+        "ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS milestone_notified INTEGER NOT NULL DEFAULT 0",
     ]
     with engine.begin() as conn:
         for sql in migrations:
