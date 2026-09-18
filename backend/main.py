@@ -1,18 +1,22 @@
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
 from routers import admin, assistant, cron, history, loans, plaid_router, preferences, push, recurring_transactions, savings_goals, stocks, transfers
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
-from utils.security import BrowserOriginMiddleware
+from utils.security import (
+    BrowserOriginMiddleware,
+    SecurityHeadersMiddleware,
+    allowed_browser_origins,
+    api_docs_enabled,
+)
 from utils.idempotency import IdempotencyMiddleware
 # Registers background job handlers with the dispatcher at import time.
 from services import job_handlers  # noqa: F401
@@ -127,22 +131,30 @@ def _prepare_database() -> None:
 _prepare_database()
 
 
-app = FastAPI(title="Fintrack API", version="2.0.0")
+_docs_enabled = api_docs_enabled()
+app = FastAPI(
+    title="Fintrack API",
+    version="2.0.0",
+    # The schema is a map for anyone probing the API. Off in production
+    # unless `EXPOSE_API_DOCS=true` — see `utils.security.api_docs_enabled`.
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_extra_origin = os.getenv("EXTRA_ALLOWED_ORIGIN", "")
-_allowed_origins = [
-    origin
-    for origin in [
+# Trusted browser origins: the defaults below plus `ALLOWED_ORIGINS` (CSV) and
+# the legacy `EXTRA_ALLOWED_ORIGIN`, so a custom domain or a preview deploy is
+# configuration rather than a code change.
+_allowed_origins = allowed_browser_origins(
+    [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://financial-tracker-gamma-sable.vercel.app",
-        _extra_origin,
     ]
-    if origin
-]
+)
 
 
 app.add_middleware(
@@ -173,25 +185,15 @@ app.include_router(plaid_router.router)
 app.include_router(assistant.router)
 
 
-class NoCacheMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        if os.getenv("ENVIRONMENT") == "production":
-            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
-        return response
-
-
-app.add_middleware(NoCacheMiddleware)
+# No-store caching plus the security headers (CSP, COOP, CORP, HSTS in prod).
+# See `utils.security.security_headers` for the exact policy.
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(IdempotencyMiddleware)
 
 
 @app.get("/")
 def root():
-    return {"message": "Fintrack API v2", "docs": "/docs"}
+    payload = {"message": "Fintrack API v2"}
+    if _docs_enabled:
+        payload["docs"] = "/docs"
+    return payload
