@@ -28,7 +28,7 @@ const BudgetProgressCard: React.FC<Props> = ({ summary, monthLabel, today, onMan
         title={`Allowances for ${monthLabel}`}
         description={view.items.length > 0 ? `${dollars(view.spent)} of ${dollars(view.budgeted)} spent across ${view.items.length} budget${view.items.length === 1 ? '' : 's'}.` : undefined}
         right={(
-          <button type="button" onClick={onManage} className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 40 }}>
+          <button type="button" onClick={onManage} className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 44 }}>
             Manage
           </button>
         )}

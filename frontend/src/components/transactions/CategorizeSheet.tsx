@@ -156,7 +156,7 @@ const CategorizeSheet: React.FC<Props> = ({
             <button
               onClick={close}
               className="flex-1 py-3 text-sm font-bold rounded-xl transition-all active:scale-95"
-              style={{ backgroundColor: 'var(--accent)', color: 'white' }}
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}
             >
               Done
             </button>

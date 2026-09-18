@@ -186,7 +186,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children, size =
           )}
         </div>
 
-        <div className="sheet-body">{children}</div>
+        <div className={title ? 'sheet-body sheet-body--titled' : 'sheet-body'}>{children}</div>
       </div>
     </div>,
     document.body,

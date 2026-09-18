@@ -95,7 +95,7 @@ const SplitEditor: React.FC<Props> = ({ transaction, categories, onDone, onCance
       : `$${centsToText(-check.remainingCents)} too much`;
 
   return (
-    <div className="space-y-4" aria-label="Split transaction">
+    <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
           Split <span className="font-mono tabular-nums" style={{ color: 'var(--fg)' }}>${centsToText(total)}</span> across categories
@@ -135,7 +135,7 @@ const SplitEditor: React.FC<Props> = ({ transaction, categories, onDone, onCance
                 onClick={() => removeLine(index)}
                 disabled={lines.length <= 2}
                 className="btn-ghost pressable px-2 text-xs disabled:opacity-30"
-                style={{ minHeight: 40, color: 'var(--dim)' }}
+                style={{ minHeight: 44, color: 'var(--dim)' }}
                 aria-label={`Remove part ${index + 1}`}
               >
                 ✕

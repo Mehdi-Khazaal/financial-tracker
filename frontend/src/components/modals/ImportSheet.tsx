@@ -215,12 +215,12 @@ const ImportSheet: React.FC<Props> = ({ isOpen, onClose, onImported, accounts })
                     </select>
                   </label>
                   <div className="space-y-2 pt-1">
-                    <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)', minHeight: 32 }}>
+                    <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)', minHeight: 44 }}>
                       <input type="checkbox" checked={flipSign} onChange={e => setFlipSign(e.target.checked)} className="w-4 h-4" />
                       Money out is shown as positive in this file
                     </label>
                     {preview.duplicates > 0 && (
-                      <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)', minHeight: 32 }}>
+                      <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--muted)', minHeight: 44 }}>
                         <input type="checkbox" checked={includeDuplicates} onChange={e => setIncludeDuplicates(e.target.checked)} className="w-4 h-4" />
                         Import the {preview.duplicates} that look already recorded
                       </label>

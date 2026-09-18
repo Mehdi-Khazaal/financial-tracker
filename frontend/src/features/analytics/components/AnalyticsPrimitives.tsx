@@ -126,15 +126,22 @@ export const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
         onFocus={() => setOpen(true)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        className="inline-flex items-center justify-center rounded-full transition-colors"
-        style={{
-          width: 16, height: 16,
-          border: '1px solid var(--line-strong)',
-          color: open ? 'var(--accent)' : 'var(--dim)',
-          fontSize: 10, fontFamily: 'var(--font-mono)', lineHeight: 1,
-        }}
+        // A 24 px target (WCAG 2.5.8) around the same 16 px circle.
+        className="inline-flex items-center justify-center rounded-full -m-1"
+        style={{ width: 24, height: 24 }}
       >
-        ?
+        <span
+          aria-hidden="true"
+          className="inline-flex items-center justify-center rounded-full transition-colors"
+          style={{
+            width: 16, height: 16,
+            border: '1px solid var(--line-strong)',
+            color: open ? 'var(--accent)' : 'var(--dim)',
+            fontSize: 10, fontFamily: 'var(--font-mono)', lineHeight: 1,
+          }}
+        >
+          ?
+        </span>
       </button>
       {open && (
         <span

@@ -97,7 +97,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
                 onClick={() => setType(t.value)}
                 className="py-2.5 rounded-xl text-xs font-semibold transition-all"
                 style={type === t.value
-                  ? { backgroundColor: 'var(--accent)', color: 'white', opacity: 1 }
+                  ? { backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)', opacity: 1 }
                   : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
               >
                 {t.label}

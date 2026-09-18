@@ -135,7 +135,7 @@ const VisualBlock: React.FC<{ block: AssistantVisualBlock; onFollowUp: (prompt: 
           {rows.length ? rows.map((row, index) => (
             <div className="assistant-breakdown-row" key={`${row.label}-${index}`}>
               <div className="assistant-row-copy"><span>{row.label}</span><strong>{currency(row.value)}</strong></div>
-              <div className="assistant-bar" aria-label={`${Math.round((row.share ?? 0) * 100)} percent`}>
+              <div className="assistant-bar" role="img" aria-label={`${Math.round((row.share ?? 0) * 100)} percent`}>
                 <span style={{ width: `${Math.max(2, (row.share ?? 0) * 100)}%`, background: `var(--cat-${(index % 8) + 1})` }} />
               </div>
             </div>

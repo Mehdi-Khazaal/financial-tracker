@@ -28,6 +28,7 @@ import DayHeader from '../features/transactions/components/DayHeader';
 import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
 import { groupByDay } from '../features/transactions/calculations/timeline';
 import { applyTransactionFilters, type TransactionFilters } from '../features/transactions/calculations/filters';
+import { readableOn } from '../utils/contrast';
 import PullToRefresh from '../components/PullToRefresh';
 import { useToast } from '../context/ToastContext';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -145,7 +146,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                   onClick={() => setLocalMonth(m)}
                   className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all"
                   style={effectiveMonth === m
-                    ? { backgroundColor: cat.color, color: 'white' }
+                    ? { backgroundColor: cat.color, color: readableOn(cat.color) }
                     : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}
                 >
                   {formatMonth(m)}
@@ -671,7 +672,7 @@ const Transactions: React.FC = () => {
               <span>Filters</span>
               {hasActiveFilters && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                  style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}>
                   {activeFilterCount}
                 </span>
               )}
@@ -1150,7 +1151,7 @@ const Transactions: React.FC = () => {
                 <div className="flex gap-2">
                   <button onClick={() => { applyFilters(); setShowFilters(false); }}
                     className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-95"
-                    style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+                    style={{ backgroundColor: 'var(--accent)', color: 'var(--ink-on-fill)' }}>
                     Apply Filters
                   </button>
                   <button onClick={clearFilters}

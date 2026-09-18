@@ -4,15 +4,18 @@ Dark-only product UI. A private banker's desk at night: warm near-black, one emb
 
 ## Color
 
+Values below are what ships in `index.css` (audited 2026-09-18; the earlier table had drifted).
+
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#0A0A0B` | App background |
-| `--elev-1` | `#111113` | Cards, panels |
+| `--bg` | `#070708` | App background |
+| `--elev-1` / `--elev-2` | `#121214` / `#18181B` | Cards, panels / raised controls |
 | `--elev-sub` | `#0D0D0F` | Nested surfaces, inputs |
 | `--fg` | `#F1F1F3` | Primary text |
-| `--muted` / `--dim` | `#6B7280` / `#4B5563` | Secondary / tertiary text |
-| `--line` / `--line-strong` | `#1E1E22` / `#2A2A30` | Structural borders |
+| `--muted` / `--dim` | `#9CA3AF` / `#858B96` | Secondary / tertiary text (both ≥ 4.5:1 on every surface) |
+| `--line` / `--line-strong` | `rgba(255,255,255,.09)` / `rgba(255,255,255,.18)` | Structural borders |
 | `--accent` | `#F97316` | THE accent — actions, selection, brand. One per page, locked. |
+| `--ink-on-fill` | `#0A0A0B` | Text and icons on any saturated fill (ember, green, red, amber) |
 | `--pos` / `--neg` | `#22C55E` / `#EF4444` | Semantic only (money in/out). Never decorative. |
 
 Category palette: `--cat-1`…`--cat-8` (fixed 8 colors for user categories).
@@ -20,14 +23,14 @@ Shadows are tinted warm-black (`--shadow-card/float/modal`), never pure black; c
 
 ## Typography
 
-- **Geist** (sans) — UI, body, buttons
-- **DM Serif Display** — large monetary values only (`.value-display`) + page H1s
-- **DM Mono** — labels (`.label`: 10px uppercase 0.13em tracking), amounts, dates
+- **System UI sans** (`--font-sans`: SF Pro on Apple platforms, then Inter, Geist, `system-ui`) — UI, body, buttons
+- **DM Serif Display** (`--font-money`) — large monetary values (`.value-display`)
+- **DM Mono** (`--font-mono`) — labels (`.label`: 10px uppercase 0.13em tracking), amounts, dates
 - All numerals tabular (`tabular-nums`), money formatted `$1,234.56`
 
 ## Shape
 
-Radii: 8 / 10 / 14px (sm/md/lg); pills and quick-action buttons are full-round. Cards top out at ~14px.
+Radii: 10 / 14 / 18px (`--radius-sm/md/lg`); pills and quick-action buttons are full-round.
 
 ## Motion
 
@@ -37,6 +40,18 @@ Curves in tokens — never default easings:
 - `--ease-exit: cubic-bezier(0.4,0,1,1)` — exits (faster than enters)
 
 Rules: UI transitions 140–250ms, transform/opacity only, `.pressable` scale(0.97) on `:active`, hovers gated behind `(hover: hover)`, keyboard-initiated UI (⌘K palette) opens with no animation, list entrances use `.stagger-in` (45ms steps). `prefers-reduced-motion` strips movement, keeps fades.
+
+Progress bars animate width in 200ms and not at all under `prefers-reduced-motion`.
+
+## Accessibility (checked, not aspirational)
+
+`e2e/a11y.spec.ts` runs axe (WCAG 2.2 A/AA) on every page and on the Phase 4 sheets at 390px and 1440px, and fails on serious/critical findings or any horizontal page overflow. The rules it enforces, and the ones behind them:
+
+- **Contrast**: body text ≥ 4.5:1. White on ember is 2.8:1, so text on a saturated fill uses `--ink-on-fill` (7:1 on ember). User-chosen category colours pick ink or white with `readableOn()` (`utils/contrast.ts`). `--neg` text on its own tint drops to 4.06:1; use `#F87171` there.
+- **Targets**: 44px (`--hit-min`) for controls; inline hints (`InfoHint`) keep a 16px circle inside a 24px target.
+- **Names**: every icon-only button has an `aria-label`; labels are tied to inputs with `htmlFor`/`id`; a labelled `div` carries a role.
+- **Disabled primary** (`.btn-gradient:disabled`) drops to 45% opacity with no shadow — a disabled button must not look pressable.
+- **Sheets**: a titled sheet pads its body 16px below the header rule.
 
 ## Z-scale
 

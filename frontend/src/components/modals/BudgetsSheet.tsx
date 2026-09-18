@@ -163,18 +163,18 @@ const BudgetsSheet: React.FC<Props> = ({ isOpen, onClose, onChanged, categories,
                       {editing ? (
                         <div className="flex items-center gap-1">
                           <input type="text" inputMode="decimal" value={editAmount} onChange={e => setEditAmount(e.target.value)} className="input-dark w-24" aria-label={`New amount for ${nameOf(budget.category_id)}`} />
-                          <button type="button" className="btn-gradient pressable px-3" style={{ minHeight: 40 }} onClick={() => { void saveEdit(budget); }} disabled={busy}>Save</button>
-                          <button type="button" className="btn-ghost pressable px-3" style={{ minHeight: 40 }} onClick={() => setEditingId(null)}>Cancel</button>
+                          <button type="button" className="btn-gradient pressable px-3" style={{ minHeight: 44 }} onClick={() => { void saveEdit(budget); }} disabled={busy}>Save</button>
+                          <button type="button" className="btn-ghost pressable px-3" style={{ minHeight: 44 }} onClick={() => setEditingId(null)}>Cancel</button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 shrink-0">
-                          <button type="button" className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 40 }} onClick={() => { setEditingId(budget.id); setEditAmount(String(budget.amount)); }} aria-label={`Edit ${nameOf(budget.category_id)} budget`}>
+                          <button type="button" className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 44 }} onClick={() => { setEditingId(budget.id); setEditAmount(String(budget.amount)); }} aria-label={`Edit ${nameOf(budget.category_id)} budget`}>
                             {dollars(Number(budget.amount), 0)}
                           </button>
-                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 40, color: budget.rollover ? 'var(--accent)' : 'var(--dim)' }} onClick={() => { void toggleRollover(budget); }} disabled={busy} aria-pressed={budget.rollover} aria-label={`Rollover for ${nameOf(budget.category_id)}`}>
+                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: budget.rollover ? 'var(--accent)' : 'var(--dim)' }} onClick={() => { void toggleRollover(budget); }} disabled={busy} aria-pressed={budget.rollover} aria-label={`Rollover for ${nameOf(budget.category_id)}`}>
                             ↻
                           </button>
-                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 40, color: 'var(--neg)' }} onClick={() => { void remove(budget); }} disabled={busy} aria-label={`Remove ${nameOf(budget.category_id)} budget`}>
+                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: 'var(--neg)' }} onClick={() => { void remove(budget); }} disabled={busy} aria-label={`Remove ${nameOf(budget.category_id)} budget`}>
                             ✕
                           </button>
                         </div>

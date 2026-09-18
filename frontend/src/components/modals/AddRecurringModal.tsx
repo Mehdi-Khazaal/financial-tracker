@@ -191,7 +191,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
 
         <button type="submit" disabled={loading || !amount || !accountId}
           className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-          style={{ backgroundColor: accentColor, color: 'white' }}>
+          style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
           {loading ? 'Saving…' : `Create Recurring · $${parseFloat(amount || '0').toFixed(2)}`}
         </button>
       </form>

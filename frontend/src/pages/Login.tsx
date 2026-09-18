@@ -247,7 +247,7 @@ const Login: React.FC = () => {
                 style={{
                   width: '100%', padding: '15px', borderRadius: '12px', border: 'none',
                   background: loading ? 'rgba(249,115,22,0.45)' : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                  color: '#fff', fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-sans)',
+                  color: 'var(--ink-on-fill)', fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-sans)',
                   cursor: loading ? 'not-allowed' : 'pointer', opacity: code.trim().length < 6 ? 0.6 : 1,
                 }}
               >
@@ -402,7 +402,7 @@ const Login: React.FC = () => {
                 background: loading
                   ? 'rgba(249,115,22,0.45)'
                   : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                color: '#fff',
+                color: 'var(--ink-on-fill)',
                 fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans)',
@@ -429,7 +429,7 @@ const Login: React.FC = () => {
               onMouseUp={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}>
               {loading ? (
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white spin-slow" />
+                  <span className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black spin-slow" />
                   Signing in…
                 </span>
               ) : 'Sign In'}

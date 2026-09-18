@@ -244,6 +244,7 @@ const Signup: React.FC = () => {
                   type="button"
                   onClick={() => setShowPass(p => !p)}
                   tabIndex={-1}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
                   style={{
                     position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
@@ -303,7 +304,7 @@ const Signup: React.FC = () => {
                 background: loading
                   ? 'rgba(249,115,22,0.45)'
                   : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
-                color: '#fff',
+                color: 'var(--ink-on-fill)',
                 fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans)',
@@ -330,7 +331,7 @@ const Signup: React.FC = () => {
               onMouseUp={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}>
               {loading ? (
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white spin-slow" />
+                  <span className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black spin-slow" />
                   Creating account…
                 </span>
               ) : 'Create Account'}

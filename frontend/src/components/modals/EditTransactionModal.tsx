@@ -108,8 +108,8 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
         <div className="px-5 pb-8 pt-1">
           {/* Close */}
           <div className="flex justify-end pt-2">
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center"
+            <button onClick={onClose} aria-label="Close"
+              className="w-11 h-11 rounded-full flex items-center justify-center"
               style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -280,7 +280,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
 
           <button type="submit" disabled={loading || !amount}
             className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-            style={{ backgroundColor: accentColor, color: 'white' }}>
+            style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
             {loading ? 'Saving…' : 'Save Changes'}
           </button>
         </form>

@@ -55,10 +55,10 @@ const Landing: React.FC = () => (
         <span className="label" style={{ color: 'var(--muted)' }}>Fintrack</span>
       </div>
       <nav className="flex items-center gap-2" aria-label="Account">
-        <Link to="/login" className="btn-ghost pressable px-4" style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', fontSize: 13 }}>
+        <Link to="/login" className="btn-ghost pressable px-4" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', fontSize: 13 }}>
           Sign in
         </Link>
-        <Link to="/signup" className="btn-gradient pressable px-4" style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', fontSize: 13 }}>
+        <Link to="/signup" className="btn-gradient pressable px-4" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', fontSize: 13 }}>
           Create account
         </Link>
       </nav>
