@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from models.auth import User
 from models.database import get_db
 from utils.logging import get_logger, kv
+from utils.security import email_verification_required
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
@@ -125,4 +126,20 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
     if payload.get("sv", 0) != user.session_version:
         logger.info("revoked_access_token %s", kv(path=request.url.path, user_id=user_id))
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
+    if not user.is_verified and email_verification_required() and not _verification_exempt(request.url.path):
+        # Signed in, but the address has never been confirmed. The account
+        # routes stay open so the person can resend the mail, sign out, or
+        # leave; everything holding financial data waits.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "email_unverified", "message": "Verify your email address to continue."},
+        )
     return user
+
+
+# Paths an unverified user may still reach when verification is enforced.
+_VERIFICATION_EXEMPT_PREFIXES = ("/auth/", "/account/delete", "/healthz", "/readyz")
+
+
+def _verification_exempt(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in _VERIFICATION_EXEMPT_PREFIXES)

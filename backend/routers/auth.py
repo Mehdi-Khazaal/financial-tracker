@@ -8,12 +8,13 @@ from utils.auth import (
     get_password_hash, verify_password,
     create_verify_token, create_reset_token,
     set_auth_cookies, clear_auth_cookies,
-    create_access_token, get_current_user,
-    SECRET_KEY, ALGORITHM, cookie_cfg,
+    get_current_user,
+    SECRET_KEY, ALGORITHM,
 )
 from services import login_throttle
 from utils.email import send_password_reset, send_verification
 from utils.limiter import limiter
+from utils.security import invite_code_ok, signup_policy
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -52,6 +53,12 @@ def seed_user_categories(db: Session, user_id: int):
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 @limiter.limit("3/hour")
 def signup(request: Request, user: UserCreate, response: Response, db: Session = Depends(get_db)):
+    policy = signup_policy()
+    if not policy["open"]:
+        raise HTTPException(status_code=403, detail="Signups are closed right now.")
+    if policy["invite_required"] and not invite_code_ok(user.invite_code):
+        raise HTTPException(status_code=403, detail="A valid invite code is required to sign up.")
+
     email = str(user.email).strip().lower()
     username = user.username.strip()
     if db.query(User).filter(func.lower(User.email) == email).first():
@@ -87,6 +94,21 @@ def signup(request: Request, user: UserCreate, response: Response, db: Session =
         "is_admin": db_user.is_admin,
         "created_at": db_user.created_at,
     }
+
+
+@router.get("/signup-policy")
+def get_signup_policy():
+    """Readable without a session so the sign-up page can explain itself."""
+    return signup_policy()
+
+
+@router.post("/resend-verification")
+@limiter.limit("3/hour")
+def resend_verification(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user.is_verified:
+        return {"message": "Email is already verified."}
+    send_verification(current_user.email, create_verify_token(current_user.id, current_user.session_version))
+    return {"message": "Verification email sent."}
 
 
 # ─── Login (rate limited per address, locked per account) ────────────────────

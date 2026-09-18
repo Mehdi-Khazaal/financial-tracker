@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from typing import Optional
 from models.database import Base, utc_now
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -56,6 +57,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str = Field(min_length=1, max_length=100)
     password: str
+    # Required only when the deployment sets SIGNUP_INVITE_CODE.
+    invite_code: Optional[str] = Field(default=None, max_length=128)
 
     @field_validator("username")
     @classmethod

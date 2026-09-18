@@ -37,6 +37,7 @@ from routers.assistant.schemas import ChatRequest, ExecuteRequest, _action_summa
 from routers.assistant.tools import READ_TOOLS, WRITE_TOOLS, _save_memory, _untrusted_tool_result
 from routers.assistant.conversations import _get_conversation, _prune_conversation_messages
 from routers.assistant.usage import _accumulate_usage, _collect_sources, _price_usage
+from services import assistant_usage
 from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 from utils.limiter import limiter
@@ -58,6 +59,9 @@ def chat(
     message = (req.message or "").strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message is empty")
+
+    # Per-user daily caps, checked before anything is spent.
+    assistant_usage.enforce_caps(db, current_user)
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -248,6 +252,9 @@ def chat(
     reply = reply[:MAX_REPLY_CHARS]
 
     usage_summary = _price_usage(usage_totals, model)
+    # Count the turn against today's caps whatever the reply looked like: the
+    # tokens were spent either way.
+    assistant_usage.record_turn(db, current_user, usage_summary["estimated_cost_usd"])
     # A cache_hit_rate near zero on a long conversation means the prefix is being
     # invalidated — the cheapest possible signal that the layout has regressed.
     logger.info(

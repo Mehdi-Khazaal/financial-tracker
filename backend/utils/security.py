@@ -25,6 +25,32 @@ def api_docs_enabled() -> bool:
     return not is_production()
 
 
+def signup_policy() -> dict:
+    """Who may create an account right now.
+
+    `SIGNUPS_ENABLED=false` closes the door entirely (existing users keep
+    signing in). `SIGNUP_INVITE_CODE`, when set, is required in the signup
+    body — the simplest workable gate for a private beta, and one the sign-up
+    page can explain because this policy is readable without logging in.
+    """
+    enabled = os.getenv("SIGNUPS_ENABLED", "true").strip().lower() != "false"
+    invite = os.getenv("SIGNUP_INVITE_CODE", "").strip()
+    return {"open": enabled, "invite_required": enabled and bool(invite)}
+
+
+def invite_code_ok(candidate: str | None) -> bool:
+    expected = os.getenv("SIGNUP_INVITE_CODE", "").strip()
+    if not expected:
+        return True
+    import hmac
+
+    return bool(candidate) and hmac.compare_digest(candidate.strip(), expected)
+
+
+def email_verification_required() -> bool:
+    return os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").strip().lower() in {"true", "1", "yes"}
+
+
 def allowed_browser_origins(defaults: Iterable[str]) -> list[str]:
     """The origins that may make credentialed, state-changing requests.
 

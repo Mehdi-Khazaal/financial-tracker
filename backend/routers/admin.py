@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List
 from models.database import get_db
@@ -21,6 +21,28 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
 @router.get("/users", response_model=List[UserResponse])
 def list_users(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     return db.query(User).order_by(User.created_at).all()
+
+
+@router.get("/usage")
+def assistant_usage_summary(
+    days: int = Query(default=30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Per-user assistant turns and estimated cost over the window.
+
+    The cost figure is the same estimate the chat endpoint logs per turn
+    (`services.assistant_usage`), so the admin view and the logs agree. Caps
+    are reported so the admin can see how close anyone is.
+    """
+    from services import assistant_usage
+
+    return {
+        "days": days,
+        "turn_cap": assistant_usage.turn_cap(),
+        "cost_cap_usd": assistant_usage.cost_cap(),
+        "users": assistant_usage.admin_summary(db, days=days),
+    }
 
 
 @router.post("/users/{user_id}/reset-password")

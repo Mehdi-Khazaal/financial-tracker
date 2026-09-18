@@ -29,6 +29,7 @@ from sqlalchemy.orm import sessionmaker
 from models.auth import User
 from models.database import Account, Base, Category, SessionLocal, get_db
 from routers import (
+    account,
     accounts,
     admin,
     assets,
@@ -113,6 +114,7 @@ app.include_router(loans.router)
 app.include_router(transfers.router)
 app.include_router(push.router)
 app.include_router(health.router)
+app.include_router(account.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 

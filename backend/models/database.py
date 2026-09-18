@@ -447,6 +447,24 @@ class AssistantPendingAction(Base):
     consumed_at = Column(DateTime, nullable=True)
 
 
+class AssistantUsageDaily(Base):
+    """One row per user per (their) calendar day: turns and estimated cost.
+
+    Read before every chat turn to enforce the daily caps, and by the admin
+    usage view. See `services.assistant_usage`.
+    """
+
+    __tablename__ = "assistant_usage_daily"
+    __table_args__ = (UniqueConstraint("user_id", "day", name="uq_assistant_usage_user_day"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    day = Column(Date, nullable=False, index=True)
+    turns = Column(Integer, nullable=False, default=0, server_default="0")
+    cost_usd = Column(Numeric(12, 6), nullable=False, default=0, server_default="0")
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class AssistantMemory(Base):
     """Durable facts the assistant has learned about the user — its persistent notebook."""
 
