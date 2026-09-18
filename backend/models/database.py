@@ -45,19 +45,32 @@ def engine_options(url: str) -> dict:
     }
     if url.startswith("postgres"):
         statement_timeout_ms = _int_env("DB_STATEMENT_TIMEOUT_MS", 15_000)
-        options["connect_args"] = {
+        connect_args: dict = {
             "connect_timeout": _int_env("DB_CONNECT_TIMEOUT_SECONDS", 10),
-            # Applied per session by the driver; psycopg2 passes `options`
-            # straight to libpq.
-            "options": f"-c statement_timeout={statement_timeout_ms}",
             # Fintrack does its own idle handling; keepalives let a pooled
             # connection survive a NAT/idle window instead of dying silently.
+            # (Client-side libpq settings: nothing is sent to the server.)
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 3,
         }
+        # The timeout travels as a startup parameter. Neon's pooled endpoint
+        # (PgBouncer, host `…-pooler…`) refuses the connection outright when
+        # it sees one — "unsupported startup parameter in options" — which
+        # took the first production deploy of this code down at boot. So it
+        # is only sent to direct connections; 0 turns it off everywhere.
+        if statement_timeout_ms > 0 and not _is_neon_pooler(url):
+            connect_args["options"] = f"-c statement_timeout={statement_timeout_ms}"
+        options["connect_args"] = connect_args
     return options
+
+
+def _is_neon_pooler(url: str) -> bool:
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(url).hostname or "").lower()
+    return "-pooler." in host
 
 
 engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
