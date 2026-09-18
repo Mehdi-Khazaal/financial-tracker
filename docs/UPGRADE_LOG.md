@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1 Budgets done; 4.2 Auto-categorization rules next.**
+- Current phase: **Phase 4 (features) in progress — 4.1 Budgets and 4.2 Rules done; 4.3 Bill & low-balance alerts next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -288,5 +288,34 @@ Commit: `cbc8070` feat(budgets).
 4. **Onboarding is a checklist, not a wizard**: it sits on Overview, uses live data for two of three steps, and disappears; nothing is gated behind it.
 5. **Assistant budget payloads stay floats** like every other assistant tool result (documented deviation from decimal strings; the API itself is strings).
 
-### Next step
+### Next step (done — see Phase 4.2)
 **Phase 4.2 — Auto-categorization rules**: `categorization_rules` (user, match field — merchant/description contains or regex —, category, priority, active), applied at Plaid sync and manual create; a preview endpoint that shows which existing transactions a rule would hit; optional retroactive apply (idempotent, only uncategorised or same-source rows); Settings → Rules UI with preview; assistant read tool; tests first for the sync path. Then alerts, search, CSV import, splits, 2FA, assistant upgrades.
+
+## Phase 4.2 — Auto-categorization rules (2026-09-17) ✅
+
+Commit: `103d66f` feat(rules).
+
+### What changed
+- **Model + migration**: `categorization_rules` (revision `20260917_000021`; user, category, `field` description|merchant, `match_type` contains|regex, `pattern` ≤200 chars, `priority`, `is_active`, `applied_count`). Round-tripped up → down (to 000019) → up on SQLite and on a scratch database on the local Postgres server.
+- **Precedence** (`services/transaction_enrichment.py`): explicit category on the write > **rule** > merchant history > Plaid PFC. A rule is an instruction, so it runs even when the user's automatic-categorization preference is off; it never touches a category the user set on a transaction. Source marker `"rule"`. `MerchantIdentity` now carries the raw description so description rules see the original text.
+- **Service** (`services/categorization_rules.py`): validation (bad field/type, empty, too long, invalid regex → 422 with the reason), compile once per session (cache on `session.info`, so sync is one query per user not per row), `first_match` in priority order, `preview` (matched / would change / protected-by-hand counts + a sample, scans the most recent 5000 rows), `apply_to_past` (idempotent: rows already at the category and hand-filed rows are skipped; only `category_id` moves, balances untouched).
+- **API** (`routers/rules.py`): `GET/POST /rules/`, `PUT/DELETE /rules/{id}`, `POST /rules/preview` (unsaved draft, read-only), `POST /rules/{id}/apply`. ETag on the list. Category ownership enforced (404 for another user's category).
+- **Category delete** now removes that category's budgets and rules explicitly, so the behaviour is the same on a database that does not enforce foreign keys.
+- **Export** includes `budgets` and `categorization_rules`.
+- **Assistant**: `list_rules` read tool (quick tier too) so Fin can explain why something was filed where it was.
+- **Frontend**: Settings → **Rules** section (priority-ordered list in plain words, row menu: Edit / Apply to past / Pause / Remove), `RuleFormSheet` with a **live preview** (debounced, stale responses ignored, server reasons shown against the pattern field), `useRules` hook, `linkToNewRule(pattern, categoryId?)` deep link, and an **"Always file “…” as… →"** entry point on the transaction sheet that opens the rules sheet prefilled. `/rules` added to the dev proxy collection list and Vercel rewrites — and a proxy test now pins every collection route, because a missing entry produced a 307 to the backend's own origin that silently dropped the cookie and body (the rules sheet saved nothing until it was listed).
+
+### Checks
+- Backend: **778 passed** (18 new in `test_categorization_rules.py`: matching, regex/merchant, validation, precedence over history and PFC, preference-off, explicit category still wins, manual entry via the ledger, session cache, **Plaid sync path files by rule before PFC**, CRUD/validation, preview counts, idempotent apply that never touches hand-set rows and leaves balances alone, tenant isolation for rules/preview/apply, category delete cascade, assistant tool).
+- Frontend: **1021 Vitest tests** (57 files; new `RulesSection.test.tsx` 5 tests, proxy regression test), tsc clean, lint 2 pre-existing warnings, bundle 137 kB initial / 532 kB total.
+- Playwright: **14/14** (new `8-rules.spec.ts`: deep link prefills the sheet, preview counts two past rows, save, apply to past from the row menu, both rows now `category_source == "rule"`).
+
+### Decisions and reasoning
+1. **Rules bypass the automatic-categorization switch.** That switch governs Fintrack's guesses; a rule is the user's own instruction. Documented in the module docstring and pinned by a test.
+2. **Apply-to-past never touches `category_source == "user"`.** A rule cannot know better than the person who filed that row by hand; the preview shows those as "filed by hand, left alone" so the count is never a surprise.
+3. **No amount conditions in v1.** Description/merchant covers the real cases (subscriptions, employers, stores); amount ranges are a separate feature with their own UI and were left for later rather than half-built.
+4. **Regex is allowed but bounded**: 200-character cap, case-insensitive search, compiled once per session, preview scan capped at 5000 rows. No regex timeout exists in Python's `re`; the bounds are the protection.
+5. **The transaction sheet is the primary entry point**, because that is where a misfiled row is discovered; the Settings list is for management.
+
+### Next step
+**Phase 4.3 — Bill & low-balance alerts**: per-user alert preferences (`bill_reminders`, `low_balance`, `budget_alerts` toggles + low-balance threshold), nightly cron that pushes "bill due in N days" for tracked recurring bills and "balance below threshold" once per account per day, Settings → Preferences toggles wired to real behaviour (the section's docstring says an inert toggle is a lie — these must be honoured server-side), tests first for the cron paths. Then search & filters in ⌘K, CSV import/export, splits, 2FA, assistant upgrades.
