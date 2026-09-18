@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **All phases complete. PR `fable/upgrade` → `main` is ready and not merged. See the Final report at the end.**
+- Current phase: **All phases complete.** PR #1 (https://github.com/Mehdi-Khazaal/financial-tracker/pull/1) `fable/upgrade` → `main` is open and not merged. See the Final report at the end.
 - **Production stamp: `alembic stamp 20260916_000013` (the baseline), never head — see Phase 6.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
