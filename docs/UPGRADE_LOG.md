@@ -6,7 +6,8 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 5 complete → Phase 6 (tests & CI) next.**
+- Current phase: **Phase 6 complete → Phase 7 (docs & launch kit, PR) next.**
+- **Production stamp: `alembic stamp 20260916_000013` (the baseline), never head — see Phase 6.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -185,7 +186,7 @@ Commits: `331b99b` ops groundwork · `17843ce` Plaid split · `86a68fc` assistan
 - **Health**: `GET /healthz` (process only) and `GET /readyz` (`SELECT 1`, 503 when the DB is down). `render.yaml` points the health check at `/healthz`.
 - **Runtime alignment**: `backend/.python-version` = 3.13; `nixpacks.toml` (Railway leftover) deleted; `render.yaml` blueprint declares runtime, build/start commands, health check and every env var name (values `sync: false`).
 - **Neon-friendly engine** (`models.database.engine_options`): `pool_size 5`, `max_overflow 5`, `pool_recycle 300 s`, `pool_timeout 10 s`, `pool_pre_ping`, libpq `connect_timeout 10`, `statement_timeout 15 s`, TCP keepalives; all `DB_*` env-overridable; SQLite untouched.
-- **Alembic is now authoritative** (`utils/migrations.py`, run at import in `main.py`): fresh DB → `upgrade head` builds it; stamped DB → `upgrade head`; **unstamped DB with tables (production today) → untouched, a WARNING names the one-time `alembic stamp <head>` command, and the legacy boot-time repairs keep running**. A migration error is logged and falls back to the legacy path rather than failing boot. `RUN_MIGRATIONS_ON_BOOT=false` disables it. Alembic is driven without `alembic.ini` in-process so its logging config cannot replace ours (and `env.py` no longer silences existing loggers for the CLI either).
+- **Alembic is now authoritative** (`utils/migrations.py`, run at import in `main.py`): fresh DB → `upgrade head` builds it; stamped DB → `upgrade head`; **unstamped DB with tables (production today) → untouched, a WARNING names the one-time stamp command, and the legacy boot-time repairs keep running** *(corrected in Phase 6: the command is `alembic stamp 20260916_000013`, not head)*. A migration error is logged and falls back to the legacy path rather than failing boot. `RUN_MIGRATIONS_ON_BOOT=false` disables it. Alembic is driven without `alembic.ini` in-process so its logging config cannot replace ours (and `env.py` no longer silences existing loggers for the CLI either).
 - **Migration chain repaired**: the three assistant tables had only ever been created by `create_all`; revision `20260917_000016` adds them (guarded, no-op where they exist) so a Postgres database can be built from the chain alone. Pending actions moved to revision `000017`. Verified `upgrade head → downgrade 000015 → upgrade → downgrade base → upgrade` on a scratch local Postgres (25 tables at head) and on SQLite; the boot switch has 5 unit tests.
 - **Pending assistant actions persist** (`assistant_pending_actions`, AUDIT R2): token stored as SHA-256, consumed exactly once via a `consumed_at IS NULL` guarded update; 400 for unknown/expired/used, 404 for another user's; pruned by the hourly cron. 6 tests including exactly-once through `/execute`.
 - **Observability, all env-gated**: `LOG_FORMAT=json` switches to one JSON object per line with `kv()` pairs lifted to fields; `RequestIdMiddleware` honours a sane `X-Request-ID` or mints one, echoes it, attaches it to every log line via a contextvar, and writes one `http_request` access line per request (health probes at DEBUG); `SENTRY_DSN` enables `sentry-sdk[fastapi]` with PII off and tracing off by default. Frontend: `VITE_SENTRY_DSN` lazily loads `@sentry/browser` (a separate 142 kB gzip chunk that is never fetched without a DSN). 8 tests.
@@ -494,5 +495,33 @@ Commits: `81048de` fix(a11y) · `38aa384` chore(lint).
 1. **Ink on fills, not a darker ember.** Darkening the fill would change the brand colour of every button; changing the text keeps every Ledger token and fixes all four saturated fills with one rule. It is the most visible change of this phase and reverts with one token.
 2. **axe is a floor.** Automated checks catch labels, names, contrast, landmarks and targets; they do not judge focus order, reading order or plain language. The spec says so in its header.
 
-### Next step
+### Next step (done — see Phase 6)
 **Phase 6 — Tests & CI**: backend coverage report with a floor on the money paths (`services/ledger.py`, `budgets.py`, `splits.py`, `csv_import.py`, `categorization_rules.py`, `alerts.py`, `routers/plaid_router/sync.py`, `transfers`), frontend coverage for `features/**/calculations`; CI runs the full Playwright suite (incl. accessibility) on PRs, uploads the phase5 screenshots as an artifact, keeps the bundle budget, and checks migrations up/down/up plus the schema-chain test.
+
+## Phase 6 — Tests & CI (2026-09-18) ✅
+
+Commits: `cc219be` test · `dedc8e7` test(frontend) · `4baf256` fix(db).
+
+### ⚠️ Correction to the production stamp (read this before deploying)
+Phases 3 and the checklist said to run `alembic stamp <head>` on production. **That would be wrong for this branch.** Production was built by `main`'s legacy boot-time repairs to the schema of revision **`20260916_000013`** (the last revision on `main`). This branch adds columns to existing tables (users 2FA, accounts low-balance marker, transactions import batch, user preferences alerts, savings-goal milestone); stamping head would record those revisions as applied without running them, and every request would fail. The correct, rehearsed procedure is:
+
+1. With `main` still serving, run once against production: `alembic stamp 20260916_000013` (writes only the `alembic_version` row).
+2. Deploy the branch. Boot sees a stamped database and runs `alembic upgrade head` (revisions 14–26, every one guarded by existence checks).
+
+`utils/migrations.py` now holds this as `PRODUCTION_BASELINE`, and the boot warning names it (with "do not stamp head"). **Safety net:** if the branch is deployed *before* the stamp, the boot-time schema check finds the missing columns and `/healthz` (Render's health check path) answers 503, so Render does not promote the release and the previous one keeps serving; the log line names the stamp command. A database unreachable at boot does not trip this — only a positive finding does.
+
+**Rehearsed** (`backend/scripts/rehearse_production_upgrade.py`, scratch Postgres on localhost, `main` checked out in a worktree): main's own boot built the schema and wrote rows → this branch on the unstamped database: `outcome=unstamped missing=10 healthz=503` → `alembic stamp 20260916_000013` → boot again: `outcome=upgraded missing=0 healthz=200` → rows intact (`rows=1 sum=-12.34`), new columns at their defaults. **REHEARSAL PASSED.** The only remaining difference on a main-built database is two redundant unique indexes from the legacy repairs (`uq_accounts_plaid_account_id`, `uq_transactions_plaid_tx_id`), which duplicate the models' unique constraints; left in place deliberately (uniqueness and Plaid's `ON CONFLICT` behave identically either way).
+
+### What changed
+- **Backend coverage floors** (`scripts/check_coverage.py`): overall ≥ 85 % (measured 89.7 %) plus a per-file floor for every module that moves money or guards an account — ledger, transactions, transfers, budgets, splits, CSV import, rules, alerts, recurring bills, enrichment, Plaid sync, TOTP, secret box, auth, 2FA, lockout, account export/deletion. Measuring found **transfers at 67 %** and the secret box at 89 %: new `test_transfers.py` pins transfer behaviour as it stands (exact balance moves, cents never drift across many transfers, invalid transfers change nothing, other users' accounts out of reach, per-user listing newest first, delete restores both balances) → 100 %; secret-box edges (idempotent encrypt, legacy plaintext, empty refused, tampered token fails loudly, no key is an error) → 100 %. The two original secret-box tests are kept verbatim.
+- **Frontend coverage floors** (`@vitest/coverage-v8`, `scripts/coverage-report.mjs`, `npm run test:coverage`): every `features/*/calculations/*` module ≥ 85 % lines, `utils/contrast` ≥ 95 %, `lib/deepLinks` ≥ 90 %. Measuring found the insight generator at 67 % and the period summary at 79 %: `insights.test.ts` (13 cases, each switching on one signal from a deliberately quiet baseline, plus top-three ordering) and `summary.test.ts` (9 cases) — which **found a copy bug**: the summary read "up +15.0 pp", now "up 15.0 pp" and pinned. Deep-link tests cover the Phase 4 builders; a detached doc comment in `deepLinks.ts` was re-attached. 34 calculation modules checked, 0 below floor.
+- **Schema drift**: `scripts/check_schema_drift.py` compares a database migrated to head with the models (tables, columns, types, indexes, foreign keys; server defaults excluded). On Postgres it found five pre-existing differences from older revisions; **revision `20260918_000026`** reconciles them, each step guarded so it is correct on both a chain-built and a model-built database: the per-user snapshot index (declared on the model now, so production gains it), the `recurring_transactions.last_transaction_id` foreign key (SET NULL), three primary-key indexes, and `user_preferences.user_id` uniqueness as one unique index. Chain → drift check: **0 differences**; full walk base → head → base → head on SQLite and Postgres.
+- **CI** (`.github/workflows/ci.yml`): backend runs with coverage and the floor check; new **`migrations-postgres`** job (Postgres 16 service) builds the chain, runs the drift check, walks down to base and up again, and checks drift again; frontend runs `test:coverage`; the e2e job (now also gated on the Postgres job) runs the functional specs **and** the WCAG scan and uploads the 390/1440 screenshots as an artifact on every run.
+
+### Checks
+- Backend: **848 passed**; coverage 89.7 % overall, every floor met.
+- Frontend: **1089 Vitest tests** (67 files), lint 0, tsc clean, bundle within budget.
+- Playwright: **21/21**.
+
+### Next step
+**Phase 7 — Docs & launch kit**: root `README.md`, `docs/ARCHITECTURE.md` (Mermaid: request path, data model, sync, assistant), `docs/DEPLOY.md` (the stamp procedure above, env vars, Render/Vercel/Neon/Plaid, rollback), `CHANGELOG.md`, the final report with the manual-steps checklist in this log, memory update, and the PR `fable/upgrade` → `main` (not merged).
