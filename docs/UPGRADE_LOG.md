@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1–4.5 done (Budgets, Rules, Alerts, Search, CSV import); 4.6 Split transactions next.**
+- Current phase: **Phase 4 (features) in progress — 4.1–4.6 done (Budgets, Rules, Alerts, Search, CSV import, Splits); 4.7 Two-factor auth next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -393,5 +393,30 @@ Commit: `de2e965` feat(import).
 2. **Duplicates skipped by default, never silently**: the preview counts them and the user can include them.
 3. **Unknown category names are not created.** An import must not grow the category list behind the user's back; rules and history still apply.
 
-### Next step
+### Next step (done — see Phase 4.6)
 **Phase 4.6 — Split transactions**: a `transaction_splits` child table (transaction, category, amount, note) whose amounts must sum exactly to the parent; the parent keeps the account balance effect (splits never move money), analytics/budgets attribute spending per split; API to set/clear splits on a transaction; a split editor in the transaction sheet. Then 2FA and assistant upgrades.
+
+## Phase 4.6 — Split transactions (2026-09-18) ✅
+
+Commit: `24d157f` feat(splits).
+
+### What changed
+- **Model + migration**: `transaction_splits` (revision `20260917_000024`: transaction CASCADE, user CASCADE, category SET NULL, `amount Numeric(15,2)`, note; indexes on transaction and user+category). Round-tripped on SQLite and a local scratch Postgres.
+- **Rules** (`services/splits.py`): a split never moves money — the parent keeps its amount and its whole balance effect. Lines add up to the parent **exactly** (Decimal, no tolerance), share its sign, are non-zero, have at most two decimals, 2–20 lines, one per category, categories visible to the user. The parent is re-filed under the **largest line's** category (`category_source="user"`), so anything that is not split-aware still files the whole amount somewhere sensible instead of reading it as uncategorised.
+- **What drops a split**: an edit that changes the amount, filing the whole transaction under a different category, or the bank revising the charge's amount on sync (`clear_by_id` in the modified path). A note/description edit keeps it. Deleting the transaction removes its lines.
+- **API**: `PUT /transactions/{id}/splits` (replace), `DELETE /transactions/{id}/splits` (unsplit); `TransactionResponse.splits` on every read, loaded for the whole list page with one `selectinload` query (the `/transactions` query budget moves 3 → 4, documented in the test).
+- **Split-aware readers**: budget spend (`_spent_by_month` reads lines instead of their parents in one `UNION ALL` round trip; the progress ETag now covers `transaction_splits`), the assistant's `spending_by_category` (same) and `list_transactions` (includes the lines), the JSON export (`transaction_splits`). The UNION queries were run once against a scratch database on the local Postgres server and return the same figures as on SQLite.
+- **Frontend**: `SplitEditor` inside the transaction sheet (a third mode next to view/edit; "Split"/"Edit split" button): per-line category (filtered to the transaction's direction), amount and note; the first line absorbs whatever the others leave until typed in; the running remainder says "Adds up" / "$x left to assign" / "$x too much"; Save stays disabled until the parts add up to the cent; "Remove split" unsplits. All arithmetic in integer cents parsed from text (`features/transactions/calculations/splits.ts`). The view mode lists the lines; cards read "Split · N". Analytics category comparisons and the category drawer use `expandSplits` so each line counts against its own category; totals, counts and activity lists keep one row per real transaction.
+
+### Checks
+- Backend: **813 passed** (10 new in `test_splits.py`: validation cases, API rejection + foreign category, storing/replacing/listing/clearing with the balance untouched, cross-user 404s, budgets per line with ETag change, assistant totals per line, what drops a split, delete cascade, bank revision drops and unchanged re-send keeps, export).
+- Frontend: **1050 Vitest tests** (62 files; `splits.test.ts` incl. the 0.1 + 0.2 case, `SplitEditor.test.tsx`, split cases in `analytics.test.ts`), tsc clean, lint 2 pre-existing warnings, bundle 537 kB / 600.
+- Playwright: **17/17** (new `11-split.spec.ts`: open a transaction → Split → type one part → the first rebalances → save → API shows the two lines and the balance is unchanged).
+
+### Decisions and reasoning
+1. **Largest line becomes the parent's category** rather than a synthetic "Split" category or null: nothing split-unaware ever mis-reads a split as uncategorised, and no new system category has to exist in every user's list.
+2. **Drop, don't rescale, when the amount changes.** Rescaling lines proportionally invents numbers the user never entered; dropping keeps the main category and asks them to split again if they care.
+3. **One category per line.** Two lines in one category are one line; it keeps drawers and budgets free of duplicate rows.
+
+### Next step
+**Phase 4.7 — 2FA**: TOTP (RFC 6238, ±1 step window, secret encrypted with `secret_box`, provisioning URI + QR on the client), ten single-use recovery codes stored hashed, enable/verify/disable flows behind the current password, login step-up (`/auth/login` returns `{two_factor_required, challenge}`; `/auth/login/2fa` completes it; lockout counts failed codes), Settings → Account → Two-factor section. Passkeys only if time allows. Then assistant upgrades.
