@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
 from decimal import Decimal
-from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account, Transaction
+from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account
 from models.auth import User
 from models.schemas import (
     SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse,
     AllocationResponse, SetAllocationsRequest, SpendFromGoalRequest,
     TransactionResponse,
 )
+from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 from utils.etag import check_etag, compute_user_etag, set_etag_headers
 from utils.push_sender import send_push_to_user
@@ -184,10 +185,6 @@ def spend_from_goal(
     if body.amount > alloc_amount:
         raise HTTPException(status_code=400, detail=f"Only ${alloc_amount:.2f} allocated from this account")
 
-    account = db.query(Account).filter(Account.id == body.account_id, Account.user_id == current_user.id).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
     # Reduce allocation
     new_alloc_amount = alloc_amount - body.amount
     if new_alloc_amount <= 0:
@@ -195,18 +192,25 @@ def spend_from_goal(
     else:
         alloc.amount = new_alloc_amount
 
-    # Create expense transaction
-    tx = Transaction(
-        user_id=current_user.id,
-        account_id=body.account_id,
-        amount=-abs(body.amount),
-        description=body.description or f"Spent from {goal.name}",
-        transaction_date=body.transaction_date,
-    )
-    db.add(tx)
-    account.balance = Decimal(str(account.balance)) - body.amount
-
-    db.commit()
+    # The spend is an ordinary expense and goes through the ledger like one:
+    # ownership check, merchant identity, and an atomic balance update.
+    try:
+        LedgerService(db).stage_transaction(
+            current_user.id,
+            {
+                "account_id": body.account_id,
+                "amount": -abs(body.amount),
+                "description": body.description or f"Spent from {goal.name}",
+                "transaction_date": body.transaction_date,
+            },
+        )
+        db.commit()
+    except LedgerResourceNotFound as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=error.detail) from error
+    except Exception:
+        db.rollback()
+        raise
     return _serialize_goal(_load_goal(goal_id, current_user.id, db))
 
 

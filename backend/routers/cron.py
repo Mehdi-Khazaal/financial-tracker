@@ -8,6 +8,7 @@ from models.auth import User
 from models.database import get_db, RecurringTransaction, Transaction, Account, Category
 from services import merchants, recurring_bills
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
+from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
 from utils.dates import user_today
 from utils.logging import get_logger, kv
@@ -100,18 +101,22 @@ def cron_process_recurring(request: Request, db: Session = Depends(get_db)):
             )
             continue
 
-        tx = Transaction(
-            user_id=rec.user_id,
-            account_id=rec.account_id,
-            category_id=rec.category_id,
-            amount=rec.amount,
-            description=rec.description,
-            merchant_key=rec.merchant_key or merchants.merchant_key(rec.description) or None,
-            transaction_date=rec.next_date,
-        )
-        db.add(tx)
-        db.flush()
-        account.balance = Decimal(str(account.balance)) + Decimal(str(rec.amount))
+        try:
+            tx = LedgerService(db).stage_transaction(
+                rec.user_id,
+                {
+                    "account_id": rec.account_id,
+                    "category_id": rec.category_id,
+                    "amount": rec.amount,
+                    "description": rec.description,
+                    "merchant_key": rec.merchant_key or merchants.merchant_key(rec.description) or None,
+                    "transaction_date": rec.next_date,
+                },
+            )
+        except LedgerResourceNotFound:
+            # Ownership is checked before anything is staged, so nothing for
+            # this row is pending and the rows already staged are kept.
+            continue
         rec.last_paid_date = rec.next_date
         rec.last_paid_amount = abs(Decimal(str(rec.amount)))
         rec.last_transaction_id = tx.id

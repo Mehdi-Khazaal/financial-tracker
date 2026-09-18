@@ -42,6 +42,7 @@ from models.database import (
     utc_now,
 )
 from services import recurring_groups
+from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, occurrences_per_year
 from utils.auth import get_current_user
 from utils.dates import clean_timezone, user_now, user_today
@@ -1917,17 +1918,26 @@ def execute_action(
         tx_date = _parse_date(inp.get("transaction_date"))
         if tx_date is None:
             raise HTTPException(status_code=400, detail="transaction_date is required")
-        tx = Transaction(
-            user_id=current_user.id,
-            account_id=account.id,
-            category_id=category_id,
-            amount=signed,
-            description=_clean_text(inp.get("description"), "description", 500, required=False),
-            transaction_date=tx_date,
-        )
-        db.add(tx)
-        account.balance = Account.balance + signed
-        db.commit()
+        # Same path as a hand-entered transaction: ownership, enrichment and
+        # an atomic balance update all come from the ledger service.
+        try:
+            LedgerService(db).stage_transaction(
+                current_user.id,
+                {
+                    "account_id": account.id,
+                    "category_id": category_id,
+                    "amount": signed,
+                    "description": _clean_text(inp.get("description"), "description", 500, required=False),
+                    "transaction_date": tx_date,
+                },
+            )
+            db.commit()
+        except LedgerResourceNotFound as error:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=error.detail) from error
+        except Exception:
+            db.rollback()
+            raise
         message = "Transaction recorded."
 
     elif tool == "add_account":

@@ -29,35 +29,67 @@ class LedgerService:
         self._session = session
 
     def create_transaction(self, user_id: int, values: Mapping[str, Any]) -> Transaction:
+        """Post one transaction and commit. The single-write entry point."""
         try:
-            account = self._get_accounts(user_id, [values["account_id"]])[values["account_id"]]
-            self._validate_category(user_id, values.get("category_id"))
-
-            # One shared enrichment step for both ingestion paths — see
-            # `services.transaction_enrichment`. Resolves merchant identity,
-            # registers the alias, and suggests a category only when the
-            # caller did not supply one.
-            suggested_category = values.get("category_id")
-            values = enrich_transaction_input(self._session, user_id, values)
-            if values.get("category_id") != suggested_category:
-                # A suggested category still has to be one this user may use.
-                # If it is not, drop the suggestion rather than failing the
-                # write — the transaction is fine, the guess was not.
-                try:
-                    self._validate_category(user_id, values["category_id"])
-                except LedgerResourceNotFound:
-                    values["category_id"] = suggested_category
-                    values.pop("category_source", None)
-
-            transaction = Transaction(**values, user_id=user_id)
-            self._session.add(transaction)
-            self._adjust_balance(account, self._as_decimal(values["amount"]))
+            transaction = self.stage_transaction(user_id, values)
             self._session.commit()
             self._session.refresh(transaction)
             return transaction
         except Exception:
             self._session.rollback()
             raise
+
+    def stage_transaction(self, user_id: int, values: Mapping[str, Any]) -> Transaction:
+        """Validate, enrich, add the row and move the balance — without committing.
+
+        This is the one way a transaction enters the ledger. Savings-goal
+        spends, the assistant's confirmed writes, recurring posting and
+        variable-bill logging all call it, so every posted row gets the same
+        ownership checks, the same merchant identity, and — the part that
+        matters for money — the same **atomic** balance update: the delta is
+        applied as a SQL expression (`balance = balance + delta`), never as
+        Python arithmetic on a value read earlier. Two writers that race, such
+        as a Plaid sync and a user entry, both land.
+
+        Callers that post several rows (recurring posting) stage each and
+        commit once; a failure rolls back the lot. The caller owns the
+        transaction boundary and is responsible for `rollback()` on error.
+
+        An explicit `merchant_key` in `values` is kept. A tracked bill carries
+        the identity its charges were matched under, which may differ from the
+        key its display name would derive to.
+        """
+        values = dict(values)
+        account = self._get_accounts(user_id, [values.get("account_id")])[values["account_id"]]
+        self._validate_category(user_id, values.get("category_id"))
+
+        explicit_key = values.get("merchant_key")
+
+        # One shared enrichment step for both ingestion paths — see
+        # `services.transaction_enrichment`. Resolves merchant identity,
+        # registers the alias, and suggests a category only when the
+        # caller did not supply one.
+        suggested_category = values.get("category_id")
+        values = enrich_transaction_input(self._session, user_id, values)
+        if values.get("category_id") != suggested_category:
+            # A suggested category still has to be one this user may use.
+            # If it is not, drop the suggestion rather than failing the
+            # write — the transaction is fine, the guess was not.
+            try:
+                self._validate_category(user_id, values["category_id"])
+            except LedgerResourceNotFound:
+                values["category_id"] = suggested_category
+                values.pop("category_source", None)
+        if explicit_key:
+            values["merchant_key"] = explicit_key
+
+        transaction = Transaction(**values, user_id=user_id)
+        self._session.add(transaction)
+        self._adjust_balance(account, self._as_decimal(values["amount"]))
+        # Assign the primary key now so a caller can link to the row (a bill's
+        # `last_transaction_id`) before the surrounding commit.
+        self._session.flush()
+        return transaction
 
     def update_transaction(
         self,
