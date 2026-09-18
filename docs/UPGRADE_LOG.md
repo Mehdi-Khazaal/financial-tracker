@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 6 complete → Phase 7 (docs & launch kit, PR) next.**
+- Current phase: **All phases complete. PR `fable/upgrade` → `main` is ready and not merged. See the Final report at the end.**
 - **Production stamp: `alembic stamp 20260916_000013` (the baseline), never head — see Phase 6.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
@@ -503,7 +503,7 @@ Commits: `81048de` fix(a11y) · `38aa384` chore(lint).
 Commits: `cc219be` test · `dedc8e7` test(frontend) · `4baf256` fix(db).
 
 ### ⚠️ Correction to the production stamp (read this before deploying)
-Phases 3 and the checklist said to run `alembic stamp <head>` on production. **That would be wrong for this branch.** Production was built by `main`'s legacy boot-time repairs to the schema of revision **`20260916_000013`** (the last revision on `main`). This branch adds columns to existing tables (users 2FA, accounts low-balance marker, transactions import batch, user preferences alerts, savings-goal milestone); stamping head would record those revisions as applied without running them, and every request would fail. The correct, rehearsed procedure is:
+Phase 3 and the checklist said to run `alembic stamp <head>` on production. **That would be wrong for this branch.** Production was built by `main`'s legacy boot-time repairs to the schema of revision **`20260916_000013`** (the last revision on `main`). This branch adds columns to existing tables (users 2FA, accounts low-balance marker, transactions import batch, user preferences alerts, savings-goal milestone); stamping head would record those revisions as applied without running them, and every request would fail. The correct, rehearsed procedure is:
 
 1. With `main` still serving, run once against production: `alembic stamp 20260916_000013` (writes only the `alembic_version` row).
 2. Deploy the branch. Boot sees a stamped database and runs `alembic upgrade head` (revisions 14–26, every one guarded by existence checks).
@@ -525,3 +525,51 @@ Phases 3 and the checklist said to run `alembic stamp <head>` on production. **T
 
 ### Next step
 **Phase 7 — Docs & launch kit**: root `README.md`, `docs/ARCHITECTURE.md` (Mermaid: request path, data model, sync, assistant), `docs/DEPLOY.md` (the stamp procedure above, env vars, Render/Vercel/Neon/Plaid, rollback), `CHANGELOG.md`, the final report with the manual-steps checklist in this log, memory update, and the PR `fable/upgrade` → `main` (not merged).
+
+## Phase 7 — Docs & launch kit (2026-09-18) ✅
+
+- `README.md` (root): what Fintrack is, stack, layout, local setup, test commands, house rules, and the stamp warning.
+- `docs/ARCHITECTURE.md`: Mermaid diagrams of the system context, backend request path, category precedence, bank sync, the assistant's confirm-before-write loop, sign-in and 2FA, and boot plus the schema guard.
+- `docs/DEPLOY.md`: the rehearsed first-deploy procedure, encryption-key continuity (set `PLAID_TOKEN_ENCRYPTION_KEY` to the current `SECRET_KEY` value, never a new value), rollback without downgrading the schema, every environment variable, the cron table with the two new jobs, and health and monitoring.
+- `CHANGELOG.md`; `backend/.env.example`. `render.yaml` gains the launch switches and loses `ADMIN_EMAIL`, which no code reads. `scripts/check_schema_drift.py` now refuses non-local databases, as the docs claim.
+
+---
+
+# Final report
+
+## Outcome
+All seven phases and the public-launch track are done on `fable/upgrade`. The branch is pushed and a PR to `main` is ready; it is not merged. Nothing touched production at any point: no connection to Neon production, no production migration, no real secrets read, no Plaid production calls.
+
+| Measure | Before (Phase 0) | After |
+|---|---|---|
+| Backend tests | 577 (9 m 54 s) | **848** (~35 s) |
+| Backend coverage | not measured | **89.7 %**, per-file floors on money and account code |
+| Frontend tests | 973 (Jest, 41 s) | **1089** (Vitest, ~20 s), floors on 34 calculation modules |
+| Playwright | 12 | **21**, including an axe WCAG 2.2 AA scan at 390 and 1440 px |
+| Lint | 2 warnings | **0** |
+| Initial JS (gzip) | 139.8 kB | ~137 kB (budget 150) |
+| Accessibility findings | Lighthouse a11y 88 on `/login` | **0** axe findings on every page and sheet |
+| Schema | two sources of truth, never migrated | Alembic authoritative, Postgres drift check in CI, rehearsed upgrade path |
+
+## Manual steps (only you can do these)
+1. **Production database**: restore point, then `alembic stamp 20260916_000013`, then merge. Follow `docs/DEPLOY.md` §"First deploy". *Not head.*
+2. **Encryption key**: if `PLAID_TOKEN_ENCRYPTION_KEY` is unset on Render, set it to the current `SECRET_KEY` value before or with the deploy.
+3. **Vercel**: rename `REACT_APP_VAPID_PUBLIC_KEY` to `VITE_VAPID_PUBLIC_KEY`, and confirm the Vite preset builds.
+4. **Scheduler**: add nightly `POST /cron/check-budgets` and `POST /cron/check-balances`.
+5. **Render**: confirm the dashboard runtime is Python 3.13 and the health check path is `/healthz` (as in `render.yaml`).
+6. **Local hygiene**: remove `PRODUCTION_DATABASE_URL` from `backend/.env` (audit S14).
+7. **After verifying your own email**, optionally set `REQUIRE_EMAIL_VERIFICATION=true`. Set `SIGNUP_INVITE_CODE` or `SIGNUPS_ENABLED=false` for a private beta.
+8. **Optional**: `SENTRY_DSN` and `VITE_SENTRY_DSN`. Review the draft `/privacy` and `/terms` before inviting anyone.
+9. **Plaid production** (trial pending since 2026-04-20): set `PLAID_ENV=production` and the production secret when approved.
+10. **After production is stamped and stable**: delete the frozen legacy `_prepare_database()` repairs (follow-up below).
+
+## Deferred, with reasons
+- **Passkeys**: they need a vetted WebAuthn library and per-origin configuration for previews and production; that deserves its own phase.
+- **Rules with amount conditions**; **per-user bill-reminder window**: not requested beyond the brief's scope, and cheap to add later.
+- **Trigram search index**: needs `CREATE EXTENSION pg_trgm` on Neon, a production step; current volumes don't need it.
+- **Legacy boot repairs removal**: only after production is stamped.
+- **Redundant unique indexes on production** (`uq_accounts_plaid_account_id`, `uq_transactions_plaid_tx_id`): harmless duplicates of the models' unique constraints, left in place deliberately.
+- **`set-state-in-effect` / `refs` lint rules**: 56 deliberate call sites; revisit if the React Compiler is adopted.
+
+## Most visible change to look at first
+Primary buttons now carry near-black text on the ember fill, an accessibility fix (2.8:1 → 7:1). To revert it, set `--ink-on-fill: #fff` in `frontend/src/index.css`.

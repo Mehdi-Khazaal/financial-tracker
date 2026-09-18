@@ -40,6 +40,11 @@ def main() -> int:
     if not url.startswith("postgres"):
         print("check_schema_drift: set DATABASE_URL to a scratch Postgres database migrated to head")
         return 2
+    import re
+    host = re.search(r"@([^/:?]+)", url)
+    if not host or host.group(1) not in {"localhost", "127.0.0.1"}:
+        print("check_schema_drift: refusing a non-local database; run it against a scratch copy")
+        return 2
     import main as app_module  # noqa: F401  registers every model on Base.metadata
     from models.database import Base
 

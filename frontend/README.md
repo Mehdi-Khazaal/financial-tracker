@@ -12,10 +12,11 @@ app is same-origin in every environment (locally, Vite's dev server does the sam
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Serve `dist/` on :3000 with the same `/api` proxy |
 | `npm test` / `npm run test:ci` | Vitest (watch / single run) |
+| `npm run test:coverage` | Vitest with coverage, then per-module floors on `features/*/calculations` (`scripts/coverage-report.mjs`) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint (flat config) |
 | `npm run check:bundle` | Fail if `dist/` exceeds the gzip budget in `scripts/check-bundle.mjs` |
-| `npm run e2e` | Build, then Playwright smoke suite against `vite preview` + a scratch backend |
+| `npm run e2e` | Build, then Playwright against `vite preview` + a scratch backend: one spec per feature and `a11y.spec.ts` (axe, WCAG 2.2 AA, 390 px and 1440 px, sheets included; screenshots in `e2e/__screenshots__/phase5/`) |
 
 ## Environment
 

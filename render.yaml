@@ -65,8 +65,6 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS       # CSV of extra browser origins (previews, custom domain)
         sync: false
-      - key: ADMIN_EMAIL
-        sync: false
       # ── Optional switches (documented defaults) ────────────────────────────
       - key: AUTO_CATEGORIZE       # default true
         value: "true"
@@ -80,3 +78,14 @@ services:
         value: json
       - key: SENTRY_DSN            # leave empty to disable
         sync: false
+      # ── Public launch controls (see docs/DEPLOY.md) ───────────────────────
+      - key: SIGNUPS_ENABLED       # "false" closes registration
+        value: "true"
+      - key: SIGNUP_INVITE_CODE    # set to require an invite code at sign-up
+        sync: false
+      - key: REQUIRE_EMAIL_VERIFICATION  # "true" gates data routes on a verified email
+        value: "false"
+      - key: ASSISTANT_DAILY_TURN_CAP     # per user per day; 0 disables
+        value: "150"
+      - key: ASSISTANT_DAILY_COST_CAP_USD # per user per day; 0 disables
+        value: "3.00"
