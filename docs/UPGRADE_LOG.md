@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 complete → Phase 5 (UX & accessibility polish) next.**
+- Current phase: **Phase 5 complete → Phase 6 (tests & CI) next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -465,5 +465,34 @@ Commit: `711d303` feat(assistant).
 ### Phase 4 summary
 Budgets, categorisation rules, alerts, search, CSV import/export, split transactions, two-factor authentication and the assistant upgrades are all shipped with backend tests, component tests and one Playwright spec each (specs 7–12). Deferred with reasons: passkeys (4.7), amount-condition rules (4.2), per-user reminder window (4.3), trigram search index (4.4).
 
-### Next step
+### Next step (done — see Phase 5)
 **Phase 5 — UX & accessibility polish**: a 390 px / 1440 px pass over every page touched in Phase 4 (Overview with checklist + budgets card, Analytics budget card, Transactions search + import, Settings Rules / Two-factor / Alerts, Login code step), touch targets ≥44 px, visible focus, contrast of `--dim` text on the elevated surfaces, `prefers-reduced-motion` coverage, DESIGN.md token drift (audit U2), and refreshed Playwright screenshots for the changed pages.
+
+## Phase 5 — UX & accessibility polish (2026-09-18) ✅
+
+Commits: `81048de` fix(a11y) · `38aa384` chore(lint).
+
+### What changed
+- **Automated accessibility gate** (`e2e/a11y.spec.ts`, `@axe-core/playwright`): axe with WCAG 2.2 A/AA tags on every page — signed out (landing, login, signup, privacy) and signed in (Overview, Analytics, Timeline, Review, Accounts, Portfolio, Recurring, four Settings sections, Assistant) — at **390 px and 1440 px**, plus the Phase 4 sheets and dialogs (budgets, CSV import, split editor, rule sheet, 2FA setup, alert preferences, command palette). Fails on serious/critical findings and on any horizontal page overflow at phone width (WCAG 1.4.10); moderate/minor findings print. It saves a screenshot of every sheet at both widths to `e2e/__screenshots__/phase5/` for review.
+- **What it found, and the fixes** (first run: 8 serious/critical across 5 issues; now 0 findings of any impact):
+  1. Sign-up's show-password button had no name → `aria-label`; the transaction sheet's close button was a 32 px unnamed icon → 44 px, "Close".
+  2. Overview/Accounts info hints were 16 px targets (below WCAG 2.5.8's 24 px) → the same 16 px circle inside a 24 px button.
+  3. Contrast: **white text on every saturated fill fails AA** — 2.8:1 on ember, 2.3:1 on green, 2.2:1 on amber, 4.2:1 on red (axe only reported the solid ember button; gradients are not measured). New token `--ink-on-fill: #0A0A0B` (7:1 on ember) for text on primary buttons, confirm buttons, the assistant's send/new-chat/user bubble, modal submit buttons and accent badges; one-line revert by setting it to `#fff`. User-chosen category colours use `readableOn()` (`utils/contrast.ts`, tested), which picks ink or white by WCAG ratio. The active "expense" category tab moves to `#F87171` (4.06 → 5.5:1) and its count loses the 70 % opacity (2.66:1).
+  4. The assistant's share bars carried `aria-label` on a role-less `div` → `role="img"`; the split editor duplicated its sheet's name on a role-less `div` → removed.
+- **Visual pass** (screenshots at both widths): content in a titled sheet sat flush under the header rule → `.sheet-body--titled` pads 16 px (all sheets); a disabled primary button looked live ("Nothing to import") → `.btn-gradient:disabled` at 45 % with no shadow; new controls raised from 32–40 px to 44 px.
+- **Motion**: the progress bar animated width for 700 ms and ignored reduced motion → 200 ms, `motion-reduce:transition-none` (DESIGN.md's own 140–250 ms rule).
+- **DESIGN.md** (audit U2): colour, type and radius tables now state what ships (`--bg #070708`, `--muted #9CA3AF`, `--dim #858B96`, rgba lines, system-first sans stack with DM Serif for money, radii 10/14/18), plus an "Accessibility (checked, not aspirational)" section documenting the rules above. Every `--dim` pairing was recomputed: ≥ 5.0:1 on all surfaces.
+- **Lint decision** (from Phase 2): the React-Compiler-era rules with zero findings are now **errors** (`purity`, `immutability`, `static-components`, `set-state-in-render`, `globals`, `error-boundaries`, `use-memo`, `component-hook-factories`); `set-state-in-effect` (46) and `refs` (10) stay off with the reasoning in `eslint.config.js`. The two long-standing unused-variable warnings are gone — **lint is at 0 problems**.
+- Audit U1 (login label association) was closed in Phase 4.7.
+
+### Checks
+- Frontend: **1062 Vitest tests** (65 files), tsc clean, **lint 0 problems**, bundle within budget; `audit-ci` passes (allowlisted RSC advisory unchanged); `pip-audit` clean with `segno`.
+- Playwright: **21/21** (18 functional + 3 accessibility scans).
+- Backend unchanged: 832 passed.
+
+### Decisions and reasoning
+1. **Ink on fills, not a darker ember.** Darkening the fill would change the brand colour of every button; changing the text keeps every Ledger token and fixes all four saturated fills with one rule. It is the most visible change of this phase and reverts with one token.
+2. **axe is a floor.** Automated checks catch labels, names, contrast, landmarks and targets; they do not judge focus order, reading order or plain language. The spec says so in its header.
+
+### Next step
+**Phase 6 — Tests & CI**: backend coverage report with a floor on the money paths (`services/ledger.py`, `budgets.py`, `splits.py`, `csv_import.py`, `categorization_rules.py`, `alerts.py`, `routers/plaid_router/sync.py`, `transfers`), frontend coverage for `features/**/calculations`; CI runs the full Playwright suite (incl. accessibility) on PRs, uploads the phase5 screenshots as an artifact, keeps the bundle budget, and checks migrations up/down/up plus the schema-chain test.
