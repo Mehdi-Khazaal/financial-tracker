@@ -11,7 +11,7 @@ from routers import accounts, assets, auth, categories, transactions
 from routers import account, admin, assistant, budgets, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
-from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, run_startup_migrations
+from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, record_schema_state, run_startup_migrations
 from utils.monitoring import init_sentry
 from utils.request_context import RequestIdMiddleware
 from utils.security import (
@@ -147,6 +147,11 @@ if _migration_outcome in {OUTCOME_INITIALIZED, OUTCOME_UPGRADED}:
     Base.metadata.create_all(bind=engine)
 else:
     _prepare_database()
+
+# Whatever path ran, verify the result: a deploy that reached an unstamped
+# production database cannot add the columns this release needs, and
+# `/healthz` then refuses traffic so the previous release keeps serving.
+record_schema_state(engine)
 
 init_sentry()
 

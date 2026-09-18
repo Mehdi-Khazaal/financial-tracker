@@ -599,6 +599,9 @@ class AccountBalanceSnapshot(Base):
     __tablename__ = "account_balance_snapshots"
     __table_args__ = (
         UniqueConstraint("account_id", "snapshot_date", name="uq_snapshot_account_date"),
+        # Per-user range scans (history charts). Created by revision 5 but only
+        # declared here in Phase 6, so production gains it at revision 26.
+        Index("ix_snapshot_user_date", "user_id", "snapshot_date"),
     )
 
     id = Column(Integer, primary_key=True, index=True)

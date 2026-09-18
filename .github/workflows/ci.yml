@@ -35,17 +35,65 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest pip-audit
+          pip install -r requirements.txt pytest pytest-cov pip-audit
       - name: Audit backend dependencies
         run: pip-audit -r requirements.txt
-      - name: Run backend tests
-        run: pytest tests -q
-      - name: Migrations apply, revert and re-apply cleanly
+      - name: Run backend tests with coverage
+        run: pytest tests -q --cov=services --cov=routers --cov=utils --cov=models --cov-report=json:coverage.json --cov-report=term:skip-covered
+      - name: Enforce coverage floors on money and account code
+        run: python scripts/check_coverage.py coverage.json
+      - name: Migrations apply, revert and re-apply cleanly (SQLite)
         run: |
           rm -f migrations.db
           DATABASE_URL=sqlite:///./migrations.db alembic upgrade head
           DATABASE_URL=sqlite:///./migrations.db alembic downgrade base
           DATABASE_URL=sqlite:///./migrations.db alembic upgrade head
+
+  migrations-postgres:
+    # SQLite reflects too little to prove a migration is right, and production
+    # is Postgres. This builds the chain on a real Postgres, checks it against
+    # the models, and walks it all the way down and up again.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fintrack_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fintrack_ci
+      SECRET_KEY: 0123456789abcdef0123456789abcdef
+      ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build the schema with the migration chain
+        run: alembic upgrade head
+      - name: The chain matches the models (tables, columns, types, indexes, keys)
+        run: python scripts/check_schema_drift.py
+      - name: Every revision reverts and re-applies
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+          python scripts/check_schema_drift.py
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -65,8 +113,8 @@ jobs:
         run: npm run lint
       - name: Type-check frontend
         run: npm run typecheck
-      - name: Run frontend tests
-        run: npm run test:ci
+      - name: Run frontend tests with coverage floors
+        run: npm run test:coverage
       - name: Build frontend
         run: npm run build
       - name: Enforce bundle budget
@@ -82,7 +130,7 @@ jobs:
 
   e2e-smoke:
     runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests]
+    needs: [backend-tests, frontend-tests, migrations-postgres]
     env:
       SECRET_KEY: e2e-test-secret-key-0123456789abcdef
       DATABASE_URL: sqlite:///./e2e.db
@@ -115,9 +163,17 @@ jobs:
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - name: Run Playwright smoke suite
+      - name: Run Playwright suite (functional specs and the WCAG 2.2 AA scan)
         working-directory: frontend
         run: npx playwright test
+      - name: Upload the accessibility screenshots (390 px and 1440 px)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-screenshots
+          path: frontend/e2e/__screenshots__/phase5
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
