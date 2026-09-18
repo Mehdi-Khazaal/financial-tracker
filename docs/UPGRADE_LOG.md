@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 2 complete → Phase 3 (backend architecture & reliability) next.**
+- Current phase: **Phase 3 complete → Public-launch track (§5 of the brief) next, then Phase 4.**
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
   secrets printed); preserve ETag/idempotency/offline queue/privacy mode/⌘K/
@@ -171,5 +171,60 @@ Lighthouse Best Practices dropped 4 points only because `vite preview` (unlike t
 - `@testing-library/user-event` was unused and removed rather than upgraded.
 - The two remaining lint warnings are pre-existing unused variables in `merchantIdentity.test.ts`.
 
+### Next step (done — see Phase 3)
+
+---
+
+## Phase 3 — Backend architecture & reliability (2026-09-17) ✅
+
+Commits: `331b99b` ops groundwork · `17843ce` Plaid split · `86a68fc` assistant split · `a46c2b3` pending actions in DB · `2af415d` Alembic at boot + observability · detection cache (this commit).
+
+### What changed
+- **Two packages, zero behaviour change.** `routers/plaid_router.py` (1,540 lines) → `routers/plaid_router/` (`__init__` facade 130 lines + `models`, `schemas`, `sync`, `items`, `diagnostics`, `webhook`); `routers/assistant.py` (1,994 lines) → `routers/assistant/` (`__init__` facade + `helpers`, `tools`, `routing`, `schemas`, `prompt`, `pending`, `usage`, `conversations`, `chat`). Every function body was moved verbatim by a script; the route tables were diffed before/after (13 and 8 routes, identical paths and methods); pyflakes reports no undefined names; the full suite passed unchanged at each step. The facade pattern (`facade.<name>` late binding) keeps the 38 existing `monkeypatch.setattr(plaid_router, "_plaid_post", …)` sites working and is documented in each package docstring.
+- **Health**: `GET /healthz` (process only) and `GET /readyz` (`SELECT 1`, 503 when the DB is down). `render.yaml` points the health check at `/healthz`.
+- **Runtime alignment**: `backend/.python-version` = 3.13; `nixpacks.toml` (Railway leftover) deleted; `render.yaml` blueprint declares runtime, build/start commands, health check and every env var name (values `sync: false`).
+- **Neon-friendly engine** (`models.database.engine_options`): `pool_size 5`, `max_overflow 5`, `pool_recycle 300 s`, `pool_timeout 10 s`, `pool_pre_ping`, libpq `connect_timeout 10`, `statement_timeout 15 s`, TCP keepalives; all `DB_*` env-overridable; SQLite untouched.
+- **Alembic is now authoritative** (`utils/migrations.py`, run at import in `main.py`): fresh DB → `upgrade head` builds it; stamped DB → `upgrade head`; **unstamped DB with tables (production today) → untouched, a WARNING names the one-time `alembic stamp <head>` command, and the legacy boot-time repairs keep running**. A migration error is logged and falls back to the legacy path rather than failing boot. `RUN_MIGRATIONS_ON_BOOT=false` disables it. Alembic is driven without `alembic.ini` in-process so its logging config cannot replace ours (and `env.py` no longer silences existing loggers for the CLI either).
+- **Migration chain repaired**: the three assistant tables had only ever been created by `create_all`; revision `20260917_000016` adds them (guarded, no-op where they exist) so a Postgres database can be built from the chain alone. Pending actions moved to revision `000017`. Verified `upgrade head → downgrade 000015 → upgrade → downgrade base → upgrade` on a scratch local Postgres (25 tables at head) and on SQLite; the boot switch has 5 unit tests.
+- **Pending assistant actions persist** (`assistant_pending_actions`, AUDIT R2): token stored as SHA-256, consumed exactly once via a `consumed_at IS NULL` guarded update; 400 for unknown/expired/used, 404 for another user's; pruned by the hourly cron. 6 tests including exactly-once through `/execute`.
+- **Observability, all env-gated**: `LOG_FORMAT=json` switches to one JSON object per line with `kv()` pairs lifted to fields; `RequestIdMiddleware` honours a sane `X-Request-ID` or mints one, echoes it, attaches it to every log line via a contextvar, and writes one `http_request` access line per request (health probes at DEBUG); `SENTRY_DSN` enables `sentry-sdk[fastapi]` with PII off and tracing off by default. Frontend: `VITE_SENTRY_DSN` lazily loads `@sentry/browser` (a separate 142 kB gzip chunk that is never fetched without a DSN). 8 tests.
+- **Cron resilience**: snapshot refresh commits per user, isolates one user's failure, and stops at a 20 s budget (`CRON_TIME_BUDGET_SECONDS`) reporting `remaining` so Render's 30 s limit cannot kill it mid-user. Prune job also clears pending actions.
+- **Detection cache** (AUDIT P3): `recurring_detection.detect_cached` reuses the per-user result while a fingerprint over transactions/bills/dismissals/accounts is unchanged (5 min TTL, bounded to 500 users). Used by `/recurring/overview` and `confirm`. 5 tests, including invalidation on a new transaction and on a dismissal.
+- **Query budgets** (`tests/test_query_counts.py`): ceilings for the ten hot read paths on a 300-transaction ledger, so an N+1 fails CI.
+
+### Query counts (300 transactions, 3 accounts, 5 bills, 2 goals; auth lookup included)
+
+| Endpoint | Before | After |
+|---|---|---|
+| `/accounts/` | 4 | 4 |
+| `/transactions/?limit=500` | 3 | 3 |
+| `/categories/` | 3 | 3 |
+| `/savings-goals/` | 5 | 5 |
+| `/history/net-worth?months=12` | 6 | 6 |
+| `/history/accounts?months=6` | 4 | 4 |
+| `/recurring/` | 6 | 6 |
+| `/recurring/overview` cold | 16 | 20 (+4 fingerprint aggregates) |
+| `/recurring/overview` warm | 16 + full detection pass in Python | ≤ 15, no detection pass |
+| `/loans/`, `/assets/` | 2, 4 | 2, 4 |
+
+No N+1 was found on the hot read paths: every list endpoint is one query plus the ETag aggregate. The remaining cost on `/recurring/overview` is inherent (reconcile + month figures + detection), and detection is now cached. No new indexes were added — the composite `(user_id, transaction_date)` index from `000012` already serves every hot query's filter and sort; a new index would have been speculative without Postgres `EXPLAIN` data, which Phase 6 can gather from a preview environment.
+
+### Decisions and reasoning
+1. **Facade + late binding over a "clean" import graph.** A textbook split would have broken every monkeypatch target in the suite and forced rewriting 40+ tests — the very tests that prove the split changed nothing. The facade costs one indirection per call and buys an unchanged test suite.
+2. **Migrations at boot, not in a build step.** Render Free has no pre-deploy hook; running at import keeps one code path for Render, local and CI. The unstamped-database branch is what makes this safe to deploy today: production behaves exactly as before until you run `alembic stamp` once (see the final checklist).
+3. **The legacy `_prepare_database` list stays**, frozen, as the fallback. Deleting it is a Phase 7 follow-up after production is stamped.
+4. **`sentry-sdk` and `@sentry/browser` are the two new dependencies**: official SDKs, actively maintained; the frontend one is 142 kB gzip but lazy and DSN-gated, so users of a build without a DSN download nothing extra. The bundle budget's per-chunk limit was raised 140 → 150 kB with that rationale in the script.
+5. **Snapshot refresh keeps doing the work in the cron request** (with a time budget) rather than fanning out through the job queue, because the queue depends on `/cron/run-jobs` being scheduled externally and I cannot verify that it is. Fan-out is a one-line change later.
+6. **Logger names changed** for code that moved (`routers.plaid_router.sync` etc.). Log *messages* and fields are byte-identical; nothing parses logger names.
+
+### Checks
+- Backend: **725 passed** (~28 s). `pip-audit`: clean after adding `sentry-sdk`.
+- Frontend: lint clean (2 pre-existing warnings), 985 Vitest tests, build 1.2 s, bundle within budget (initial 131.8 kB, total 515 kB, largest 142 kB), Playwright 12/12 against `vite preview` with the new backend boot path (fresh SQLite is initialised by Alembic).
+
+### Skipped / deferred
+- Job-queue fan-out for snapshots (see decision 5).
+- Deleting the legacy boot repairs (after production is stamped).
+- Postgres `EXPLAIN`-driven index work (Phase 6, needs a preview DB).
+
 ### Next step
-**Phase 3 — Backend architecture & reliability**: characterization tests → split `routers/assistant.py` and `routers/plaid_router.py` into packages with zero behaviour change; `.python-version` + `render.yaml`, delete `nixpacks.toml`; `/healthz` + `/readyz`; Neon pool/timeout settings; N+1 and index hunt with query-count tests; env-gated JSON logging + request IDs + optional Sentry; idempotent jobs; persist assistant pending actions (AUDIT R2); make Alembic authoritative at boot (AUDIT R1) with the prod `alembic stamp` as a manual step.
+**Public-launch track (§5)**: tenant-isolation proof extended to jobs, cron, push and assistant tools; onboarding flow; data export (JSON + CSV) and self-serve deletion (with Plaid `/item/remove` and push cleanup); draft Privacy/Terms pages; per-user assistant caps + admin usage view; landing page at `/` for logged-out visitors; `PRODUCT.md` update. Then Phase 4 features in order.
