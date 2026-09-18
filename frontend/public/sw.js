@@ -1,4 +1,4 @@
-const CACHE = 'fintrack-v4';
+const CACHE = 'fintrack-v5';
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', () => self.skipWaiting());
