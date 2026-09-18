@@ -6,7 +6,7 @@ it alone: read **Status**, then the latest phase entry, then **Next step**.
 ## Status
 
 - Branch: `fable/upgrade` (created from `main` @ `1843c6d` on 2026-09-17). Never push to `main`.
-- Current phase: **Phase 4 (features) in progress — 4.1 Budgets, 4.2 Rules, 4.3 Alerts done; 4.4 Search & filters next.**
+- Current phase: **Phase 4 (features) in progress — 4.1–4.4 done (Budgets, Rules, Alerts, Search); 4.5 CSV import & export next.**
 - Branch is pushed to `origin/fable/upgrade` (CI + Vercel preview run on every push).
 - Ground rules in force (from the brief): Alembic-only additive migrations; Decimal
   money end to end; no production contact (no Neon, no Plaid production, no
@@ -343,5 +343,27 @@ Commit: `6af22f0` feat(alerts).
 4. **No reminder-days setting yet.** `REMINDER_DAYS` in `recurring_bills` is the existing window; making it per-user is cheap later and was not asked for.
 5. **Credit cards and investments are not watched** for low balance: neither balance means "running out of money".
 
-### Next step
+### Next step (done — see Phase 4.4)
 **Phase 4.4 — Search & filters**: a `/transactions/search` (or extended `GET /transactions` params: `q`, `category_id`, `account_id`, `amount_min/max`, `date_from/to`, `uncategorized`) with an index plan, a filter bar on the Transactions page, and ⌘K "Search transactions…" that jumps into the timeline with the query applied. Then CSV import/export, splits, 2FA, assistant upgrades.
+
+## Phase 4.4 — Search & filters (2026-09-17) ✅
+
+Commit: `5c80431` feat(search).
+
+### What changed
+- **Server search widened** (`GET /transactions?search=`): matches the description, Plaid's merchant name and the normalised merchant key, case-insensitively, with `%`/`_` in the input treated literally and a 100-character cap. New `uncategorized=true` filter composes with everything else. The assistant's `list_transactions` uses the same clause. `TransactionResponse` now includes `plaid_merchant_name` so the client can match the same fields.
+- **Timeline search box** on the Transactions page (list tab), applied as typed over the in-memory ledger; it lives in the same filter set as the panel, so the active-filter badge, "Clear" and exports all treat it as a filter. Logic extracted to `features/transactions/calculations/filters.ts` (`matchesQuery`, `applyTransactionFilters`) with tests; the page's inline filter lambda is gone.
+- **⌘K search**: whatever is typed gets a "Search transactions for “…”" entry — first when no command matches (replacing the dead "No results" state), last otherwise so Enter still runs the command being reached for. It deep-links to `/transactions?tab=list&q=…` via `linkToTransactionSearch`; the page consumes `q` on arrival like its other deep-link parameters.
+
+### Checks
+- Backend: **792 passed** (5 new in `test_transaction_search.py`: three-field match, literal wildcards + length cap, uncategorized × search, tenant isolation, assistant parity).
+- Frontend: **1031 Vitest tests** (59 files; new `filters.test.ts`, `CommandPalette.test.tsx`), tsc clean, lint 2 pre-existing warnings, bundle within budget.
+- Playwright: **15/15** (new `9-search.spec.ts`: palette → typed query → timeline shows only the match).
+
+### Decisions and reasoning
+1. **Client-side matching for the page, server-side for the API.** The page already holds the whole ledger (paged in since Phase 2's fix), so a round trip per keystroke would only add latency; both sides match the same three fields so results agree.
+2. **No trigram index.** `ILIKE '%x%'` cannot use a b-tree; `pg_trgm` would need `CREATE EXTENSION` on Neon, which is a manual production step. At current volumes the per-user date index bounds the scan; noted for the ops checklist rather than done blind.
+3. **Search rides on the existing filter state** instead of a parallel mechanism, so nothing on the page has two ideas of "what is shown".
+
+### Next step
+**Phase 4.5 — CSV import & filtered export**: `POST /transactions/import/preview` (parse, column mapping suggestions, per-row validation, duplicate detection against existing rows by date+amount+description/merchant key) and `POST /transactions/import` (idempotent via the file hash + row fingerprint; balances moved through the ledger service), a Settings/Transactions import sheet with mapping UI and a preview table, and export that honours the active filters (already exports the current view — verify and extend to the server CSV with the same params). Then splits, 2FA, assistant upgrades.
