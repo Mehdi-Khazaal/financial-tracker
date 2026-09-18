@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -60,7 +61,10 @@ def create_access_token(data: dict) -> str:
 
 
 def create_refresh_token(data: dict) -> str:
-    return _make_token(data, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "refresh")
+    # A random `jti` makes every issued refresh token distinct, so rotation on
+    # `/auth/refresh` produces a genuinely new credential rather than the same
+    # bytes whenever two are minted in the same second.
+    return _make_token({**data, "jti": secrets.token_urlsafe(16)}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "refresh")
 
 
 def create_reset_token(user_id: int, session_version: int = 0) -> str:

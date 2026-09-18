@@ -119,6 +119,9 @@ app.dependency_overrides[auth_utils.get_db] = override_get_db
 def reset_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    # Per-address rate limits are process-wide; a test must never inherit
+    # another test's request count.
+    limiter.reset()
     yield
 
 

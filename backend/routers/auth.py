@@ -11,6 +11,7 @@ from utils.auth import (
     create_access_token, get_current_user,
     SECRET_KEY, ALGORITHM, cookie_cfg,
 )
+from services import login_throttle
 from utils.email import send_password_reset, send_verification
 from utils.limiter import limiter
 
@@ -88,22 +89,36 @@ def signup(request: Request, user: UserCreate, response: Response, db: Session =
     }
 
 
-# ─── Login (rate limited) ─────────────────────────────────────────────────────
+# ─── Login (rate limited per address, locked per account) ────────────────────
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(request: Request, user: UserLogin, response: Response, db: Session = Depends(get_db)):
     identifier = user.identifier.strip()
+
+    # Second line of defence behind the per-address limit: an identifier that
+    # has failed too often is refused outright, even with the right password,
+    # until its lock expires. See `services.login_throttle`.
+    wait = login_throttle.seconds_locked(db, identifier)
+    if wait is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed attempts. Try again in {wait} seconds.",
+            headers={"Retry-After": str(wait)},
+        )
+
     if "@" in identifier:
         db_user = db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
     else:
         db_user = db.query(User).filter(User.username == identifier).first()
 
     if not db_user or not verify_password(user.password, db_user.hashed_password):
+        login_throttle.record_failure(db, identifier)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
+    login_throttle.clear(db, identifier)
     set_auth_cookies(response, db_user.id, db_user.session_version)
     return {"message": "Logged in successfully"}
 
@@ -123,7 +138,8 @@ def logout(
 
 # ─── Refresh access token ─────────────────────────────────────────────────────
 @router.post("/refresh")
-def refresh(response: Response, db: Session = Depends(get_db), refresh_token: str = Cookie(None)):
+@limiter.limit("30/minute")
+def refresh(request: Request, response: Response, db: Session = Depends(get_db), refresh_token: str = Cookie(None)):
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
@@ -140,9 +156,11 @@ def refresh(response: Response, db: Session = Depends(get_db), refresh_token: st
     if payload.get("sv", 0) != user.session_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
 
-    from utils.auth import ACCESS_TOKEN_EXPIRE_MINUTES
-    new_access = create_access_token({"sub": str(user_id), "sv": user.session_version})
-    response.set_cookie("access_token", new_access, max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60, **cookie_cfg())
+    # Rotate both cookies. A refresh token that is replaced on every use has a
+    # lifetime of one round-trip in the wild rather than thirty days; an old
+    # copy still decodes but the `sv` check and the fresh expiry bound what it
+    # can do, and logout / password change revoke every copy at once.
+    set_auth_cookies(response, user.id, user.session_version)
     return {"message": "Token refreshed"}
 
 
@@ -173,7 +191,9 @@ async def change_password(
 @router.post("/forgot-password")
 @limiter.limit("3/minute")
 def forgot_password(request: Request, body: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
+    # Signup stores emails lower-cased; match the same way so a capitalised
+    # address does not silently receive nothing.
+    user = db.query(User).filter(func.lower(User.email) == str(body.email).strip().lower()).first()
     if user:
         token = create_reset_token(user.id, user.session_version)
         send_password_reset(user.email, token)
@@ -183,7 +203,8 @@ def forgot_password(request: Request, body: ForgotPasswordRequest, db: Session =
 
 # ─── Reset password ───────────────────────────────────────────────────────────
 @router.post("/reset-password")
-def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def reset_password(request: Request, body: ResetPasswordRequest, db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(body.token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "reset":

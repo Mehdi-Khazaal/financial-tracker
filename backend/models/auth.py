@@ -31,6 +31,26 @@ class User(Base):
     timezone = Column(String(64), nullable=True)
     created_at = Column(DateTime, default=utc_now)
 
+
+class AuthFailure(Base):
+    """Consecutive failed logins per identifier, for per-account lockout.
+
+    The IP rate limit on `/auth/login` is the first line; this is the second.
+    An attacker rotating addresses is still slowed to a crawl against any one
+    account, and a stolen-password guess from a botnet meets the same wall.
+    Stored in the database rather than process memory so a restart or a
+    second worker does not reset the counter. See `services.login_throttle`.
+    """
+
+    __tablename__ = "auth_failures"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Lower-cased email or username as typed, capped at the schema's max.
+    identifier = Column(String(320), unique=True, index=True, nullable=False)
+    failures = Column(Integer, nullable=False, default=0, server_default="0")
+    last_failure_at = Column(DateTime, nullable=True)
+    locked_until = Column(DateTime, nullable=True)
+
 # ============ PYDANTIC SCHEMAS ============
 class UserCreate(BaseModel):
     email: EmailStr
