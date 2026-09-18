@@ -733,6 +733,38 @@ def _untrusted_tool_result(name: str, payload: str) -> str:
     )
 
 
+
+def _t_list_budgets(db: Session, user: User, month: Optional[str] = None, **_) -> dict:
+    """Every budget's spent / available for a month (default: the user's current one)."""
+    from services import budgets as budget_service
+
+    try:
+        first = budget_service.parse_month(month, _user_today(user))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="month must look like YYYY-MM")
+    items = budget_service.progress_for_month(db, user, first)
+    return {
+        "month": budget_service.month_key(first),
+        "budgets": [
+            {
+                "id": item.budget.id,
+                "category": item.category_name,
+                "amount": _jsonable(item.amount),
+                "carried_over": _jsonable(item.carried),
+                "available": _jsonable(item.available),
+                "spent": _jsonable(item.spent),
+                "remaining": _jsonable(item.remaining),
+                "percent_used": _jsonable(item.percent),
+                "over_budget": item.over,
+                "rollover": bool(item.budget.rollover),
+            }
+            for item in items
+        ],
+        "total_available": _jsonable(sum((i.available for i in items), Decimal("0"))),
+        "total_spent": _jsonable(sum((i.spent for i in items), Decimal("0"))),
+        "note": "No budgets means the user has not set any; suggest add_budget only if they ask." if not items else None,
+    }
+
 READ_TOOLS = {
     "get_overview": _t_get_overview,
     "list_accounts": _t_list_accounts,
@@ -750,6 +782,7 @@ READ_TOOLS = {
     "affordability_check": _t_affordability_check,
     "analyze_spending_trends": _t_analyze_spending_trends,
     "find_recurring_waste": _t_find_recurring_waste,
+    "list_budgets": _t_list_budgets,
 }
 
 # Every tool that changes stored state, including memory. None of these run

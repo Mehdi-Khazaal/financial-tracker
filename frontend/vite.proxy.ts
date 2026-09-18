@@ -19,6 +19,7 @@ export const COLLECTION_PATHS = new Set([
   '/savings-goals',
   '/recurring',
   '/loans',
+  '/budgets',
 ]);
 
 export function rewriteApiPath(path: string): string {

@@ -39,7 +39,7 @@ export const useUI = () => useContext(UIContext);
 /* Quick actions requested from the command palette are handed to the Dashboard
    through sessionStorage so they survive the navigation to "/" */
 export const QUICK_ACTION_KEY = 'ft_pending_action';
-export type QuickAction = 'expense' | 'income' | 'transfer';
+export type QuickAction = 'expense' | 'income' | 'transfer' | 'budget';
 
 export const requestQuickAction = (action: QuickAction) => {
   sessionStorage.setItem(QUICK_ACTION_KEY, action);

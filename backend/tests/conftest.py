@@ -35,6 +35,7 @@ from routers import (
     assets,
     assistant,
     auth,
+    budgets,
     categories,
     cron,
     health,
@@ -115,6 +116,7 @@ app.include_router(transfers.router)
 app.include_router(push.router)
 app.include_router(health.router)
 app.include_router(account.router)
+app.include_router(budgets.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 

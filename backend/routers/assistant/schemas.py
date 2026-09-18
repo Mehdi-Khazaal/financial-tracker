@@ -172,6 +172,18 @@ def _all_tool_schemas() -> list:
             "input_schema": {"type": "object", "properties": {}},
         },
         {
+            "name": "list_budgets",
+            "description": (
+                "Every monthly budget with the amount, what has been spent this month, what is "
+                "left, and whether it is over. Use for any question about budgets, allowances, "
+                "or whether spending in a category is on track."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {"month": {"type": "string", "description": "YYYY-MM; defaults to the current month."}},
+            },
+        },
+        {
             "name": "save_memory",
             "description": "Save a durable fact about the user that should be remembered across all future chats — goals, preferences, habits, rules, recurring context. Use this whenever you learn something lasting. This is your persistent notebook.",
             "input_schema": {

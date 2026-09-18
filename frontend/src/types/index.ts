@@ -224,3 +224,40 @@ export interface User {
   is_admin: boolean;
   created_at: string;
 }
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+/** A monthly allowance for one expense category. Money arrives as strings. */
+export interface Budget {
+  id: number;
+  category_id: number;
+  amount: string;
+  rollover: boolean;
+  starts_on: string;
+  is_active: boolean;
+}
+
+/** One budget's figures for a month, computed by the server from the ledger. */
+export interface BudgetProgress {
+  id: number;
+  category_id: number;
+  category_name: string;
+  category_color: string;
+  month: string;
+  amount: string;
+  carried: string;
+  available: string;
+  spent: string;
+  remaining: string;
+  percent: string;
+  over: boolean;
+  rollover: boolean;
+}
+
+export interface BudgetProgressSummary {
+  month: string;
+  budgeted: string;
+  spent: string;
+  remaining: string;
+  over_count: number;
+  budgets: BudgetProgress[];
+}

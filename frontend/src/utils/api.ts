@@ -393,3 +393,14 @@ export const plaidSyncHealth       = () => api.get('/plaid/sync-health');
 export const plaidSyncStatus       = () => api.get('/plaid/sync-status');
 
 export default api;
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+export const getBudgets = () => api.get('/budgets');
+export const createBudget = (data: { category_id: number; amount: number | string; rollover?: boolean; starts_month?: string }) =>
+  api.post('/budgets', data);
+export const updateBudget = (id: number, data: { amount?: number | string; rollover?: boolean; is_active?: boolean }) =>
+  api.put(`/budgets/${id}`, data);
+export const deleteBudget = (id: number) => api.delete(`/budgets/${id}`);
+/** Spent / available per budget for one month (`YYYY-MM`), default the current one. */
+export const getBudgetProgress = (month?: string) =>
+  api.get('/budgets/progress', { params: month ? { month } : undefined });

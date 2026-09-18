@@ -224,6 +224,33 @@ def cron_refresh_merchant_categories(request: Request, db: Session = Depends(get
     return {"canonical_updated": updated}
 
 
+@router.post("/check-budgets")
+def cron_check_budgets(request: Request, db: Session = Depends(get_db)):
+    """Send over-budget pushes for every user with a budget. Nightly.
+
+    Manual entries change spending without a sync, so the nightly pass is the
+    backstop for the check that also runs after each bank import. Each budget
+    is announced once per month (`Budget.notified_month`), so running this any
+    number of times is safe.
+    """
+    _require_cron_secret(request)
+    from models.database import Budget
+    from services import budgets as budget_service
+
+    user_ids = [row[0] for row in db.query(Budget.user_id).filter(Budget.is_active.is_(True)).distinct().all()]
+    sent = 0
+    for user_id in user_ids:
+        owner = db.query(User).filter(User.id == user_id).first()
+        if owner is None:
+            continue
+        try:
+            sent += budget_service.notify_over_budget(db, owner, send_push_to_user)
+        except Exception:
+            db.rollback()
+            logger.exception("cron_budget_check_failed %s", kv(user_id=user_id))
+    return {"users": len(user_ids), "alerts": sent}
+
+
 @router.post("/prune-idempotency-keys")
 def cron_prune_idempotency_keys(request: Request, db: Session = Depends(get_db)):
     """Drop short-lived bookkeeping past its TTL. Runs hourly.

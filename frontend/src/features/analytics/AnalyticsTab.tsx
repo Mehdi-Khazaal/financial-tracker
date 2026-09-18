@@ -1,9 +1,9 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Account, Asset, Category, MonthSnapshot, RecurringOverview, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
+import type { Account, Asset, BudgetProgressSummary, Category, MonthSnapshot, RecurringOverview, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
 import type { CategoryDetail, PeriodId } from './types';
 import { TabContext } from '../../context/TabContext';
-import { cleanDescription } from '../../utils/api';
+import { cleanDescription, getBudgetProgress } from '../../utils/api';
 import { downloadCSV, printPDF } from '../../utils/export';
 import { monthKeyOf } from './period';
 import { classifyTransaction } from './calculations/transactions';
@@ -26,6 +26,7 @@ import RecurringChargesCard from './components/RecurringChargesCard';
 import RecentActivity from './components/RecentActivity';
 import FinancialHealthCard from './components/FinancialHealthCard';
 import ForecastCard from './components/ForecastCard';
+import BudgetProgressCard from './components/BudgetProgressCard';
 
 interface Props {
   transactions: Transaction[];
@@ -39,6 +40,9 @@ interface Props {
   failedSources: string[];
   /** Category drawer to open on mount, when arriving from a deep link. */
   initialCategoryId?: number | null;
+  /** This month's budget progress, loaded by the page. */
+  budgets?: BudgetProgressSummary | null;
+  onManageBudgets?: () => void;
 }
 
 const PERIOD_STORAGE_KEY = 'ft_analytics_period';
@@ -69,7 +73,7 @@ const readStoredPeriod = (): PeriodId => {
  */
 const AnalyticsTab: React.FC<Props> = ({
   transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, failedSources,
-  initialCategoryId = null,
+  initialCategoryId = null, budgets = null, onManageBudgets,
 }) => {
   const navigate = useNavigate();
   const { setRouteTab } = useContext(TabContext);
@@ -102,6 +106,25 @@ const AnalyticsTab: React.FC<Props> = ({
   // The model already builds this; rebuilding it here would be a second
   // source of truth for what counts as income.
   const { ctx } = model;
+
+  // Budgets are monthly, so the card follows the month picker: the current
+  // month reuses the page's data, any other month is fetched on demand.
+  const currentMonthKey = monthKeyOf(today);
+  const budgetMonth = periodId === 'custom' && customMonth ? customMonth : currentMonthKey;
+  const [otherMonthBudgets, setOtherMonthBudgets] = useState<{ month: string; summary: BudgetProgressSummary | null } | null>(null);
+  useEffect(() => {
+    if (budgetMonth === currentMonthKey) return;
+    let cancelled = false;
+    getBudgetProgress(budgetMonth)
+      .then(res => { if (!cancelled) setOtherMonthBudgets({ month: budgetMonth, summary: res.data as BudgetProgressSummary }); })
+      .catch(() => { if (!cancelled) setOtherMonthBudgets({ month: budgetMonth, summary: null }); });
+    return () => { cancelled = true; };
+  }, [budgetMonth, currentMonthKey]);
+  const budgetSummary = budgetMonth === currentMonthKey
+    ? (budgets ?? null)
+    : otherMonthBudgets?.month === budgetMonth ? otherMonthBudgets.summary : null;
+  const budgetMonthLabel = new Date(Number(budgetMonth.slice(0, 4)), Number(budgetMonth.slice(5, 7)) - 1, 1)
+    .toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
   const handlePeriodChange = useCallback((id: PeriodId) => {
     setPeriodId(id);
@@ -246,6 +269,15 @@ const AnalyticsTab: React.FC<Props> = ({
       </div>
 
       <ForecastCard forecast={model.forecast} onOpenCategory={setOpenCategoryId} />
+
+      {onManageBudgets && (
+        <BudgetProgressCard
+          summary={budgetSummary}
+          monthLabel={budgetMonthLabel}
+          today={today}
+          onManage={onManageBudgets}
+        />
+      )}
 
       {!categoriesFailed && (
         <PeriodComparisonTable

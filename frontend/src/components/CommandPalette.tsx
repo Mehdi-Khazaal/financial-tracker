@@ -80,6 +80,8 @@ const CommandPalette: React.FC = () => {
       icon: <I d="M10 16V4m0 0L6 8m4-4l4 4" />, run: () => quick('income') },
     { id: 'qa-transfer', label: 'Transfer between accounts', group: 'Quick actions', keywords: 'move money send',
       icon: <I d="M4 7h12m0 0l-3-3m3 3l-3 3M16 13H4m0 0l3 3m-3-3l3-3" />, run: () => quick('transfer') },
+    { id: 'qa-budget', label: 'Set a budget', group: 'Quick actions', keywords: 'budgets allowance limit category monthly',
+      icon: <I d="M3 5h14v10H3zM3 9h14M7 13h3" />, run: () => quick('budget') },
 
     { id: 'nav-dash', label: 'Dashboard', group: 'Navigate', keywords: 'home overview net worth',
       icon: <I d="M3 10l7-6 7 6v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1v-7z" />, run: () => go('/', 'overview') },

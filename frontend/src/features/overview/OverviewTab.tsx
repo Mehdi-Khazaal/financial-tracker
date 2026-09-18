@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type {
   Account,
   Asset,
+  BudgetProgressSummary,
   Category,
   MonthSnapshot,
   RecurringOverview,
@@ -18,6 +19,8 @@ import MonthActivityCard from './components/MonthActivityCard';
 import ImportReviewCard from './components/ImportReviewCard';
 import AccountsGrid from './components/AccountsGrid';
 import GoalsList from './components/GoalsList';
+import BudgetsCard from './components/BudgetsCard';
+import SetupChecklist from './components/SetupChecklist';
 import { linkToBanking } from '../../lib/deepLinks';
 
 /**
@@ -50,6 +53,10 @@ export interface OverviewTabProps {
   assets: Asset[];
   failedSources: string[];
   today: Date;
+  budgets?: BudgetProgressSummary | null;
+  /** Owner of the per-user setup flags. */
+  userId?: number;
+  onManageBudgets?: () => void;
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = props => {
@@ -77,6 +84,16 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
 
   return (
     <div className="space-y-4 md:space-y-5">
+      {/* ── First run ── */}
+      {props.userId != null && props.onManageBudgets && (
+        <SetupChecklist
+          userId={props.userId}
+          hasAccounts={accounts.length > 0}
+          hasBudget={(props.budgets?.budgets.length ?? 0) > 0}
+          onSetBudget={props.onManageBudgets}
+        />
+      )}
+
       {/* ── Primary ── */}
       <MorningBrief
         items={model.brief}
@@ -130,7 +147,17 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
           <AccountsGrid accounts={accounts} />
         </div>
 
-        {!goalsFailed && <GoalsList goals={goals} today={today} />}
+        <div className="space-y-4 md:space-y-5">
+          {props.onManageBudgets && (
+            <BudgetsCard
+              summary={props.budgets ?? null}
+              today={today}
+              onManage={props.onManageBudgets}
+              unavailable={failedSources.includes('budgets')}
+            />
+          )}
+          {!goalsFailed && <GoalsList goals={goals} today={today} />}
+        </div>
       </div>
     </div>
   );

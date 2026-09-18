@@ -436,6 +436,19 @@ def _reconcile_recurring(db: Session, user_id: int) -> None:
         logger.exception("plaid_recurring_reconcile_failed %s", kv(user_id=user_id))
 
 
+def _notify_budgets(db: Session, user_id: int) -> None:
+    """Over-budget pushes for anything this import tipped over. Same isolation
+    as reconciliation: the sync has already succeeded and committed."""
+    try:
+        from services import budgets
+        owner = db.query(User).filter(User.id == user_id).first()
+        if owner:
+            budgets.notify_over_budget(db, owner, send_push_to_user)
+    except Exception:
+        db.rollback()
+        logger.exception("plaid_budget_notify_failed %s", kv(user_id=user_id))
+
+
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_SOURCE_OTHER):
     """Background task — owns its own DB session so it outlives the request.
 
@@ -457,6 +470,7 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_
         record_sync_health(db, item, source=source, ok=True, added=count)
         if count > 0:
             _reconcile_recurring(db, user_id)
+            _notify_budgets(db, user_id)
             send_push_to_user(
                 db, user_id,
                 "Bank sync complete",

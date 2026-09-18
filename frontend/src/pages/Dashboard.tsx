@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
-import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview } from '../types';
+import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary } from '../types';
 import {
   fetchAllTransactions, getAccounts, getSavingsGoals, getCategories,
   getNetWorthHistory, getAssets, getRecurring, getRecurringOverview,
+  getBudgetProgress,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
@@ -11,6 +12,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import AddTransactionModal from '../components/modals/AddTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
+import BudgetsSheet from '../components/modals/BudgetsSheet';
 import { DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
 import LoadErrorBanner from '../components/LoadErrorBanner';
@@ -37,6 +39,8 @@ const Dashboard: React.FC = () => {
   const [assetsList, setAssetsList]           = useState<Asset[]>([]);
   const [recurring, setRecurring]             = useState<RecurringTransaction[]>([]);
   const [recurringOverview, setRecurringOverview] = useState<RecurringOverview | null>(null);
+  const [budgets, setBudgets]                 = useState<BudgetProgressSummary | null>(null);
+  const [showBudgets, setShowBudgets]         = useState(false);
   const [loading, setLoading]                 = useState(true);
   const [loadError, setLoadError]             = useState(false);
   const [failedSources, setFailedSources]     = useState<string[]>([]);
@@ -56,7 +60,7 @@ const Dashboard: React.FC = () => {
     setInitialCategoryId(parseIdParam(params.get(DEEP_LINK_KEYS.category)));
   });
 
-  const SOURCES = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets', 'recurring', 'recurring overview'];
+  const SOURCES = ['accounts', 'transactions', 'savings goals', 'categories', 'net worth history', 'assets', 'recurring', 'recurring overview', 'budgets'];
 
   const loadAll = async () => {
     setLoadError(false);
@@ -67,7 +71,7 @@ const Dashboard: React.FC = () => {
       // 24 months of net-worth snapshots feeds the chart's range selector.
       const results = await Promise.allSettled([
         getAccounts(), fetchAllTransactions(), getSavingsGoals(), getCategories(),
-        getNetWorthHistory(24), getAssets(), getRecurring(), getRecurringOverview(),
+        getNetWorthHistory(24), getAssets(), getRecurring(), getRecurringOverview(), getBudgetProgress(),
       ]);
       const failed = SOURCES.filter((_, index) => results[index].status === 'rejected');
       const apply = <T,>(index: number, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
@@ -98,6 +102,10 @@ const Dashboard: React.FC = () => {
       setRecurringOverview(overviewResult.status === 'fulfilled'
         ? (overviewResult.value as { data: RecurringOverview }).data
         : null);
+      const budgetsResult = results[8];
+      setBudgets(budgetsResult.status === 'fulfilled'
+        ? (budgetsResult.value as { data: BudgetProgressSummary }).data
+        : null);
       setFailedSources(failed);
       setLoadError(failed.length > 0);
     } catch {
@@ -105,6 +113,17 @@ const Dashboard: React.FC = () => {
       setLoadError(true);
     }
     finally { setLoading(false); }
+  };
+
+  // Budgets change on their own sheet; refreshing only their progress keeps
+  // the rest of the page still while the sheet stays open.
+  const refreshBudgets = async () => {
+    try {
+      const res = await getBudgetProgress();
+      setBudgets(res.data as BudgetProgressSummary);
+    } catch {
+      /* The sheet already showed the error; the card keeps its last figures. */
+    }
   };
 
   const { pulling, refreshing, pullDistance } = usePullToRefresh(loadAll);
@@ -120,6 +139,7 @@ const Dashboard: React.FC = () => {
       const a = consumeQuickAction();
       if (!a) return;
       if (a === 'transfer') { setShowTransfer(true); }
+      else if (a === 'budget') { setShowBudgets(true); }
       else { setTxType(a); setShowTx(true); }
     };
     apply();
@@ -219,6 +239,9 @@ const Dashboard: React.FC = () => {
               assets={assetsList}
               failedSources={failedSources}
               today={today}
+              budgets={budgets}
+              userId={user?.id ?? 0}
+              onManageBudgets={() => setShowBudgets(true)}
             />
           )}
 
@@ -248,6 +271,8 @@ const Dashboard: React.FC = () => {
               assets={assetsList}
               failedSources={failedSources}
               initialCategoryId={initialCategoryId}
+              budgets={budgets}
+              onManageBudgets={() => setShowBudgets(true)}
             />
             </React.Suspense>
           )}
@@ -259,6 +284,13 @@ const Dashboard: React.FC = () => {
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
+      <BudgetsSheet
+        isOpen={showBudgets}
+        onClose={() => setShowBudgets(false)}
+        onChanged={() => { void refreshBudgets(); }}
+        categories={categories}
+        progress={budgets}
+      />
     </AppShell>
   );
 };

@@ -344,6 +344,35 @@ class RecurringDismissal(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class Budget(Base):
+    """A monthly spending limit for one expense category.
+
+    `amount` is the allowance for each calendar month from `starts_on` (always
+    the first of a month) onward. With `rollover` set, the unspent part of a
+    month carries into the next — overspending never carries, so a bad month
+    cannot poison the following one. Progress is never stored: it is computed
+    from the ledger on read (`services.budgets`), so a late import or a
+    re-categorised transaction is reflected immediately. `notified_month`
+    remembers the last month an over-budget push went out, so it is sent once.
+    """
+
+    __tablename__ = "budgets"
+    __table_args__ = (UniqueConstraint("user_id", "category_id", name="uq_budgets_user_category"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    rollover = Column(Boolean, nullable=False, default=False, server_default="false")
+    starts_on = Column(Date, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    notified_month = Column(String(7), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    category = relationship("Category")
+
+
 class Loan(Base):
     __tablename__ = "loans"
 
