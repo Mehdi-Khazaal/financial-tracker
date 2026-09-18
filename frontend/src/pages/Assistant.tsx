@@ -51,6 +51,9 @@ const ACTION_LABELS: Record<string, string> = {
   add_account: 'Account',
   add_savings_goal: 'Savings goal',
   add_loan: 'Loan',
+  // A remembered fact is a durable write like any other, so it is confirmed
+  // here rather than saved silently inside the model loop.
+  save_memory: 'Memory',
 };
 
 const FOLLOW_UPS: Record<AssistantVisualBlock['type'], string> = {

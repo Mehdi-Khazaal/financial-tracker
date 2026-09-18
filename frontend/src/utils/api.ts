@@ -92,7 +92,7 @@ export const forgotPassword = (email: string) =>
 export const resetPassword = (token: string, new_password: string) =>
   api.post('/auth/reset-password', { token, new_password });
 export const verifyEmail = (token: string) =>
-  api.get(`/auth/verify-email?token=${token}`);
+  api.get('/auth/verify-email', { params: { token } });
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
 export const getAccounts    = () => api.get('/accounts');
