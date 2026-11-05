@@ -28,6 +28,7 @@ from routers import assistant
 from services import jobs
 from utils import auth as auth_utils
 from utils import push_sender
+from utils.dates import user_today
 
 CRON = {"X-Cron-Secret": "cron-secret"}
 
@@ -74,8 +75,11 @@ def two_tenants(db_session, monkeypatch):
     monkeypatch.setenv("CRON_SECRET", "cron-secret")
     alice = _user(db_session, "alice", "America/New_York")
     bob = _user(db_session, "bob", "Asia/Tokyo")
-    a = _ledger(db_session, alice, "ALICE", bill_due=date.today())
-    b = _ledger(db_session, bob, "BOB", bill_due=date.today() + timedelta(days=10))  # not due
+    # Due dates are each user's own calendar day, as the cron judges them.
+    # date.today() is the runner's (UTC) day, which is already tomorrow in
+    # New York for five hours every night and made this fixture flaky.
+    a = _ledger(db_session, alice, "ALICE", bill_due=user_today(alice))
+    b = _ledger(db_session, bob, "BOB", bill_due=user_today(bob) + timedelta(days=10))  # not due
     return alice, bob, a, b
 
 
@@ -157,7 +161,7 @@ def test_cron_alerts_reach_only_the_user_they_concern(client, db_session, two_te
     alice, bob, a, b = two_tenants
     # Bob's bill is due in 10 days — outside the reminder window. Make Alice's
     # bill due tomorrow so she gets a reminder and Bob gets nothing.
-    a["bill"].next_date = date.today() + timedelta(days=1)
+    a["bill"].next_date = user_today(alice) + timedelta(days=1)
     db_session.commit()
     sent: list[tuple[int, str]] = []
     monkeypatch.setattr("routers.cron.send_push_to_user", lambda db, uid, title, body, **kw: sent.append((uid, title)))
