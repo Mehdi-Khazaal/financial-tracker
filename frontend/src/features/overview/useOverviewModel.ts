@@ -104,6 +104,8 @@ export interface OverviewModel {
   cardDebt: number;
   creditLimit: number;
   cardUtilization: number | null;
+  /** Whether any credit card account exists; without one there is no card figure to show. */
+  hasCards: boolean;
   /** The next declared recurring charge due, or null. */
   nextCharge: UpcomingBill | null;
   /** Undeclared recurring charges the server found in history. */
@@ -246,12 +248,6 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
     const completedMonths = availableMonths.filter(m => m < monthKey);
     const monthly = monthlyMetrics(transactions, completedMonths, ctx);
 
-    const pace = calculateSpendingPace({
-      monthExpenses: metrics.expenses,
-      elapsedFraction: period.elapsed,
-      completedMonthExpenses: monthly.map(m => m.metrics.expenses),
-    });
-
     const categoryRows = calculateCategoryComparisons({
       transactions,
       categories,
@@ -280,6 +276,15 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       monthly,
       ctx,
       today,
+    });
+
+    // The pace quotes the forecast's end-of-month figure, so rent paid on the
+    // 1st is counted once rather than multiplied by the days left.
+    const pace = calculateSpendingPace({
+      monthExpenses: metrics.expenses,
+      elapsedFraction: period.elapsed,
+      completedMonthExpenses: monthly.map(m => m.metrics.expenses),
+      projected: forecast.available && forecast.expenses ? forecast.expenses.projected : null,
     });
 
     const brief = buildMorningBrief({
@@ -331,6 +336,7 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       cardDebt: accountTotals.cardDebt,
       creditLimit: accountTotals.creditLimit,
       cardUtilization: accountTotals.utilization,
+      hasCards: accounts.some(a => a.type === 'credit_card'),
       nextCharge,
       undeclaredRecurringCount,
       recurringMonth: monthFromOverview(recurringOverview),

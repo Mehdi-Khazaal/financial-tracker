@@ -96,8 +96,15 @@ export function calculateSpendingPace(options: {
   elapsedFraction: number;
   /** Expense totals for completed months. */
   completedMonthExpenses: number[];
+  /**
+   * The forecast's end-of-month figure, which counts bills once instead of
+   * scaling them up with the rest. `null` means no defensible forecast, so
+   * no pace either. Left out, the month is scaled up as a whole.
+   */
+  projected?: number | null;
 }): SpendingPace | null {
   const { monthExpenses, elapsedFraction, completedMonthExpenses } = options;
+  if (options.projected === null) return null;
 
   const usable = completedMonthExpenses.filter(v => v > 0);
   if (usable.length < MIN_BASELINE_MONTHS) return null;
@@ -109,7 +116,7 @@ export function calculateSpendingPace(options: {
   const typical = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   if (typical <= 0) return null;
 
-  const projected = monthExpenses / elapsedFraction;
+  const projected = options.projected ?? monthExpenses / elapsedFraction;
   return {
     projected,
     typical,
@@ -298,7 +305,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
       tone: lower ? 'positive' : 'neutral',
       icon: 'trend',
       text: `Spending is tracking ${signedPercent(Math.abs(pace.delta)).replace('+', '')} ${lower ? 'below' : 'above'} usual this month`,
-      detail: `About ${dollars(pace.projected)} at this rate, against a typical ${dollars(pace.typical)} over ${plural(pace.monthsOfHistory, 'month')}.`,
+      detail: `About ${dollars(pace.projected)} by the end of the month, against a typical ${dollars(pace.typical)} over ${plural(pace.monthsOfHistory, 'month')}.`,
       action: null,
     });
   }

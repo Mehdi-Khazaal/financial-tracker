@@ -179,6 +179,28 @@ describe('spending pace', () => {
     expect(item?.tone).toBe('neutral');
   });
 
+  it('quotes the forecast rather than scaling up bills paid early', () => {
+    // Rent landed on the 1st: $1,600 spent by the 5th is not a $9,920 month.
+    const pace = calculateSpendingPace({
+      monthExpenses: 1600,
+      elapsedFraction: 5 / 31,
+      completedMonthExpenses: [1700, 1700, 1700],
+      projected: 1750,
+    });
+
+    expect(pace?.projected).toBe(1750);
+    expect(pace?.delta).toBeCloseTo(0.029, 3);
+  });
+
+  it('says nothing when there is no forecast to quote', () => {
+    expect(calculateSpendingPace({
+      monthExpenses: 1600,
+      elapsedFraction: 0.5,
+      completedMonthExpenses: [1700, 1700, 1700],
+      projected: null,
+    })).toBeNull();
+  });
+
   it('uses the median so one wild month does not set "usual"', () => {
     const pace = calculateSpendingPace({
       monthExpenses: 500,

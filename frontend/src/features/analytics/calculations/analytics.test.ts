@@ -796,6 +796,54 @@ describe('calculateForecast', () => {
     expect(forecast.income!.projected).toBe(forecast.income!.soFar);
     expect(forecast.basis).toContain('Income has varied');
   });
+
+  describe('early in the month, after rent has gone out', () => {
+    // Rent ($1,500, filed under Fuel here) lands on the 1st; day-to-day
+    // spending runs about $100 a month. Today is 5 July.
+    const today = new Date(2026, 6, 5);
+    const months = ['2026-04', '2026-05', '2026-06'];
+    const rentTx = (month: string) => tx(`${month}-01`, -1500, FUEL, CHECKING, 'Landlord');
+    const past = months.flatMap(m => [rentTx(m), tx(`${m}-12`, -100, GROCERIES)]);
+    const rent: RecurringTransaction = {
+      id: 1, user_id: 1, account_id: CHECKING, category_id: FUEL,
+      amount: -1500, description: 'Landlord', period: 'monthly',
+      next_date: '2026-08-01', is_active: true, is_variable: false, created_at: '',
+    };
+    const july = resolvePeriod('this-month', { today, customMonth: '2026-07' });
+    const run = (thisMonth: Transaction[]) => {
+      const transactions = [...past, ...thisMonth];
+      return calculateForecast({
+        period: july,
+        transactions,
+        recurring: [rent],
+        categories: calculateCategoryComparisons({ transactions, categories, period: july, baseline: months, ctx }),
+        monthly: months.map(month => ({
+          month,
+          metrics: calculatePeriodMetrics(past.filter(t => t.transaction_date.startsWith(month)), ctx),
+        })),
+        ctx,
+        today,
+      });
+    };
+
+    it('counts the rent once instead of scaling it up with the days left', () => {
+      const forecast = run([rentTx('2026-07'), tx('2026-07-04', -20, GROCERIES)]);
+      // A normal month is $1,600. Scaling $1,520 by 5/31 would say ~$9,400.
+      expect(forecast.expenses!.projected).toBeGreaterThan(1520);
+      expect(Math.abs(forecast.expenses!.projected - 1600)).toBeLessThan(100);
+      expect(forecast.categoryRisks.map(r => r.id)).not.toContain(FUEL);
+    });
+
+    it('raises a category by a one-off purchase and no more', () => {
+      const forecast = run([rentTx('2026-07'), tx('2026-07-03', -300, GROCERIES)]);
+      const groceries = forecast.categoryRisks.find(r => r.id === GROCERIES);
+      // Spent so far plus a typical rest of the month — never 300 × 31/5.
+      expect(groceries).toBeDefined();
+      expect(groceries!.projected).toBeGreaterThan(300);
+      expect(groceries!.projected).toBeLessThan(300 + 100);
+      expect(forecast.categoryRisks.map(r => r.id)).not.toContain(FUEL);
+    });
+  });
 });
 
 // ── Range helpers ─────────────────────────────────────────────────────────────

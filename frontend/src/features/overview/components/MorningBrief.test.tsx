@@ -62,7 +62,7 @@ describe('SensitiveSentence', () => {
     render(
       <p>
         <SensitiveSentence>
-          {'About $1,840.00 at this rate, against a typical $2,000.00.'}
+          {'About $1,840.00 by the end of the month, against a typical $2,000.00.'}
         </SensitiveSentence>
       </p>,
     );
