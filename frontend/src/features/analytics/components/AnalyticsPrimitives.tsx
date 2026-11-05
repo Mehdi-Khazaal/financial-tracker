@@ -44,8 +44,8 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   );
 
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${toggle && !toggle.open ? '' : 'mb-4'}`}>
-      <div className="min-w-0 flex-1">
+    <div className={`report-head flex flex-col sm:flex-row lg:flex-col sm:items-start sm:justify-between lg:justify-start gap-3 ${toggle && !toggle.open ? '' : 'mb-4'}`}>
+      <div className="min-w-0 flex-1 lg:flex-none">
         {/* The eyebrow is kept for screen readers and as a findable section
             name, but no longer printed above every title. */}
         <p className="sr-only">{eyebrow}</p>

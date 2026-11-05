@@ -31,7 +31,7 @@ interface Props {
 const CollectionsSpendCard: React.FC<Props> = ({ items, periodExpenses, inCollections, received = 0, periodLabel, excluded, onToggle }) => {
   const total = Math.max(0, inCollections);
   return (
-    <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-collections-heading">
+    <section className="report-section" aria-labelledby="analytics-collections-heading">
       <SectionHeader
         id="analytics-collections-heading"
         eyebrow="Collections"

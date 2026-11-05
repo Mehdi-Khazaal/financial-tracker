@@ -24,7 +24,7 @@ const RecurringBillsPreview: React.FC<Props> = ({ outlook, onNavigate }) => {
   const preview = upcoming.slice(0, PREVIEW_COUNT);
 
   return (
-    <section className="ledger-panel p-4 md:p-5 h-full flex flex-col" aria-labelledby="analytics-bills-heading">
+    <section className="report-section" aria-labelledby="analytics-bills-heading">
       <SectionHeader
         id="analytics-bills-heading"
         eyebrow="Coming up"

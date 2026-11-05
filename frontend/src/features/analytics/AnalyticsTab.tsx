@@ -16,17 +16,14 @@ import { useAnalyticsModel, useToday } from './useAnalyticsModel';
 import AnalyticsHeader from './components/AnalyticsHeader';
 import AnalyticsMetricGrid from './components/AnalyticsMetricGrid';
 import PeriodSummary from './components/PeriodSummary';
+import CashFlowTrendCard from './components/CashFlowTrendCard';
+import StatementCard from './components/StatementCard';
 import RecommendedInsights from './components/RecommendedInsights';
-import SavingsOverviewCard from './components/SavingsOverviewCard';
-import CashFlowCard from './components/CashFlowCard';
-import CategorySpendingCard from './components/CategorySpendingCard';
 import CategoryDetailDrawer from './components/CategoryDetailDrawer';
 import NetWorthTrendCard from './components/NetWorthTrendCard';
-import PeriodComparisonTable from './components/PeriodComparisonTable';
 import RecurringBillsPreview from './components/RecurringBillsPreview';
 import RecurringChargesCard from './components/RecurringChargesCard';
-import RecentActivity from './components/RecentActivity';
-import FinancialHealthCard from './components/FinancialHealthCard';
+import KeyRatiosCard from './components/KeyRatiosCard';
 import ForecastCard from './components/ForecastCard';
 import BudgetProgressCard from './components/BudgetProgressCard';
 import CollectionsSpendCard from './components/CollectionsSpendCard';
@@ -74,9 +71,10 @@ const readStoredPeriod = (): PeriodId => {
  * receives finished data — there is no arithmetic in this file, which is what
  * keeps the calculations testable without rendering a chart.
  *
- * Section order follows the questions the page is meant to answer: what
- * happened (metrics), what it means (summary, insights), what to do about it
- * (savings, cash flow, categories), and then the detail underneath.
+ * It reads as a report: the figures, one sentence on what they mean, then
+ * numbered-down sections with the title in a left column — cash flow over a
+ * year, the period as a statement, where the month is heading, what stands
+ * out, net worth, what is committed, budgets, and the ratios underneath it all.
  */
 const AnalyticsTab: React.FC<Props> = ({
   transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, failedSources,
@@ -230,7 +228,7 @@ const AnalyticsTab: React.FC<Props> = ({
   const categoriesFailed = failedSources.includes('categories');
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <div className="report space-y-10 md:space-y-12">
       <AnalyticsHeader
         periodId={periodId}
         customMonth={customMonth}
@@ -255,6 +253,29 @@ const AnalyticsTab: React.FC<Props> = ({
 
       <PeriodSummary summary={model.summary} />
 
+      <CashFlowTrendCard trend={model.trend} periodLabel={model.period.label} />
+
+      <StatementCard
+        period={model.period}
+        metrics={model.metrics}
+        previousMetrics={model.previousMetrics}
+        typical={model.typical}
+        categories={model.categories}
+        cashFlow={model.cashFlow}
+        categoriesFailed={categoriesFailed}
+        onOpenCategory={setOpenCategoryId}
+      />
+
+      {model.period.isIncomplete && (
+        <ForecastCard forecast={model.forecast} onOpenCategory={setOpenCategoryId} />
+      )}
+
+      <RecommendedInsights
+        insights={model.insights}
+        onOpenCategory={setOpenCategoryId}
+        onNavigate={handleNavigate}
+      />
+
       {(collectionView.items.length > 0 || leaveOutCollections) && (
         <CollectionsSpendCard
           items={collectionView.items}
@@ -267,48 +288,17 @@ const AnalyticsTab: React.FC<Props> = ({
         />
       )}
 
-      <div className="grid lg:grid-cols-[1.3fr_1fr] gap-5 md:gap-6 items-start">
-        <RecommendedInsights
-          insights={model.insights}
-          onOpenCategory={setOpenCategoryId}
-          onNavigate={handleNavigate}
-        />
-        <SavingsOverviewCard
-          savings={model.savings}
-          period={model.period}
-          onNavigate={handleNavigate}
-        />
-      </div>
+      <NetWorthTrendCard
+        netWorth={model.netWorth}
+        window={netWorthWindow}
+        onWindowChange={setNetWorthWindow}
+      />
 
-      <CashFlowCard cashFlow={model.cashFlow} period={model.period} />
-
-      <div className="grid lg:grid-cols-2 gap-5 md:gap-6 items-start">
-        {categoriesFailed ? (
-          <div className="ledger-panel p-8 text-center">
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--fg)' }}>
-              Categories unavailable
-            </p>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>
-              The spending breakdown needs your category list, which could not be loaded.
-              Totals above are unaffected.
-            </p>
-          </div>
-        ) : (
-          <CategorySpendingCard
-            spending={model.spending}
-            metrics={model.metrics}
-            onOpenCategory={setOpenCategoryId}
-            onNavigate={handleNavigate}
-          />
-        )}
-        <NetWorthTrendCard
-          netWorth={model.netWorth}
-          window={netWorthWindow}
-          onWindowChange={setNetWorthWindow}
-        />
-      </div>
-
-      <ForecastCard forecast={model.forecast} onOpenCategory={setOpenCategoryId} />
+      <RecurringBillsPreview outlook={model.recurring} onNavigate={handleNavigate} />
+      <RecurringChargesCard
+        subscriptions={model.recurring.subscriptions}
+        onNavigate={handleNavigate}
+      />
 
       {onManageBudgets && (
         <BudgetProgressCard
@@ -319,35 +309,9 @@ const AnalyticsTab: React.FC<Props> = ({
         />
       )}
 
-      {!categoriesFailed && (
-        <PeriodComparisonTable
-          categories={model.categories}
-          period={model.period}
-          baselineLabel={model.baselineLabel}
-          baselineCount={model.baseline.length}
-          onOpenCategory={setOpenCategoryId}
-        />
-      )}
+      <KeyRatiosCard health={model.health} />
 
-      <div className="grid lg:grid-cols-2 gap-5 md:gap-6 items-start">
-        <RecurringBillsPreview outlook={model.recurring} onNavigate={handleNavigate} />
-        <RecurringChargesCard
-          subscriptions={model.recurring.subscriptions}
-          onNavigate={handleNavigate}
-        />
-      </div>
-
-      <RecentActivity
-        transactions={model.periodTransactions}
-        accounts={accounts}
-        categories={categories}
-        ctx={ctx}
-        onNavigate={handleNavigate}
-      />
-
-      <FinancialHealthCard health={model.health} />
-
-      <p className="text-[10px] text-center pb-2 leading-relaxed" style={{ color: 'var(--dim)' }}>
+      <p className="text-xs pt-6 pb-2 leading-relaxed max-w-3xl" style={{ color: 'var(--dim)', borderTop: '1px solid var(--line)' }}>
         All figures are calculated from your own transactions and account balances.
         Transfers between your accounts are excluded, refunds reduce the category they came from,
         and projections are estimates rather than guarantees.

@@ -37,7 +37,7 @@ const NetWorthTrendCard: React.FC<Props> = ({ netWorth, window, onWindowChange }
     : 'Not enough net worth history to draw a trend.';
 
   return (
-    <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-networth-heading">
+    <section className="report-section" aria-labelledby="analytics-networth-heading">
       <SectionHeader
         id="analytics-networth-heading"
         eyebrow="Net worth"

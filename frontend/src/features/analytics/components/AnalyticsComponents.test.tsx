@@ -4,15 +4,16 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { Account, Category, Transaction } from '../../../types';
 import type {
-  CategoryComparison, CategoryDetail, Insight, PeriodMetrics, SavingsMetrics,
+  CashFlowData, CategoryComparison, CategoryDetail, FinancialHealth, Insight, PeriodMetrics, SavingsMetrics, TrendMonth,
 } from '../types';
 import { resolvePeriod } from '../period';
 import { buildClassificationContext } from '../calculations/transactions';
 import CategoryDetailDrawer from './CategoryDetailDrawer';
 import RecommendedInsights from './RecommendedInsights';
-import SavingsOverviewCard from './SavingsOverviewCard';
 import AnalyticsMetricGrid from './AnalyticsMetricGrid';
-import PeriodComparisonTable from './PeriodComparisonTable';
+import StatementCard from './StatementCard';
+import CashFlowTrendCard from './CashFlowTrendCard';
+import KeyRatiosCard from './KeyRatiosCard';
 import { DeltaBadge, InfoHint } from './AnalyticsPrimitives';
 
 const TODAY = new Date(2026, 6, 18);
@@ -80,96 +81,6 @@ describe('RecommendedInsights', () => {
   it('shows a calm empty state rather than inventing advice', () => {
     render(<RecommendedInsights insights={[]} onOpenCategory={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText('Nothing needs your attention')).toBeInTheDocument();
-  });
-});
-
-describe('SavingsOverviewCard', () => {
-  it('prompts to create a goal when none exists, without hiding what was left over', () => {
-    render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={vi.fn()} />);
-    expect(screen.getByText(/You had \$2,800\.00 left after expenses this month\./)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create a goal/i })).toBeInTheDocument();
-  });
-
-  it('reports a savings-rate change in percentage points, not percent', () => {
-    render(
-      <SavingsOverviewCard
-        period={PERIOD}
-        onNavigate={vi.fn()}
-        savings={savings({ savingsRate: 0.791, previousRate: 0.272, rateDelta: 0.519 })}
-      />,
-    );
-    // 27.2% → 79.1% is a 51.9-point rise. Calling it "+191%" would overstate it.
-    expect(screen.getByText(/\+51\.9 pp/)).toBeInTheDocument();
-    expect(screen.queryByText(/191/)).not.toBeInTheDocument();
-  });
-
-  it('explains how the featured goal relates to the total set aside', () => {
-    render(
-      <SavingsOverviewCard
-        period={PERIOD}
-        onNavigate={vi.fn()}
-        savings={savings({
-          goalCount: 3,
-          allocatedTotal: 16000,
-          primaryGoal: {
-            id: 1, name: 'House', target: 20000, current: 0,
-            progress: 0, remaining: 20000, deadline: '2027-01-01',
-            projectedCompletion: null, monthsToCompletion: null, basis: 'deadline',
-          },
-        })}
-      />,
-    );
-    // The old card showed "$0 of $20,000" beside "$16,000 across 3 goals" with
-    // nothing tying them together.
-    expect(screen.getByText(/\$0 of your \$16,000 total set aside is on this goal/)).toBeInTheDocument();
-    expect(screen.getByText(/\$16,000 sits on your 2 other goals/)).toBeInTheDocument();
-  });
-
-  it('shows one goal with its remaining amount and projected completion', () => {
-    render(
-      <SavingsOverviewCard
-        period={PERIOD}
-        onNavigate={vi.fn()}
-        savings={savings({
-          goalCount: 2,
-          primaryGoal: {
-            id: 1, name: 'Emergency Fund', target: 12000, current: 8400,
-            progress: 70, remaining: 3600, deadline: null,
-            projectedCompletion: 'October 2026', monthsToCompletion: 3, basis: 'progress',
-          },
-        })}
-      />,
-    );
-
-    expect(screen.getByText('Emergency Fund')).toBeInTheDocument();
-    expect(screen.getByText('70%')).toBeInTheDocument();
-    expect(screen.getByText('$3,600.00')).toBeInTheDocument();
-    expect(screen.getByText('October 2026')).toBeInTheDocument();
-  });
-
-  it('says so plainly when a completion date cannot be estimated', () => {
-    render(
-      <SavingsOverviewCard
-        period={PERIOD}
-        onNavigate={vi.fn()}
-        savings={savings({
-          averageMonthlySaved: null, averageMonths: 0, goalCount: 1,
-          primaryGoal: {
-            id: 1, name: 'New Laptop', target: 2000, current: 500,
-            progress: 25, remaining: 1500, deadline: null,
-            projectedCompletion: null, monthsToCompletion: null, basis: 'progress',
-          },
-        })}
-      />,
-    );
-    expect(screen.getByText('Not enough history')).toBeInTheDocument();
-  });
-
-  it('links out to the full savings page instead of duplicating it', () => {
-    const onNavigate = vi.fn();
-    render(<SavingsOverviewCard savings={savings()} period={PERIOD} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole('button', { name: /view savings/i }));
-    expect(onNavigate).toHaveBeenCalledWith('/portfolio', 'savings');
   });
 });
 
@@ -454,7 +365,7 @@ describe('CategoryDetailDrawer', () => {
   });
 });
 
-describe('PeriodComparisonTable', () => {
+describe('StatementCard', () => {
   const row = (over: Partial<CategoryComparison>): CategoryComparison => ({
     id: 1, name: 'Groceries', color: '#e11', current: 250, previous: 100, average: 100,
     baselineMonths: 4, confidence: 'medium', deltaVsPrevious: 150, deltaVsAverage: 150,
@@ -462,79 +373,129 @@ describe('PeriodComparisonTable', () => {
     largestTransaction: null, drivenByOneTransaction: false, ...over,
   });
 
-  const rows = [
-    row({ id: 1, name: 'Groceries', deltaVsAverage: 150 }),
-    row({ id: 2, name: 'Fuel', current: 40, average: 120, deltaVsAverage: -80, pctVsAverage: -0.67 }),
-  ];
-
-  it('leads with a plain-language headline instead of a bare number', () => {
-    render(
-      <PeriodComparisonTable
-        categories={rows}
-        period={PERIOD}
-        baselineLabel="Average of the previous 4 completed months"
-        baselineCount={4}
-        onOpenCategory={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/Spending was \$70\.00 above your recent average\./)).toBeInTheDocument();
-    expect(screen.getByText(/1 category decreased and 1 increased\./)).toBeInTheDocument();
+  const cashFlow = (over: Partial<CashFlowData> = {}): CashFlowData => ({
+    mode: 'waterfall', steps: [], series: [], income: 4000, fixed: 1500, variable: 500,
+    remaining: 2000, hasFixedBreakdown: true, ...over,
   });
 
-  it('spells out how the average was built', () => {
-    render(
-      <PeriodComparisonTable
-        categories={rows}
-        period={PERIOD}
-        baselineLabel="Average of the previous 4 completed months"
-        baselineCount={4}
-        onOpenCategory={vi.fn()}
-      />,
-    );
-    expect(
-      screen.getByText(/Average of the previous 4 completed months\./),
-    ).toBeInTheDocument();
-  });
+  const statement = (props: Partial<React.ComponentProps<typeof StatementCard>> = {}) => (
+    <StatementCard
+      period={PERIOD}
+      metrics={metrics()}
+      previousMetrics={metrics({ income: 3800, expenses: 1400, net: 2400 })}
+      typical={{ income: 4000, expenses: 1300, net: 2700, months: 4 }}
+      categories={[
+        row({ id: 2, name: 'Fuel', current: 40, average: 120, deltaVsAverage: -80, share: 0.1 }),
+        row({ id: 1, name: 'Groceries' }),
+      ]}
+      cashFlow={cashFlow()}
+      categoriesFailed={false}
+      onOpenCategory={vi.fn()}
+      {...props}
+    />
+  );
 
-  it('marks categories whose average rests on very little history', () => {
-    render(
-      <PeriodComparisonTable
-        categories={[row({ baselineMonths: 1, confidence: 'low' })]}
-        period={PERIOD}
-        baselineLabel="Based on 1 earlier month — treat as a rough guide"
-        baselineCount={1}
-        onOpenCategory={vi.fn()}
-      />,
-    );
-    expect(screen.getAllByText('1mo avg').length).toBeGreaterThan(0);
-  });
-
-  it('opens the drawer when a category is chosen', () => {
+  it('lists spending largest first and opens a category from its row', () => {
     const onOpenCategory = vi.fn();
-    render(
-      <PeriodComparisonTable
-        categories={rows}
-        period={PERIOD}
-        baselineLabel="Average of the previous 4 completed months"
-        baselineCount={4}
-        onOpenCategory={onOpenCategory}
-      />,
-    );
-    const table = screen.getByRole('table');
-    fireEvent.click(within(table).getByRole('button', { name: /open details for groceries/i }));
+    render(statement({ onOpenCategory }));
+    const buttons = screen.getAllByRole('button', { name: /open details/i });
+    expect(buttons[0]).toHaveAccessibleName('Groceries: $250.00. Open details.');
+    fireEvent.click(buttons[0]);
     expect(onOpenCategory).toHaveBeenCalledWith(1);
   });
 
-  it('says there is nothing to compare when history is absent', () => {
-    render(
-      <PeriodComparisonTable
-        categories={[]}
-        period={PERIOD}
-        baselineLabel="No completed months to average yet"
-        baselineCount={0}
-        onOpenCategory={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('Nothing to compare yet')).toBeInTheDocument();
+  it('closes with what was kept and the savings rate, each against typical', () => {
+    render(statement());
+    const kept = screen.getByRole('row', { name: /^Kept/ });
+    expect(within(kept).getByText('$2,800.00')).toBeInTheDocument();
+    expect(within(kept).getByText(/\+\$100\.00/)).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^Savings rate/ })).toHaveTextContent('70.0%');
+  });
+
+  it('shows where the income went, as shares of income', () => {
+    render(statement());
+    expect(screen.getByText('Bills')).toBeInTheDocument();
+    expect(screen.getByText('Day-to-day')).toBeInTheDocument();
+    expect(screen.getByText('Kept', { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.getAllByText(/38% of income/).length).toBe(1);
+  });
+
+  it('says plainly when spending ran past income', () => {
+    render(statement({ cashFlow: cashFlow({ income: 1000, fixed: 900, variable: 400, remaining: -300 }) }));
+    expect(screen.getByText('Spending ran $300.00 past what came in.')).toBeInTheDocument();
+  });
+
+  it('keeps uncategorized spending as its own line so the rows add up', () => {
+    render(statement({ metrics: metrics({ uncategorizedSpend: 45 }) }));
+    expect(screen.getByRole('row', { name: /^Uncategorized/ })).toHaveTextContent('$45.00');
+  });
+
+  it('shortens a long list and can show all of it', () => {
+    const many = Array.from({ length: 11 }, (_, i) => row({ id: 100 + i, name: `Category ${i}`, current: 100 - i }));
+    render(statement({ categories: many }));
+    expect(screen.getAllByRole('button', { name: /open details/i })).toHaveLength(8);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 11 categories' }));
+    expect(screen.getAllByRole('button', { name: /open details/i })).toHaveLength(11);
+  });
+
+  it('keeps the totals when categories could not be loaded', () => {
+    render(statement({ categoriesFailed: true }));
+    expect(screen.getByText(/Categories unavailable/)).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^Total spending/ })).toHaveTextContent('$1,200.00');
+  });
+});
+
+describe('CashFlowTrendCard', () => {
+  const month = (m: string, income: number, expenses: number, over: Partial<TrendMonth> = {}): TrendMonth => ({
+    month: m, income, expenses, net: income - expenses, partial: false, inPeriod: false, ...over,
+  });
+
+  it('gives screen readers every month as a table row', () => {
+    render(<CashFlowTrendCard periodLabel="July 2026" trend={[
+      month('2026-05', 4000, 3000), month('2026-06', 4000, 4500),
+      month('2026-07', 1000, 800, { partial: true, inPeriod: true }),
+    ]} />);
+    const table = screen.getByRole('table', { name: /by month/ });
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(within(table).getByText('July 2026 (so far)')).toBeInTheDocument();
+  });
+
+  it('averages only finished months and counts the ones that ended ahead', () => {
+    render(<CashFlowTrendCard periodLabel="July 2026" trend={[
+      month('2026-05', 4000, 3000), month('2026-06', 4000, 4500),
+      month('2026-07', 1000, 800, { partial: true, inPeriod: true }),
+    ]} />);
+    expect(screen.getByText('Average income').nextSibling).toHaveTextContent('$4,000');
+    expect(screen.getByText('Months with money left').nextSibling).toHaveTextContent('1 of 2');
+    expect(screen.getByText(/Jul is still running/)).toBeInTheDocument();
+  });
+
+  it('waits for two months before drawing a trend', () => {
+    render(<CashFlowTrendCard periodLabel="July 2026" trend={[month('2026-07', 1000, 800, { partial: true })]} />);
+    expect(screen.getByText('Not enough months yet')).toBeInTheDocument();
+  });
+});
+
+describe('KeyRatiosCard', () => {
+  const health = (over: Partial<FinancialHealth> = {}): FinancialHealth => ({
+    available: true, score: 72, previousScore: 68, label: 'Good', monthsOfHistory: 4, requiredMonths: 3,
+    factors: [
+      { key: 'savings', label: 'Savings rate', score: 90, weight: 1, detail: '31% of income kept', explanation: 'Kept over earned.' },
+      { key: 'emergency', label: 'Emergency fund', score: 30, weight: 1, detail: '1.2 months of spending in cash', explanation: 'Months of cover.' },
+    ],
+    strengths: [], weaknesses: [], ...over,
+  });
+
+  it('reads each ratio with its figure and one word', () => {
+    render(<KeyRatiosCard health={health()} />);
+    expect(screen.getByText('31% of income kept')).toBeInTheDocument();
+    expect(screen.getByText('Strong')).toBeInTheDocument();
+    expect(screen.getByText('Weak')).toBeInTheDocument();
+    expect(screen.getByText(/72 of 100 \(good\), up 4 from last month/)).toBeInTheDocument();
+  });
+
+  it('says how much history it still needs', () => {
+    render(<KeyRatiosCard health={health({ available: false, score: null, monthsOfHistory: 1, factors: [] })} />);
+    expect(screen.getByText(/You have 1 completed month so far/)).toBeInTheDocument();
   });
 });

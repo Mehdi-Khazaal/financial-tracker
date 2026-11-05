@@ -129,50 +129,40 @@ describe('AnalyticsTab collections', () => {
 });
 
 describe('AnalyticsTab', () => {
-  it('renders every major section without throwing', () => {
+  it('reads as a report, one titled section after another', () => {
     renderTab();
-    ['Your period at a glance', 'Things to review', 'Savings', 'Cash flow', 'Spending',
-      'Net worth', 'Compared with your usual', 'Coming up', 'Recurring charges',
-      'Recent activity', 'Financial health'].forEach(section => {
-      expect(screen.getAllByText(section).length).toBeGreaterThan(0);
+    ['Cash flow', 'Statement', 'What to look at next', 'How your position has moved',
+      'Charges due in the next 30 days', 'What repeats on a schedule', 'Key ratios'].forEach(name => {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     });
+    // The views the statement replaced are gone rather than repeated below it.
+    expect(screen.queryByText('Where the money went')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your overall position')).not.toBeInTheDocument();
   });
 
-  it('collapses the long lower sections but keeps their headings and summaries', () => {
+  it('shows where the month is heading only while it is still running', () => {
+    localStorage.setItem('ft_analytics_period', 'this-month');
+    const { unmount } = renderTab();
+    expect(screen.getByRole('heading', { name: 'Month-end outlook' })).toBeInTheDocument();
+    unmount();
+
+    // A finished month has nothing left to project.
+    localStorage.setItem('ft_analytics_period', 'custom');
+    localStorage.setItem('ft_analytics_month', monthOffset(1));
     renderTab();
-
-    // Exact names — the adjacent "?" explainer button also mentions the title.
-    expect(screen.getByRole('button', { name: 'The latest in this period' }))
-      .toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'What repeats on a schedule' }))
-      .toHaveAttribute('aria-expanded', 'false');
-
-    // The score stays visible — collapsing is offered, not imposed.
-    expect(screen.getByRole('button', { name: 'Your overall position' }))
-      .toHaveAttribute('aria-expanded', 'true');
-
-    // Collapsed must mean actually hidden. A stylesheet `display: flex` beats
-    // the user-agent `[hidden]` rule, which once left a "collapsed" panel
-    // fully visible with only the chevron rotating.
-    ['analytics-activity-body', 'analytics-recurring-body'].forEach(id => {
-      const body = document.getElementById(id);
-      expect(body).not.toBeNull();
-      expect(body).not.toBeVisible();
-    });
+    expect(screen.queryByRole('heading', { name: 'Month-end outlook' })).not.toBeInTheDocument();
+    localStorage.setItem('ft_analytics_period', 'this-month');
   });
 
-  it('expands a collapsed section on demand', () => {
+  it('keeps the schedule collapsed until asked, and really hidden', () => {
     renderTab();
-    const activity = screen.getByRole('button', { name: 'The latest in this period' });
-    fireEvent.click(activity);
-    expect(activity).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  it('states how every recent transaction was counted', () => {
-    renderTab();
-    fireEvent.click(screen.getByRole('button', { name: 'The latest in this period' }));
-    // A salary must read as Income, never as anything else.
-    expect(screen.getAllByText(/Salary · Income/).length).toBeGreaterThan(0);
+    const toggle = screen.getByRole('button', { name: 'What repeats on a schedule' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // A stylesheet `display: flex` once beat the user-agent `[hidden]` rule
+    // and left a "collapsed" panel fully visible.
+    expect(document.getElementById('analytics-recurring-body')).not.toBeVisible();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('survives a completely empty account', () => {
@@ -191,16 +181,19 @@ describe('AnalyticsTab', () => {
 
   it('degrades to a partial page when only categories failed', () => {
     renderTab({ failedSources: ['categories'] });
-    expect(screen.getByText('Categories unavailable')).toBeInTheDocument();
+    expect(screen.getByText(/Categories unavailable/)).toBeInTheDocument();
     // Totals do not depend on the category list, so cash flow still renders.
-    expect(screen.getByText('Cash flow')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Cash flow' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^Total spending/ })).toBeInTheDocument();
   });
 
   it('changes the period and keeps every section on the new range', () => {
     renderTab();
     fireEvent.click(screen.getByRole('button', { name: 'Last 3 months' }));
     expect(screen.getByRole('button', { name: 'Last 3 months' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Income and spending by month')).toBeInTheDocument();
+    // The statement now reads the three months up to today.
+    expect(screen.getByRole('heading', { name: 'Statement' }).parentElement?.parentElement)
+      .toHaveTextContent(/ – .* so far/);
   });
 
   it('opens the category drawer from the spending list', () => {

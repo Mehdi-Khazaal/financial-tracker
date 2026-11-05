@@ -816,6 +816,25 @@ body {
     .page-flat .card-hover:hover { border-color: var(--line-strong); }
   }
 
+  /* ── Report sections (Analytics) ─────────────────────────────────────────
+     A strong rule, the section's title and note in a narrow left column, the
+     content on the right — the layout of a printed report. One column on a
+     phone. The head spans every row so the content stacks beside it. */
+  .report-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--fg);
+  }
+  @media (min-width: 1024px) {
+    .report-section { grid-template-columns: 13.5rem minmax(0, 1fr); column-gap: 3rem; }
+    .report-section > .report-head { grid-column: 1; grid-row: 1 / span 30; margin-bottom: 0; }
+    .report-section > :not(.report-head) { grid-column: 2; }
+  }
+  /* Small print in a report is still print you can read. */
+  .report .text-\[9px\], .report .text-\[10px\], .report .text-\[11px\] { font-size: 12px; }
+
   /* ── Flat sections: a title, then rows separated by hairlines ───────────── */
   .section-title { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--fg); }
   .section-link { font-size: 13px; font-weight: 500; color: var(--accent); }

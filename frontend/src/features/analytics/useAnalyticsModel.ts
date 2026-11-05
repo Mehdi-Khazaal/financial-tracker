@@ -32,6 +32,8 @@ import type {
   RecurringOutlook,
   ResolvedPeriod,
   SavingsMetrics,
+  TrendMonth,
+  TypicalPeriod,
 } from './types';
 import type { CashFlowData } from './types';
 import { baselineDescription, baselineMonths, monthKeyOf, resolvePeriod } from './period';
@@ -88,6 +90,10 @@ export interface AnalyticsModel {
   summary: PeriodSummaryData;
   health: FinancialHealth;
   forecast: Forecast;
+  /** Up to the last 12 calendar months with activity, oldest first. */
+  trend: TrendMonth[];
+  /** A typical period of the same length, or null without three completed months. */
+  typical: TypicalPeriod | null;
   baseline: string[];
   baselineLabel: string;
   /** Net worth as of now — sum of non-investment account balances. */
@@ -247,6 +253,35 @@ export function useAnalyticsModel(
       today,
     });
 
+    // The trend always covers the last year, whatever period is selected, so
+    // the selected months can be read against what came before them. It starts
+    // at the first month with any activity rather than padding with empties.
+    const trendMonths: string[] = [];
+    for (let back = 11; back >= 0; back--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - back, 1);
+      trendMonths.push(monthKeyOf(d));
+    }
+    const firstActive = ascendingMonths[0] ?? currentMonth;
+    const periodMonths = new Set(period.months);
+    const trend: TrendMonth[] = monthlyMetrics(transactions, trendMonths.filter(m => m >= firstActive), ctx)
+      .map(({ month, metrics: m }) => ({
+        month,
+        income: m.income,
+        expenses: m.expenses,
+        net: m.net,
+        partial: month === currentMonth,
+        inPeriod: periodMonths.has(month),
+      }));
+
+    const scale = Math.max(1, period.months.length);
+    const typical: TypicalPeriod | null = baselineMetrics.length > 0
+      ? (() => {
+        const avg = (pick: (m: PeriodMetrics) => number) =>
+          (baselineMetrics.reduce((s, b) => s + pick(b.metrics), 0) / baselineMetrics.length) * scale;
+        return { income: avg(m => m.income), expenses: avg(m => m.expenses), net: avg(m => m.net), months: baselineMetrics.length };
+      })()
+      : null;
+
     return {
       period,
       ctx,
@@ -263,6 +298,8 @@ export function useAnalyticsModel(
       summary,
       health,
       forecast,
+      trend,
+      typical,
       baseline,
       baselineLabel: baselineDescription(baseline.length),
       currentNetWorth: netWorthFromAccounts(accounts),

@@ -21,7 +21,7 @@ const BudgetProgressCard: React.FC<Props> = ({ summary, monthLabel, today, onMan
   const view = summarizeBudgets(summary, today);
 
   return (
-    <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-budgets-heading">
+    <section className="report-section" aria-labelledby="analytics-budgets-heading">
       <SectionHeader
         id="analytics-budgets-heading"
         eyebrow="Budgets"

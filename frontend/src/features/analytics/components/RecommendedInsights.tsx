@@ -42,7 +42,7 @@ const TONE: Record<InsightTone, { color: string; background: string; label: stri
  * anything below a materiality threshold.
  */
 const RecommendedInsights: React.FC<Props> = ({ insights, onOpenCategory, onNavigate }) => (
-  <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-insights-heading">
+  <section className="report-section" aria-labelledby="analytics-insights-heading">
     <SectionHeader
       id="analytics-insights-heading"
       eyebrow="Things to review"

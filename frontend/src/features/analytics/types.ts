@@ -203,6 +203,28 @@ export interface NetWorthAnalysis {
 
 // ── Cash flow ─────────────────────────────────────────────────────────────────
 
+/** One calendar month on the cash-flow trend. */
+export interface TrendMonth {
+  /** `YYYY-MM`. */
+  month: string;
+  income: number;
+  expenses: number;
+  net: number;
+  /** The month is still running, so its figures are "so far". */
+  partial: boolean;
+  /** Inside the period the page is showing. */
+  inPeriod: boolean;
+}
+
+/** What a period this long usually looks like, from completed months. */
+export interface TypicalPeriod {
+  income: number;
+  expenses: number;
+  net: number;
+  /** Completed months the average is built from. */
+  months: number;
+}
+
 export interface CashFlowStep {
   key: string;
   label: string;

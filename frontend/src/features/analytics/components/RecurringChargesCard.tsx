@@ -32,7 +32,7 @@ const RecurringChargesCard: React.FC<Props> = ({ subscriptions, onNavigate }) =>
   const hasAnything = hasDeclared || subscriptions.detected.length > 0;
 
   return (
-    <section className="ledger-panel p-4 md:p-5 h-full flex flex-col" aria-labelledby="analytics-recurring-heading">
+    <section className="report-section" aria-labelledby="analytics-recurring-heading">
       <SectionHeader
         id="analytics-recurring-heading"
         eyebrow="Recurring charges"

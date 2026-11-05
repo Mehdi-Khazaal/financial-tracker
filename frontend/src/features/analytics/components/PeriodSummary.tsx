@@ -22,59 +22,37 @@ const PeriodSummary: React.FC<Props> = ({ summary }) => {
   const verdict = summary.verdict ? VERDICT_STYLE[summary.verdict] : null;
 
   return (
-    <section
-      className="ledger-panel p-4 md:p-5"
-      aria-labelledby="analytics-summary-heading"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-        <div className="min-w-0">
-          <p className="sr-only">Your period at a glance</p>
-          <h2
-            id="analytics-summary-heading"
-            className="text-lg md:text-xl font-semibold leading-snug"
-            style={{ color: 'var(--fg)' }}
-          >
-            {summary.headline}
-          </h2>
-        </div>
-        {verdict && (
-          <span
-            className="font-mono text-[10px] px-2.5 py-1 rounded-full self-start whitespace-nowrap"
-            style={{ color: verdict.color, backgroundColor: verdict.background }}
-          >
-            {verdict.label}
-          </span>
-        )}
-      </div>
+    // The page's lead: the period in one sentence, the facts behind it, and
+    // the one thing worth doing. Set as text, not in a box.
+    <section className="max-w-3xl" aria-labelledby="analytics-summary-heading">
+      <p className="sr-only">Your period at a glance</p>
+      {verdict && (
+        <p className="text-[13px] font-medium mb-2" style={{ color: verdict.color }}>{verdict.label}</p>
+      )}
+      <h2
+        id="analytics-summary-heading"
+        className="text-[22px] md:text-[28px] font-semibold leading-tight"
+        style={{ color: 'var(--fg)', letterSpacing: '-0.02em', textWrap: 'balance' }}
+      >
+        {summary.headline}
+      </h2>
 
-      <div className="space-y-1.5">
+      <ul className="mt-4 space-y-1.5">
         {summary.sentences.map((sentence, i) => (
-          <p key={i} className="text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
+          <li key={i} className="text-[15px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             {sentence}
-          </p>
+          </li>
         ))}
-      </div>
+      </ul>
 
       {summary.suggestion && (
-        <div
-          className="mt-4 pt-3.5 flex items-start gap-2.5"
-          style={{ borderTop: '1px solid var(--line)' }}
-        >
-          <svg
-            viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6"
-            aria-hidden="true" className="w-4 h-4 shrink-0 mt-0.5"
-            style={{ color: 'var(--accent)' }}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 2.5a5 5 0 00-3 9v1.5a1 1 0 001 1h4a1 1 0 001-1V11.5a5 5 0 00-3-9zM8.25 16.5h3.5" />
-          </svg>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--fg)' }}>
-            {summary.suggestion}
-          </p>
-        </div>
+        <p className="mt-4 text-[15px] leading-relaxed" style={{ color: 'var(--fg)' }}>
+          <span className="font-semibold">Worth doing: </span>{summary.suggestion}
+        </p>
       )}
 
       {!summary.hasComparison && (
-        <p className="text-[11px] mt-3" style={{ color: 'var(--dim)' }}>
+        <p className="text-xs mt-3" style={{ color: 'var(--dim)' }}>
           There is no earlier period with activity to compare against yet, so this review describes
           the selected period on its own.
         </p>

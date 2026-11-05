@@ -33,7 +33,8 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
       key: 'expenses',
       label: 'Projected spending',
       value: dollars(forecast.expenses.projected, 0),
-      color: 'var(--neg)',
+      // Spending is never painted red; it is what money is for.
+      color: 'var(--fg)',
       footnote: `${dollars(forecast.expenses.soFar, 0)} so far`
         + (forecast.expenses.scheduled > 0 ? ` · ${dollars(forecast.expenses.scheduled, 0)} in scheduled bills` : ''),
     },
@@ -49,7 +50,7 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
       key: 'savings',
       label: 'Projected saving',
       value: `${(forecast.savings ?? 0) < 0 ? '−' : ''}${dollars(Math.abs(forecast.savings ?? 0), 0)}`,
-      color: (forecast.savings ?? 0) >= 0 ? 'var(--accent)' : 'var(--neg)',
+      color: (forecast.savings ?? 0) >= 0 ? 'var(--pos)' : 'var(--neg)',
       footnote: forecast.savingsRate != null
         ? `${percent(forecast.savingsRate)} savings rate`
         : 'No income projected',
@@ -57,28 +58,26 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
   ];
 
   return (
-    <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-forecast-heading">
+    <section className="report-section" aria-labelledby="analytics-forecast-heading">
       <SectionHeader
         id="analytics-forecast-heading"
         eyebrow="Projection"
-        title={`How ${forecast.monthLabel} is tracking`}
-        description="Projections, not commitments. They shift as the period goes on."
-        hint="Built from what has already happened, plus bills you have scheduled, plus a daily rate for everything else. That daily rate blends this period's pace with your historical median, so an unusual first week does not set the whole projection."
+        title="Month-end outlook"
+        description={`Where ${forecast.monthLabel} is heading. Projections, not commitments; they firm up as the month goes on.`}
+        hint="What has already happened, plus bills you have scheduled, plus a daily rate for day-to-day spending. Bills are counted once, never multiplied by the days left. The daily rate leans on your usual months early on and on this month's own pace as it fills in."
         right={
           <span
-            className="font-mono text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap"
-            style={{
-              color: forecast.confidence === 'low' ? 'var(--warn)' : 'var(--muted)',
-              backgroundColor: forecast.confidence === 'low' ? 'color-mix(in oklab, var(--warn) 12%, transparent)' : 'var(--elev-sub)',
-            }}
+            className="text-[13px] whitespace-nowrap"
+            style={{ color: forecast.confidence === 'low' ? 'var(--warn)' : 'var(--muted)' }}
             title={CONFIDENCE_COPY[forecast.confidence]}
           >
-            {forecast.confidence} confidence
+            {forecast.confidence.charAt(0).toUpperCase() + forecast.confidence.slice(1)} confidence
           </span>
         }
       />
 
-      <div className="mb-4">
+      <div>
+      <div className="mb-5">
         <div className="flex items-center justify-between gap-3 mb-1.5">
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
             Day {forecast.daysElapsed} of {forecast.daysTotal}
@@ -88,7 +87,7 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
           </p>
         </div>
         <div
-          className="h-1.5 rounded-full overflow-hidden"
+          className="h-1 rounded-[1px] overflow-hidden"
           style={{ backgroundColor: 'var(--line)' }}
           role="progressbar"
           aria-valuenow={Math.round(progress)}
@@ -96,36 +95,34 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
           aria-valuemax={100}
           aria-label="Progress through the period"
         >
-          <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: 'var(--accent)' }} />
+          <div className="h-full" style={{ width: `${progress}%`, backgroundColor: 'var(--fg)' }} />
         </div>
       </div>
 
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <dl className="metric-strip grid grid-cols-2 lg:grid-cols-3">
         {tiles.map(tile => (
-          <div key={tile.key} className="ledger-cell p-3.5">
-            <dt className="label mb-1.5">{tile.label}</dt>
-            <dd
-              className="font-mono tabular-nums text-lg font-bold leading-none mb-2"
-              style={{ color: tile.color }}
-            >
-              ≈{tile.value}
-            </dd>
-            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--dim)' }}>{tile.footnote}</p>
+          <div key={tile.key} className="metric-tile">
+            <dt className="metric-label">{tile.label}</dt>
+            <dd className="metric-value" style={{ color: tile.color }}>≈{tile.value}</dd>
+            <dd className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{tile.footnote}</dd>
           </div>
         ))}
       </dl>
 
       {forecast.categoryRisks.length > 0 && (
-        <div className="mt-4 pt-3.5" style={{ borderTop: '1px solid var(--line)' }}>
-          <p className="label mb-2.5">On track to run above average</p>
-          <ul className="space-y-2">
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--fg)' }}>Heading above their usual</p>
+          <p className="text-xs mt-0.5 mb-2" style={{ color: 'var(--muted)' }}>
+            Spent so far, plus bills still due, plus a typical rest of the month.
+          </p>
+          <ul className="row-list" style={{ borderBottom: '1px solid var(--line)' }}>
             {forecast.categoryRisks.map(risk => (
               <li key={risk.id}>
                 <button
                   type="button"
                   onClick={() => onOpenCategory(risk.id)}
-                  className="w-full flex items-center gap-3 text-left"
-                  style={{ minHeight: 40 }}
+                  className="w-full flex items-center gap-3 text-left py-2 pressable"
+                  style={{ minHeight: 44 }}
                   aria-label={`${risk.name}, projected ${dollars(risk.projected, 0)} against a typical ${dollars(risk.average, 0)}. Open details.`}
                 >
                   <span
@@ -133,16 +130,13 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
                     style={{ backgroundColor: risk.color }}
                     aria-hidden="true"
                   />
-                  <span className="text-xs font-medium flex-1 truncate" style={{ color: 'var(--fg)' }}>
+                  <span className="text-sm flex-1 truncate" style={{ color: 'var(--fg)' }}>
                     {risk.name}
                   </span>
-                  <span className="font-mono tabular-nums text-xs shrink-0" style={{ color: 'var(--muted)' }}>
-                    ≈{dollars(risk.projected, 0)} vs {dollars(risk.average, 0)}
+                  <span className="tabular-nums text-[13px] shrink-0" style={{ color: 'var(--muted)' }}>
+                    ≈{dollars(risk.projected, 0)} vs {dollars(risk.average, 0)} usual
                   </span>
-                  <span
-                    className="font-mono text-[10px] px-2 py-0.5 rounded-full shrink-0"
-                    style={{ color: 'var(--warn)', backgroundColor: 'color-mix(in oklab, var(--warn) 12%, transparent)' }}
-                  >
+                  <span className="tabular-nums text-[13px] font-semibold shrink-0 w-14 text-right" style={{ color: 'var(--fg)' }}>
                     +{(risk.pct * 100).toFixed(0)}%
                   </span>
                 </button>
@@ -152,9 +146,10 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
         </div>
       )}
 
-      <p className="text-[10px] mt-4 leading-relaxed" style={{ color: 'var(--dim)' }}>
+      <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--dim)' }}>
         {forecast.basis}
       </p>
+      </div>
     </section>
   );
 };
