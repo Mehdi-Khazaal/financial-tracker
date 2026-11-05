@@ -3,11 +3,13 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
+      // One typeface everywhere; `mono` and `display` keep their names so
+      // existing classes still work, but resolve to the same family.
       fontFamily: {
-        sans:    ['Geist', 'system-ui', 'sans-serif'],
-        serif:   ['"DM Serif Display"', 'Georgia', 'serif'],
-        mono:    ['"DM Mono"', 'monospace'],
-        display: ['"DM Serif Display"', 'Georgia', 'serif'],
+        sans:    ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        serif:   ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        mono:    ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        display: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
         // Ledger design tokens
@@ -30,21 +32,23 @@ export default {
         text:          'var(--fg)',
         green:         'var(--pos)',
         red:           'var(--neg)',
-        orange:        '#f59e0b',
-        purple:        '#a855f7',
+        orange:        'var(--warn)',
+        purple:        'var(--cat-4)',
       },
       fontSize: {
         'display-lg': ['56px', { lineHeight: '1',    letterSpacing: '-0.03em' }],
         'display':    ['48px', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
       },
+      // Small, consistent corners. The scale keeps its names so every
+      // rounded-xl / rounded-2xl in the app tightens at once.
       borderRadius: {
-        sm:     '8px',
-        DEFAULT:'10px',
-        md:     '10px',
-        lg:     '14px',
-        xl:     '18px',
-        '2xl':  '22px',
-        '3xl':  '26px',
+        sm:     '4px',
+        DEFAULT:'6px',
+        md:     '6px',
+        lg:     '8px',
+        xl:     '8px',
+        '2xl':  '10px',
+        '3xl':  '12px',
         full:   '9999px',
       },
     },

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { isPushConfigured, isPushSupported } from '../../../utils/push';
+import { getThemePreference, setThemePreference, type ThemePreference } from '../../../utils/theme';
 import type { UsePushPreference } from '../hooks/usePushPreference';
 import type { UseAutomationPreference } from '../hooks/useAutomationPreference';
 
@@ -112,8 +113,54 @@ const ThresholdField: React.FC<{
   );
 };
 
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
+/** Light, dark, or whatever the device uses. Saved on this device. */
+export const AppearanceSetting: React.FC = () => {
+  const [mode, setMode] = useState<ThemePreference>(() => getThemePreference());
+  const choose = (value: ThemePreference) => {
+    setMode(value);
+    setThemePreference(value);
+  };
+  return (
+    <section className="card p-5" aria-labelledby="settings-appearance-heading">
+      <h2 className="label mb-3" id="settings-appearance-heading">Appearance</h2>
+      <div role="radiogroup" aria-labelledby="settings-appearance-heading"
+        className="inline-flex rounded-md overflow-hidden" style={{ border: '1px solid var(--line-strong)' }}>
+        {THEME_OPTIONS.map(option => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={mode === option.value}
+            onClick={() => choose(option.value)}
+            className="px-4 text-sm"
+            style={{
+              minHeight: 40,
+              fontWeight: mode === option.value ? 600 : 400,
+              background: mode === option.value ? 'var(--fg)' : 'var(--elev-1)',
+              color: mode === option.value ? 'var(--bg)' : 'var(--fg)',
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs mt-3" style={{ color: 'var(--dim)' }}>
+        System switches between light and dark with your device. Saved on this device.
+      </p>
+    </section>
+  );
+};
+
 const PreferencesSection: React.FC<Props> = ({ push, automation }) => (
   <div className="space-y-4">
+    <AppearanceSetting />
+
     <section className="card p-5" aria-labelledby="settings-automation-heading">
       <h2 className="label mb-4" id="settings-automation-heading">Automation</h2>
 
