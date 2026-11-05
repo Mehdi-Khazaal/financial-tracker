@@ -194,7 +194,9 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* ── Desktop tab bar ── */}
-          <div className="hidden md:block sticky z-20 py-2 -mx-8 px-8" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
+          {/* Not sticky: a pinned bar covered the top of the page as it scrolled
+              under it, half-hiding the controls there. */}
+          <div className="hidden md:block">
             {/* The track was `--elev-1` with an active pill of `--bg`, which made
                 the selected tab *darker* than its own container and left the whole
                 control almost invisible against the page. Recessed track, raised

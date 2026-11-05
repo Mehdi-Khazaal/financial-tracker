@@ -185,7 +185,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
                 <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--dim)' }}>{row.label}</p>
                 <div className="flex items-center gap-1.5">
                   {row.color && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />}
-                  <p className="text-sm font-medium" style={{ color: row.color ?? 'var(--fg)' }}>{row.value}</p>
+                  <p className="text-sm font-medium" style={{ color: row.label === 'Type' ? row.color : 'var(--fg)' }}>{row.value}</p>
                 </div>
               </div>
             ))}
@@ -321,7 +321,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
                 <button key={c.id} type="button" onClick={() => setCategoryId(String(c.id))}
                   className="pill transition-all"
                   style={categoryId === String(c.id)
-                    ? { backgroundColor: c.color + '20', color: c.color, border: `1px solid ${c.color}40` }
+                    ? { backgroundColor: c.color + '20', color: 'var(--fg)', border: `1px solid ${c.color}` }
                     : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                   {c.name}
                 </button>

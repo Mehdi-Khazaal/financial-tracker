@@ -102,14 +102,14 @@ const CategoryBoard: React.FC<Props> = ({
                     </div>
                     <span
                       className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0"
-                      style={{ backgroundColor: `${category.color}22`, color: category.color }}
+                      style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}
                     >
                       {count}
                     </span>
                   </div>
                   <p
                     className="text-[16px] font-bold leading-tight tabular-nums"
-                    style={{ fontFamily: 'var(--font-mono)', color: category.color }}
+                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg)' }}
                   >
                     {dollars(total)}
                   </p>
@@ -131,7 +131,7 @@ const CategoryBoard: React.FC<Props> = ({
                       className="mx-2.5 my-2 rounded-xl py-4 text-center"
                       style={{ border: `2px dashed ${category.color}80`, backgroundColor: `${category.color}0a` }}
                     >
-                      <p className="text-[10px] font-bold" style={{ color: category.color }}>Drop here</p>
+                      <p className="text-[10px] font-bold" style={{ color: 'var(--fg)' }}>Drop here</p>
                     </div>
                   )}
                 </div>
@@ -141,7 +141,7 @@ const CategoryBoard: React.FC<Props> = ({
                     onClick={() => onOpenCategory(category)}
                     className="w-full py-2.5 text-[10px] font-semibold transition-colors mt-auto"
                     style={{
-                      color: category.color,
+                      color: 'var(--accent)',
                       borderTop: `1px solid ${category.color}25`,
                       backgroundColor: `${category.color}08`,
                     }}

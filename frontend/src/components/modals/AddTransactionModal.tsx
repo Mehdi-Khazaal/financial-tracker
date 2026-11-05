@@ -215,7 +215,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                       className="pill min-h-[44px] transition-all"
                       aria-pressed={categoryId === String(c.id)}
                       style={categoryId === String(c.id)
-                        ? { backgroundColor: c.color + '20', color: c.color, border: `1px solid ${c.color}40` }
+                        ? { backgroundColor: c.color + '20', color: 'var(--fg)', border: `1px solid ${c.color}` }
                         : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                       {c.name}
                     </button>

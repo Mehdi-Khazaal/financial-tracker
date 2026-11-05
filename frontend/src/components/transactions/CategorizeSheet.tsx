@@ -223,7 +223,7 @@ const CategorizeSheet: React.FC<Props> = ({
                     className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-lg text-left transition-all active:scale-[0.97]"
                     style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}38` }}
                   >
-                    <span className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</span>
+                    <span className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{cat.name}</span>
                     <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--muted)' }}>{cat.count}</span>
                   </button>
                 ))}
@@ -245,7 +245,7 @@ const CategorizeSheet: React.FC<Props> = ({
                     style={{ backgroundColor: `${cat.color}12`, border: `1px solid ${cat.color}28` }}
                   >
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                    <span className="text-sm font-semibold truncate" style={{ color: cat.color }}>{cat.name}</span>
+                    <span className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>{cat.name}</span>
                   </button>
                 ))}
               </div>
