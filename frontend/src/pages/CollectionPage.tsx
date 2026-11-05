@@ -19,7 +19,7 @@ import { dayLabel, dollars, percent, plural } from '../features/analytics/format
 import { daysBetween } from '../features/analytics/period';
 import {
   budgetProgress, categoryBreakdown, collectionColor, collectionTotals, dailySpending,
-  dateRangeLabel, statusLabel, topMerchants,
+  dateRangeLabel, netDisplay, statusLabel, topMerchants,
 } from '../features/collections/calculations/collections';
 import CollectionBadge from '../features/collections/components/CollectionBadge';
 import CollectionFormSheet from '../features/collections/components/CollectionFormSheet';
@@ -153,7 +153,8 @@ const CollectionPage: React.FC = () => {
   const dayCount = collection.start_date
     ? daysBetween(collection.start_date, (collection.end_date && collection.end_date < todayKey ? collection.end_date : todayKey)) + 1
     : 0;
-  const perDay = dayCount > 0 && collection.start_date && collection.start_date <= todayKey ? totals.net / dayCount : null;
+  const perDay = dayCount > 0 && collection.start_date && collection.start_date <= todayKey && totals.net > 0 ? totals.net / dayCount : null;
+  const net = netDisplay(totals.net);
   const maxDay = days.reduce((max, d) => Math.max(max, d.amount), 0);
   const accountName = (accountId: number) => accounts.find(a => a.id === accountId)?.name ?? '';
   const categoryName = (categoryId: number | null) => categories.find(c => c.id === categoryId)?.name ?? null;
@@ -179,7 +180,7 @@ const CollectionPage: React.FC = () => {
     const summary: (string | number)[][] = [
       ['', '', '', 'Spent', dollars(totals.spent), ''],
       ['', '', '', 'Came back', dollars(totals.returned), ''],
-      ['', '', '', 'Net cost', dollars(totals.net), ''],
+      ['', '', '', net.label, net.text, ''],
     ];
     printPDF(`${collection.name}${range ? ` — ${range}` : ''}`, headers, [...exportRows(), ...summary]);
     setShowExport(false);
@@ -264,8 +265,8 @@ const CollectionPage: React.FC = () => {
 
           {/* ── What it cost ── */}
           <section className="ledger-panel p-5" aria-labelledby="collection-cost">
-            <p id="collection-cost" className="label mb-1">Net cost</p>
-            <p className="font-mono tabular-nums text-3xl md:text-4xl font-bold" style={{ color: 'var(--fg)' }}>{dollars(totals.net)}</p>
+            <p id="collection-cost" className="label mb-1">{net.label}</p>
+            <p className="font-mono tabular-nums text-3xl md:text-4xl font-bold" style={{ color: net.color ?? 'var(--fg)' }}>{net.text}</p>
             <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
               {dollars(totals.spent)} spent
               {totals.returned > 0 && <> · <span style={{ color: 'var(--pos)' }}>{dollars(totals.returned)} came back</span></>}

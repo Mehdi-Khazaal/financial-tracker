@@ -19,13 +19,17 @@ interface Props {
   items: CollectionPeriodSpend[];
   /** The period's spending with collections included. */
   periodExpenses: number;
+  /** Spending in any collection, each transaction once (collections can overlap). */
+  inCollections: number;
+  /** Money received inside collections; leaving them out removes it too. */
+  received?: number;
   periodLabel: string;
   excluded: boolean;
   onToggle: () => void;
 }
 
-const CollectionsSpendCard: React.FC<Props> = ({ items, periodExpenses, periodLabel, excluded, onToggle }) => {
-  const total = items.reduce((sum, item) => sum + item.spent, 0);
+const CollectionsSpendCard: React.FC<Props> = ({ items, periodExpenses, inCollections, received = 0, periodLabel, excluded, onToggle }) => {
+  const total = Math.max(0, inCollections);
   return (
     <section className="ledger-panel p-4 md:p-5" aria-labelledby="analytics-collections-heading">
       <SectionHeader
@@ -33,7 +37,7 @@ const CollectionsSpendCard: React.FC<Props> = ({ items, periodExpenses, periodLa
         eyebrow="Collections"
         title={excluded ? 'Showing the period without collections' : `Trips and events in ${periodLabel}`}
         description={excluded
-          ? `Every figure on this page leaves out the ${dollars(total)} spent in collections. Turn the switch off for the true totals.`
+          ? `Every figure on this page leaves out the ${dollars(total)} spent in collections${received > 0 ? ` and the ${dollars(received)} received in them` : ''}. Turn the switch off for the true totals.`
           : `${dollars(total)} of ${dollars(periodExpenses)} spending${periodExpenses > 0 ? ` (${percent(Math.min(1, total / periodExpenses), 0)})` : ''} went to collections. It still counts in its categories.`}
         right={(
           <label className="flex items-center gap-2 text-xs font-medium cursor-pointer shrink-0" style={{ color: 'var(--muted)', minHeight: 44 }}>
@@ -64,7 +68,8 @@ const CollectionsSpendCard: React.FC<Props> = ({ items, periodExpenses, periodLa
                   <span className="font-mono tabular-nums text-sm shrink-0" style={{ color: 'var(--fg)' }}>{dollars(spent)}</span>
                 </span>
                 <span className="block mt-1">
-                  <ProgressBar value={total > 0 ? (spent / total) * 100 : 0} color={collectionColor(collection)} height={4} semantics="progress" />
+                  <ProgressBar value={periodExpenses > 0 ? Math.min(100, (spent / periodExpenses) * 100) : 0} color={collectionColor(collection)} height={4} semantics="progress"
+                    label={`${percent(periodExpenses > 0 ? Math.min(1, spent / periodExpenses) : 0, 0)} of this period's spending`} />
                 </span>
                 <span className="block text-[11px] mt-1" style={{ color: 'var(--dim)' }}>{plural(count, 'transaction')} in this period</span>
               </span>

@@ -24,5 +24,7 @@ describe('development API proxy', () => {
     expect(rewriteApiPath('/api/budgets')).toBe('/budgets/');
     expect(rewriteApiPath('/api/rules')).toBe('/rules/');
     expect(rewriteApiPath('/api/rules/preview')).toBe('/rules/preview');
+    expect(rewriteApiPath('/api/collections')).toBe('/collections/');
+    expect(rewriteApiPath('/api/collections/4/suggestions?all=true')).toBe('/collections/4/suggestions?all=true');
   });
 });

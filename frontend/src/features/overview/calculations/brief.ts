@@ -451,7 +451,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
         priority: 10.5,
         tone: budget > 0 && net > budget ? 'neutral' : 'positive',
         icon: 'check',
-        text: `${c.name} cost ${dollars(net)} in total`,
+        text: net >= 0 ? `${c.name} cost ${dollars(net)} in total` : `${c.name} brought in ${dollars(-net)} more than it cost`,
         detail: budget > 0
           ? net > budget
             ? `${dollars(net - budget)} over its ${dollars(budget)} budget.`

@@ -23,7 +23,7 @@ import {
   merchantIdentity,
 } from '../../analytics/calculations/transactions';
 import { daysBetween } from '../../analytics/period';
-import { plural, relativeDays } from '../../analytics/format';
+import { money, plural, relativeDays } from '../../analytics/format';
 
 export interface CollectionTotals {
   /** Money spent. */
@@ -100,7 +100,7 @@ export interface DaySpend {
   amount: number;
 }
 
-/** Net spending per day that had any, oldest first. */
+/** Net spending per day that had any, oldest first. A day that only had refunds is left out. */
 export function dailySpending(transactions: Transaction[], ctx: ClassificationContext): DaySpend[] {
   const days = new Map<string, number>();
   transactions.forEach(tx => {
@@ -109,6 +109,7 @@ export function dailySpending(transactions: Transaction[], ctx: ClassificationCo
     days.set(tx.transaction_date, (days.get(tx.transaction_date) ?? 0) + delta);
   });
   return Array.from(days.entries())
+    .filter(([, amount]) => amount > 0.005)
     .map(([date, amount]) => ({ date, amount }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -237,6 +238,24 @@ export function pickableCollections(collections: Collection[], memberOf: number[
 /** "🚗 Ohio trip", or just the name. */
 export const collectionLabel = (collection: Pick<Collection, 'name' | 'emoji'>): string =>
   collection.emoji ? `${collection.emoji} ${collection.name}` : collection.name;
+
+export interface NetDisplay {
+  /** "$717.52", or "+$5,221.70" when more came in than went out. */
+  text: string;
+  label: 'Net cost' | 'Net money in';
+  /** Green when money came in; otherwise the caller's normal text color. */
+  color: string | undefined;
+}
+
+/**
+ * How to print a collection's net. `dollars` drops the sign, so a collection
+ * holding more money in than out (a reimbursement that arrived) would read as
+ * a cost of the same size.
+ */
+export function netDisplay(net: number): NetDisplay {
+  if (net < -0.005) return { text: `+$${money(-net)}`, label: 'Net money in', color: 'var(--pos)' };
+  return { text: `$${money(net)}`, label: 'Net cost', color: undefined };
+}
 
 /** A collection's own color, or the accent. */
 export const collectionColor = (collection: Pick<Collection, 'color'>): string =>

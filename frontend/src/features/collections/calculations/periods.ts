@@ -44,6 +44,30 @@ export function periodCollectionSpending(
     .sort((a, b) => b.spent - a.spent);
 }
 
+/**
+ * Spending in any collection, each transaction counted once.
+ *
+ * A transaction can be in several collections, so their totals overlap and
+ * must never be added together. This is the honest "how much went to
+ * collections" figure.
+ */
+export function spendInCollections(transactions: Transaction[], ctx: ClassificationContext): number {
+  return transactions.reduce((sum, tx) => (
+    tx.collection_ids && tx.collection_ids.length > 0
+      ? sum + categorySpendDelta(tx, classifyTransaction(tx, ctx))
+      : sum
+  ), 0);
+}
+
+/** Money received inside collections (paybacks, reimbursements), each transaction once. */
+export function receivedInCollections(transactions: Transaction[], ctx: ClassificationContext): number {
+  return transactions.reduce((sum, tx) => (
+    tx.collection_ids && tx.collection_ids.length > 0 && classifyTransaction(tx, ctx) === 'income'
+      ? sum + Math.abs(Number(tx.amount))
+      : sum
+  ), 0);
+}
+
 /** Transactions that are in no collection — the period "without collections". */
 export const withoutCollections = (transactions: Transaction[]): Transaction[] =>
   transactions.filter(tx => !tx.collection_ids || tx.collection_ids.length === 0);

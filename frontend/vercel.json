@@ -84,6 +84,14 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/rules/"
     },
     {
+      "source": "/api/collections",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/collections/"
+    },
+    {
+      "source": "/api/collections/",
+      "destination": "https://financial-tracker-api-1osn.onrender.com/collections/"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://financial-tracker-api-1osn.onrender.com/:path*"
     },

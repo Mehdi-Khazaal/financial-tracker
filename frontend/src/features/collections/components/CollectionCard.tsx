@@ -4,7 +4,7 @@ import type { Collection } from '../../../types';
 import ProgressBar from '../../../components/ProgressBar';
 import { dollars, plural } from '../../analytics/format';
 import { linkToCollection } from '../../../lib/deepLinks';
-import { budgetProgress, collectionColor, dateRangeLabel, serverTotals, statusLabel } from '../calculations/collections';
+import { budgetProgress, collectionColor, dateRangeLabel, netDisplay, serverTotals, statusLabel } from '../calculations/collections';
 import CollectionBadge from './CollectionBadge';
 
 /** One collection in the list: what it is, when, and what it cost. */
@@ -14,20 +14,21 @@ const CollectionCard: React.FC<{ collection: Collection; todayKey: string }> = (
   const status = statusLabel(collection, todayKey);
   const budget = budgetProgress(totals.net, collection.budget);
   const subtitle = [range, status].filter(Boolean).join(' · ');
+  const net = netDisplay(totals.net);
 
   return (
     <Link
       to={linkToCollection(collection.id)}
       className="block rounded-xl p-4 pressable"
       style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', opacity: collection.is_archived ? 0.75 : 1 }}
-      aria-label={`${collection.name}, ${subtitle}, net cost ${dollars(totals.net)}`}
+      aria-label={`${collection.name}, ${subtitle}, ${net.label.toLowerCase()} ${net.text}`}
     >
       <div className="flex items-start gap-3">
         <CollectionBadge collection={collection} />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }} title={collection.name}>{collection.name}</p>
-            <p className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: 'var(--fg)' }}>{dollars(totals.net)}</p>
+            <p className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: net.color ?? 'var(--fg)' }}>{net.text}</p>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <p className="text-xs truncate" style={{ color: collection.active ? collectionColor(collection) : 'var(--dim)' }}>{subtitle}</p>

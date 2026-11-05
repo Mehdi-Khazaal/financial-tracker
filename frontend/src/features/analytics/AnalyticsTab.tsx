@@ -9,7 +9,7 @@ import { monthKeyOf } from './period';
 import { classifyTransaction } from './calculations/transactions';
 import { buildCategoryDetail } from './calculations/categories';
 import { calculatePeriodMetrics, transactionsInRange } from './calculations/metrics';
-import { periodCollectionSpending, withoutCollections } from '../collections/calculations/periods';
+import { periodCollectionSpending, receivedInCollections, spendInCollections, withoutCollections } from '../collections/calculations/periods';
 import { dollars, percent } from './format';
 import { useAnalyticsModel, useToday } from './useAnalyticsModel';
 
@@ -124,11 +124,13 @@ const AnalyticsTab: React.FC<Props> = ({
   // The collections card always reads the full ledger, so it can say what the
   // switch leaves out.
   const collectionView = useMemo(() => {
-    if (collections.length === 0) return { items: [], expenses: 0 };
+    if (collections.length === 0) return { items: [], expenses: 0, inCollections: 0, received: 0 };
     const inPeriod = transactionsInRange(transactions, model.period);
     return {
       items: periodCollectionSpending(inPeriod, collections, ctx),
       expenses: calculatePeriodMetrics(inPeriod, ctx).expenses,
+      inCollections: spendInCollections(inPeriod, ctx),
+      received: receivedInCollections(inPeriod, ctx),
     };
   }, [collections, transactions, model.period, ctx]);
 
@@ -257,6 +259,8 @@ const AnalyticsTab: React.FC<Props> = ({
         <CollectionsSpendCard
           items={collectionView.items}
           periodExpenses={collectionView.expenses}
+          inCollections={collectionView.inCollections}
+          received={collectionView.received}
           periodLabel={model.period.label}
           excluded={leaveOutCollections}
           onToggle={() => setLeaveOutCollections(v => !v)}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { dollars } from '../../analytics/format';
 import { linkToCollection, linkToCollections } from '../../../lib/deepLinks';
-import { budgetProgress, collectionColor, serverTotals, statusLabel } from '../../collections/calculations/collections';
+import { budgetProgress, collectionColor, netDisplay, serverTotals, statusLabel } from '../../collections/calculations/collections';
 import type { DashboardCollection } from '../../collections/calculations/periods';
 import CollectionBadge from '../../collections/components/CollectionBadge';
 
@@ -22,7 +22,7 @@ const CollectionsNowCard: React.FC<{ items: DashboardCollection[]; todayKey: str
       <div className="grid sm:grid-cols-2 gap-2">
         {items.slice(0, 4).map(({ collection, monthSpent }) => {
           const net = serverTotals(collection).net;
-          const amount = collection.active ? net : monthSpent;
+          const amount = collection.active ? netDisplay(net) : { text: dollars(monthSpent), color: undefined };
           const budget = collection.active ? budgetProgress(net, collection.budget) : null;
           return (
             <Link key={collection.id} to={linkToCollection(collection.id)} className="rounded-lg p-4 flex items-center gap-3 pressable"
@@ -35,8 +35,8 @@ const CollectionsNowCard: React.FC<{ items: DashboardCollection[]; todayKey: str
                   {budget && ` · ${budget.over ? 'over budget' : `${dollars(budget.remaining, 0)} left`}`}
                 </span>
               </span>
-              <span className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: 'var(--fg)' }}>
-                {dollars(amount)}
+              <span className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: amount.color ?? 'var(--fg)' }}>
+                {amount.text}
                 <span className="block text-[10px] font-normal text-right" style={{ color: 'var(--dim)' }}>{collection.active ? 'so far' : 'spent'}</span>
               </span>
             </Link>

@@ -1,10 +1,10 @@
 import type { Account, Category, Collection, Transaction } from '../../../types';
 import { buildClassificationContext } from '../../analytics/calculations/transactions';
 import {
-  budgetProgress, categoryBreakdown, collectionColor, collectionLabel, collectionPhase, collectionTotals,
+  budgetProgress, categoryBreakdown, collectionColor, collectionLabel, collectionPhase, collectionTotals, netDisplay,
   dailySpending, dateRangeLabel, groupCollections, pickableCollections, serverTotals, statusLabel, topMerchants,
 } from './collections';
-import { dashboardCollections, periodCollectionSpending, withoutCollections } from './periods';
+import { dashboardCollections, periodCollectionSpending, receivedInCollections, spendInCollections, withoutCollections } from './periods';
 
 const account = (id: number, type: Account['type']): Account => ({
   id, user_id: 1, name: `A${id}`, type, balance: 0, credit_limit: null, currency: 'USD', created_at: '', updated_at: '',
@@ -54,6 +54,7 @@ describe('collection totals', () => {
       tx(2, -15, { transaction_date: '2026-11-03', merchant_key: 'diner' }),
       tx(3, -40, { transaction_date: '2026-11-03', merchant_key: 'motel', description: 'MOTEL 6' }),
       tx(4, 100, { account_id: 2, category_id: null }),
+      tx(5, 8, { transaction_date: '2026-10-21' }),
     ];
     expect(dailySpending(rows, ctx)).toEqual([{ date: '2026-11-03', amount: 55 }, { date: '2026-11-04', amount: 10 }]);
     const places = topMerchants(rows, ctx, 1);
@@ -127,6 +128,11 @@ describe('collections in a period', () => {
     expect(spend.map(s => [s.collection.id, s.spent, s.count])).toEqual([[2, 140, 2], [1, 75, 2]]);
     expect(periodCollectionSpending(rows, [], ctx)).toEqual([]);
     expect(withoutCollections(rows).map(r => r.id)).toEqual([4]);
+    // Collections overlap: the $100 in both counts once.
+    expect(spendInCollections(rows, ctx)).toBe(100 - 25 + 40 + 9);
+    // The +25 is a refund (expense category), not money received.
+    expect(receivedInCollections(rows, ctx)).toBe(0);
+    expect(receivedInCollections([tx(9, 60, { category_id: null, collection_ids: [1, 2] })], ctx)).toBe(60);
   });
 
   it('shows running collections and ones with spending this month on the dashboard', () => {
@@ -138,5 +144,13 @@ describe('collections in a period', () => {
     const items = dashboardCollections([move, hidden, trip], rows, ctx, '2026-11');
     expect(items.map(i => [i.collection.id, i.monthSpent])).toEqual([[1, 0], [2, 30]]);
     expect(dashboardCollections([hidden], rows, ctx, '2026-11')).toEqual([]);
+  });
+});
+
+describe('net display', () => {
+  it('shows a cost, or money in with a plus when more came back than went out', () => {
+    expect(netDisplay(717.52)).toEqual({ text: '$717.52', label: 'Net cost', color: undefined });
+    expect(netDisplay(0)).toEqual({ text: '$0.00', label: 'Net cost', color: undefined });
+    expect(netDisplay(-5221.7)).toEqual({ text: '+$5,221.70', label: 'Net money in', color: 'var(--pos)' });
   });
 });

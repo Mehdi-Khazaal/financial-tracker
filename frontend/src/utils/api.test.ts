@@ -1,3 +1,4 @@
+import { COLLECTION_PATHS } from '../../vite.proxy';
 import api, {
   MAX_TRANSACTION_PAGES,
   PAGE_SIZE,
@@ -81,16 +82,10 @@ describe('API client', () => {
   it('proxies both current and cached collection URL forms in production', () => {
     const { rewrites } = require('../../vercel.json');
     const sources = new Set(rewrites.map((rewrite: { source: string }) => rewrite.source));
-    const collectionPaths = [
-      'accounts',
-      'categories',
-      'transactions',
-      'transfers',
-      'assets',
-      'savings-goals',
-      'recurring',
-      'loans',
-    ];
+    // Every route the dev proxy canonicalises must be rewritten in production
+    // too, or the live site gets the 307 that drops the cookie.
+    const collectionPaths = Array.from(COLLECTION_PATHS).map(path => path.slice(1));
+    expect(collectionPaths).toContain('collections');
 
     collectionPaths.forEach(path => {
       expect(sources.has(`/api/${path}`)).toBe(true);
