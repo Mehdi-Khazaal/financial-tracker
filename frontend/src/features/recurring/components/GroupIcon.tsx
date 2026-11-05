@@ -17,8 +17,8 @@ const PATHS: Record<RecurringGroupKey, string> = {
 
 export const GroupIcon: React.FC<{ group: RecurringGroupKey; size?: number }> = ({ group, size = 18 }) => (
   <span
-    className="inline-flex items-center justify-center rounded-lg shrink-0"
-    style={{ width: size + 14, height: size + 14, backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}
+    className="inline-flex items-center justify-center shrink-0"
+    style={{ width: size + 6, height: size + 6, color: 'var(--muted)' }}
     aria-hidden="true"
   >
     <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

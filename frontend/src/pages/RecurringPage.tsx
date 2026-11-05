@@ -239,7 +239,7 @@ const RecurringPage: React.FC = () => {
         {header}
 
         <div className="flex-1 overflow-y-auto mobile-tabs-spacer md:pb-10">
-          <div className="px-4 md:px-5 py-4 md:py-5 space-y-4 md:space-y-5 fade-in">
+          <div className="page-flat px-4 md:px-5 py-4 md:py-5 space-y-4 md:space-y-5 fade-in">
             {loadError && <LoadErrorBanner onRetry={() => void load()} />}
 
             {overview && !hasSide && (
@@ -263,7 +263,7 @@ const RecurringPage: React.FC = () => {
 
                   {attention.length > 0 && (
                     <section className="card" aria-labelledby="recurring-attention-heading">
-                      <header className="flex items-center justify-between gap-3 px-4 py-3.5">
+                      <header className="flex items-center justify-between gap-3 py-3.5">
                         <div>
                           <h2 id="recurring-attention-heading" className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Needs attention</h2>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Due within a week, or not seen when expected</p>
@@ -332,7 +332,7 @@ const RecurringPage: React.FC = () => {
                   {overview.paused.length > 0 && (
                     <section className="card">
                       <button type="button" onClick={() => setShowPaused(v => !v)} aria-expanded={showPaused}
-                        className="w-full flex items-center justify-between px-4 py-3.5 text-left pressable" style={{ minHeight: 48 }}>
+                        className="w-full flex items-center justify-between py-3.5 text-left pressable" style={{ minHeight: 48 }}>
                         <span className="text-sm font-semibold" style={{ color: 'var(--muted)' }}>Paused · {overview.paused.length}</span>
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"
                           style={{ color: 'var(--dim)', transform: showPaused ? 'rotate(180deg)' : 'none', transition: 'transform 180ms var(--ease-out)' }}>

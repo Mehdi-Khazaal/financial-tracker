@@ -31,7 +31,7 @@ export const BillRow: React.FC<{ bill: RecurringBill; actions: BillActions }> = 
   ];
 
   return (
-    <li className="flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--line)', minHeight: 64 }}>
+    <li className="flex items-center gap-3 py-3" style={{ borderTop: '1px solid var(--line)', minHeight: 64 }}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
           <p className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{name}</p>
@@ -89,7 +89,7 @@ const BillGroupCard: React.FC<{
     // reachable), and the second left every row a layer of its own, so the row
     // below painted over an open menu.
     <section className="card" aria-labelledby={headingId}>
-      <header className="flex items-center gap-3 px-4 py-3.5">
+      <header className="flex items-center gap-3 py-3.5">
         <span style={{ color: 'var(--accent)' }}><GroupIcon group={groupKey} /></span>
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>{label}</h2>
