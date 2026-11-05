@@ -28,7 +28,7 @@ import CategoryBoard from '../features/transactions/components/CategoryBoard';
 import CollectionsView from '../features/collections/components/CollectionsView';
 import DayHeader from '../features/transactions/components/DayHeader';
 import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
-import { groupByDay } from '../features/transactions/calculations/timeline';
+import { firstRows, groupByDay } from '../features/transactions/calculations/timeline';
 import { applyTransactionFilters, type TransactionFilters } from '../features/transactions/calculations/filters';
 import { readableOn } from '../utils/contrast';
 import PullToRefresh from '../components/PullToRefresh';
@@ -42,6 +42,9 @@ type Tab = 'transactions' | 'list' | 'recurring' | 'collections';
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Timeline rows drawn at a time; more are added as you scroll. */
+const TIMELINE_CHUNK = 150;
 
 const formatMonth = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
@@ -475,6 +478,24 @@ const Transactions: React.FC = () => {
     () => groupByDay(filteredList, classification, new Date()),
     [filteredList, classification],
   );
+
+  // Draw the timeline in chunks. Rendering every row at once (thousands after
+  // a few years of bank sync) took seconds and grew with every import; totals,
+  // search and "select all" still use the whole filtered list.
+  const [shownCount, setShownCount] = useState(TIMELINE_CHUNK);
+  useEffect(() => { setShownCount(TIMELINE_CHUNK); }, [appliedFilters]);
+  const shownDays = useMemo(() => firstRows(timelineDays, shownCount), [timelineDays, shownCount]);
+  const hiddenCount = Math.max(0, filteredList.length - shownCount);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || hiddenCount === 0 || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setShownCount(count => count + TIMELINE_CHUNK);
+    }, { rootMargin: '800px 0px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hiddenCount, shownDays]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
@@ -1323,10 +1344,10 @@ const Transactions: React.FC = () => {
                   )}
                 </div>
               ) : (
-                timelineDays.map(day => (
+                shownDays.map(({ day, rows }) => (
                   <section key={day.date} aria-label={day.label}>
                     <DayHeader day={day} />
-                    {day.transactions.map(tx => (
+                    {rows.map(tx => (
                       <TransactionCard
                         key={tx.id}
                         tx={tx}
@@ -1347,6 +1368,18 @@ const Transactions: React.FC = () => {
                     ))}
                   </section>
                 ))
+              )}
+              {hiddenCount > 0 && (
+                <div ref={moreRef} className="py-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setShownCount(count => count + TIMELINE_CHUNK)}
+                    className="text-xs font-semibold px-4 rounded-lg"
+                    style={{ minHeight: 40, color: 'var(--accent)', border: '1px solid var(--line)' }}
+                  >
+                    Show more ({hiddenCount.toLocaleString()} left)
+                  </button>
+                </div>
               )}
             </div>
 

@@ -89,3 +89,21 @@ export function groupByDay(
       };
     });
 }
+
+/**
+ * The first `count` rows of a grouped timeline, keeping the day groups.
+ *
+ * The page draws the timeline in chunks; a day can be cut part-way, and its
+ * header still shows the whole day's totals because the group is unchanged.
+ */
+export function firstRows<T extends { transactions: Transaction[] }>(days: T[], count: number): { day: T; rows: Transaction[] }[] {
+  const out: { day: T; rows: Transaction[] }[] = [];
+  let left = count;
+  for (const day of days) {
+    if (left <= 0) break;
+    const rows = day.transactions.slice(0, left);
+    out.push({ day, rows });
+    left -= rows.length;
+  }
+  return out;
+}
