@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { dollars } from '../../analytics/format';
 import { linkToCollection, linkToCollections } from '../../../lib/deepLinks';
-import { budgetProgress, collectionColor, netDisplay, serverTotals, statusLabel } from '../../collections/calculations/collections';
+import { budgetProgress, netDisplay, serverTotals, statusLabel } from '../../collections/calculations/collections';
 import type { DashboardCollection } from '../../collections/calculations/periods';
 import CollectionBadge from '../../collections/components/CollectionBadge';
 
@@ -29,14 +29,16 @@ const CollectionsNowCard: React.FC<{ items: DashboardCollection[]; todayKey: str
               <CollectionBadge collection={collection} size="sm" />
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{collection.name}</span>
-                <span className="block text-[11px] truncate" style={{ color: collection.active ? collectionColor(collection) : 'var(--dim)' }}>
+                {/* A collection's own colour marks it, never its text. */}
+                <span className="block text-xs truncate" style={{ color: 'var(--muted)' }}>
                   {collection.active ? statusLabel(collection, todayKey) : 'This month'}
-                  {budget && ` · ${budget.over ? 'over budget' : `${dollars(budget.remaining, 0)} left`}`}
+                  {budget && !budget.over && ` · ${dollars(budget.remaining, 0)} left`}
+                  {budget?.over && <> · <span style={{ color: 'var(--neg)' }}>over budget</span></>}
                 </span>
               </span>
-              <span className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: amount.color ?? 'var(--fg)' }}>
+              <span className="tabular-nums text-sm font-semibold shrink-0 text-right" style={{ color: amount.color ?? 'var(--fg)' }}>
                 {amount.text}
-                <span className="block text-[10px] font-normal text-right" style={{ color: 'var(--dim)' }}>{collection.active ? 'so far' : 'spent'}</span>
+                <span className="block text-xs font-normal" style={{ color: 'var(--muted)' }}>{collection.active ? 'so far' : 'spent'}</span>
               </span>
             </Link>
           );

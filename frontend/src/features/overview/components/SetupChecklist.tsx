@@ -44,43 +44,43 @@ const SetupChecklist: React.FC<Props> = ({ userId, hasAccounts, hasBudget, onSet
   const markReviewed = () => { write(userId, 'categories'); setReviewed(true); };
   const dismiss = () => { write(userId, 'dismissed'); setDismissed(true); };
 
+  // A numbered list under a title, like every other section: no box, and a
+  // finished step is ticked and greyed rather than struck through.
   return (
-    <section className="card p-4 md:p-5" aria-labelledby="setup-heading">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div>
-          <p className="label" style={{ color: 'var(--accent)' }}>Get set up</p>
-          <h2 id="setup-heading" className="text-sm font-semibold mt-0.5" style={{ color: 'var(--fg)' }}>
+    <section aria-labelledby="setup-heading">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <h2 id="setup-heading" className="section-title">Get set up</h2>
+        <div className="flex items-baseline gap-4">
+          <span className="text-[13px]" style={{ color: 'var(--muted)' }}>
             {remaining === steps.length ? 'Three steps to a real overview' : `${remaining} step${remaining === 1 ? '' : 's'} left`}
-          </h2>
+          </span>
+          <button type="button" onClick={dismiss} className="text-[13px] pressable" style={{ color: 'var(--muted)', minHeight: 44 }} aria-label="Hide setup checklist">
+            Hide
+          </button>
         </div>
-        <button type="button" onClick={dismiss} className="text-xs pressable" style={{ color: 'var(--dim)', minHeight: 44 }} aria-label="Hide setup checklist">
-          Hide
-        </button>
       </div>
-      <ol className="space-y-2">
-        {steps.map(step => {
+      <ol className="row-list" style={{ borderBottom: '1px solid var(--line)' }}>
+        {steps.map((step, index) => {
           const control = step.id === 'account'
-            ? <Link to={linkToBanking()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Open accounts →</Link>
+            ? <Link to={linkToBanking()} className="section-link">Open accounts →</Link>
             : step.id === 'categories'
-              ? <Link to={linkToSettingsSection('categories')} onClick={markReviewed} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Open categories →</Link>
-              : <button type="button" onClick={onSetBudget} className="text-xs font-medium pressable" style={{ color: 'var(--accent)', minHeight: 44 }}>Set a budget →</button>;
+              ? <Link to={linkToSettingsSection('categories')} onClick={markReviewed} className="section-link">Open categories →</Link>
+              : <button type="button" onClick={onSetBudget} className="section-link pressable" style={{ minHeight: 44 }}>Set a budget →</button>;
           return (
-            <li key={step.id} className="flex items-start gap-3 rounded-xl p-3" style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
-              <span
-                aria-hidden="true"
-                className="mt-0.5 w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
-                style={step.done
-                  ? { backgroundColor: 'var(--pos)', color: 'var(--ink-on-fill)' }
-                  : { border: '1px solid var(--line-strong)', color: 'var(--dim)' }}
-              >
-                {step.done ? '✓' : ''}
+            <li key={step.id} className="flex items-center gap-4 py-3" style={{ minHeight: 56 }}>
+              <span aria-hidden="true" className="w-5 shrink-0 text-sm font-semibold tabular-nums" style={{ color: step.done ? 'var(--pos)' : 'var(--dim)' }}>
+                {step.done
+                  ? <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 10.5l3.5 3.5 7.5-8" /></svg>
+                  : index + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium" style={{ color: step.done ? 'var(--muted)' : 'var(--fg)', textDecoration: step.done ? 'line-through' : 'none' }}>
+                <p className="text-sm font-medium" style={{ color: step.done ? 'var(--muted)' : 'var(--fg)' }}>
                   {step.label}
                 </p>
-                {!step.done && <p className="text-xs mt-0.5" style={{ color: 'var(--dim)' }}>{step.hint}</p>}
-                {!step.done && <div className="mt-1.5">{control}</div>}
+                {!step.done && <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{step.hint}</p>}
+              </div>
+              <div className="shrink-0">
+                {step.done ? <span className="text-[13px]" style={{ color: 'var(--muted)' }}>Done</span> : control}
               </div>
             </li>
           );

@@ -21,7 +21,9 @@ describe('SetupChecklist', () => {
   it('shows the three steps with the data-driven ones ticked', () => {
     setup({ hasAccounts: true });
     expect(screen.getByText('2 steps left')).toBeInTheDocument();
-    expect(screen.getByText('Add an account or connect a bank')).toHaveStyle({ textDecoration: 'line-through' });
+    // A finished step is marked done, not struck through.
+    expect(screen.getAllByText('Done')).toHaveLength(1);
+    expect(screen.queryByText('Open accounts →')).not.toBeInTheDocument();
     expect(screen.getByText('Open categories →')).toBeInTheDocument();
   });
 
