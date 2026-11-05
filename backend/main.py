@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
@@ -221,6 +222,10 @@ app.include_router(assistant.router)
 # See `utils.security.security_headers` for the exact policy.
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(IdempotencyMiddleware)
+# Compress bodies over 1 KB. The transaction history is the biggest response in
+# the app (about 300 bytes a row) and shrinks roughly tenfold. Live streams
+# (text/event-stream) are left alone by Starlette.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 # Outermost, so the id covers every other middleware's work and every log line.
 app.add_middleware(RequestIdMiddleware)
 
