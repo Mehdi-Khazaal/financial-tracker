@@ -675,13 +675,13 @@ const Transactions: React.FC = () => {
         <div className="product-page-header product-page-header--bleed topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher — desktop only; mobile uses the context tab bar in Navigation */}
-          <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+          <div className="hidden md:inline-flex rounded-md overflow-hidden shrink-0" style={{ border: '1px solid var(--line-strong)' }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
+                className="px-4 py-2 text-sm font-semibold transition-colors"
                 style={tab === t.id
-                  ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-                  : { color: 'var(--muted)' }}>
+                  ? { backgroundColor: 'var(--fg)', color: 'var(--bg)' }
+                  : { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', fontWeight: 400 }}>
                 {t.label}
               </button>
             ))}
@@ -1093,7 +1093,7 @@ const Transactions: React.FC = () => {
                   onClick={() => setMobileView('queue')}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
                   style={mobileView === 'queue'
-                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)' }
                     : { color: 'var(--muted)' }}>
                   Uncategorized
                   {uncategorized.length > 0 && (
@@ -1107,7 +1107,7 @@ const Transactions: React.FC = () => {
                   onClick={() => setMobileView('categories')}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
                   style={mobileView === 'categories'
-                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
+                    ? { backgroundColor: 'var(--elev-1)', color: 'var(--fg)' }
                     : { color: 'var(--muted)' }}>
                   By Category
                 </button>
@@ -1192,7 +1192,6 @@ const Transactions: React.FC = () => {
                             ? {
                                 backgroundColor: t === 'income' ? 'color-mix(in oklab, var(--pos) 20%, transparent)' : t === 'expense' ? 'color-mix(in oklab, var(--neg) 20%, transparent)' : 'var(--elev-1)',
                                 color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                               }
                             : { color: 'var(--muted)' }}>
                           {t}

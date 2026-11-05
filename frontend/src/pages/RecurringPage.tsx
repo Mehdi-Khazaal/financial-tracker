@@ -183,14 +183,14 @@ const RecurringPage: React.FC = () => {
   const header = (
     <div className="product-page-header product-page-header--bleed topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
       <h1 className="sr-only">Recurring</h1>
-      <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }} role="tablist" aria-label="Transaction views">
+      <div className="hidden md:inline-flex rounded-md overflow-hidden shrink-0" style={{ border: '1px solid var(--line-strong)' }} role="tablist" aria-label="Transaction views">
         {TRANSACTION_TABS.map(t => (
           <button key={t.id} type="button" role="tab" aria-selected={t.id === 'recurring'}
             onClick={() => goToTransactionsTab(t.id)}
-            className="px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
+            className="px-4 py-2 text-sm font-semibold transition-colors"
             style={t.id === 'recurring'
-              ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-              : { color: 'var(--muted)' }}>
+              ? { backgroundColor: 'var(--fg)', color: 'var(--bg)' }
+              : { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', fontWeight: 400 }}>
             {t.label}
           </button>
         ))}

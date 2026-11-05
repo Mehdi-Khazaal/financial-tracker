@@ -318,13 +318,13 @@ const AccountsPage: React.FC = () => {
 
           {/* Tabs */}
           <div className="hidden md:block sticky z-20 py-2 -mx-6 px-6" style={{ top: 0, backgroundColor: 'var(--bg)' }}>
-            <div className="flex p-1 rounded-xl gap-0.5" style={{ backgroundColor: 'var(--elev-1)' }}>
+            <div className="flex rounded-md overflow-hidden" style={{ border: '1px solid var(--line-strong)' }}>
               {TABS.map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}
-                  className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+                  className="flex-1 px-4 py-2 text-sm font-semibold transition-colors"
                   style={tab === t.id
-                    ? { backgroundColor: 'var(--bg)', color: 'var(--fg)', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }
-                    : { color: 'var(--muted)' }}>
+                    ? { backgroundColor: 'var(--fg)', color: 'var(--bg)' }
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--fg)', fontWeight: 400 }}>
                   {t.label}
                 </button>
               ))}
