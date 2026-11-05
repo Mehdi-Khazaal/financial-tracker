@@ -3,8 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import BottomSheet from '../BottomSheet';
 import { linkToNewRule } from '../../lib/deepLinks';
 import AmountInput from '../AmountInput';
-import { updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription } from '../../utils/api';
-import { Transaction, Account, Category } from '../../types';
+import {
+  updateTransaction, deleteTransaction, getAccounts, getCategories, cleanDescription,
+  getCollections, createCollection, setTransactionCollections,
+} from '../../utils/api';
+import { Transaction, Account, Category, Collection } from '../../types';
+import { buildClassificationContext, classifyTransaction } from '../../features/analytics/calculations/transactions';
+import CollectionPicker from '../../features/collections/components/CollectionPicker';
+import { pickableCollections } from '../../features/collections/calculations/collections';
+import { errorText } from '../../features/collections/errors';
 import { useToast } from '../../context/ToastContext';
 import { selectableCategories } from './categoryOptions';
 import SplitEditor from '../../features/transactions/components/SplitEditor';
@@ -32,9 +39,16 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [memberOf, setMemberOf] = useState<number[]>([]);
+  const [savingCollections, setSavingCollections] = useState(false);
 
   useEffect(() => {
     if (isOpen && transaction) {
+      setMemberOf(transaction.collection_ids ?? []);
+      getCollections()
+        .then(res => setCollections(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setCollections([]));
       setMode('view');
       const isIncome = Number(transaction.amount) > 0;
       setType(isIncome ? 'income' : 'expense');
@@ -76,6 +90,40 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
     try { await deleteTransaction(transaction.id); onSuccess(); onClose(); toast.success('Transaction deleted'); }
     catch { toast.error('Failed to delete transaction'); }
     finally { setLoading(false); }
+  };
+
+  // Membership saves straight away: it changes no money, so there is nothing to confirm.
+  const saveCollections = async (next: number[]) => {
+    if (!transaction) return false;
+    const previous = memberOf;
+    setMemberOf(next);
+    setSavingCollections(true);
+    try {
+      await setTransactionCollections(transaction.id, next);
+      onSuccess();
+      return true;
+    } catch (err) {
+      setMemberOf(previous);
+      toast.error(errorText(err, 'Could not update collections'));
+      return false;
+    } finally {
+      setSavingCollections(false);
+    }
+  };
+
+  const toggleCollection = (id: number) => {
+    void saveCollections(memberOf.includes(id) ? memberOf.filter(x => x !== id) : [...memberOf, id]);
+  };
+
+  const createAndAdd = async (name: string): Promise<boolean> => {
+    try {
+      const res = await createCollection({ name });
+      setCollections(prev => [...prev, res.data]);
+      return await saveCollections([...memberOf, res.data.id]);
+    } catch (err) {
+      toast.error(errorText(err, 'Could not create the collection'));
+      return false;
+    }
   };
 
   const filteredCats = selectableCategories(categories, type);
@@ -160,6 +208,20 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
                 );
               })}
             </ul>
+          )}
+
+          {/* Collections: a trip, a holiday… Card payments are not spending, so they can't join one. */}
+          {accounts.length > 0
+            && classifyTransaction(transaction, buildClassificationContext(accounts, categories)) !== 'card-payment' && (
+            <div className="mt-4">
+              <CollectionPicker
+                collections={pickableCollections(collections, memberOf)}
+                selected={memberOf}
+                onToggle={toggleCollection}
+                onCreate={createAndAdd}
+                disabled={savingCollections}
+              />
+            </div>
           )}
 
           {/* A rule from this transaction: the most common reason to want one

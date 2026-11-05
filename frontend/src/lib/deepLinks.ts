@@ -55,6 +55,10 @@ export const DEEP_LINK_KEYS = {
   query: 'q',
   /** Open the CSV import sheet on the Transactions page. */
   importCsv: 'import',
+  /** Timeline in select mode, adding to this collection. */
+  collect: 'collect',
+  /** Collections tab with the new-collection form open. */
+  newCollection: 'new',
 } as const;
 
 /** The timeline, filtered to a single account. */
@@ -80,6 +84,14 @@ export const linkToReview = (): string =>
 /** The Collections tab: trips, holidays, moves. */
 export const linkToCollections = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.collections}`;
+
+/** The Timeline in select mode, picking transactions for one collection. */
+export const linkToCollectTransactions = (collectionId: number): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.timeline}&${DEEP_LINK_KEYS.collect}=${collectionId}`;
+
+/** The Collections tab with the new-collection form open. */
+export const linkToNewCollection = (): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.collections}&${DEEP_LINK_KEYS.newCollection}=1`;
 
 /** One collection's page. `review` opens its suggestions straight away. */
 export const linkToCollection = (collectionId: number, review = false): string =>

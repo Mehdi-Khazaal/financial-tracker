@@ -16,7 +16,13 @@ import CollectionFormSheet from './CollectionFormSheet';
  * away. A collection is a lens on the ledger — this list never shows money
  * that is not also in the Timeline.
  */
-const CollectionsView: React.FC = () => {
+interface Props {
+  /** Open the new-collection form on arrival (⌘K "New collection"). */
+  openNew?: boolean;
+  onOpenNewHandled?: () => void;
+}
+
+const CollectionsView: React.FC<Props> = ({ openNew = false, onOpenNewHandled }) => {
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +44,12 @@ const CollectionsView: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!openNew) return;
+    setShowForm(true);
+    onOpenNewHandled?.();
+  }, [openNew, onOpenNewHandled]);
 
   const groups = useMemo(() => groupCollections(collections, todayKey), [collections, todayKey]);
 

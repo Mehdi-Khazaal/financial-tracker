@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import BottomSheet from '../BottomSheet';
 import AmountInput from '../AmountInput';
-import { getAccounts, getCategories, createCategory } from '../../utils/api';
+import { getAccounts, getCategories, createCategory, getCollections } from '../../utils/api';
 import { enqueue } from '../../utils/mutationQueue';
-import { Account, Category } from '../../types';
+import { Account, Category, Collection } from '../../types';
+import CollectionPicker from '../../features/collections/components/CollectionPicker';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
 import { accountOptionLabel } from './accountOptions';
@@ -15,11 +16,13 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   defaultType?: 'income' | 'expense';
+  /** Collections to start ticked, e.g. when adding from a collection's page. */
+  defaultCollectionIds?: number[];
 }
 
 // const COLORS = ['var(--accent)','#a855f7','var(--pos)','var(--neg)','#f59e0b','var(--muted)','var(--fg)','#ff9f43'];
 
-const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defaultType = 'expense' }) => {
+const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defaultType = 'expense', defaultCollectionIds }) => {
   const toast = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,6 +37,8 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('#f59e0b');
   const [addingCat, setAddingCat] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionIds, setCollectionIds] = useState<number[]>([]);
 
   useEffect(() => { setType(defaultType); }, [defaultType, isOpen]);
 
@@ -44,7 +49,13 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
         setCategories(cRes.data);
         if (aRes.data.length > 0) setAccountId(String(aRes.data[0].id));
       });
+      // Optional: the form works the same without collections.
+      setCollectionIds(defaultCollectionIds ?? []);
+      getCollections()
+        .then(res => setCollections(Array.isArray(res.data) ? res.data.filter(c => !c.is_archived) : []))
+        .catch(() => setCollections([]));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
@@ -79,6 +90,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
       amount: finalAmount,
       description: description || null,
       transaction_date: date,
+      ...(collectionIds.length > 0 ? { collection_ids: collectionIds } : {}),
     };
 
     // Optimistic snapshot rendered in the transaction list until the server
@@ -212,6 +224,15 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                 </div>
               )}
             </div>
+
+            {collections.length > 0 && (
+              <CollectionPicker
+                collections={collections}
+                selected={collectionIds}
+                onToggle={id => setCollectionIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))}
+                label="Collections (optional)"
+              />
+            )}
 
             {/* Note */}
             <div>

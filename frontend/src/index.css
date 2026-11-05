@@ -1041,6 +1041,15 @@ body::after {
     padding-bottom: var(--mobile-tabs-reserve) !important;
   }
 
+  /* The Timeline's select-mode bar sits above the fixed dock and tab bar. */
+  .select-bar {
+    margin-bottom: var(--mobile-dock-reserve);
+  }
+
+  body.has-mobile-context-tabs .select-bar {
+    margin-bottom: var(--mobile-tabs-reserve);
+  }
+
   .mobile-dock,
   .mobile-context-tabs {
     transform: translateZ(0);

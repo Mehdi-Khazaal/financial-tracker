@@ -35,3 +35,18 @@ describe('applyTransactionFilters', () => {
     expect(applyTransactionFilters(rows, { ...EMPTY_FILTERS, dateFrom: '2026-03-02', dateTo: '2026-03-04' }).map(t => t.id)).toEqual([3]);
   });
 });
+
+describe('collection filter', () => {
+  const rows = [
+    tx({ id: 1, transaction_date: '2026-03-03', collection_ids: [7] }),
+    tx({ id: 2, transaction_date: '2026-03-02', collection_ids: [7, 8] }),
+    tx({ id: 3, transaction_date: '2026-03-01' }),
+  ];
+
+  it('keeps one collection, or the ones in none', () => {
+    expect(applyTransactionFilters(rows, { ...EMPTY_FILTERS, collection: '7' }).map(t => t.id)).toEqual([1, 2]);
+    expect(applyTransactionFilters(rows, { ...EMPTY_FILTERS, collection: '8' }).map(t => t.id)).toEqual([2]);
+    expect(applyTransactionFilters(rows, { ...EMPTY_FILTERS, collection: 'none' }).map(t => t.id)).toEqual([3]);
+    expect(applyTransactionFilters(rows, { ...EMPTY_FILTERS, collection: '' }).map(t => t.id)).toEqual([1, 2, 3]);
+  });
+});

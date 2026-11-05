@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TabContext } from '../context/TabContext';
 import { useUI, requestQuickAction, QuickAction } from '../context/UIContext';
-import { linkToImport, linkToTransactionSearch } from '../lib/deepLinks';
+import { linkToCollections, linkToImport, linkToNewCollection, linkToTransactionSearch } from '../lib/deepLinks';
 
 type Cmd = {
   id: string;
@@ -85,6 +85,8 @@ const CommandPalette: React.FC = () => {
       icon: <I d="M3 5h14v10H3zM3 9h14M7 13h3" />, run: () => quick('budget') },
     { id: 'qa-import', label: 'Import transactions from CSV', group: 'Quick actions', keywords: 'import csv upload bank export file',
       icon: <I d="M10 13V4m0 0L7 7m3-3l3 3M4 16h12" />, run: () => go(linkToImport(), 'list') },
+    { id: 'qa-collection', label: 'New collection', group: 'Quick actions', keywords: 'trip holiday vacation move event group tag folder',
+      icon: <I d="M3 6a2 2 0 012-2h3l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6zm7 3v4m-2-2h4" />, run: () => go(linkToNewCollection(), 'collections') },
 
     { id: 'nav-dash', label: 'Dashboard', group: 'Navigate', keywords: 'home overview net worth',
       icon: <I d="M3 10l7-6 7 6v7a1 1 0 01-1 1h-4v-5H8v5H4a1 1 0 01-1-1v-7z" />, run: () => go('/', 'overview') },
@@ -100,6 +102,8 @@ const CommandPalette: React.FC = () => {
       icon: <I d="M4 6h12M4 10h12M4 14h8" />, run: () => go('/transactions', 'list') },
     { id: 'nav-tx-review', label: 'Review transactions', group: 'Navigate', keywords: 'uncategorized categorize import inbox',
       icon: <I d="M4 5h12M4 10h8M4 15h6m5-3v6m-3-3h6" />, run: () => go('/transactions', 'transactions') },
+    { id: 'nav-collections', label: 'Collections', group: 'Navigate', keywords: 'trips holidays moves events tags folders',
+      icon: <I d="M3 6a2 2 0 012-2h3l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />, run: () => go(linkToCollections(), 'collections') },
     { id: 'nav-recurring', label: 'Recurring', group: 'Navigate', keywords: 'subscriptions salary repeat',
       icon: <I d="M4 10a6 6 0 0110.5-4M16 10a6 6 0 01-10.5 4M14.5 3v3h-3M5.5 17v-3h3" />, run: () => go('/recurring') },
     { id: 'nav-invest', label: 'Investments', group: 'Navigate', keywords: 'portfolio stocks crypto',

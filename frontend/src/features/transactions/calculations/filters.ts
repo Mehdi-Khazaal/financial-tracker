@@ -20,6 +20,8 @@ export interface TransactionFilters {
   amountMin: string;
   amountMax: string;
   query: string;
+  /** Collection id as a string, 'none' for in no collection, or ''/absent for any. */
+  collection?: string;
 }
 
 export const EMPTY_FILTERS: TransactionFilters = {
@@ -51,6 +53,11 @@ export const matchesFilters = (t: Transaction, f: TransactionFilters): boolean =
   if (f.type === 'expense' && Number(t.amount) >= 0) return false;
   if (f.amountMin && Math.abs(Number(t.amount)) < parseFloat(f.amountMin)) return false;
   if (f.amountMax && Math.abs(Number(t.amount)) > parseFloat(f.amountMax)) return false;
+  if (f.collection) {
+    const ids = t.collection_ids ?? [];
+    if (f.collection === 'none') { if (ids.length > 0) return false; }
+    else if (!ids.includes(parseInt(f.collection, 10))) return false;
+  }
   return matchesQuery(t, f.query);
 };
 

@@ -6,7 +6,7 @@ import {
 } from '../utils/api';
 import { localDateStr } from '../utils/date';
 import { downloadCSV, printPDF } from '../utils/export';
-import { linkToCollections } from '../lib/deepLinks';
+import { linkToCollectTransactions, linkToCollections } from '../lib/deepLinks';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import LoadErrorBanner from '../components/LoadErrorBanner';
 import ProgressBar from '../components/ProgressBar';
@@ -232,6 +232,7 @@ const CollectionPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              <Link to={linkToCollectTransactions(collection.id)} className="header-action text-sm">Add</Link>
               <button type="button" onClick={() => setEditing(true)} className="header-action text-sm">Edit</button>
             </div>
           </div>
@@ -292,9 +293,12 @@ const CollectionPage: React.FC = () => {
               <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Nothing in this collection yet</p>
               <p className="text-xs mt-1.5 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--muted)' }}>
                 {collection.start_date
-                  ? 'Use “Find” above to pick transactions from its dates, or add them from the Timeline.'
-                  : 'Open a transaction in the Timeline and add it here, or give this collection dates to get suggestions.'}
+                  ? 'Use “Find” above to pick transactions from its dates, or pick them from the Timeline.'
+                  : 'Pick transactions from the Timeline, or give this collection dates to get suggestions.'}
               </p>
+              <Link to={linkToCollectTransactions(collection.id)} className="btn-gradient inline-flex items-center mt-4 px-5 min-h-[44px] text-sm">
+                Pick from Timeline
+              </Link>
             </div>
           ) : (
             <>

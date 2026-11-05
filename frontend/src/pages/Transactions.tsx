@@ -2,10 +2,10 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { useRouteTab } from '../context/TabContext';
 import { localDateStr } from '../utils/date';
-import { Transaction, Account, Category } from '../types';
+import { Transaction, Account, Category, Collection } from '../types';
 import {
-  fetchAllTransactions, getAccounts, getCategories, deleteTransaction, cleanDescription,
-  updateTransaction,
+  fetchAllTransactions, getAccounts, getCategories, getCollections, deleteTransaction, cleanDescription,
+  updateTransaction, addToCollection,
 } from '../utils/api';
 import {
   buildClassificationContext, classifyTransaction,
@@ -13,7 +13,7 @@ import {
 import { calculatePeriodMetrics } from '../features/analytics/calculations/metrics';
 import type { ClassificationContext } from '../features/analytics/types';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
-import { DEEP_LINK_KEYS, linkToCategoryAnalytics, parseIdParam } from '../lib/deepLinks';
+import { DEEP_LINK_KEYS, linkToCategoryAnalytics, linkToCollection, parseIdParam } from '../lib/deepLinks';
 import { downloadCSV, printPDF } from '../utils/export';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import BottomSheet from '../components/BottomSheet';
@@ -21,7 +21,8 @@ import AddTransactionModal from '../components/modals/AddTransactionModal';
 import EditTransactionModal from '../components/modals/EditTransactionModal';
 import TransferModal from '../components/modals/TransferModal';
 import ImportSheet from '../components/modals/ImportSheet';
-import TransactionCard from '../components/transactions/TransactionCard';
+import TransactionCard, { type CollectionChip } from '../components/transactions/TransactionCard';
+import AddToCollectionSheet, { addedMessage } from '../features/collections/components/AddToCollectionSheet';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
 import CollectionsView from '../features/collections/components/CollectionsView';
@@ -252,6 +253,17 @@ const Transactions: React.FC = () => {
   const [showExportMenu, setShowExportMenu]   = useState(false);
   const [showFilters, setShowFilters]         = useState(false);
 
+  // Collections: chips on the timeline, the filter, and select mode for
+  // putting several transactions in one at once.
+  const [collections, setCollections]         = useState<Collection[]>([]);
+  const [selectMode, setSelectMode]           = useState(false);
+  const [selectedIds, setSelectedIds]         = useState<Set<number>>(new Set());
+  const [showAddToCollection, setShowAddToCollection] = useState(false);
+  // Set when the user came from a collection's "Add from Timeline".
+  const [collectTarget, setCollectTarget]     = useState<number | null>(null);
+  const [openNewCollection, setOpenNewCollection] = useState(false);
+  const [pendingCollection, setPendingCollection] = useState('');
+
   // List tab — pending (form inputs) + applied (what filteredList uses)
   const [pendingDateFrom, setPendingDateFrom] = useState('');
   const [pendingDateTo, setPendingDateTo]     = useState('');
@@ -262,7 +274,7 @@ const Transactions: React.FC = () => {
   const [pendingAmountMax, setPendingAmountMax] = useState('');
   const [appliedFilters, setAppliedFilters]   = useState<TransactionFilters>({
     dateFrom: '', dateTo: '', account: '', category: '',
-    type: 'all', amountMin: '', amountMax: '', query: '',
+    type: 'all', amountMin: '', amountMax: '', query: '', collection: '',
   });
   // Search is applied as it is typed — the ledger is already in memory, so
   // there is nothing to wait for — and sits in the same filter set as the
@@ -310,6 +322,10 @@ const Transactions: React.FC = () => {
       }
       setFailedSources(failed);
       setLoadError(failed.length > 0);
+      // Collections only decorate this page, so a failure here stays quiet.
+      getCollections()
+        .then(res => setCollections(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setCollections([]));
     } catch {
       setFailedSources(['transactions', 'accounts', 'categories']);
       setLoadError(true);
@@ -332,6 +348,14 @@ const Transactions: React.FC = () => {
     const query = params.get(DEEP_LINK_KEYS.query);
     if (query) setSearchQuery(query);
     if (params.get(DEEP_LINK_KEYS.importCsv)) setShowImport(true);
+    if (params.get(DEEP_LINK_KEYS.newCollection)) setOpenNewCollection(true);
+    const collect = parseIdParam(params.get(DEEP_LINK_KEYS.collect));
+    if (collect != null) {
+      setTab('list');
+      setCollectTarget(collect);
+      setSelectMode(true);
+      setSelectedIds(new Set());
+    }
 
     const account = parseIdParam(params.get(DEEP_LINK_KEYS.account));
     const category = parseIdParam(params.get(DEEP_LINK_KEYS.category));
@@ -525,11 +549,12 @@ const Transactions: React.FC = () => {
   const hasActiveFilters =
     appliedFilters.dateFrom !== '' || appliedFilters.dateTo !== '' ||
     appliedFilters.account !== '' || appliedFilters.category !== '' ||
-    appliedFilters.type !== 'all' || appliedFilters.amountMin !== '' || appliedFilters.amountMax !== '';
+    appliedFilters.type !== 'all' || appliedFilters.amountMin !== '' || appliedFilters.amountMax !== '' ||
+    Boolean(appliedFilters.collection);
 
   const activeFilterCount = [
     appliedFilters.dateFrom, appliedFilters.dateTo, appliedFilters.account,
-    appliedFilters.category, appliedFilters.amountMin, appliedFilters.amountMax,
+    appliedFilters.category, appliedFilters.amountMin, appliedFilters.amountMax, appliedFilters.collection,
   ].filter(Boolean).length + (appliedFilters.type !== 'all' ? 1 : 0);
 
   const applyFilters = () => setAppliedFilters({
@@ -537,13 +562,53 @@ const Transactions: React.FC = () => {
     dateFrom: pendingDateFrom, dateTo: pendingDateTo,
     account: pendingAccount, category: pendingCategory,
     type: pendingType, amountMin: pendingAmountMin, amountMax: pendingAmountMax,
+    collection: pendingCollection,
   });
 
   const clearFilters = () => {
     setPendingDateFrom(''); setPendingDateTo(''); setPendingAccount('');
     setPendingCategory(''); setPendingType('all'); setPendingAmountMin(''); setPendingAmountMax('');
+    setPendingCollection('');
     setSearchQuery('');
-    setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '', query: '' });
+    setAppliedFilters({ dateFrom: '', dateTo: '', account: '', category: '', type: 'all', amountMin: '', amountMax: '', query: '', collection: '' });
+  };
+
+  // ── Collections ───────────────────────────────────────────────────────────────
+  const collectionChips = useMemo(() => {
+    const map = new Map<number, CollectionChip>();
+    collections.forEach(c => map.set(c.id, { id: c.id, name: c.name, emoji: c.emoji, color: c.color }));
+    return map;
+  }, [collections]);
+  const chipsFor = (tx: Transaction): CollectionChip[] =>
+    (tx.collection_ids ?? []).map(id => collectionChips.get(id)).filter((c): c is CollectionChip => Boolean(c));
+  const targetCollection = collectTarget != null ? collections.find(c => c.id === collectTarget) ?? null : null;
+
+  const toggleSelected = (id: number) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setCollectTarget(null);
+  };
+  const selectedSpan = useMemo(() => {
+    const dates = transactions.filter(t => selectedIds.has(t.id)).map(t => t.transaction_date).sort();
+    return dates.length > 0 ? { from: dates[0], to: dates[dates.length - 1] } : null;
+  }, [transactions, selectedIds]);
+  const allShownSelected = filteredList.length > 0 && filteredList.every(t => selectedIds.has(t.id));
+
+  const addSelectedToTarget = async () => {
+    if (!targetCollection || selectedIds.size === 0) return;
+    try {
+      const res = await addToCollection(targetCollection.id, Array.from(selectedIds));
+      toast.success(addedMessage(res.data));
+      exitSelectMode();
+      navigate(linkToCollection(targetCollection.id));
+    } catch {
+      toast.error('Could not add to the collection');
+    }
   };
 
   const getCategory = (id: number | null) => categories.find(c => c.id === id);
@@ -684,6 +749,19 @@ const Transactions: React.FC = () => {
                   {activeFilterCount}
                 </span>
               )}
+            </button>
+          )}
+
+          {/* Select mode (list tab): put several transactions in a collection */}
+          {tab === 'list' && (
+            <button
+              type="button"
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              className="header-action text-sm"
+              aria-pressed={selectMode}
+              style={selectMode ? { color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' } : undefined}
+            >
+              {selectMode ? 'Done' : 'Select'}
             </button>
           )}
 
@@ -1070,7 +1148,9 @@ const Transactions: React.FC = () => {
         )}
 
         {/* ── Collections Tab ── */}
-        {tab === 'collections' && <CollectionsView />}
+        {tab === 'collections' && (
+          <CollectionsView openNew={openNewCollection} onOpenNewHandled={() => setOpenNewCollection(false)} />
+        )}
 
         {/* ── List Tab ── */}
         {tab === 'list' && !failedSources.includes('transactions') && (
@@ -1158,6 +1238,20 @@ const Transactions: React.FC = () => {
                       style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }} />
                   </div>
 
+                  {/* Collection */}
+                  {collections.length > 0 && (
+                    <div className="col-span-2">
+                      <label htmlFor="filter-collection" className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Collection</label>
+                      <select id="filter-collection" value={pendingCollection} onChange={e => setPendingCollection(e.target.value)}
+                        className="w-full text-xs px-2.5 py-2.5 rounded-xl"
+                        style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
+                        <option value="">Any</option>
+                        <option value="none">In no collection</option>
+                        {collections.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+
                 </div>
 
                 {/* Apply + Clear */}
@@ -1241,6 +1335,10 @@ const Transactions: React.FC = () => {
                         noDrag
                         kind={classifyTransaction(tx, classification)}
                         categoryName={getCategory(tx.category_id)?.name ?? null}
+                        collections={chipsFor(tx)}
+                        selectable={selectMode}
+                        selected={selectedIds.has(tx.id)}
+                        onToggleSelect={() => toggleSelected(tx.id)}
                         onDragStart={() => {}}
                         onDragEnd={() => {}}
                         onClick={() => setEditTx(tx)}
@@ -1251,6 +1349,28 @@ const Transactions: React.FC = () => {
                 ))
               )}
             </div>
+
+            {/* Select mode actions */}
+            {selectMode && (
+              <div className="shrink-0 px-3 py-2.5 flex items-center gap-2 flex-wrap select-bar"
+                style={{ borderTop: '1px solid var(--line)', backgroundColor: 'var(--elev-1)' }}
+                role="region" aria-label="Selected transactions">
+                <p className="text-xs font-semibold mr-auto" style={{ color: 'var(--fg)' }} aria-live="polite">
+                  {selectedIds.size === 0
+                    ? (targetCollection ? `Pick transactions for ${targetCollection.name}` : 'Pick transactions')
+                    : `${selectedIds.size} selected`}
+                </p>
+                <button type="button" className="text-xs font-semibold px-2 pressable" style={{ color: 'var(--accent)', minHeight: 40 }}
+                  onClick={() => setSelectedIds(allShownSelected ? new Set() : new Set(filteredList.map(t => t.id)))}>
+                  {allShownSelected ? 'Select none' : `Select all ${filteredList.length}`}
+                </button>
+                <button type="button" disabled={selectedIds.size === 0}
+                  onClick={() => (targetCollection ? void addSelectedToTarget() : setShowAddToCollection(true))}
+                  className="btn-gradient px-4 min-h-[40px] text-sm disabled:opacity-40">
+                  {targetCollection ? `Add to ${targetCollection.name}` : 'Add to collection'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1272,6 +1392,15 @@ const Transactions: React.FC = () => {
       <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
       <ImportSheet isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { void load(); }} accounts={accounts} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
+      <AddToCollectionSheet
+        isOpen={showAddToCollection}
+        onClose={() => setShowAddToCollection(false)}
+        collections={collections}
+        transactionIds={Array.from(selectedIds)}
+        span={selectedSpan}
+        todayKey={localDateStr()}
+        onAdded={() => { exitSelectMode(); void load(); }}
+      />
       <CategoryDetailModal
         cat={detailCat}
         allTransactions={transactions}

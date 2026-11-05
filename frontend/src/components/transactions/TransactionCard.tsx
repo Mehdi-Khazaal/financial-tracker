@@ -31,7 +31,22 @@ export interface TransactionCardProps {
   kind?: TransactionKind;
   /** Shown beside the account on the timeline row. */
   categoryName?: string | null;
+  /** The collections this transaction is in, shown as small chips. */
+  collections?: CollectionChip[];
+  /** Select mode: the row shows a checkbox and a click toggles it. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
+
+export interface CollectionChip {
+  id: number;
+  name: string;
+  emoji: string | null;
+  color: string | null;
+}
+
+const MAX_CHIPS = 2;
 
 const TransactionCard: React.FC<TransactionCardProps> = ({
   tx,
@@ -46,6 +61,10 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
   onDelete,
   kind,
   categoryName,
+  collections = [],
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }) => {
   const pos = Number(tx.amount) >= 0;
   const accountName = accounts.find(a => a.id === tx.account_id)?.name ?? '';
@@ -103,18 +122,33 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
 
   return (
     <div
-      draggable={!noDrag}
+      draggable={!noDrag && !selectable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={`tx-row group flex items-start gap-2.5 select-none ${mobileCard ? 'px-4 py-4 rounded-lg' : 'px-3 py-2.5'} ${noDrag ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
+      onClick={selectable ? onToggleSelect : onClick}
+      className={`tx-row group flex items-start gap-2.5 select-none ${mobileCard ? 'px-4 py-4 rounded-lg' : 'px-3 py-2.5'} ${noDrag || selectable ? 'cursor-pointer active:opacity-70' : 'cursor-grab active:cursor-grabbing'}`}
       style={
         mobileCard
           ? { backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1, boxShadow: 'var(--edge-light)' }
-          : { borderBottom: '1px solid var(--line)', opacity: isDragging ? 0.25 : 1 }
+          : {
+            borderBottom: '1px solid var(--line)',
+            opacity: isDragging ? 0.25 : 1,
+            backgroundColor: selectable && selected ? 'oklch(72% 0.17 55 / 0.08)' : undefined,
+          }
       }
     >
-      {!mobileCard && (
+      {selectable && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect?.()}
+          onClick={e => e.stopPropagation()}
+          aria-label={`Select ${description}`}
+          className="w-4 h-4 mt-[3px] shrink-0 accent-[var(--accent)]"
+        />
+      )}
+
+      {!mobileCard && !selectable && (
         <div className="mt-[3px] shrink-0 opacity-0 group-hover:opacity-30 transition-opacity" style={{ color: 'var(--muted)' }}>
           <svg width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
             <circle cx="2" cy="2" r="1.2" />
@@ -164,13 +198,35 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         <p className={`${mobileCard ? 'text-xs' : 'text-[11px]'} mt-0.5 truncate`} style={{ color: 'var(--dim)' }}>
           {[accountName, categoryLabel, shortDate].filter(Boolean).join(' · ')}
         </p>
-        {showKind && (
-          <span
-            className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none"
-            style={{ color: KIND_COLORS[kind], backgroundColor: 'var(--elev-sub)' }}
-          >
-            {KIND_LABELS[kind]}
-          </span>
+        {(showKind || collections.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            {showKind && (
+              <span
+                className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none"
+                style={{ color: KIND_COLORS[kind], backgroundColor: 'var(--elev-sub)' }}
+              >
+                {KIND_LABELS[kind]}
+              </span>
+            )}
+            {collections.slice(0, MAX_CHIPS).map(c => (
+              <span
+                key={c.id}
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none max-w-[140px]"
+                style={{ color: 'var(--muted)', backgroundColor: 'var(--elev-sub)' }}
+                title={`In ${c.name}`}
+              >
+                {c.emoji
+                  ? <span aria-hidden="true">{c.emoji}</span>
+                  : <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color || 'var(--accent)' }} aria-hidden="true" />}
+                <span className="truncate">{c.name}</span>
+              </span>
+            ))}
+            {collections.length > MAX_CHIPS && (
+              <span className="text-[10px] font-medium" style={{ color: 'var(--dim)' }} title={collections.slice(MAX_CHIPS).map(c => c.name).join(', ')}>
+                +{collections.length - MAX_CHIPS}
+              </span>
+            )}
+          </div>
         )}
         {mobileCard && (
           <div className="mt-2 flex items-center gap-2">
