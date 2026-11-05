@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import account, admin, assistant, budgets, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
+from routers import account, admin, assistant, budgets, collections, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, record_schema_state, run_startup_migrations
@@ -194,6 +194,7 @@ app.add_middleware(BrowserOriginMiddleware, allowed_origins=_allowed_origins)
 app.include_router(health.router)
 app.include_router(account.router)
 app.include_router(budgets.router)
+app.include_router(collections.router)
 app.include_router(rules.router)
 app.include_router(transaction_import.router)
 app.include_router(auth.router)

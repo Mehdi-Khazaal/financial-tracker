@@ -148,7 +148,8 @@ class TransactionBase(BaseModel):
     transaction_date: date
 
 class TransactionCreate(TransactionBase):
-    pass
+    # Collections to put the new transaction in (a trip, a holiday...).
+    collection_ids: List[int] = Field(default_factory=list, max_length=50)
 
 class TransactionUpdate(BaseModel):
     account_id: Optional[int] = None
@@ -195,6 +196,12 @@ class TransactionResponse(TransactionBase):
     category_source: Optional[str] = None
     # Empty unless the amount is filed across several categories.
     splits: List[TransactionSplitOut] = []
+    # The collections (trip, holiday...) this transaction is part of.
+    collection_ids: List[int] = []
+
+
+class TransactionCollectionsUpdate(BaseModel):
+    collection_ids: List[int] = Field(default_factory=list, max_length=50)
 
 
 # ─── Transfer ─────────────────────────────────────────────────────────────────

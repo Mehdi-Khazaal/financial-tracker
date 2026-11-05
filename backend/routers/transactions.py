@@ -4,9 +4,10 @@ from sqlalchemy import func, or_
 from typing import List, Optional
 from datetime import date
 from decimal import Decimal
-from models.database import get_db, Transaction
+from models.database import get_db, CollectionTransaction, Transaction
 from models.auth import User
-from models.schemas import TransactionCreate, TransactionResponse, TransactionSplitsUpdate, TransactionUpdate
+from models.schemas import TransactionCollectionsUpdate, TransactionCreate, TransactionResponse, TransactionSplitsUpdate, TransactionUpdate
+from services import collections as collection_service
 from services import splits as split_service
 from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
@@ -33,10 +34,29 @@ def _not_found(error: LedgerResourceNotFound) -> HTTPException:
 
 @router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(tx: TransactionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    values = tx.model_dump(exclude={"collection_ids"})
+    if not tx.collection_ids:
+        try:
+            return LedgerService(db).create_transaction(current_user.id, values)
+        except LedgerResourceNotFound as error:
+            raise _not_found(error) from error
+    # Post the transaction and file it in its collections in one commit.
     try:
-        return LedgerService(db).create_transaction(current_user.id, tx.model_dump())
+        created = LedgerService(db).stage_transaction(current_user.id, values)
+        db.flush()
+        collection_service.set_for_transaction(db, current_user.id, created, tx.collection_ids)
+        db.commit()
     except LedgerResourceNotFound as error:
+        db.rollback()
         raise _not_found(error) from error
+    except collection_service.CollectionNotFound as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Collection not found") from error
+    except collection_service.CardPaymentNotAllowed as error:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Card payments can't go in a collection.") from error
+    db.refresh(created)
+    return created
 
 
 @router.get("/", response_model=List[TransactionResponse])
@@ -50,6 +70,7 @@ def get_transactions(
     uncategorized: bool = Query(False),
     amount_min: Optional[Decimal] = Query(None),
     amount_max: Optional[Decimal] = Query(None),
+    collection_id: Optional[int] = Query(None),
     limit: int = Query(500, le=1000),
     skip: int = Query(0),
     db: Session = Depends(get_db),
@@ -76,10 +97,17 @@ def get_transactions(
         q = q.filter(func.abs(Transaction.amount) >= amount_min)
     if amount_max is not None:
         q = q.filter(func.abs(Transaction.amount) <= amount_max)
-    # Split lines ride along in one extra query for the whole page, so the
-    # client can attribute spending per category without a request per row.
+    if collection_id:
+        q = q.filter(Transaction.id.in_(
+            db.query(CollectionTransaction.transaction_id).filter(
+                CollectionTransaction.collection_id == collection_id,
+                CollectionTransaction.user_id == current_user.id,
+            )
+        ))
+    # Split lines and collection links ride along in one extra query each for
+    # the whole page, so the client needs no request per row.
     return (
-        q.options(selectinload(Transaction.splits))
+        q.options(selectinload(Transaction.splits), selectinload(Transaction.collection_links))
         .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -137,6 +165,23 @@ def set_splits(transaction_id: int, body: TransactionSplitsUpdate, db: Session =
     except split_service.SplitCategoryNotFound:
         db.rollback()
         raise HTTPException(status_code=404, detail="Category not found")
+    db.refresh(tx)
+    return tx
+
+
+@router.put("/{transaction_id}/collections", response_model=TransactionResponse)
+def set_collections(transaction_id: int, body: TransactionCollectionsUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Put the transaction in exactly these collections (an empty list takes it out of all)."""
+    tx = _own_transaction(db, current_user.id, transaction_id)
+    try:
+        collection_service.set_for_transaction(db, current_user.id, tx, body.collection_ids)
+        db.commit()
+    except collection_service.CollectionNotFound as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Collection not found") from error
+    except collection_service.CardPaymentNotAllowed as error:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Card payments can't go in a collection.") from error
     db.refresh(tx)
     return tx
 

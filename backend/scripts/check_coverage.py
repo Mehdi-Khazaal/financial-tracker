@@ -32,6 +32,8 @@ FLOORS: dict[str, float] = {
     "services/categorization_rules.py": 90.0,
     "services/alerts.py": 90.0,
     "routers/budgets.py": 85.0,
+    "routers/collections.py": 90.0,
+    "services/collections.py": 90.0,
     "routers/rules.py": 85.0,
     "routers/transaction_import.py": 85.0,
     # Recurring and bank sync

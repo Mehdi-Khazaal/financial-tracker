@@ -30,6 +30,8 @@ from models.database import (
     Asset,
     Budget,
     CategorizationRule,
+    Collection,
+    CollectionTransaction,
     TransactionSplit,
     AssistantConversation,
     AssistantMemory,
@@ -159,6 +161,20 @@ def build_export(db: Session, user: User) -> dict:
             db.query(CategorizationRule).filter(CategorizationRule.user_id == uid).order_by(CategorizationRule.priority, CategorizationRule.id),
             ("id", "category_id", "field", "match_type", "pattern", "priority", "is_active", "applied_count", "created_at"),
         ),
+        "collections": [
+            {
+                **row,
+                "transaction_ids": [
+                    tid for (tid,) in db.query(CollectionTransaction.transaction_id)
+                    .filter(CollectionTransaction.user_id == uid, CollectionTransaction.collection_id == row["id"])
+                    .order_by(CollectionTransaction.transaction_id)
+                ],
+            }
+            for row in _rows(
+                db.query(Collection).filter(Collection.user_id == uid).order_by(Collection.id),
+                ("id", "name", "emoji", "color", "note", "start_date", "end_date", "budget", "is_archived", "created_at"),
+            )
+        ],
     }
 
 
