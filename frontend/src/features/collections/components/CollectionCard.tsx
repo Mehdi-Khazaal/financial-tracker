@@ -31,7 +31,7 @@ const CollectionCard: React.FC<{ collection: Collection; todayKey: string }> = (
             <p className="font-mono tabular-nums text-sm font-bold shrink-0" style={{ color: net.color ?? 'var(--fg)' }}>{net.text}</p>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <p className="text-xs truncate" style={{ color: collection.active ? collectionColor(collection) : 'var(--dim)' }}>{subtitle}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{subtitle}</p>
             <p className="text-[11px] shrink-0" style={{ color: 'var(--dim)' }}>{plural(totals.count, 'transaction')}</p>
           </div>
           {budget && (
