@@ -4,12 +4,12 @@
   "private": true,
   "dependencies": {
     "@sentry/browser": "^10.75.0",
-    "axios": "^1.18.1",
+    "axios": "^1.21.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
     "react-plaid-link": "^4.1.1",
-    "react-router-dom": "^7.18.1",
+    "react-router-dom": "^7.18.5",
     "recharts": "^3.8.1"
   },
   "scripts": {

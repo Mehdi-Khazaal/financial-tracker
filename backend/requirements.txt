@@ -1,11 +1,14 @@
 fastapi>=0.115.0
 uvicorn>=0.32.0
 alembic>=1.14.0
-sqlalchemy>=2.0.0
+# Held below 2.1: SQLAlchemy 2.1 makes psycopg 3 the default driver for
+# postgresql:// URLs, and this app ships psycopg2. Upgrade deliberately.
+sqlalchemy>=2.0.0,<2.1
 psycopg2-binary>=2.9.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
-PyJWT==2.13.0
+# 2.15.1 clears PYSEC-2026-4140..4152, -4183 and GHSA-pxh4-856f-4h89.
+PyJWT==2.15.1
 bcrypt>=4.0.0
 # 50.0.0 is the floor that clears PYSEC-2026-3552/3553/3554. Pinned exactly
 # because Render installs from wheels; bump deliberately, not by range.
