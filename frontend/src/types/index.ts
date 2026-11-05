@@ -48,6 +48,8 @@ export interface Transaction {
   splits?: TransactionSplit[];
   /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
   category_source?: string | null;
+  /** Collections (a trip, a holiday...) this transaction is part of. */
+  collection_ids?: number[];
 }
 
 export interface Transfer {
@@ -360,4 +362,62 @@ export interface TransactionSplit {
   /** Signed decimal string, same direction as the parent. */
   amount: string;
   note: string | null;
+}
+
+/**
+ * A named group of transactions: a trip, a holiday, a house move.
+ *
+ * It only groups. Every transaction in it still counts in its category and in
+ * every total. `totals` come from the server and use the same money rules as
+ * Analytics: `net` is what was spent minus what came back (refunds, paybacks).
+ */
+export interface Collection {
+  id: number;
+  name: string;
+  emoji: string | null;
+  color: string | null;
+  note: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  /** Decimal string. */
+  budget: string | null;
+  is_archived: boolean;
+  created_at: string | null;
+  /** Has started, has not ended, not archived. */
+  active: boolean;
+  /** Transactions in its dates that look like they belong and are not in it yet. */
+  suggestion_count: number;
+  totals: {
+    spent: string;
+    returned: string;
+    net: string;
+    count: number;
+    first_date: string | null;
+    last_date: string | null;
+  };
+}
+
+export interface CollectionDraft {
+  name: string;
+  emoji?: string | null;
+  color?: string | null;
+  note?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  budget?: string | null;
+  is_archived?: boolean;
+}
+
+export interface CollectionSuggestion {
+  transaction: Transaction;
+  /** False for things that don't look like part of it (regular bills, pay...). */
+  recommended: boolean;
+  reason: string | null;
+}
+
+export interface CollectionAddResult {
+  added: number;
+  already: number;
+  skipped_card_payments: number;
+  collection: Collection;
 }

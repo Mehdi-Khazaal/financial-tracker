@@ -1,5 +1,7 @@
 import axios from 'axios';
-import type { ImportRequest, RuleDraft } from '../types';
+import type {
+  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, ImportRequest, RuleDraft, Transaction,
+} from '../types';
 
 const api = axios.create({
   // Keep browser authentication same-origin. Production API traffic is
@@ -433,6 +435,29 @@ export const applyRule = (id: number) => api.post(`/rules/${id}/apply`);
 export const previewImport = (data: ImportRequest) => api.post('/transactions/import/preview', data);
 export const importTransactions = (data: ImportRequest) => api.post('/transactions/import', data);
 export const undoImport = (batchId: string) => api.delete(`/transactions/import/${batchId}`);
+
+// ── Collections ───────────────────────────────────────────────────────────────
+export const getCollections = () => api.get<Collection[]>('/collections');
+export const getCollection = (id: number) => api.get<Collection>(`/collections/${id}`);
+export const createCollection = (data: CollectionDraft) => api.post<Collection>('/collections', data);
+export const updateCollection = (id: number, data: Partial<CollectionDraft>) => api.put<Collection>(`/collections/${id}`, data);
+export const deleteCollection = (id: number) => api.delete(`/collections/${id}`);
+export const addToCollection = (id: number, transactionIds: number[]) =>
+  api.post<CollectionAddResult>(`/collections/${id}/transactions`, { transaction_ids: transactionIds });
+export const removeFromCollection = (id: number, transactionIds: number[]) =>
+  api.post<{ removed: number; collection: Collection }>(`/collections/${id}/transactions/remove`, { transaction_ids: transactionIds });
+/** Transactions in the collection's dates that are not in it yet. `all` brings back dismissed ones too. */
+export const getCollectionSuggestions = (id: number, all = false) =>
+  api.get<CollectionSuggestion[]>(`/collections/${id}/suggestions`, { params: all ? { all: true } : undefined });
+/** Add the picked suggestions; the rest count as seen. */
+export const reviewCollectionSuggestions = (id: number, addIds: number[]) =>
+  api.post<CollectionAddResult>(`/collections/${id}/suggestions/review`, { add_ids: addIds });
+/** Put one transaction in exactly these collections. */
+export const setTransactionCollections = (transactionId: number, collectionIds: number[]) =>
+  api.put<Transaction>(`/transactions/${transactionId}/collections`, { collection_ids: collectionIds });
+/** Every transaction in one collection (a collection is small, one page is plenty). */
+export const getCollectionTransactions = (id: number) =>
+  api.get<Transaction[]>('/transactions', { params: { collection_id: id, limit: 1000 } });
 
 // ── Split transactions ────────────────────────────────────────────────────────
 export const setTransactionSplits = (

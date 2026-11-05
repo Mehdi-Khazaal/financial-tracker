@@ -29,6 +29,7 @@ const RecurringPage = React.lazy(() => import('../pages/RecurringPage'));
 const ResetPassword = React.lazy(() => import('../pages/ResetPassword'));
 const Settings = React.lazy(() => import('../pages/Settings'));
 const Transactions = React.lazy(() => import('../pages/Transactions'));
+const CollectionPage = React.lazy(() => import('../pages/CollectionPage'));
 const VerifyEmail = React.lazy(() => import('../pages/VerifyEmail'));
 const Landing = React.lazy(() => import('../pages/Landing'));
 const Privacy = React.lazy(() => import('../pages/Privacy'));
@@ -75,6 +76,7 @@ export const APP_ROUTES: AppRouteDefinition[] = [
   { path: '/', element: <HomeRoute /> },
   { path: '/accounts', element: <AccountsPage />, requiresAuth: true },
   { path: '/transactions', element: <Transactions />, requiresAuth: true },
+  { path: '/collections/:id', element: <CollectionPage />, requiresAuth: true },
   { path: '/recurring', element: <RecurringPage />, requiresAuth: true },
   { path: '/portfolio', element: <PortfolioPage />, requiresAuth: true },
   { path: '/assistant', element: <Assistant />, requiresAuth: true },

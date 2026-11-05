@@ -672,6 +672,8 @@ body::after {
   .mobile-context-tabs-inner[data-active-index="0"]::before { transform: translateX(0); }
   .mobile-context-tabs-inner[data-active-index="1"]::before { transform: translateX(calc(100% + 4px)); }
   .mobile-context-tabs-inner[data-active-index="2"]::before { transform: translateX(calc(200% + 8px)); }
+  .mobile-context-tabs-inner[data-count="4"]::before { width: calc((100% - 20px) / 4); }
+  .mobile-context-tabs-inner[data-active-index="3"]::before { transform: translateX(calc(300% + 12px)); }
 
   .mobile-context-tabs-inner[data-count="2"][data-active-index="1"]::before {
     transform: translateX(calc(100% + 4px));

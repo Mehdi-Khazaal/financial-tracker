@@ -23,6 +23,7 @@ const TRANSACTION_TABS = [
   { id: 'list', label: 'Timeline' },
   { id: 'transactions', label: 'Review' },
   { id: 'recurring', label: 'Recurring' },
+  { id: 'collections', label: 'Collections' },
 ] as const;
 
 type GroupTarget =

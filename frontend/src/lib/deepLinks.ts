@@ -20,7 +20,7 @@
 /** Tab identifiers understood by each route, matching `CONTEXT_TABS`. */
 export const ROUTE_TABS = {
   dashboard: { overview: 'overview', analytics: 'analytics' },
-  transactions: { timeline: 'list', review: 'transactions', recurring: 'recurring' },
+  transactions: { timeline: 'list', review: 'transactions', recurring: 'recurring', collections: 'collections' },
   accounts: { banking: 'wallet', cards: 'cards', loans: 'loans' },
   portfolio: { investments: 'investments', assets: 'assets', savings: 'savings' },
   // Settings is sectioned rather than tabbed — it has no mobile context-tab
@@ -76,6 +76,14 @@ export const linkToImport = (): string =>
 /** The import review queue. */
 export const linkToReview = (): string =>
   `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.review}`;
+
+/** The Collections tab: trips, holidays, moves. */
+export const linkToCollections = (): string =>
+  `/transactions?${DEEP_LINK_KEYS.tab}=${ROUTE_TABS.transactions.collections}`;
+
+/** One collection's page. `review` opens its suggestions straight away. */
+export const linkToCollection = (collectionId: number, review = false): string =>
+  `/collections/${collectionId}${review ? '?review=1' : ''}`;
 
 /** The Recurring page — bills, subscriptions and suggestions. It has its own route. */
 export const linkToRecurring = (): string => '/recurring';

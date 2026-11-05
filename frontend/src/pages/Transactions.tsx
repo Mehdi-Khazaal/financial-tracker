@@ -24,6 +24,7 @@ import ImportSheet from '../components/modals/ImportSheet';
 import TransactionCard from '../components/transactions/TransactionCard';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
+import CollectionsView from '../features/collections/components/CollectionsView';
 import DayHeader from '../features/transactions/components/DayHeader';
 import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
 import { groupByDay } from '../features/transactions/calculations/timeline';
@@ -36,7 +37,7 @@ import { useQueuedMutations } from '../hooks/useQueuedMutations';
 import LoadErrorBanner from '../components/LoadErrorBanner';
 import { TransactionListSkeleton } from '../components/Skeleton';
 
-type Tab = 'transactions' | 'list' | 'recurring';
+type Tab = 'transactions' | 'list' | 'recurring' | 'collections';
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -324,7 +325,7 @@ const Transactions: React.FC = () => {
   // and change what the link did rather than wondering why the list is short.
   useDeepLinkParams(params => {
     const requestedTab = params.get(DEEP_LINK_KEYS.tab);
-    if (requestedTab === 'list' || requestedTab === 'transactions' || requestedTab === 'recurring') {
+    if (requestedTab === 'list' || requestedTab === 'transactions' || requestedTab === 'recurring' || requestedTab === 'collections') {
       setTab(requestedTab);
     }
 
@@ -576,6 +577,7 @@ const Transactions: React.FC = () => {
     { id: 'list',         label: 'Timeline' },
     { id: 'transactions', label: 'Review' },
     { id: 'recurring',    label: 'Recurring' },
+    { id: 'collections',  label: 'Collections' },
   ];
 
   return (
@@ -1066,6 +1068,9 @@ const Transactions: React.FC = () => {
             </>
           )
         )}
+
+        {/* ── Collections Tab ── */}
+        {tab === 'collections' && <CollectionsView />}
 
         {/* ── List Tab ── */}
         {tab === 'list' && !failedSources.includes('transactions') && (
