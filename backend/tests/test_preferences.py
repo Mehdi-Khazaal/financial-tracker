@@ -275,6 +275,7 @@ def test_the_response_carries_nothing_but_preferences(client, auth_headers):
         "budget_alerts_enabled",
         "low_balance_alerts_enabled",
         "low_balance_threshold",
+        "weekly_summary_enabled",
     }
 
 

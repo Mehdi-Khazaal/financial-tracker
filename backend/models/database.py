@@ -815,5 +815,9 @@ class UserPreferences(Base):
     budget_alerts_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
     low_balance_alerts_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     low_balance_threshold = Column(Numeric(15, 2), nullable=False, default=100, server_default="100")
+    # The Sunday summary. On by default: it only reaches people who turned on
+    # notifications, and it is one push a week. `sent_on` keeps it to one.
+    weekly_summary_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    weekly_summary_sent_on = Column(Date, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

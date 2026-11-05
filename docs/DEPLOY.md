@@ -76,6 +76,7 @@ All are `POST https://<api>/cron/<name>` with header `X-Cron-Secret: $CRON_SECRE
 | `refresh-merchant-categories` | nightly | merchant category statistics |
 | `check-budgets` | nightly · **new** | over-budget push, once per budget per month |
 | `check-balances` | nightly · **new** | low-balance push for opted-in users, once per dip |
+| `weekly-summary` | Sundays, 9:00 · **new** | the week's spending, bills due and the fullest budget, as one push; once per user per week, nothing in a quiet week |
 | `prune-idempotency-keys` | hourly | drops expired idempotency keys, pending assistant actions and old bookkeeping |
 
 ## Health and monitoring

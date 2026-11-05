@@ -2707,7 +2707,20 @@ describe('Settings automation preference', () => {
     expect(await screen.findByRole('switch', { name: 'Bill reminders' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('switch', { name: 'Budget alerts' })).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByRole('switch', { name: 'Low balance alerts' })).toHaveAttribute('aria-checked', 'false');
+    // New on the server: absent means its default, which is on.
+    expect(screen.getByRole('switch', { name: 'Weekly summary' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByLabelText('Warn me below')).not.toBeInTheDocument();
+  });
+
+  it('turns the weekly summary off', async () => {
+    mockApi.updatePreferences.mockImplementation((changes: Record<string, unknown>) => Promise.resolve({
+      data: { automatic_categorization_enabled: true, automatic_categorization_effective: true, ...changes },
+    }));
+    await openPreferences();
+    fireEvent.click(await screen.findByRole('switch', { name: 'Weekly summary' }));
+    await waitFor(() => expect(mockApi.updatePreferences).toHaveBeenCalledWith({ weekly_summary_enabled: false }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Weekly summary' })).toHaveAttribute('aria-checked', 'false'));
+    expect(mockToastSuccess).toHaveBeenCalledWith('Weekly summary off');
   });
 
   it('saves an alert switch and reports it', async () => {

@@ -496,6 +496,7 @@ class PreferencesUpdate(BaseModel):
     bill_reminders_enabled: Optional[bool] = None
     budget_alerts_enabled: Optional[bool] = None
     low_balance_alerts_enabled: Optional[bool] = None
+    weekly_summary_enabled: Optional[bool] = None
     # Money: a decimal, never a float. Zero means "only when overdrawn".
     low_balance_threshold: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("9999999999999.99"))
 
@@ -516,5 +517,6 @@ class PreferencesResponse(BaseModel):
     budget_alerts_enabled: bool
     low_balance_alerts_enabled: bool
     low_balance_threshold: Decimal
+    weekly_summary_enabled: bool
 
     model_config = ConfigDict(from_attributes=True)

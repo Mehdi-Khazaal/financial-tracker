@@ -9,6 +9,7 @@ from models.auth import User
 from models.database import get_db, RecurringTransaction, Account, Category
 from services import alerts as alert_service
 from services import merchants, recurring_bills, user_preferences
+from services import weekly_summary as weekly_summary_service
 from services.balance_snapshots import prune_snapshots_older_than, refresh_snapshots_for_user
 from services.ledger import LedgerResourceNotFound, LedgerService
 from services.recurring_schedule import UnsupportedPeriodError, next_occurrence
@@ -252,6 +253,17 @@ def cron_check_budgets(request: Request, db: Session = Depends(get_db)):
             db.rollback()
             logger.exception("cron_budget_check_failed %s", kv(user_id=user_id))
     return {"users": len(user_ids), "alerts": sent}
+
+
+@router.post("/weekly-summary")
+def cron_weekly_summary(request: Request, db: Session = Depends(get_db)):
+    """The Sunday summary push for everyone who can receive one. Weekly.
+
+    At most one per user per six days (`weekly_summary_sent_on`), so a second
+    run in the same week sends nothing; a quiet week sends nothing either.
+    """
+    _require_cron_secret(request)
+    return weekly_summary_service.send_weekly_summaries(db, send_push_to_user)
 
 
 @router.post("/check-balances")

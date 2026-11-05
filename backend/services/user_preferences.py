@@ -35,6 +35,8 @@ DEFAULTS: dict[str, Any] = {
     "budget_alerts_enabled": True,
     "low_balance_alerts_enabled": False,
     "low_balance_threshold": Decimal("100.00"),
+    # New, and on: it only reaches people who already turned on notifications.
+    "weekly_summary_enabled": True,
 }
 
 CENTS = Decimal("0.01")
@@ -70,6 +72,7 @@ def stored_values(session: Session, user_id: int) -> dict[str, Any]:
             Decimal(str(row.low_balance_threshold)).quantize(CENTS)
             if row.low_balance_threshold is not None else DEFAULTS["low_balance_threshold"]
         ),
+        "weekly_summary_enabled": _flag(row.weekly_summary_enabled, DEFAULTS["weekly_summary_enabled"]),
     }
 
 

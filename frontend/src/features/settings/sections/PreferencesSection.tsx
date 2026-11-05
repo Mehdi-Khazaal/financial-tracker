@@ -256,6 +256,19 @@ const PreferencesSection: React.FC<Props> = ({ push, automation }) => (
           )}
         />
         <Row
+          title="Weekly summary"
+          description="On Sunday mornings: what you spent last week and where most of it went, the bills due this week, and any budget that is nearly used up."
+          control={(
+            <Switch
+              label="Weekly summary"
+              checked={automation.alerts.weekly_summary_enabled}
+              disabled={automation.busy || automation.state === 'loading' || automation.state === 'error'}
+              busy={automation.busy}
+              onToggle={() => { void automation.toggleAlert('weekly_summary_enabled'); }}
+            />
+          )}
+        />
+        <Row
           title="Low balance alerts"
           description="When an account drops below an amount you choose."
           control={(

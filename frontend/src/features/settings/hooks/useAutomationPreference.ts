@@ -27,12 +27,13 @@ export type AutomationState = 'loading' | 'on' | 'off' | 'unavailable' | 'error'
  * switch's extra states — but they share its loading and error state, since
  * one answer covers them all.
  */
-export type AlertKind = 'bill_reminders_enabled' | 'budget_alerts_enabled' | 'low_balance_alerts_enabled';
+export type AlertKind = 'bill_reminders_enabled' | 'budget_alerts_enabled' | 'low_balance_alerts_enabled' | 'weekly_summary_enabled';
 
 export interface AlertSettings {
   bill_reminders_enabled: boolean;
   budget_alerts_enabled: boolean;
   low_balance_alerts_enabled: boolean;
+  weekly_summary_enabled: boolean;
   /** Decimal string, as the server sends it. */
   low_balance_threshold: string;
 }
@@ -41,6 +42,7 @@ export const ALERT_DEFAULTS: AlertSettings = {
   bill_reminders_enabled: true,
   budget_alerts_enabled: true,
   low_balance_alerts_enabled: false,
+  weekly_summary_enabled: true,
   low_balance_threshold: '100.00',
 };
 
@@ -66,6 +68,7 @@ interface PreferencesPayload {
   bill_reminders_enabled?: boolean;
   budget_alerts_enabled?: boolean;
   low_balance_alerts_enabled?: boolean;
+  weekly_summary_enabled?: boolean;
   low_balance_threshold?: string | number;
 }
 
@@ -73,6 +76,7 @@ const ALERT_LABELS: Record<AlertKind, string> = {
   bill_reminders_enabled: 'Bill reminders',
   budget_alerts_enabled: 'Budget alerts',
   low_balance_alerts_enabled: 'Low balance alerts',
+  weekly_summary_enabled: 'Weekly summary',
 };
 
 export function useAutomationPreference(): UseAutomationPreference {
@@ -89,6 +93,7 @@ export function useAutomationPreference(): UseAutomationPreference {
       bill_reminders_enabled: data.bill_reminders_enabled ?? ALERT_DEFAULTS.bill_reminders_enabled,
       budget_alerts_enabled: data.budget_alerts_enabled ?? ALERT_DEFAULTS.budget_alerts_enabled,
       low_balance_alerts_enabled: data.low_balance_alerts_enabled ?? ALERT_DEFAULTS.low_balance_alerts_enabled,
+      weekly_summary_enabled: data.weekly_summary_enabled ?? ALERT_DEFAULTS.weekly_summary_enabled,
       low_balance_threshold: data.low_balance_threshold != null ? String(data.low_balance_threshold) : ALERT_DEFAULTS.low_balance_threshold,
     });
     const stored = data.automatic_categorization_enabled === true;
