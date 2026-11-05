@@ -280,6 +280,7 @@ const Dashboard: React.FC = () => {
               initialCategoryId={initialCategoryId}
               budgets={budgets}
               onManageBudgets={() => setShowBudgets(true)}
+              collections={collections}
             />
             </React.Suspense>
           )}

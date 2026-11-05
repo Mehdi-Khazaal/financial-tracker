@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { Account, Category, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
+import type { Account, Category, Collection, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
 import { TabProvider } from '../../context/TabContext';
 import AnalyticsTab from './AnalyticsTab';
 
@@ -12,7 +12,14 @@ import AnalyticsTab from './AnalyticsTab';
 // smoke tests running without touching the shared Jest config.
 // The factory must not close over anything outside itself — `vi.mock` is
 // hoisted above the imports, so an outer const would still be in its TDZ.
-vi.mock('react-router-dom', () => ({ useNavigate: () => () => {} }));
+vi.mock('react-router-dom', async () => {
+  const ReactModule = await import('react');
+  return {
+    useNavigate: () => () => {},
+    Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) =>
+      ReactModule.createElement('a', { href: to, className }, children),
+  };
+});
 
 /**
  * Mount smoke tests.
@@ -93,6 +100,33 @@ const renderTab = (props: Partial<React.ComponentProps<typeof AnalyticsTab>> = {
       <AnalyticsTab {...populated} {...props} />
     </TabProvider>,
   );
+
+describe('AnalyticsTab collections', () => {
+  const trip: Collection = {
+    id: 7, name: 'Ohio trip', emoji: '🚗', color: null, note: null, start_date: null, end_date: null, budget: null,
+    is_archived: false, created_at: null, active: false, suggestion_count: 0,
+    totals: { spent: '600', returned: '0', net: '600', count: 1, first_date: null, last_date: null },
+  };
+
+  it('hides the collections card when the period has none', () => {
+    renderTab({ collections: [trip] });
+    expect(screen.queryByText(/Trips and events in/)).not.toBeInTheDocument();
+  });
+
+  it('shows what collections added, and can leave them out of the page', () => {
+    const withTrip = [...populated.transactions, { ...tx(dayIn(0, 6), -600, 10), collection_ids: [7] }];
+    localStorage.setItem('ft_analytics_period', 'this-month');
+    renderTab({ transactions: withTrip, collections: [trip] });
+
+    expect(screen.getByText(/Trips and events in/)).toBeInTheDocument();
+    expect(screen.getByText('$600.00 of $1,500.00 spending (40%) went to collections. It still counts in its categories.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Ohio trip/ })).toHaveAttribute('href', '/collections/7');
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Leave collection spending out of this page' }));
+    expect(screen.getByText('Showing the period without collections')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Leave collection spending out of this page' })).toHaveAttribute('aria-checked', 'true');
+  });
+});
 
 describe('AnalyticsTab', () => {
   it('renders every major section without throwing', () => {

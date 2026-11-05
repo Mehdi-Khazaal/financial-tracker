@@ -34,6 +34,10 @@ export interface InsightContext {
   savings: SavingsMetrics;
   recurring: RecurringOutlook;
   netWorth: NetWorthAnalysis;
+  /** Spending per collection (trip, holiday, move) in the period, biggest first. */
+  collections?: { id: number; name: string; spent: number }[];
+  /** A typical period's spending from completed months, or null without enough history. */
+  typicalExpenses?: number | null;
 }
 
 /** Money movements below this are noise, whatever the percentage says. */
@@ -43,6 +47,36 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
   const candidates: Insight[] = [];
   const { metrics, categories, savings, recurring, netWorth, period } = ctx;
   const periodWord = period.isSingleMonth ? 'this month' : 'in this period';
+
+  // ── A trip or event behind the period's spending ────────────────────────────
+  // Include, but explain: the totals stay true, and the insight says how much
+  // of a high period was the trip rather than everyday spending.
+  const topCollection = ctx.collections?.[0];
+  if (topCollection && topCollection.spent >= MATERIAL_DOLLARS && metrics.expenses > 0
+    && topCollection.spent / metrics.expenses >= 0.1) {
+    const typical = ctx.typicalExpenses ?? null;
+    const action = { label: `View ${topCollection.name}`, to: `/collections/${topCollection.id}` };
+    if (typical != null && typical > 0 && metrics.expenses > typical * 1.1 && metrics.expenses - typical >= MATERIAL_DOLLARS) {
+      const without = metrics.expenses - topCollection.spent;
+      candidates.push({
+        id: `collection-explains-${topCollection.id}`,
+        title: `Spending was ${percent((metrics.expenses - typical) / typical, 0)} above your average`,
+        body: `${dollars(topCollection.spent)} of it was ${topCollection.name}. Without it you spent ${dollars(without)}, ${without <= typical * 1.1 ? 'in line with' : 'still above'} your usual ${dollars(typical)}.`,
+        tone: 'info',
+        score: 79,
+        action,
+      });
+    } else {
+      candidates.push({
+        id: `collection-share-${topCollection.id}`,
+        title: `${topCollection.name} was ${percent(topCollection.spent / metrics.expenses, 0)} of your spending`,
+        body: `${dollars(topCollection.spent)} ${periodWord}. It still counts in its categories; the collection shows it on its own.`,
+        tone: 'info',
+        score: 57,
+        action,
+      });
+    }
+  }
 
   // ── Subscription price rises ────────────────────────────────────────────────
   const topIncrease = recurring.subscriptions.increased[0];

@@ -145,3 +145,29 @@ describe('generateDeterministicInsights', () => {
     expect(result.map(r => r.score)).toEqual([...result.map(r => r.score)].sort((a, b) => b - a));
   });
 });
+
+describe('collection insights', () => {
+  const trip = { id: 4, name: 'Ohio trip', spent: 900 };
+  const find = (ctx: InsightContext, prefix: string) => generateDeterministicInsights(ctx).find(i => i.id.startsWith(prefix));
+
+  it('explains a high period by the trip in it', () => {
+    const insight = find(base({ metrics: metrics({ expenses: 3000 }), collections: [trip], typicalExpenses: 2000 }), 'collection-explains');
+    expect(insight?.title).toBe('Spending was 50% above your average');
+    expect(insight?.body).toBe('$900.00 of it was Ohio trip. Without it you spent $2,100.00, in line with your usual $2,000.00.');
+    expect(insight?.action).toEqual({ label: 'View Ohio trip', to: '/collections/4' });
+    const still = find(base({ metrics: metrics({ expenses: 3000 }), collections: [{ ...trip, spent: 400 }], typicalExpenses: 2000 }), 'collection-explains');
+    expect(still?.body).toContain('still above your usual');
+  });
+
+  it('gives the share when spending was not unusual, or without history', () => {
+    expect(find(base({ metrics: metrics({ expenses: 3000 }), collections: [trip], typicalExpenses: 3000 }), 'collection-share')?.title)
+      .toBe('Ohio trip was 30% of your spending');
+    expect(find(base({ metrics: metrics({ expenses: 3000 }), collections: [trip], typicalExpenses: null }), 'collection-share')).toBeDefined();
+  });
+
+  it('stays quiet about small or missing collections', () => {
+    expect(find(base({ metrics: metrics({ expenses: 3000 }), collections: [{ ...trip, spent: 20 }] }), 'collection')).toBeUndefined();
+    expect(find(base({ metrics: metrics({ expenses: 30000 }), collections: [trip] }), 'collection')).toBeUndefined();
+    expect(find(base({ metrics: metrics({ expenses: 3000 }) }), 'collection')).toBeUndefined();
+  });
+});

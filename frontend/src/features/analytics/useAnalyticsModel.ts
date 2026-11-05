@@ -12,6 +12,7 @@ import type {
   Account,
   Asset,
   Category,
+  Collection,
   MonthSnapshot,
   RecurringOverview,
   RecurringTransaction,
@@ -45,6 +46,7 @@ import { buildCashFlow } from './calculations/cashflow';
 import { buildRecurringOutlook } from './calculations/recurring';
 import { monthFromOverview } from '../recurring/calculations';
 import { generateDeterministicInsights } from './calculations/insights';
+import { periodCollectionSpending } from '../collections/calculations/periods';
 import { buildPeriodSummary } from './calculations/summary';
 import { calculateFinancialHealth } from './calculations/health';
 import { calculateForecast } from './calculations/forecast';
@@ -57,6 +59,8 @@ import {
 
 export interface AnalyticsSources {
   transactions: Transaction[];
+  /** Trips, holidays, moves: only used to explain the period, never to change it. */
+  collections?: Collection[];
   categories: Category[];
   accounts: Account[];
   goals: SavingsGoal[];
@@ -108,12 +112,15 @@ export function useToday(): Date {
   return today;
 }
 
+const NO_COLLECTIONS: Collection[] = [];
+
 export function useAnalyticsModel(
   sources: AnalyticsSources,
   selection: AnalyticsSelection,
   today: Date,
 ): AnalyticsModel {
   const { transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets } = sources;
+  const collections = sources.collections ?? NO_COLLECTIONS;
   const { periodId, customMonth, netWorthWindow } = selection;
 
   const availableMonths = useMemo(() => {
@@ -183,6 +190,7 @@ export function useAnalyticsModel(
       thisMonth: monthFromOverview(recurringOverview),
     });
 
+    const baselineMetrics = baseline.length >= 3 ? monthlyMetrics(transactions, baseline, ctx) : [];
     const insights = generateDeterministicInsights({
       period,
       metrics,
@@ -191,6 +199,11 @@ export function useAnalyticsModel(
       savings,
       recurring: recurringOutlook,
       netWorth,
+      collections: periodCollectionSpending(periodTransactions, collections, ctx)
+        .map(entry => ({ id: entry.collection.id, name: entry.collection.name, spent: entry.spent })),
+      typicalExpenses: baselineMetrics.length > 0
+        ? (baselineMetrics.reduce((sum, m) => sum + m.metrics.expenses, 0) / baselineMetrics.length) * period.months.length
+        : null,
     });
 
     const summary = buildPeriodSummary({
@@ -261,6 +274,6 @@ export function useAnalyticsModel(
     };
   }, [
     availableMonths, period, today, transactions, categories, accounts, goals,
-    recurring, recurringOverview, snapshots, assets, ctx, netWorthWindow,
+    recurring, recurringOverview, snapshots, assets, ctx, netWorthWindow, collections,
   ]);
 }

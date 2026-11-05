@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Account, Asset, BudgetProgressSummary, Category, MonthSnapshot, RecurringOverview, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
+import type { Account, Asset, BudgetProgressSummary, Category, Collection, MonthSnapshot, RecurringOverview, RecurringTransaction, SavingsGoal, Transaction } from '../../types';
 import type { CategoryDetail, PeriodId } from './types';
 import { TabContext } from '../../context/TabContext';
 import { cleanDescription, getBudgetProgress } from '../../utils/api';
@@ -8,6 +8,8 @@ import { downloadCSV, printPDF } from '../../utils/export';
 import { monthKeyOf } from './period';
 import { classifyTransaction } from './calculations/transactions';
 import { buildCategoryDetail } from './calculations/categories';
+import { calculatePeriodMetrics, transactionsInRange } from './calculations/metrics';
+import { periodCollectionSpending, withoutCollections } from '../collections/calculations/periods';
 import { dollars, percent } from './format';
 import { useAnalyticsModel, useToday } from './useAnalyticsModel';
 
@@ -27,6 +29,7 @@ import RecentActivity from './components/RecentActivity';
 import FinancialHealthCard from './components/FinancialHealthCard';
 import ForecastCard from './components/ForecastCard';
 import BudgetProgressCard from './components/BudgetProgressCard';
+import CollectionsSpendCard from './components/CollectionsSpendCard';
 
 interface Props {
   transactions: Transaction[];
@@ -43,7 +46,11 @@ interface Props {
   /** This month's budget progress, loaded by the page. */
   budgets?: BudgetProgressSummary | null;
   onManageBudgets?: () => void;
+  /** Trips, holidays, moves. */
+  collections?: Collection[];
 }
+
+const NO_COLLECTIONS: Collection[] = [];
 
 const PERIOD_STORAGE_KEY = 'ft_analytics_period';
 const MONTH_STORAGE_KEY = 'ft_analytics_month';
@@ -73,7 +80,7 @@ const readStoredPeriod = (): PeriodId => {
  */
 const AnalyticsTab: React.FC<Props> = ({
   transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, failedSources,
-  initialCategoryId = null, budgets = null, onManageBudgets,
+  initialCategoryId = null, budgets = null, onManageBudgets, collections = NO_COLLECTIONS,
 }) => {
   const navigate = useNavigate();
   const { setRouteTab } = useContext(TabContext);
@@ -92,9 +99,16 @@ const AnalyticsTab: React.FC<Props> = ({
   // drawer they asked for is already open on landing.
   const [openCategoryId, setOpenCategoryId] = useState<number | null>(initialCategoryId);
 
+  // "Leave out collections": every figure below is computed without them.
+  const [leaveOutCollections, setLeaveOutCollections] = useState(false);
+  const modelTransactions = useMemo(
+    () => (leaveOutCollections ? withoutCollections(transactions) : transactions),
+    [leaveOutCollections, transactions],
+  );
+
   const sources = useMemo(
-    () => ({ transactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets }),
-    [transactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets],
+    () => ({ transactions: modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, collections }),
+    [modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, collections],
   );
 
   const model = useAnalyticsModel(
@@ -106,6 +120,17 @@ const AnalyticsTab: React.FC<Props> = ({
   // The model already builds this; rebuilding it here would be a second
   // source of truth for what counts as income.
   const { ctx } = model;
+
+  // The collections card always reads the full ledger, so it can say what the
+  // switch leaves out.
+  const collectionView = useMemo(() => {
+    if (collections.length === 0) return { items: [], expenses: 0 };
+    const inPeriod = transactionsInRange(transactions, model.period);
+    return {
+      items: periodCollectionSpending(inPeriod, collections, ctx),
+      expenses: calculatePeriodMetrics(inPeriod, ctx).expenses,
+    };
+  }, [collections, transactions, model.period, ctx]);
 
   // Budgets are monthly, so the card follows the month picker: the current
   // month reuses the page's data, any other month is fetched on demand.
@@ -227,6 +252,16 @@ const AnalyticsTab: React.FC<Props> = ({
       />
 
       <PeriodSummary summary={model.summary} />
+
+      {(collectionView.items.length > 0 || leaveOutCollections) && (
+        <CollectionsSpendCard
+          items={collectionView.items}
+          periodExpenses={collectionView.expenses}
+          periodLabel={model.period.label}
+          excluded={leaveOutCollections}
+          onToggle={() => setLeaveOutCollections(v => !v)}
+        />
+      )}
 
       <div className="grid lg:grid-cols-[1.3fr_1fr] gap-5 md:gap-6 items-start">
         <RecommendedInsights
