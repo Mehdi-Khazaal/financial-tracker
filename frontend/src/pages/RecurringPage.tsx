@@ -16,6 +16,7 @@ import {
 import RecurringHero from '../features/recurring/components/RecurringHero';
 import SuggestionList from '../features/recurring/components/SuggestionList';
 import BillGroupCard, { BillRow, type BillActions } from '../features/recurring/components/BillGroupCard';
+import BillsCalendar from '../features/recurring/components/BillsCalendar';
 import { EditBillSheet, GroupPickerSheet, LogAmountSheet, type BillEdits } from '../features/recurring/components/RecurringSheets';
 import { needsAttention } from '../features/recurring/calculations';
 
@@ -56,6 +57,8 @@ const RecurringPage: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [showPaused, setShowPaused] = useState(false);
   const [processing, setProcessing] = useState(false);
+  // The bill list, or the same bills laid out as a cash calendar.
+  const [view, setView] = useState<'bills' | 'calendar'>('bills');
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -254,6 +257,31 @@ const RecurringPage: React.FC = () => {
             )}
 
             {overview && hasSide && (
+              <div className="inline-flex rounded-md overflow-hidden" style={{ border: '1px solid var(--line-strong)' }} role="tablist" aria-label="Recurring views">
+                {([['bills', 'Bills'], ['calendar', 'Calendar']] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === id}
+                    onClick={() => setView(id)}
+                    className="px-4 text-sm transition-colors"
+                    style={{
+                      minHeight: 40,
+                      backgroundColor: view === id ? 'var(--fg)' : 'var(--elev-1)',
+                      color: view === id ? 'var(--bg)' : 'var(--fg)',
+                      fontWeight: view === id ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {overview && hasSide && view === 'calendar' && <BillsCalendar overview={overview} />}
+
+            {overview && hasSide && view === 'bills' && (
               // Two columns on a desktop: the month's figure and everything that
               // wants a decision on the left, every tracked bill on the right.
               // One column on a phone, in that same order.
