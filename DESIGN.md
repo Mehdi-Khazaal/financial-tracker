@@ -29,6 +29,8 @@ Tints are `color-mix(in oklab, var(--token) N%, transparent)`, never hard-coded 
 ## Layout
 
 - Prefer rules to boxes. A section is a title, then rows divided by hairlines (`.row-list`, `.row-link`). Figures sit in a strip divided by vertical rules (`.metric-strip`).
+- The big summary at the top of a page (`.hero-card`) has no box, only a rule underneath. On a page wrapped in `.page-flat` (Accounts, Portfolio, Recurring, Settings) every `.card` becomes a block with a rule on top, so a grid of cards reads as columns and a stack as sections. Rows inside those blocks carry no side padding of their own, so they line up with the rule.
+- Labels are sentence case at 12px or more. No uppercase, letter-spaced eyebrows.
 - Where a panel is still useful (`.card`, `.ledger-panel`) it is a flat `--elev-1` surface with one hairline: no gradient, no glow, no shadow. Cells inside a panel (`.ledger-cell`) are just a rule above, never a box inside a box.
 - Only floating layers (menus, sheets, toasts, the palette) cast a shadow (`--shadow-float`, `--shadow-modal`).
 

@@ -787,6 +787,35 @@ body {
   /* The large summary card on a page. Plain now: no glow, no shimmer. */
   .hero-card { position: relative; }
 
+  /* ── Box-free pages ─────────────────────────────────────────────────────
+     The big summary at the top of a page: no box, a rule underneath.
+     (The landing page's example card keeps its frame: it has `.card` too.) */
+  .hero-card:not(.card) {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0.25rem !important;
+  }
+
+  /* On a page that opts in, a card is a block with a rule on top: in a grid
+     that reads as Swiss columns, in a stack as sections. Inline border
+     colours (a danger zone, a focused account) colour that rule. */
+  .page-flat .card {
+    background: transparent;
+    border-width: 1px 0 0 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .page-flat .card-hover:hover { border-color: var(--line-strong); }
+  }
+
   /* ── Flat sections: a title, then rows separated by hairlines ───────────── */
   .section-title { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--fg); }
   .section-link { font-size: 13px; font-weight: 500; color: var(--accent); }

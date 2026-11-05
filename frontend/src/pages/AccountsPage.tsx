@@ -232,7 +232,7 @@ const AccountsPage: React.FC = () => {
     <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <PageLayout>
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
+        <div className="page-flat max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="product-page-header topbar-safe">

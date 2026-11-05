@@ -86,7 +86,7 @@ const Settings: React.FC = () => {
   return (
     <AppShell>
       <PageLayout>
-        <div className="settings-page px-4 md:px-6 pt-6 md:pt-8 pb-10 fade-in">
+        <div className="page-flat settings-page px-4 md:px-6 pt-6 md:pt-8 pb-10 fade-in">
           {isDesktop ? (
             <>
               <div className="product-page-header topbar-safe">
