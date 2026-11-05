@@ -283,6 +283,70 @@ class Transaction(Base):
         cascade="all, delete-orphan",
         order_by="TransactionSplit.id",
     )
+    # Which collections this transaction is part of. The database removes the
+    # links when the transaction goes (passive_deletes).
+    collection_links = relationship(
+        "CollectionTransaction",
+        cascade="all, delete",
+        passive_deletes=True,
+        order_by="CollectionTransaction.collection_id",
+    )
+
+    @property
+    def collection_ids(self) -> list[int]:
+        return [link.collection_id for link in self.collection_links]
+
+
+class Collection(Base):
+    """A named group of transactions, like a trip, a holiday or a house move.
+
+    It only groups. A transaction in a collection keeps its account, category
+    and amount, and still counts everywhere it did before. Deleting a
+    collection deletes the links, never the transactions.
+
+    `start_date`/`end_date` are optional. When set they drive the suggestions
+    (transactions in that range that are not in the collection yet) and decide
+    whether the collection is "active". `suggestions_reviewed_at` remembers when
+    the user last went through the suggestions, so only newer ones come back.
+    """
+
+    __tablename__ = "collections"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_collections_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(60), nullable=False)
+    emoji = Column(String(16), nullable=True)
+    color = Column(String(7), nullable=True)
+    note = Column(String(500), nullable=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    budget = Column(Numeric(15, 2), nullable=True)
+    is_archived = Column(Boolean, nullable=False, default=False, server_default="false")
+    suggestions_reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    links = relationship(
+        "CollectionTransaction",
+        cascade="all, delete",
+        passive_deletes=True,
+    )
+
+
+class CollectionTransaction(Base):
+    """One transaction in one collection. A transaction can be in several."""
+
+    __tablename__ = "collection_transactions"
+    __table_args__ = (
+        Index("ix_collection_transactions_transaction_id", "transaction_id"),
+        Index("ix_collection_transactions_user_id", "user_id"),
+    )
+
+    collection_id = Column(Integer, ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=utc_now)
 
 
 class TransactionSplit(Base):
