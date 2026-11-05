@@ -163,6 +163,16 @@ describe('OverviewTab — imported transaction review', () => {
     expect(screen.queryByText(/Savings 0%/i)).not.toBeInTheDocument();
   });
 
+  it('only claims this month when older months still need a category', () => {
+    renderTab({
+      transactions: [tx('2026-08-01', -20), tx('2026-07-10', -5, { category_id: null })],
+    });
+
+    expect(screen.queryByText('All transactions categorized')).not.toBeInTheDocument();
+    expect(screen.getByText('August is fully categorized')).toBeInTheDocument();
+    expect(screen.getByText(/1 transaction from earlier months still needs a category/)).toBeInTheDocument();
+  });
+
   it('keeps a route into the review even when nothing is outstanding', () => {
     renderTab({ transactions: [tx('2026-08-01', -20)] });
 
@@ -199,6 +209,13 @@ describe('OverviewTab — credit cards', () => {
     // Once on the account tile, once on the Cards metric — both correct.
     expect(screen.getAllByText('Paid off').length).toBeGreaterThan(0);
     expect(screen.getByText('Nothing outstanding')).toBeInTheDocument();
+  });
+
+  it('shows no Cards figure to someone without a credit card', () => {
+    renderTab({ accounts: [accounts[0]], transactions: [tx('2026-08-01', -20)] });
+
+    expect(screen.queryByText('Nothing outstanding')).not.toBeInTheDocument();
+    expect(screen.queryByText('Paid off')).not.toBeInTheDocument();
   });
 });
 

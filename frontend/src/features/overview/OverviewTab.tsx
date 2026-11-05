@@ -120,6 +120,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         investments={model.investments}
         cardDebt={model.cardDebt}
         cardUtilization={model.cardUtilization}
+        hasCards={model.hasCards}
         showAssets={!failedSources.includes('assets')}
         allocatedToGoals={allocatedToGoals}
         goalCount={goalsFailed ? 0 : goals.length}

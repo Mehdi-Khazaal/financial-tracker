@@ -34,15 +34,17 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
             <path d="M6.5 10.5l2.5 2.5 4.5-5M10 17.5a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
           </svg>
           <div className="min-w-0 flex-1">
+            {/* "All categorized" would be false while older months still
+                have gaps, so the title only claims this month then. */}
             <p className="text-sm font-semibold" id="overview-review-heading" style={{ color: 'var(--fg)' }}>
               {review.total === 0
-                ? 'Nothing to review yet'
-                : 'All transactions categorized'}
+                ? review.olderUnreviewed > 0 ? `Nothing new in ${monthName}` : 'Nothing to review yet'
+                : review.olderUnreviewed > 0 ? `${monthName} is fully categorized` : 'All transactions categorized'}
             </p>
             {review.olderUnreviewed > 0 && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {plural(review.olderUnreviewed, 'transaction')} from earlier months
-                {' '}{verbFor(review.olderUnreviewed, 'need')} a category.
+                {' '}still {verbFor(review.olderUnreviewed, 'need')} a category.
               </p>
             )}
           </div>

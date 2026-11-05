@@ -27,6 +27,8 @@ interface Props {
   investments: number;
   cardDebt: number;
   cardUtilization: number | null;
+  /** No credit card account means no Cards tile, rather than "Paid off". */
+  hasCards?: boolean;
   showAssets: boolean;
   /** Total set aside against goals. */
   allocatedToGoals: number;
@@ -59,13 +61,13 @@ const Tile: React.FC<{
 
 const MetricRow: React.FC<Props> = ({
   monthName, income, expenses, pace, physicalAssets, investments,
-  cardDebt, cardUtilization, showAssets, allocatedToGoals, goalCount,
+  cardDebt, cardUtilization, hasCards = true, showAssets, allocatedToGoals, goalCount,
   recurringMonth = null, recurringCount = 0,
 }) => {
   const showRecurring = recurringMonth != null && (recurringCount > 0 || recurringMonth.expected > 0);
-  const tileCount = 3 + (showAssets ? 1 : 0) + (showRecurring ? 1 : 0);
-  // Written out in full so Tailwind finds both class names.
-  const desktopColumns = tileCount === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4';
+  const tileCount = 2 + (hasCards ? 1 : 0) + (showAssets ? 1 : 0) + (showRecurring ? 1 : 0);
+  // Written out in full so Tailwind finds the class names.
+  const desktopColumns = tileCount === 5 ? 'lg:grid-cols-5' : tileCount === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4';
 
   return (
   <div className={`metric-strip grid grid-cols-2 ${desktopColumns}`}>
@@ -101,20 +103,22 @@ const MetricRow: React.FC<Props> = ({
       </Tile>
     )}
 
-    <Tile
-      label="Cards"
-      hint="Total owed across your credit cards. The purchases behind it were already counted as spending, so paying a card down is not new spending."
-      to={linkToCards()}
-    >
-      <p className="metric-value">
-        {cardDebt > 0 ? `${dollars(cardDebt)}` : 'Paid off'}
-      </p>
-      <p className="metric-note">
-        {cardDebt > 0
-          ? cardUtilization != null ? `${percent(cardUtilization, 0, true)} of limit used` : 'owed'
-          : 'Nothing outstanding'}
-      </p>
-    </Tile>
+    {hasCards && (
+      <Tile
+        label="Cards"
+        hint="Total owed across your credit cards. The purchases behind it were already counted as spending, so paying a card down is not new spending."
+        to={linkToCards()}
+      >
+        <p className="metric-value">
+          {cardDebt > 0 ? `${dollars(cardDebt)}` : 'Paid off'}
+        </p>
+        <p className="metric-note">
+          {cardDebt > 0
+            ? cardUtilization != null ? `${percent(cardUtilization, 0, true)} of limit used` : 'owed'
+            : 'Nothing outstanding'}
+        </p>
+      </Tile>
+    )}
 
     {showAssets && (
       <Tile
