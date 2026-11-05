@@ -110,10 +110,9 @@ const NetWorthTrend: React.FC<Props> = ({ snapshots, wealth }) => {
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2.5">
               <span className="label">{range.label}</span>
               <span
-                className="font-mono tabular-nums text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                className="font-mono tabular-nums text-sm font-semibold"
                 style={{
                   color: positive ? 'var(--pos)' : 'var(--neg)',
-                  backgroundColor: positive ? 'var(--pos-dim)' : 'var(--neg-dim)',
                 }}
               >
                 {positive ? '↑' : '↓'} {dollars(Math.abs(range.change))}

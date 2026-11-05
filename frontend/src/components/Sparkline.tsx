@@ -70,7 +70,6 @@ const Sparkline: React.FC<Props> = ({ data, width = 480, height = 72, color = 'v
         } : undefined} />
       <circle cx={lastX} cy={lastY} r={3} fill={color}
         style={{
-          filter: `drop-shadow(0 0 4px ${color})`,
           ...(drawIn ? { animation: 'sparkFill 300ms ease 800ms both' } : {}),
         }} />
     </svg>

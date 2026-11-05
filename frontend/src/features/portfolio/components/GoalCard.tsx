@@ -41,7 +41,7 @@ interface Props {
 
 const Fact: React.FC<{ label: string; value: string; color?: string }> = ({ label, value, color }) => (
   <div className="min-w-0">
-    <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--dim)' }}>{label}</p>
+    <p className="text-xs mb-0.5" style={{ color: 'var(--dim)' }}>{label}</p>
     <p className="font-mono tabular-nums text-xs font-semibold truncate" style={{ color: color ?? 'var(--fg)' }}>
       {value}
     </p>
@@ -127,7 +127,7 @@ const GoalCard: React.FC<Props> = ({
       {/* Where the money actually sits */}
       {allocationAccounts.length > 0 && (
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-          <p className="text-[10px] uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Held in</p>
+          <p className="text-xs mb-1.5" style={{ color: 'var(--dim)' }}>Held in</p>
           <div className="flex flex-wrap gap-1.5">
             {allocationAccounts.map(a => (
               <Link

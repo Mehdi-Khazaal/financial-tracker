@@ -373,7 +373,7 @@ const PortfolioPage: React.FC = () => {
     <AppShell>
       <PullToRefresh pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
       <PageLayout>
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
+        <div className="page-flat max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-5 fade-in">
 
           {/* Header */}
           <div className="product-page-header topbar-safe">
@@ -468,7 +468,7 @@ const PortfolioPage: React.FC = () => {
           {tab === 'investments' && !failedSources.includes('investments') && (
             <>
               {/* Hero */}
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="pb-6" style={{ borderBottom: '1px solid var(--line)' }}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-1">
@@ -510,12 +510,12 @@ const PortfolioPage: React.FC = () => {
                 </div>
                 <div className="flex gap-6 mt-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Recorded</p>
+                    <p className="text-xs mb-0.5 text-muted">Recorded</p>
                     <p className="font-semibold text-sm text-text" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>${fmt(totalCost)}</p>
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="text-[10px] uppercase tracking-widest text-muted">Change since recorded</p>
+                      <p className="text-xs text-muted">Change since recorded</p>
                       <InfoHint label="What change since recorded means" text={CHANGE_SINCE_RECORDED_DEFINITION} />
                     </div>
                     {totalGain != null ? (
@@ -605,7 +605,7 @@ const PortfolioPage: React.FC = () => {
                             { label: hasPx ? 'Value' : 'Recorded value', value: `$${fmt(curVal)}`, highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--fg)' },
                           ].map(stat => (
                             <div key={stat.label}>
-                              <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
+                              <p className="text-xs text-muted mb-0.5">{stat.label}</p>
                               <p className="font-semibold text-sm" style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: stat.highlight ?? 'var(--fg)' }}>{stat.value}</p>
                             </div>
                           ))}
@@ -631,7 +631,7 @@ const PortfolioPage: React.FC = () => {
           {/* Assets tab */}
           {tab === 'assets' && !failedSources.includes('assets') && (
             <>
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="pb-6" style={{ borderBottom: '1px solid var(--line)' }}>
                 <p className="label mb-1">Total Asset Value</p>
                 <p className="value-display mb-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
                   ${fmt(totalAssetValue)}
@@ -640,7 +640,7 @@ const PortfolioPage: React.FC = () => {
                   <div className="flex flex-wrap gap-4">
                     {Object.entries(byType).map(([type, list]) => (
                       <div key={type}>
-                        <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">{type.replace('_', ' ')}</p>
+                        <p className="text-xs mb-0.5 text-muted">{type.replace('_', ' ')}</p>
                         <p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           ${fmt(list.reduce((s, a) => s + Number(a.total_value), 0))}
                         </p>
@@ -699,8 +699,8 @@ const PortfolioPage: React.FC = () => {
                         </div>
                         {(asset.quantity || asset.value_per_unit) && (
                           <div className="grid grid-cols-2 gap-3 mb-3">
-                            {asset.quantity && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Quantity</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>{Number(asset.quantity).toLocaleString()}</p></div>}
-                            {asset.value_per_unit && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Recorded / unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(Number(asset.value_per_unit))}</p></div>}
+                            {asset.quantity && <div><p className="text-xs text-muted mb-0.5">Quantity</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>{Number(asset.quantity).toLocaleString()}</p></div>}
+                            {asset.value_per_unit && <div><p className="text-xs text-muted mb-0.5">Recorded / unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(Number(asset.value_per_unit))}</p></div>}
                           </div>
                         )}
                         {asset.purchase_date && (
@@ -723,7 +723,7 @@ const PortfolioPage: React.FC = () => {
             <>
               {/* Progress, not balance. "How much money do I have" is the
                   Dashboard's question; this one is "am I getting there". */}
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
+              <div className="pb-6" style={{ borderBottom: '1px solid var(--line)' }}>
                 <div className="flex items-center gap-1.5 mb-1">
                   <p className="label">Set aside across goals</p>
                   <InfoHint
@@ -743,21 +743,21 @@ const PortfolioPage: React.FC = () => {
                 )}
                 <div className="flex gap-6 flex-wrap pt-3" style={{ borderTop: '1px solid var(--line)' }}>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Still to find</p>
+                    <p className="text-xs mb-0.5 text-muted">Still to find</p>
                     <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--fg)' }}>${fmt(goalSummary.totalRemaining)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Complete</p>
+                    <p className="text-xs mb-0.5 text-muted">Complete</p>
                     <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--pos)' }}>{goalSummary.completeCount}</p>
                   </div>
                   {goalSummary.behindCount > 0 && (
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Behind schedule</p>
+                      <p className="text-xs mb-0.5 text-muted">Behind schedule</p>
                       <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--warn)' }}>{goalSummary.behindCount}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Unallocated</p>
+                    <p className="text-xs mb-0.5 text-muted">Unallocated</p>
                     <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--muted)' }}>${fmt(totalUnallocated)}</p>
                   </div>
                 </div>
