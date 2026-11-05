@@ -781,6 +781,51 @@ def _t_list_budgets(db: Session, user: User, month: Optional[str] = None, **_) -
         "note": "No budgets means the user has not set any; propose set_budget only if they ask." if not items else None,
     }
 
+def _t_list_collections(db: Session, user: User, name: Optional[str] = None, **_) -> dict:
+    """The user's collections (trips, holidays, moves...) and what each one cost."""
+    from models.database import Collection
+    from services import collections as collection_service
+
+    rows = db.query(Collection).filter(Collection.user_id == user.id).order_by(Collection.id).all()
+    if name:
+        needle = str(name).strip().lower()[:60]
+        rows = [row for row in rows if needle in row.name.lower()]
+    lookups = collection_service.load_lookups(db, user.id)
+    totals = collection_service.totals_by_collection(db, user.id, lookups)
+    category_names = dict(db.query(Category.id, Category.name).filter((Category.user_id == user.id) | (Category.user_id.is_(None))).all())
+    today = _user_today(user)
+    out = []
+    for row in rows:
+        total = totals.get(row.id, collection_service.Totals())
+        breakdown = collection_service.category_breakdown(db, user.id, row.id, lookups)[:6]
+        out.append({
+            "id": row.id,
+            "name": row.name,
+            "start_date": _jsonable(row.start_date),
+            "end_date": _jsonable(row.end_date),
+            "active": collection_service.is_active(row, today),
+            "archived": bool(row.is_archived),
+            "budget": _jsonable(row.budget),
+            "spent": _jsonable(total.spent),
+            "money_back": _jsonable(total.returned),
+            "net_cost": _jsonable(total.net),
+            "transaction_count": total.count,
+            "first_transaction": _jsonable(total.first_date),
+            "last_transaction": _jsonable(total.last_date),
+            "top_categories": [
+                {"category": category_names.get(cid, "Uncategorized") if cid is not None else "Uncategorized", "amount": _jsonable(amount)}
+                for cid, amount in breakdown
+            ],
+        })
+    return {
+        "collections": out,
+        "note": (
+            "A collection only groups transactions; they still count in their categories and totals. "
+            "net_cost = spent - money_back (refunds and money received inside the collection)."
+        ),
+    }
+
+
 def _t_list_rules(db: Session, user: User, **_) -> dict:
     """The user's categorization rules, best first, with how often each has fired."""
     from models.database import CategorizationRule
@@ -851,6 +896,7 @@ READ_TOOLS = {
     "list_budgets": _t_list_budgets,
     "list_rules": _t_list_rules,
     "get_alert_settings": _t_get_alert_settings,
+    "list_collections": _t_list_collections,
 }
 
 # Every tool that changes stored state, including memory. None of these run

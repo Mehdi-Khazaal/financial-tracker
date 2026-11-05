@@ -17,6 +17,8 @@ from models.database import (
     AccountBalanceSnapshot,
     Asset,
     Category,
+    Collection,
+    CollectionTransaction,
     Loan,
     RecurringTransaction,
     SavingsGoal,
@@ -49,10 +51,11 @@ def _ledger(db, owner: User, marker: str, *, bill_due: date) -> dict:
     category = Category(user_id=owner.id, name=f"{marker} cat", type="expense", color="#111111")
     db.add_all([account, category])
     db.flush()
-    db.add(Transaction(
+    lunch = Transaction(
         user_id=owner.id, account_id=account.id, category_id=category.id, amount=Decimal("-10.00"),
         description=f"{marker} lunch", transaction_date=date.today() - timedelta(days=3),
-    ))
+    )
+    db.add(lunch)
     bill = RecurringTransaction(
         user_id=owner.id, account_id=account.id, category_id=category.id, amount=Decimal("-25.00"),
         description=f"{marker} bill", period="monthly", next_date=bill_due, is_active=True, is_variable=False,
@@ -66,6 +69,10 @@ def _ledger(db, owner: User, marker: str, *, bill_due: date) -> dict:
     ])
     db.flush()
     db.add(SavingsGoalAllocation(user_id=owner.id, goal_id=goal.id, account_id=account.id, amount=Decimal("20.00")))
+    trip = Collection(user_id=owner.id, name=f"{marker} trip", is_archived=False)
+    db.add(trip)
+    db.flush()
+    db.add(CollectionTransaction(collection_id=trip.id, transaction_id=lunch.id, user_id=owner.id))
     db.commit()
     return {"account": account, "bill": bill}
 
@@ -185,7 +192,7 @@ def test_every_assistant_read_tool_sees_one_tenant_only(db_session, two_tenants)
         result = assistant._dump(tool(db_session, bob, **REQUIRED_TOOL_ARGS.get(name, {})))
         assert "ALICE" not in result, f"{name} leaked another user's data"
         # Sanity: Bob's own data is visible where the tool lists rows.
-        if name in {"list_accounts", "list_transactions", "list_recurring", "list_savings_goals", "list_loans", "list_assets"}:
+        if name in {"list_accounts", "list_transactions", "list_recurring", "list_savings_goals", "list_loans", "list_assets", "list_collections"}:
             assert "BOB" in result, f"{name} returned nothing for its own user"
 
 

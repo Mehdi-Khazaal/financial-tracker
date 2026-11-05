@@ -203,6 +203,19 @@ def _all_tool_schemas() -> list:
             "input_schema": {"type": "object", "properties": {}},
         },
         {
+            "name": "list_collections",
+            "description": (
+                "The user's collections: named groups of transactions such as a trip, a holiday "
+                "or a house move. Each has its dates, budget, what was spent, money that came back "
+                "(refunds, paybacks), the net cost and the top categories. Use for any question "
+                "like 'how much did the Ohio trip cost' or 'what did I spend on the move'."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "Part of a collection's name, to narrow the list."}},
+            },
+        },
+        {
             "name": "save_memory",
             "description": "Save a durable fact about the user that should be remembered across all future chats — goals, preferences, habits, rules, recurring context. Use this whenever you learn something lasting. This is your persistent notebook.",
             "input_schema": {
