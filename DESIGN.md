@@ -15,7 +15,7 @@ Calm and fast to scan. Neutral greys, one strong colour, big clear numbers, thin
 | `--accent` | `#2347D9` | `#7B93FF` | The one strong colour: links, the primary action, selection, the chart line |
 | `--logo-bg` | `#2347D9` | `#4A6BF2` | The logo tile |
 | `--ink-on-fill` | `#FFFFFF` | `#0B0C0E` | Text on a solid accent fill |
-| `--pos` / `--neg` | `#15803D` / `#B42318` | `#4ADE80` / `#F97066` | Money in / over budget, debt. Semantic only. |
+| `--pos` / `--neg` | `#137333` / `#B42318` | `#4ADE80` / `#F97066` | Money in / over budget, debt. Semantic only. |
 | `--warn` | `#A15C07` | `#FBBF24` | Close to a limit |
 
 Tints are `color-mix(in oklab, var(--token) N%, transparent)`, never hard-coded rgba, so both modes follow. Saved palettes (category and collection colour presets) stay as hex because they are stored data.

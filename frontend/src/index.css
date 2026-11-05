@@ -91,7 +91,7 @@ body {
   --accent-glow: color-mix(in oklab, var(--accent) 28%, transparent);
   /* Text on a solid accent, positive or negative fill. */
   --ink-on-fill: #FFFFFF;
-  --pos:         #15803D;
+  --pos:         #137333;
   --pos-dim:     color-mix(in oklab, var(--pos) 12%, transparent);
   --neg:         #B42318;
   --neg-dim:     color-mix(in oklab, var(--neg) 10%, transparent);
