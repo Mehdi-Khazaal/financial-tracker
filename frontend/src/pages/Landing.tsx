@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import LogoMark from '../components/LogoMark';
 
 /**
  * The public front door at `/` for someone who is not signed in.
@@ -45,14 +46,8 @@ const Landing: React.FC = () => (
     {/* Top bar */}
     <header className="mx-auto w-full max-w-6xl px-4 md:px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div
-          aria-hidden="true"
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(140deg, var(--accent) 0%, var(--accent) 100%)', boxShadow: '0 6px 20px color-mix(in oklab, var(--accent) 35%, transparent)' }}
-        >
-          <span style={{ fontFamily: 'var(--font-money)', fontStyle: 'italic', color: '#fff', fontSize: 18, lineHeight: 1 }}>F</span>
-        </div>
-        <span className="label" style={{ color: 'var(--muted)' }}>Fintrack</span>
+        <LogoMark size={32} />
+        <span className="text-base font-semibold" style={{ color: 'var(--fg)', letterSpacing: '-0.01em' }}>Fintrack</span>
       </div>
       <nav className="flex items-center gap-2" aria-label="Account">
         <Link to="/login" className="btn-ghost pressable px-4" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', fontSize: 13 }}>

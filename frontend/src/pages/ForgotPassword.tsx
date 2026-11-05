@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPassword } from '../utils/api';
+import LogoMark from '../components/LogoMark';
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -26,8 +27,8 @@ const ForgotPassword: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--bg)' }}>
       <div className="w-full max-w-sm fade-in">
         <div className="flex flex-col items-center mb-8">
-          <div style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', borderRadius: '8px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="mb-4">
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '20px', color: 'var(--accent)' }}>F</span>
+          <div className="mb-4">
+            <LogoMark size={44} title="Fintrack" />
           </div>
           <h1 className="text-2xl font-bold text-text" style={{ fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Reset password</h1>
           <p className="text-muted text-sm mt-1 text-center">

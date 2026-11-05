@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { linkToSettingsSection } from '../lib/deepLinks';
+import LogoMark from '../components/LogoMark';
 
 const fieldLabelStyle: React.CSSProperties = {
   display: 'block',
@@ -157,14 +158,8 @@ const Login: React.FC = () => {
           animation: 'authReveal 0.65s cubic-bezier(.32,1,.4,1) both',
           animationDelay: '0.05s',
         }}>
-          <div style={{
-            width: '68px', height: '68px', borderRadius: '20px',
-            background: 'linear-gradient(140deg, var(--accent) 0%, var(--accent) 100%)',
-            boxShadow: '0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent), 0 10px 40px color-mix(in oklab, var(--accent) 45%, transparent), 0 0 90px color-mix(in oklab, var(--accent) 12%, transparent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: '1.75rem',
-          }}>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '30px', color: '#fff', lineHeight: 1, fontStyle: 'italic' }}>F</span>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <LogoMark size={56} title="Fintrack" />
           </div>
 
           <h1 style={{

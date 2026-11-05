@@ -96,7 +96,7 @@
       "destination": "https://financial-tracker-api-1osn.onrender.com/:path*"
     },
     {
-      "source": "/((?!api/|assets/|sw\\.js|manifest\\.json|robots\\.txt|favicon|icon-|logo).*)",
+      "source": "/((?!api/|assets/|sw\\.js|theme-init\\.js|manifest\\.json|robots\\.txt|favicon|icon-|apple-touch-icon|logo).*)",
       "destination": "/index.html"
     }
   ],
