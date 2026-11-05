@@ -180,7 +180,7 @@ const RecurringPage: React.FC = () => {
   // sit in exactly the same spot — when it lived inside a centred column it
   // jumped to the middle of the screen every time Recurring was chosen.
   const header = (
-    <div className="product-page-header topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+    <div className="product-page-header product-page-header--bleed topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
       <h1 className="sr-only">Recurring</h1>
       <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }} role="tablist" aria-label="Transaction views">
         {TRANSACTION_TABS.map(t => (

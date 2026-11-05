@@ -46,6 +46,12 @@ def _visual_block_for_tool(name: str, tool_input: dict, result, *, as_of: Option
             {"label": "Assets", "value": result.get("assets_total", 0), "format": "currency"},
             {"label": "Credit cards", "value": result.get("credit_card_balance", 0), "format": "currency"},
         ]
+        # Estimated net worth also counts money lent out. Without this row the
+        # figures shown did not add up to the headline whenever a loan was open.
+        if float(result.get("loans_owed_to_you") or 0) > 0:
+            metrics.append(
+                {"label": "Owed to you", "value": result.get("loans_owed_to_you", 0), "format": "currency"}
+            )
         return {"type": "metric_grid", "title": "Financial position", "scope": scope, "source": source, "metrics": metrics}
 
     if name == "spending_by_category" and isinstance(result, list):

@@ -37,7 +37,7 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
             <p className="text-sm font-semibold" id="overview-review-heading" style={{ color: 'var(--fg)' }}>
               {review.total === 0
                 ? 'Nothing to review yet'
-                : 'All imported transactions categorized'}
+                : 'All transactions categorized'}
             </p>
             {review.olderUnreviewed > 0 && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -63,11 +63,11 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
       to={linkToReview()}
       className="block rounded-xl px-4 py-4 pressable"
       style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', border: '1px solid oklch(72% 0.17 55 / 0.28)' }}
-      aria-label={`Review imported transactions. ${review.unreviewed} of ${review.total} transactions in ${monthName} need a category.`}
+      aria-label={`Review uncategorized transactions. ${review.unreviewed} of ${review.total} transactions in ${monthName} need a category.`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="label mb-1">Imported transaction review</p>
+          <p className="label mb-1">Transaction review</p>
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>
             {plural(review.unreviewed, 'transaction')} {verbFor(review.unreviewed, 'need')} a category
           </p>

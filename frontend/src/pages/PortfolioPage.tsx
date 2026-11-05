@@ -39,6 +39,14 @@ type Tab = 'investments' | 'assets' | 'savings';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Display names for asset and investment types. CSS `capitalize` turned "etf"
+ * into "Etf" and "real_estate" into "Real_estate".
+ */
+const TYPE_LABELS: Record<string, string> = { all: 'All', etf: 'ETF', real_estate: 'Real estate' };
+const typeLabel = (type: string): string =>
+  TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+
 const INVESTMENT_META: Record<string, { icon: string; color: string }> = {
   stock:  { icon: 'M3 15.5l4.5-4.5 3 3L17 7.5M13 7.5h4v4', color: 'var(--pos)' },
   crypto: { icon: 'M10 3v14M7 3v14M6 6h5.5a2.5 2.5 0 010 5H6m0 0h6.25a2.5 2.5 0 010 5H6', color: '#f59e0b' },
@@ -386,14 +394,14 @@ const PortfolioPage: React.FC = () => {
                       {showInvExport && (
                         <>
                           <div className="menu-backdrop fixed inset-0" onClick={() => setShowInvExport(false)} />
-                          <div className="menu-surface absolute right-0 top-12 min-w-[120px]" role="menu">
+                          <div className="menu-surface absolute right-0 top-12 min-w-[180px]" role="menu">
                             <button onClick={() => exportInvestments('csv')}
-                              className="menu-item text-sm font-semibold" style={{ color: 'var(--pos)' }} role="menuitem">
-                              CSV
+                              className="menu-item text-sm font-semibold" style={{ color: 'var(--fg)' }} role="menuitem">
+                              Spreadsheet (CSV)
                             </button>
                             <button onClick={() => exportInvestments('pdf')}
-                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--neg)' }} role="menuitem">
-                              PDF
+                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--fg)' }} role="menuitem">
+                              Print or save as PDF
                             </button>
                           </div>
                         </>
@@ -525,11 +533,11 @@ const PortfolioPage: React.FC = () => {
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {types.map(t => (
                     <button key={t} onClick={() => setInvFilter(t)}
-                      className="pill shrink-0 transition-all capitalize"
+                      className="pill shrink-0 transition-all"
                       style={invFilter === t
                         ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
                         : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
-                      {t}
+                      {typeLabel(t)}
                     </button>
                   ))}
                 </div>
@@ -563,7 +571,7 @@ const PortfolioPage: React.FC = () => {
                             </span>
                             <div>
                               <p className="font-semibold text-sm text-text">{inv.name}</p>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{inv.type}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--line)', color: 'var(--muted)' }}>{typeLabel(inv.type)}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -577,7 +585,8 @@ const PortfolioPage: React.FC = () => {
                               </span>
                             )}
                             <button onClick={() => handleDeleteInv(inv.id, inv.name)}
-                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
+                              aria-label={`Delete ${inv.name}`}
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-all"
                               style={{ color: 'var(--dim)' }}
                               onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--neg)'}
                               onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--dim)'}>
@@ -587,10 +596,13 @@ const PortfolioPage: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           {[
-                            { label: 'Buy Price',  value: `$${Number(inv.value_per_unit ?? 0).toFixed(2)}` },
+                            { label: 'Buy Price',  value: `$${fmt(Number(inv.value_per_unit ?? 0))}` },
                             { label: hasPx ? 'Live Price' : 'Current', value: hasPx ? `$${(livePx!).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '--', highlight: hasPx ? 'var(--fg)' : 'var(--muted)' },
-                            { label: 'Quantity',   value: Number(inv.quantity ?? 0).toFixed(4) },
-                            { label: 'Value',      value: hasPx ? `$${fmt(curVal)}` : '--', highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--muted)' },
+                            // "40", "0.5", "0.0125" — not "40.0000".
+                            { label: 'Quantity',   value: Number(inv.quantity ?? 0).toLocaleString('en-US', { maximumFractionDigits: 8 }) },
+                            // Without a live price the holding is still counted in the
+                            // total at its recorded value, so show that rather than "--".
+                            { label: hasPx ? 'Value' : 'Recorded value', value: `$${fmt(curVal)}`, highlight: hasPx ? (isGain ? 'var(--pos)' : 'var(--neg)') : 'var(--fg)' },
                           ].map(stat => (
                             <div key={stat.label}>
                               <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">{stat.label}</p>
@@ -605,7 +617,7 @@ const PortfolioPage: React.FC = () => {
                               {isGain ? '+' : '-'}${fmt(Math.abs(gainLoss))}
                             </p>
                           ) : (
-                            <p className="text-xs text-muted">No live price</p>
+                            <p className="text-xs text-muted">At recorded value</p>
                           )}
                         </div>
                       </div>
@@ -653,22 +665,18 @@ const PortfolioPage: React.FC = () => {
                     return (
                       <div key={asset.id} className="card card-hover p-4 group">
                         <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}>
                               <svg viewBox="0 0 20 20" fill={meta.color} className="w-5 h-5"><path d={meta.icon} /></svg>
                             </div>
-                            <div>
-                              <p className="font-semibold text-sm text-text">{asset.name}</p>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: 'var(--elev-sub)', color: meta.color }}>
-                                {asset.type.replace('_', ' ')}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm text-text truncate" title={asset.name}>{asset.name}</p>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--elev-sub)', color: meta.color }}>
+                                {typeLabel(asset.type)}
                               </span>
                             </div>
                           </div>
                           <div className="flex items-start gap-2 shrink-0">
-                            <div className="text-right">
-                              <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(Number(asset.total_value))}</p>
-                              <p className="text-[10px]" style={{ color: 'var(--dim)' }}>Recorded value</p>
-                            </div>
                             <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
                               <button onClick={() => setEditAsset(asset)}
                                 aria-label={`Edit ${asset.name}`}
@@ -685,15 +693,21 @@ const PortfolioPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
+                        <div className="mb-3">
+                          <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(Number(asset.total_value))}</p>
+                          <p className="text-[10px]" style={{ color: 'var(--dim)' }}>Recorded value</p>
+                        </div>
                         {(asset.quantity || asset.value_per_unit) && (
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             {asset.quantity && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Quantity</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>{Number(asset.quantity).toLocaleString()}</p></div>}
-                            {asset.value_per_unit && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Recorded / unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(asset.value_per_unit).toFixed(2)}</p></div>}
+                            {asset.value_per_unit && <div><p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Recorded / unit</p><p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>${fmt(Number(asset.value_per_unit))}</p></div>}
                           </div>
                         )}
                         {asset.purchase_date && (
                           <div className="pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-                            <p className="text-xs text-muted">Recorded {asset.purchase_date}</p>
+                            <p className="text-xs text-muted">
+                              Recorded {new Date(`${asset.purchase_date.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
                           </div>
                         )}
                       </div>

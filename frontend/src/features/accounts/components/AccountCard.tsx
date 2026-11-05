@@ -72,8 +72,11 @@ const AccountCard: React.FC<Props> = ({
   const isCard = account.type === 'credit_card';
 
   const change = calculateBalanceChange(history, account.name);
-  // On a credit card a falling balance means less debt, which is good news.
-  const changeIsGood = isCard ? change.change <= 0 : change.change >= 0;
+  // A card's balance is stored negative while it is owed (see
+  // `describeBalance`), so on a card a *rising* balance is debt being paid
+  // down. This used to read the other way and printed a card whose debt grew
+  // by $2,859 as "$2,859 less owed" in green.
+  const changeIsGood = change.change >= 0;
   const changeColor = change.change === 0
     ? 'var(--muted)'
     : changeIsGood ? 'var(--pos)' : 'var(--neg)';
@@ -159,7 +162,7 @@ const AccountCard: React.FC<Props> = ({
                 ? 'No change'
                 : isCard
                   // "−$2,811 in green" reads as a contradiction on a debt.
-                  ? `${dollars(Math.abs(change.change))} ${change.change < 0 ? 'less' : 'more'} owed`
+                  ? `${dollars(Math.abs(change.change))} ${change.change > 0 ? 'less' : 'more'} owed`
                   : `${change.change > 0 ? '+' : MINUS}${dollars(Math.abs(change.change))}`}
             </span>
             {' '}over {change.windowLabel}

@@ -6,7 +6,9 @@ import { enqueue } from '../../utils/mutationQueue';
 import { Account, Category } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { accountOptionLabel } from './accountOptions';
 import { selectableCategories } from './categoryOptions';
+import { dollars } from '../../features/analytics/format';
 
 interface Props {
   isOpen: boolean;
@@ -46,8 +48,12 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
   }, [isOpen]);
 
   useEffect(() => {
+    // Start on "None", and drop a pick that does not exist for the new type.
+    // Preselecting the first category alphabetically filed every expense the
+    // user forgot to categorize under "Education"; an uncategorized one lands
+    // in the Review inbox instead, where it gets noticed.
     const filtered = selectableCategories(categories, type);
-    setCategoryId(filtered.length ? String(filtered[0].id) : '');
+    setCategoryId(current => (filtered.some(c => String(c.id) === current) ? current : ''));
   }, [type, categories]);
 
   const handleAddCat = async () => {
@@ -148,7 +154,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
               <label className="form-label" htmlFor="transaction-account">Account</label>
               <select id="transaction-account" value={accountId} onChange={e => setAccountId(e.target.value)} className="input-dark">
                 {accounts.map(a => (
-                  <option key={a.id} value={a.id}>{a.name} (${Number(a.balance).toFixed(2)})</option>
+                  <option key={a.id} value={a.id}>{accountOptionLabel(a)}</option>
                 ))}
               </select>
             </div>
@@ -187,7 +193,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setCategoryId('')}
+                  <button type="button" onClick={() => setCategoryId('')} aria-pressed={!categoryId}
                     className="pill min-h-[44px] transition-all"
                     style={!categoryId ? { backgroundColor: 'var(--line)', color: 'var(--fg)' } : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                     None
@@ -223,7 +229,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
             <button type="submit" disabled={loading || !amount}
               className="w-full min-h-[48px] py-3 font-bold text-sm rounded-lg transition-all active:scale-95 disabled:opacity-40"
               style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
-              {loading ? 'Saving…' : `Save ${type === 'expense' ? 'Expense' : 'Income'} · $${parseFloat(amount || '0').toFixed(2)}`}
+              {loading ? 'Saving…' : `Save ${type === 'expense' ? 'Expense' : 'Income'} · ${dollars(parseFloat(amount || '0'))}`}
             </button>
           </form>
         )}

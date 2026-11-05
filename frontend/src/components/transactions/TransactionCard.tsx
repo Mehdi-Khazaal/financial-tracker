@@ -89,10 +89,11 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
                 e.stopPropagation();
                 onDelete();
               }}
-              className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label={`Delete ${description}`}
+            className="text-[10px] font-semibold mt-0.5 px-1 -mx-1 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               style={{ color: 'var(--neg)' }}
             >
-              del
+              Delete
             </button>
           )}
         </div>
@@ -193,10 +194,11 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
               e.stopPropagation();
               onDelete();
             }}
-            className="text-[8px] font-semibold mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label={`Delete ${description}`}
+            className="text-[10px] font-semibold mt-0.5 px-1 -mx-1 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
             style={{ color: 'var(--neg)' }}
           >
-            delete
+            Delete
           </button>
         )}
       </div>

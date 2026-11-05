@@ -158,9 +158,17 @@ const SavingsOverviewCard: React.FC<Props> = ({ savings, period, onNavigate }) =
               className="text-[10px] mt-2.5 pt-2.5 leading-relaxed"
               style={{ color: 'var(--dim)', borderTop: '1px solid var(--line)' }}
             >
-              {dollars(goal.current, 0)} of your {dollars(savings.allocatedTotal, 0)} total set aside is on this
-              goal; {dollars(otherGoalsTotal, 0)} sits on your{' '}
-              {plural(savings.goalCount - 1, 'other goal')}. Money set aside comes from balances you already
+              {savings.allocatedTotal > 0 ? (
+                <>
+                  {dollars(goal.current, 0)} of your {dollars(savings.allocatedTotal, 0)} total set aside is on this
+                  goal; {dollars(otherGoalsTotal, 0)} sits on your{' '}
+                  {plural(savings.goalCount - 1, 'other goal')}.
+                </>
+              ) : (
+                // "$0 of your $0 total set aside is on this goal; $0 sits on…" said nothing.
+                <>Nothing is set aside against your {savings.goalCount} goals yet.</>
+              )}{' '}
+              Money set aside comes from balances you already
               hold — it is separate from the {dollars(Math.max(0, savings.saved), 0)} left over {periodWord}.
             </p>
           )}

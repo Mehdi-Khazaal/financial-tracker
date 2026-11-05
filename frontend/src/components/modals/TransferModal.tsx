@@ -5,6 +5,7 @@ import { createTransfer, getAccounts } from '../../utils/api';
 import { Account } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { accountOptionLabel } from './accountOptions';
 
 interface Props {
   isOpen: boolean;
@@ -71,7 +72,7 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
           <select value={fromId} onChange={e => setFromId(e.target.value)} className="input-dark">
             {accounts.filter(a => String(a.id) !== toId).map(a => (
               <option key={a.id} value={a.id}>
-                {a.name} (${Number(a.balance).toFixed(2)})
+                {accountOptionLabel(a)}
               </option>
             ))}
           </select>
@@ -83,13 +84,7 @@ const TransferModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, preselecte
           <select value={toId} onChange={e => setToId(e.target.value)} className="input-dark">
             {accounts.filter(a => String(a.id) !== fromId).map(a => (
               <option key={a.id} value={a.id}>
-                {/* A card can be in credit, so the label follows the sign
-                    rather than assuming debt — see `describeBalance`. */}
-                {a.name} ({a.type === 'credit_card'
-                  ? Number(a.balance) > 0
-                    ? `$${Number(a.balance).toFixed(2)} in credit`
-                    : `Owes $${Math.abs(Number(a.balance)).toFixed(2)}`
-                  : `$${Number(a.balance).toFixed(2)}`})
+                {accountOptionLabel(a)}
               </option>
             ))}
           </select>

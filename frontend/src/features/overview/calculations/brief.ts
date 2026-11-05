@@ -187,7 +187,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
       priority: 2,
       tone: 'attention',
       icon: 'alert',
-      text: `${plural(unreviewedCount, 'imported transaction')} still ${verbFor(unreviewedCount, 'need')} a category`,
+      text: `${plural(unreviewedCount, 'transaction')} still ${verbFor(unreviewedCount, 'need')} a category`,
       detail: null,
       action: { label: 'Review', to: linkToReview() },
     });
@@ -258,7 +258,9 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
       priority: 6,
       tone: 'neutral',
       icon: 'outflow',
-      text: `${merchantDisplayName(renewed.description)} renewed ${relativeDays(-daysAgo)}`,
+      // "Paid", not "renewed": declared recurring outflows include rent and
+      // utilities, and "Landlord renewed 3 days ago" read as a lease renewal.
+      text: `Paid ${merchantDisplayName(renewed.description)} ${relativeDays(-daysAgo)}`,
       detail: dollars(Math.abs(Number(renewed.amount))),
       action: null,
     });

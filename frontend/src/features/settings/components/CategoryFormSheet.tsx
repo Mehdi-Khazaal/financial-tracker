@@ -81,7 +81,7 @@ const CategoryFormSheet: React.FC<Props> = ({ isOpen, onClose, editing, type, on
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="px-5 pb-6 space-y-4">
         <div>
           <label className="form-label" htmlFor="category-form-name">Name</label>
           <input
@@ -111,7 +111,7 @@ const CategoryFormSheet: React.FC<Props> = ({ isOpen, onClose, editing, type, on
         </div>
 
         <fieldset>
-          <legend className="form-label">Colour</legend>
+          <legend className="form-label">Color</legend>
           <div className="flex gap-1.5 flex-wrap mt-1">
             {PRESET_COLORS.map(swatch => (
               <button
@@ -136,7 +136,7 @@ const CategoryFormSheet: React.FC<Props> = ({ isOpen, onClose, editing, type, on
                 style={{ backgroundColor: color }}
                 aria-hidden="true"
               />
-              Keeping its current colour
+              Keeping its current color
             </p>
           )}
         </fieldset>

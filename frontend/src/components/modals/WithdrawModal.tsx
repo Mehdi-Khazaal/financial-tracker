@@ -5,6 +5,8 @@ import { createTransfer, getAccounts } from '../../utils/api';
 import { Account } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { dollars } from '../../features/analytics/format';
+import { accountOptionLabel } from './accountOptions';
 
 interface Props {
   isOpen: boolean;
@@ -101,7 +103,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <select value={fromId} onChange={e => setFromId(e.target.value)} className="input-dark">
                 {bankAccounts.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.name} · ${Number(a.balance).toFixed(2)}
+                    {accountOptionLabel(a)}
                   </option>
                 ))}
               </select>
@@ -113,7 +115,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <select value={toId} onChange={e => setToId(e.target.value)} className="input-dark">
                 {cashAccounts.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.name} · ${Number(a.balance).toFixed(2)}
+                    {accountOptionLabel(a)}
                   </option>
                 ))}
               </select>
@@ -160,7 +162,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               disabled={loading || !amount || parseFloat(amount) <= 0}
               className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
               style={{ backgroundColor: '#f59e0b', color: 'var(--ink-on-fill)' }}>
-              {loading ? 'Processing…' : `Withdraw${amount ? ` · $${parseFloat(amount || '0').toFixed(2)}` : ''}`}
+              {loading ? 'Processing…' : `Withdraw${amount ? ` · ${dollars(parseFloat(amount || '0'))}` : ''}`}
             </button>
           </form>
         )}

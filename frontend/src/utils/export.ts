@@ -1,6 +1,13 @@
+/** A plain numeral such as `-120.00` or `+5`: a spreadsheet reads it as a number, never a formula. */
+const PLAIN_NUMBER = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
+
 export function escapeCsvCell(value: string | number): string {
   const raw = String(value ?? '');
-  const safe = typeof value === 'string' && /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  // Neutralise text a spreadsheet would run as a formula. Plain numerals are
+  // exempt: amounts arrive as `toFixed` strings, and prefixing `-120.00` with
+  // an apostrophe turned every expense in an export into text that would not sum.
+  const formulaLike = typeof value === 'string' && /^[=+\-@\t\r]/.test(raw) && !PLAIN_NUMBER.test(raw);
+  const safe = formulaLike ? `'${raw}` : raw;
   return (safe.includes(',') || safe.includes('"') || safe.includes('\n'))
     ? `"${safe.replace(/"/g, '""')}"`
     : safe;

@@ -158,6 +158,8 @@ const BudgetsSheet: React.FC<Props> = ({ isOpen, onClose, onChanged, categories,
                         <p className="font-mono tabular-nums text-xs" style={{ color: p?.over ? 'var(--neg)' : 'var(--muted)' }}>
                           {p ? `${dollars(Number(p.spent))} of ${dollars(Number(p.available))}` : `${dollars(Number(budget.amount))} / month`}
                           {p && Number(p.carried) > 0 ? ` · ${dollars(Number(p.carried))} carried` : ''}
+                          {/* The ↻ button alone did not say what it meant; name the state in words. */}
+                          {budget.rollover && !(p && Number(p.carried) > 0) ? ' · rolls over' : ''}
                         </p>
                       </div>
                       {editing ? (
@@ -168,13 +170,13 @@ const BudgetsSheet: React.FC<Props> = ({ isOpen, onClose, onChanged, categories,
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 shrink-0">
-                          <button type="button" className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 44 }} onClick={() => { setEditingId(budget.id); setEditAmount(String(budget.amount)); }} aria-label={`Edit ${nameOf(budget.category_id)} budget`}>
+                          <button type="button" className="btn-ghost pressable px-3 text-xs" style={{ minHeight: 44 }} onClick={() => { setEditingId(budget.id); setEditAmount(String(budget.amount)); }} aria-label={`Edit ${nameOf(budget.category_id)} budget`} title="Change the monthly amount">
                             {dollars(Number(budget.amount), 0)}
                           </button>
-                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: budget.rollover ? 'var(--accent)' : 'var(--dim)' }} onClick={() => { void toggleRollover(budget); }} disabled={busy} aria-pressed={budget.rollover} aria-label={`Rollover for ${nameOf(budget.category_id)}`}>
+                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: budget.rollover ? 'var(--accent)' : 'var(--dim)' }} onClick={() => { void toggleRollover(budget); }} disabled={busy} aria-pressed={budget.rollover} aria-label={`Rollover for ${nameOf(budget.category_id)}`} title={budget.rollover ? "Rollover on: unspent money carries into next month. Click to turn off." : "Rollover off. Click to carry unspent money into next month."}>
                             ↻
                           </button>
-                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: 'var(--neg)' }} onClick={() => { void remove(budget); }} disabled={busy} aria-label={`Remove ${nameOf(budget.category_id)} budget`}>
+                          <button type="button" className="btn-ghost pressable px-2 text-xs" style={{ minHeight: 44, color: 'var(--neg)' }} onClick={() => { void remove(budget); }} disabled={busy} aria-label={`Remove ${nameOf(budget.category_id)} budget`} title="Remove this budget">
                             ✕
                           </button>
                         </div>

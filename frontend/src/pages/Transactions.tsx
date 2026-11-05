@@ -371,6 +371,12 @@ const Transactions: React.FC = () => {
 
   const pendingCreates = useQueuedMutations<Transaction>('transaction.create');
 
+  // "this month" only when it is; the review header said "this month" while
+  // showing October.
+  const monthPhrase = !selectedMonth || selectedMonth === localDateStr().slice(0, 7)
+    ? 'this month'
+    : `in ${formatMonth(selectedMonth)}`;
+
   const monthTransactions = useMemo(() => {
     const server = transactions.filter(t => selectedMonth && t.transaction_date.startsWith(selectedMonth));
     // Merge in-flight optimistic rows so the user sees them the moment they
@@ -578,7 +584,7 @@ const Transactions: React.FC = () => {
 
       <PageLayout scrollRegion="contained">
         {/* ── Header ── */}
-        <div className="product-page-header topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
+        <div className="product-page-header product-page-header--bleed topbar-safe shrink-0 flex-wrap justify-start gap-2 md:gap-3 px-4 md:px-5 py-2.5 border-b" style={{ borderColor: 'var(--line)' }}>
 
           {/* Tab switcher — desktop only; mobile uses the context tab bar in Navigation */}
           <div className="hidden md:flex p-1 rounded-xl shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
@@ -699,12 +705,12 @@ const Transactions: React.FC = () => {
                 <div className="menu-surface absolute top-full right-0 mt-1.5 min-w-[156px] py-1" role="menu">
                   {[
                     {
-                      label: 'CSV', hint: 'Spreadsheet', color: 'var(--pos)',
+                      label: 'CSV', hint: 'Spreadsheet', color: 'var(--muted)',
                       icon: <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />,
                       action: () => exportCurrentView('csv'),
                     },
                     {
-                      label: 'PDF', hint: 'Print / Save', color: 'var(--neg)',
+                      label: 'PDF', hint: 'Print or save as PDF', color: 'var(--muted)',
                       icon: <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />,
                       action: () => exportCurrentView('pdf'),
                     },
@@ -714,7 +720,7 @@ const Transactions: React.FC = () => {
                       role="menuitem"
                     >
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: item.color === 'var(--pos)' ? 'oklch(78% 0.16 150 / 0.15)' : 'oklch(70% 0.17 25 / 0.15)' }}>
+                        style={{ backgroundColor: 'var(--elev-sub)' }}>
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
                       </div>
                       <div className="text-left">
@@ -854,9 +860,9 @@ const Transactions: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <div>
-                      <p className="label mb-1">Import Review</p>
+                      <p className="label mb-1">Transaction review</p>
                       <p className="text-sm md:text-base font-semibold" style={{ color: 'var(--fg)' }}>
-                        {uncategorized.length > 0 ? `${uncategorized.length} uncategorized this month` : 'Month is fully categorized'}
+                        {uncategorized.length > 0 ? `${uncategorized.length} uncategorized ${monthPhrase}` : 'Month is fully categorized'}
                       </p>
                     </div>
                     <span className="font-mono text-sm font-bold" style={{ color: uncategorized.length > 0 ? 'var(--accent)' : 'var(--pos)' }}>
@@ -906,7 +912,7 @@ const Transactions: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-[10px]" style={{ color: uncategorized.length === 0 ? 'var(--pos)' : 'var(--dim)' }}>
-                    {uncategorized.length === 0 ? 'All categorized ✓' : `of ${monthTransactions.length} this month`}
+                    {uncategorized.length === 0 ? 'All categorized ✓' : `of ${monthTransactions.length} ${monthPhrase}`}
                   </p>
                   {monthTransactions.length > 0 && (
                     <div className="mt-2 rounded-full overflow-hidden" style={{ height: '2px', backgroundColor: 'var(--line)' }}>
@@ -963,6 +969,7 @@ const Transactions: React.FC = () => {
                 <div className="pt-3">
                   <CategoryBoard
                     layout={board}
+                    monthPhrase={monthPhrase}
                     maxPreview={MAX_TX_SHOWN}
                     draggingTxId={draggingTxId}
                     dragOverTarget={dragOverTarget}
@@ -1017,7 +1024,7 @@ const Transactions: React.FC = () => {
                       </svg>
                       <p className="font-semibold" style={{ color: 'var(--pos)' }}>Nothing left to review</p>
                       <p className="text-sm mt-1 max-w-xs mx-auto" style={{ color: 'var(--muted)' }}>
-                        Every imported transaction this month has a category.
+                        Every transaction {monthPhrase} has a category.
                       </p>
                       <button
                         onClick={() => setMobileView('categories')}
@@ -1041,6 +1048,7 @@ const Transactions: React.FC = () => {
                 <div className="app-scrollbar flex-1 overflow-y-auto pt-3 mobile-tabs-spacer md:pb-4">
                   <CategoryBoard
                     layout={board}
+                    monthPhrase={monthPhrase}
                     maxPreview={MAX_TX_SHOWN}
                     draggingTxId={null}
                     dragOverTarget={null}

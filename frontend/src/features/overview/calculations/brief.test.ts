@@ -272,7 +272,7 @@ describe('what landed and what is coming', () => {
       declaredRecurringKeys: new Set(['netflix com']),
     });
 
-    expect(item?.text).toContain('renewed');
+    expect(item?.text).toMatch(/^Paid Netflix/i);
     expect(item?.detail).toBe('$15.99');
   });
 

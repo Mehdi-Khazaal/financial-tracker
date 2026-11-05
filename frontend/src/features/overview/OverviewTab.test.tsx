@@ -156,7 +156,7 @@ describe('OverviewTab — imported transaction review', () => {
   it('compresses to a success state when everything is categorized', () => {
     renderTab({ transactions: [tx('2026-08-01', -20)] });
 
-    expect(screen.getByText('All imported transactions categorized')).toBeInTheDocument();
+    expect(screen.getByText('All transactions categorized')).toBeInTheDocument();
     // The placeholder metadata is gone for good.
     expect(screen.queryByText(/Top none/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Savings 0%/i)).not.toBeInTheDocument();
@@ -176,7 +176,7 @@ describe('OverviewTab — imported transaction review', () => {
 
     expect(screen.getByText('1 transaction needs a category')).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/Review imported transactions\. 1 of 2 transactions in August need a category\./),
+      screen.getByLabelText(/Review uncategorized transactions\. 1 of 2 transactions in August need a category\./),
     ).toBeInTheDocument();
   });
 });
@@ -296,7 +296,7 @@ describe('OverviewTab — morning brief', () => {
   it('leads with unresolved imports and links to the review', () => {
     renderTab({ transactions: [tx('2026-08-01', -20, { category_id: null })] });
 
-    expect(screen.getByText('1 imported transaction still needs a category')).toBeInTheDocument();
+    expect(screen.getByText('1 transaction still needs a category')).toBeInTheDocument();
     expect(screen.getByText('Review')).toHaveAttribute('href', '/transactions?tab=transactions');
   });
 

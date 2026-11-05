@@ -293,14 +293,14 @@ const AccountsPage: React.FC = () => {
                       {showLoanExport && (
                         <>
                           <div className="menu-backdrop fixed inset-0" onClick={() => setShowLoanExport(false)} />
-                          <div className="menu-surface absolute right-0 top-12 min-w-[120px]" role="menu">
+                          <div className="menu-surface absolute right-0 top-12 min-w-[180px]" role="menu">
                             <button onClick={() => exportLoans('csv')}
-                              className="menu-item text-sm font-semibold" style={{ color: 'var(--pos)' }} role="menuitem">
-                              CSV
+                              className="menu-item text-sm font-semibold" style={{ color: 'var(--fg)' }} role="menuitem">
+                              Spreadsheet (CSV)
                             </button>
                             <button onClick={() => exportLoans('pdf')}
-                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--neg)' }} role="menuitem">
-                              PDF
+                              className="menu-item text-sm font-semibold border-t border-line" style={{ color: 'var(--fg)' }} role="menuitem">
+                              Print or save as PDF
                             </button>
                           </div>
                         </>
@@ -438,7 +438,10 @@ const AccountsPage: React.FC = () => {
                                       <p className="text-xs font-medium truncate" style={{ color: 'var(--fg)' }} title={cleanDescription(tx.description)}>
                                         {cleanDescription(tx.description)}
                                       </p>
-                                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>{tx.transaction_date}</p>
+                                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                                        {/* "Nov 3", as on the timeline, not the raw "2026-11-03". */}
+                                        {new Date(`${tx.transaction_date.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </p>
                                     </div>
                                     <p
                                       className="font-mono tabular-nums font-semibold text-xs shrink-0"

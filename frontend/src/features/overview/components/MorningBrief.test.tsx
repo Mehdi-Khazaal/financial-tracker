@@ -84,7 +84,7 @@ describe('SensitiveSentence', () => {
     const { container } = render(
       <p>
         <SensitiveSentence>
-          {'3 imported transactions still need a category'}
+          {'3 transactions still need a category'}
         </SensitiveSentence>
       </p>,
     );

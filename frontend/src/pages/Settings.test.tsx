@@ -124,6 +124,7 @@ vi.mock('../utils/push', () => ({
   subscribeToPush: (...a: unknown[]) => mockPush.subscribeToPush(...a),
   unsubscribeFromPush: (...a: unknown[]) => mockPush.unsubscribeFromPush(...a),
   isPushSupported: () => mockPush.isPushSupported(),
+  isPushConfigured: () => true,
   hasPushSubscription: () => mockPush.hasPushSubscription(),
 }));
 
@@ -762,7 +763,7 @@ describe('Settings categories', () => {
     expect(await screen.findByLabelText('Name')).toHaveValue('Coffee');
     // '#abc' is not a preset, so the sheet says it is keeping the current one
     // rather than silently showing an unselected palette.
-    expect(screen.getByText('Keeping its current colour')).toBeInTheDocument();
+    expect(screen.getByText('Keeping its current color')).toBeInTheDocument();
   });
 
   it('shows a duplicate error when renaming onto another category', async () => {

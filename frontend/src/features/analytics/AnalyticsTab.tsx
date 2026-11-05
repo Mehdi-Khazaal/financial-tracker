@@ -173,7 +173,8 @@ const AnalyticsTab: React.FC<Props> = ({
     const rows: (string | number)[][] = [
       ['Income', dollars(model.metrics.income)],
       ['Expenses', dollars(model.metrics.expenses)],
-      ['Saved', dollars(model.metrics.net)],
+      // Same name as the on-screen tile: this is income minus expenses, not money moved to savings.
+      ['Left over', dollars(model.metrics.net)],
       ['Savings rate', model.metrics.savingsRate != null ? percent(model.metrics.savingsRate) : 'n/a'],
       ['Transactions', String(model.metrics.transactionCount)],
       ['', ''],

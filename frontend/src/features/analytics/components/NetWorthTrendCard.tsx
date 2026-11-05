@@ -14,6 +14,10 @@ interface Props {
 
 const WINDOWS = [6, 12, 24];
 
+/** Green for a gain, red for a loss, muted when the month did not move (to the cent). */
+const changeTone = (change: number): string =>
+  Math.round(change * 100) === 0 ? 'var(--muted)' : change > 0 ? 'var(--pos)' : 'var(--neg)';
+
 /**
  * Net worth over time, with the numbers people actually want off a trend line:
  * where it started, where it ended, the best and worst months, and what moved
@@ -176,7 +180,11 @@ const NetWorthTrendCard: React.FC<Props> = ({ netWorth, window, onWindowChange }
                 </div>
                 <p
                   className="font-mono tabular-nums text-sm font-semibold shrink-0"
-                  style={{ color: item.tone }}
+                  style={{
+                    // A month's change is coloured by its own sign. A fixed red
+                    // painted "Weakest month +$0.00" as a loss when nothing fell.
+                    color: item.useChange ? changeTone(item.point!.change ?? 0) : item.tone,
+                  }}
                 >
                   {item.useChange
                     ? signedDollars(item.point!.change ?? 0)

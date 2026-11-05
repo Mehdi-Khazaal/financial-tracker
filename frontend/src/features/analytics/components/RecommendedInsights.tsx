@@ -19,7 +19,8 @@ const TONE: Record<InsightTone, { color: string; background: string; label: stri
     color: 'var(--muted)',
     background: 'var(--elev-sub)',
     label: 'Worth knowing',
-    icon: 'M10 9v5m0-8.5v.01',
+    // A circled "i": the bare stroke on this low-contrast tile read as a stray mark.
+    icon: 'M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM10 9.5v4M10 6.5v.01',
   },
   warning: {
     color: '#f59e0b',

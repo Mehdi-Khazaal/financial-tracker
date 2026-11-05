@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { isPushSupported } from '../../../utils/push';
+import { isPushConfigured, isPushSupported } from '../../../utils/push';
 import type { UsePushPreference } from '../hooks/usePushPreference';
 import type { UseAutomationPreference } from '../hooks/useAutomationPreference';
 
@@ -239,7 +239,11 @@ const PreferencesSection: React.FC<Props> = ({ push, automation }) => (
 
       {!isPushSupported() ? (
         <p className="text-sm text-muted">
-          This browser does not support push notifications.
+          {/* A missing VAPID key used to read as "this browser does not support
+              push", which sent people looking at the wrong thing. */}
+          {isPushConfigured()
+            ? 'This browser does not support push notifications.'
+            : 'Push notifications are not set up for Fintrack yet, so this device cannot receive them.'}
         </p>
       ) : (
         <>

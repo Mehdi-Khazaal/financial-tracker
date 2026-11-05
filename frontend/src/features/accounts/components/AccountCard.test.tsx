@@ -210,6 +210,23 @@ describe('recent change', () => {
 
     expect(screen.getByText('No change')).toBeInTheDocument();
   });
+
+  // A card's balance is negative while owed, so a falling balance is more debt.
+  it('reports a card whose debt grew as more owed, in red', () => {
+    const card = account({ type: 'credit_card', name: 'Venture Card', balance: -2673.05, credit_limit: 6000 });
+    renderCard(card, [snap('2026-06', 186.63), snap('2026-11', -2673.05)]);
+
+    const change = screen.getByText('$2,859.68 more owed');
+    expect(change).toHaveStyle({ color: 'var(--neg)' });
+  });
+
+  it('reports a card being paid down as less owed, in green', () => {
+    const card = account({ type: 'credit_card', name: 'Venture Card', balance: -500, credit_limit: 6000 });
+    renderCard(card, [snap('2026-06', -1500), snap('2026-11', -500)]);
+
+    const change = screen.getByText('$1,000.00 less owed');
+    expect(change).toHaveStyle({ color: 'var(--pos)' });
+  });
 });
 
 describe('navigation', () => {

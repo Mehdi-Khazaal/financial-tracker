@@ -1076,6 +1076,12 @@ body::after {
     padding-right: 0 !important;
   }
 
+  /* A header that spans the page edge to edge (Transactions) pads itself, so
+     zero right padding pushed its last control, Export, flush to the screen. */
+  .product-page-header.topbar-safe.product-page-header--bleed {
+    padding-right: calc(1rem + var(--safe-right)) !important;
+  }
+
   .product-page-header .product-header-actions {
     flex: 1 0 100%;
     flex-wrap: wrap;

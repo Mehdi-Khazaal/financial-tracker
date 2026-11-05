@@ -34,6 +34,8 @@ interface Props {
     onClick: () => void;
     onDelete: () => void;
   };
+  /** "this month" or "in Oct 2026", matching the month picker. */
+  monthPhrase?: string;
   /** Compact preview rows, used on the desktop board. */
   compact?: boolean;
 }
@@ -41,6 +43,7 @@ interface Props {
 const CategoryBoard: React.FC<Props> = ({
   layout, maxPreview, draggingTxId, dragOverTarget,
   onDragOver, onDragLeave, onDrop, onOpenCategory, makeDragHandlers, compact = true,
+  monthPhrase = 'this month',
 }) => {
   // Collapsed by default: an empty category is a destination, not information.
   // It is still reachable in one click, and still a drop target while dragging.
@@ -167,7 +170,7 @@ const CategoryBoard: React.FC<Props> = ({
             >
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
-            {layout.empty.length} {layout.empty.length === 1 ? 'category' : 'categories'} with nothing this month
+            {layout.empty.length} {layout.empty.length === 1 ? 'category' : 'categories'} with nothing {monthPhrase}
           </button>
 
           {/* Revealed automatically during a drag, so an empty category is never

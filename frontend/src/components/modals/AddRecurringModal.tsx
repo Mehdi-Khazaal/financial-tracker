@@ -4,6 +4,7 @@ import { createRecurring, getAccounts, getCategories } from '../../utils/api';
 import { Account, Category, RecurringPeriod } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { localDateStr } from '../../utils/date';
+import { dollars } from '../../features/analytics/format';
 
 interface Props {
   isOpen: boolean;
@@ -44,8 +45,9 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   }, [isOpen]);
 
   useEffect(() => {
+    // Start on "None" rather than whichever category sorts first ("Education").
     const filtered = categories.filter(c => c.type === type);
-    setCategoryId(filtered.length ? String(filtered[0].id) : '');
+    setCategoryId(current => (filtered.some(c => String(c.id) === current) ? current : ''));
   }, [type, categories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,7 +160,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         <div>
           <p className="label mb-2">Category</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setCategoryId('')}
+            <button type="button" onClick={() => setCategoryId('')} aria-pressed={!categoryId}
               className="pill transition-all"
               style={!categoryId ? { backgroundColor: 'var(--line)', color: 'var(--fg)' } : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
               None
@@ -192,7 +194,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         <button type="submit" disabled={loading || !amount || !accountId}
           className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
           style={{ backgroundColor: accentColor, color: 'var(--ink-on-fill)' }}>
-          {loading ? 'Saving…' : `Create Recurring · $${parseFloat(amount || '0').toFixed(2)}`}
+          {loading ? 'Saving…' : `Create Recurring · ${dollars(parseFloat(amount || '0'))}`}
         </button>
       </form>
     </BottomSheet>

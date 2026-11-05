@@ -95,7 +95,7 @@ export function useRules(): UseRules {
 
   const applyToPast = useCallback(async (rule: CategorizationRule, label: string) => {
     const confirmed = await toast.confirm(
-      `Apply “${label}” to past transactions? Uncategorised and automatically filed matches move; anything you categorised by hand is left alone.`,
+      `Apply “${label}” to past transactions? Uncategorized and automatically filed matches move; anything you categorized by hand is left alone.`,
       { title: 'Apply to past', danger: false },
     );
     if (!confirmed) return null;

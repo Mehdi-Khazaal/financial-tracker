@@ -13,6 +13,7 @@ import RecommendedInsights from './RecommendedInsights';
 import SavingsOverviewCard from './SavingsOverviewCard';
 import AnalyticsMetricGrid from './AnalyticsMetricGrid';
 import PeriodComparisonTable from './PeriodComparisonTable';
+import { DeltaBadge, InfoHint } from './AnalyticsPrimitives';
 
 const TODAY = new Date(2026, 6, 18);
 const PERIOD = resolvePeriod('this-month', { today: TODAY, customMonth: '2026-07' });
@@ -284,11 +285,81 @@ describe('AnalyticsMetricGrid', () => {
         period={PERIOD}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'How Left over is calculated' }));
+    const button = screen.getByRole('button', { name: 'How Left over is calculated' });
+    // A real mouse hovers before it clicks. The click used to toggle the
+    // hover-opened tooltip shut, so clicking "?" showed nothing.
+    fireEvent.mouseEnter(button);
+    fireEvent.click(button);
+    fireEvent.mouseLeave(button);
     // Uses the real minus sign (U+2212), not a hyphen.
     expect(screen.getByRole('tooltip')).toHaveTextContent('Left over = income − expenses');
     // And says plainly that this is not money that moved into a savings account.
     expect(screen.getByRole('tooltip')).toHaveTextContent(/does not mean money moved into a savings account/);
+  });
+});
+
+describe('DeltaBadge', () => {
+  it('shows an unchanged figure as a neutral 0%, not a red +0%', () => {
+    render(<DeltaBadge value={0.001} format="percent" polarity="up-good" />);
+    const badge = screen.getByText('0%');
+    expect(badge).toHaveStyle({ color: 'var(--muted)' });
+  });
+
+  it('still colours a real fall in income as bad', () => {
+    render(<DeltaBadge value={-0.12} format="percent" polarity="up-good" />);
+    expect(screen.getByText('↓ −12%')).toHaveStyle({ color: 'var(--neg)' });
+  });
+});
+
+describe('InfoHint', () => {
+  it('stays open after a hover-then-click and closes on a second click', () => {
+    render(<InfoHint label="What this means" text="An explanation." />);
+    const button = screen.getByRole('button', { name: 'What this means' });
+
+    fireEvent.mouseEnter(button);
+    fireEvent.click(button);
+    fireEvent.mouseLeave(button);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('An explanation.');
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(button);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('previews on hover and hides when the pointer leaves, if not clicked', () => {
+    render(<InfoHint label="What this means" text="An explanation." />);
+    const button = screen.getByRole('button', { name: 'What this means' });
+    fireEvent.mouseEnter(button);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.mouseLeave(button);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('does not follow a link it sits inside', () => {
+    const onLinkClick = vi.fn();
+    render(
+      // The dashboard metric tiles are links with a hint in their label row.
+      <a href="/elsewhere" onClick={onLinkClick}>
+        Tile <InfoHint label="What this means" text="An explanation." />
+      </a>,
+    );
+    const button = screen.getByRole('button', { name: 'What this means' });
+    const notPrevented = fireEvent.click(button);
+    expect(notPrevented).toBe(false);
+    expect(onLinkClick).not.toHaveBeenCalled();
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+  });
+
+  it('closes on Escape and on a click outside', () => {
+    render(<><InfoHint label="What this means" text="An explanation." /><p>Outside</p></>);
+    const button = screen.getByRole('button', { name: 'What this means' });
+    fireEvent.click(button);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+    fireEvent.click(button);
+    fireEvent.mouseDown(screen.getByText('Outside'));
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 });
 

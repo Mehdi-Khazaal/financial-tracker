@@ -19,8 +19,8 @@ const FEATURES: { label: string; title: string; body: string }[] = [
   },
   {
     label: 'Banks',
-    title: 'Connect once, categorise never.',
-    body: 'Link a bank through Plaid and imports arrive already filed, learning from how you categorised that merchant before. Manual entries take under five seconds.',
+    title: 'Connect once, categorize never.',
+    body: 'Link a bank through Plaid and imports arrive already filed, learning from how you categorized that merchant before. Manual entries take under five seconds.',
   },
   {
     label: 'Recurring',

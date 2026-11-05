@@ -69,6 +69,14 @@ export async function hasPushSubscription(): Promise<boolean> {
   return (await registration.pushManager.getSubscription()) !== null;
 }
 
+/**
+ * Whether the build carries a VAPID key. Without one push cannot work in any
+ * browser, and the settings page must say that rather than blame the browser.
+ */
+export function isPushConfigured(): boolean {
+  return !!VAPID_PUBLIC_KEY;
+}
+
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!VAPID_PUBLIC_KEY;
 }

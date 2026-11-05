@@ -64,7 +64,8 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
     .sort((a, b) => b.deltaVsAverage - a.deltaVsAverage)[0];
 
   if (aboveAverage) {
-    const pct = signedPercent(aboveAverage.pctVsAverage ?? 0);
+    // Unsigned: "above average" already gives the direction, and "+244% above" said it twice.
+    const pct = percent(aboveAverage.pctVsAverage ?? 0, 0);
     if (aboveAverage.drivenByOneTransaction && aboveAverage.largestTransaction) {
       // Neutral framing: a single purchase is an event, not a habit.
       candidates.push({
@@ -143,7 +144,7 @@ export function generateDeterministicInsights(ctx: InsightContext): Insight[] {
     candidates.push({
       id: `improved-${improved.id}`,
       title: `${improved.name} came down by ${dollars(Math.abs(improved.deltaVsAverage))}`,
-      body: `Spending there was ${percent(Math.abs(improved.pctVsAverage ?? 0), 0)} below your ${plural(improved.baselineMonths, 'month')} average. If that holds, it is worth about ${dollars(Math.abs(improved.deltaVsAverage) * 12)} a year.`,
+      body: `Spending there was ${percent(Math.abs(improved.pctVsAverage ?? 0), 0)} below your ${improved.baselineMonths}-month average. If that holds, it is worth about ${dollars(Math.abs(improved.deltaVsAverage) * 12)} a year.`,
       tone: 'positive',
       score: 60,
       action: { label: `View ${improved.name}`, categoryId: improved.id },

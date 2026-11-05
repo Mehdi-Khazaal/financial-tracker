@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MINUS, percentagePoints, signedDollars, signedPercent } from '../format';
 
 /**
@@ -70,7 +71,8 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
               </svg>
             </button>
           ) : heading}
-          {hint && <InfoHint label={`How ${title} is calculated`} text={hint} />}
+          {/* Section titles are phrases ("What was left this month"), so "How … is calculated" read badly. */}
+          {hint && <InfoHint label={`About "${title}"`} text={hint} />}
         </div>
         {description && (toggle ? toggle.open : true) && (
           <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
@@ -91,41 +93,134 @@ interface InfoHintProps {
   text: string;
 }
 
+/** Gap between the tooltip and the viewport edge, and between it and the button. */
+const HINT_EDGE = 12;
+const HINT_GAP = 8;
+
 /**
- * A real button, not a hover-only div: it opens on click and on focus, so the
- * explanation is reachable by keyboard and on touch. Escape and outside clicks
- * dismiss it.
+ * A real button, not a hover-only div: hover and keyboard focus preview the
+ * explanation, and a click (or tap) pins it open until a second click, an
+ * outside click or Escape.
+ *
+ * The click must pin rather than toggle. A mouse fires `mouseenter` before
+ * `click`, and a touch screen emulates the same pair on tap, so a toggle saw
+ * the hover open the tooltip and the click immediately close it — clicking a
+ * "?" showed nothing.
+ *
+ * The tooltip is portalled to `<body>` with fixed coordinates clamped to the
+ * viewport. Rendered in place it was clipped by cards with `overflow: hidden`,
+ * ran off-screen when the "?" sat near an edge on a phone, and `.stagger-in`
+ * transforms would have broken `position: fixed` inside the page.
  */
 export const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const id = useId().replace(/:/g, '');
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setPinned(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target) || tipRef.current?.contains(target)) return;
+      close();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
+  }, [open, close]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+    const place = () => {
+      const button = buttonRef.current;
+      const tip = tipRef.current;
+      if (!button || !tip) return;
+      const anchor = button.getBoundingClientRect();
+      const width = tip.offsetWidth;
+      const height = tip.offsetHeight;
+      const maxLeft = window.innerWidth - width - HINT_EDGE;
+      const left = Math.max(HINT_EDGE, Math.min(anchor.left + anchor.width / 2 - width / 2, maxLeft));
+      const below = anchor.bottom + HINT_GAP;
+      const above = anchor.top - HINT_GAP - height;
+      // Prefer below; flip above only when below would run off the screen and above fits.
+      const top = below + height > window.innerHeight - HINT_EDGE && above >= HINT_EDGE ? above : below;
+      setPosition({ top, left });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
   }, [open]);
+
+  const tooltip = open ? (
+    <span
+      ref={tipRef}
+      // Portalled, but React still bubbles its events through the tree; keep a
+      // click on the explanation from reaching a surrounding link.
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      id={`hint-${id}`}
+      role="tooltip"
+      className="menu-surface fixed p-3 text-xs font-normal normal-case tracking-normal"
+      style={{
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        // Measured before it is placed, so it never flashes at the corner.
+        visibility: position ? 'visible' : 'hidden',
+        width: 'min(260px, calc(100vw - 24px))',
+        color: 'var(--muted)',
+        lineHeight: 1.55,
+        textAlign: 'left',
+        whiteSpace: 'normal',
+        zIndex: 'var(--z-toast)' as React.CSSProperties['zIndex'],
+      }}
+    >
+      {text}
+    </span>
+  ) : null;
 
   return (
     <span ref={wrapRef} className="relative inline-flex shrink-0">
       <button
+        ref={buttonRef}
         type="button"
         aria-label={label}
         aria-expanded={open}
         aria-describedby={open ? `hint-${id}` : undefined}
-        onClick={() => setOpen(v => !v)}
+        onClick={(e) => {
+          // The hint often sits inside a tile that is a link (the dashboard
+          // metrics) or a clickable heading. The click is for the hint: without
+          // both calls, clicking "?" navigated to the tile's page instead.
+          e.preventDefault();
+          e.stopPropagation();
+          if (pinned) close();
+          else {
+            setPinned(true);
+            setOpen(true);
+          }
+        }}
         onFocus={() => setOpen(true)}
+        onBlur={() => { if (!pinned) setOpen(false); }}
         onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        onMouseLeave={() => { if (!pinned) setOpen(false); }}
         // A 24 px target (WCAG 2.5.8) around the same 16 px circle.
         className="inline-flex items-center justify-center rounded-full -m-1"
         style={{ width: 24, height: 24 }}
@@ -143,22 +238,7 @@ export const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
           ?
         </span>
       </button>
-      {open && (
-        <span
-          id={`hint-${id}`}
-          role="tooltip"
-          className="menu-surface absolute left-1/2 top-full mt-2 p-3 text-xs font-normal normal-case tracking-normal"
-          style={{
-            width: 'min(260px, calc(100vw - 3rem))',
-            transform: 'translateX(-50%)',
-            color: 'var(--muted)',
-            lineHeight: 1.55,
-            zIndex: 'var(--z-toast)' as React.CSSProperties['zIndex'],
-          }}
-        >
-          {text}
-        </span>
-      )}
+      {tooltip && createPortal(tooltip, document.body)}
     </span>
   );
 };
@@ -186,18 +266,28 @@ interface DeltaBadgeProps {
 export const DeltaBadge: React.FC<DeltaBadgeProps> = ({
   value, format = 'dollars', polarity = 'down-good', suffix, size = 'sm',
 }) => {
-  const good = polarity === 'neutral' ? null : polarity === 'up-good' ? value > 0 : value < 0;
+  // Compare at the precision that is displayed. Unchanged income used to show
+  // a red "+0%", reading as bad news when nothing moved.
+  const shown = format === 'percent'
+    ? Math.round(value * 100)
+    : format === 'points'
+      ? Math.round(value * 1000)
+      : Math.round(value * 100);
+  const flat = shown === 0;
+  const good = polarity === 'neutral' || flat ? null : polarity === 'up-good' ? value > 0 : value < 0;
   const color = good === null ? 'var(--muted)' : good ? 'var(--pos)' : 'var(--neg)';
   const background = good === null
     ? 'var(--elev-sub)'
     : good ? 'var(--pos-dim)' : 'var(--neg-dim)';
-  const text = format === 'percent'
-    ? signedPercent(value)
-    : format === 'points'
-      ? percentagePoints(value)
-      : signedDollars(value);
+  const text = flat
+    ? format === 'percent' ? '0%' : format === 'points' ? '0.0 pp' : '$0.00'
+    : format === 'percent'
+      ? signedPercent(value)
+      : format === 'points'
+        ? percentagePoints(value)
+        : signedDollars(value);
   // The arrow gives direction without relying on colour alone.
-  const arrow = value === 0 ? '' : value > 0 ? '↑ ' : '↓ ';
+  const arrow = flat ? '' : value > 0 ? '↑ ' : '↓ ';
 
   return (
     <span

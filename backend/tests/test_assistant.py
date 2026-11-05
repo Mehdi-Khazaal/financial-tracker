@@ -30,6 +30,28 @@ def test_category_visual_block_uses_tool_totals_and_scope():
     assert block["rows"][0]["share"] == 0.75
 
 
+def test_overview_block_shows_loans_so_the_figures_add_up():
+    """Estimated net worth counts money lent out; the grid must show that term."""
+    overview = {
+        "liquid_balance": 1000.0,
+        "credit_card_balance": -200.0,
+        "assets_total": 500.0,
+        "loans_owed_to_you": 50.0,
+        "estimated_net_worth": 1350.0,
+    }
+    block = assistant._visual_block_for_tool("get_overview", {}, overview, as_of=date(2026, 7, 14))
+    values = {metric["label"]: metric["value"] for metric in block["metrics"]}
+
+    assert values["Owed to you"] == 50.0
+    shown_terms = sum(value for label, value in values.items() if label != "Estimated net worth")
+    assert shown_terms == values["Estimated net worth"]
+
+    no_loans = assistant._visual_block_for_tool(
+        "get_overview", {}, {**overview, "loans_owed_to_you": 0}, as_of=date(2026, 7, 14)
+    )
+    assert "Owed to you" not in [metric["label"] for metric in no_loans["metrics"]]
+
+
 def test_briefing_is_authenticated_and_ledger_backed(
     client, db_session, user, account, category, auth_headers
 ):

@@ -250,7 +250,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
           <div>
             <p className="label mb-2">Category</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setCategoryId('')}
+              <button type="button" onClick={() => setCategoryId('')} aria-pressed={!categoryId}
                 className="pill transition-all"
                 style={!categoryId ? { backgroundColor: 'var(--line)', color: 'var(--fg)' } : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 None
