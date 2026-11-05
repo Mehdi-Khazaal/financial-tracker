@@ -461,10 +461,15 @@ body {
     border-radius: var(--radius-md);
   }
 
+  /* A cell inside a panel. No box-in-a-box: just a hairline above, flush
+     with the panel's text. */
   .ledger-cell {
-    background: var(--elev-sub);
+    background: transparent;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   .review-meter {
@@ -805,6 +810,8 @@ body {
     .metric-strip > *:first-child { border-left: 0; padding-left: 0; }
   }
   .metric-label { font-size: 13px; color: var(--muted); }
+  /* Six figures in one row need a smaller number. */
+  .metric-strip--dense .metric-value { font-size: 1.25rem; }
   .metric-value { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; color: var(--fg); font-variant-numeric: tabular-nums; }
   .metric-note { margin-top: 4px; font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   a.metric-tile { transition: background-color 120ms ease; }

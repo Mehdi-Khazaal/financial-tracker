@@ -38,7 +38,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   const Heading = as;
 
   const heading = (
-    <Heading id={id} className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
+    <Heading id={id} className="section-title">
       {title}
     </Heading>
   );
@@ -46,7 +46,9 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   return (
     <div className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${toggle && !toggle.open ? '' : 'mb-4'}`}>
       <div className="min-w-0 flex-1">
-        <p className="label mb-1">{eyebrow}</p>
+        {/* The eyebrow is kept for screen readers and as a findable section
+            name, but no longer printed above every title. */}
+        <p className="sr-only">{eyebrow}</p>
         <div className="flex items-center gap-1.5 min-w-0">
           {toggle ? (
             <button
@@ -75,7 +77,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
           {hint && <InfoHint label={`About "${title}"`} text={hint} />}
         </div>
         {description && (toggle ? toggle.open : true) && (
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
+          <p className="text-[13px] mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
         )}
         {toggle && !toggle.open && collapsedSummary && (
           <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{collapsedSummary}</p>
@@ -276,9 +278,6 @@ export const DeltaBadge: React.FC<DeltaBadgeProps> = ({
   const flat = shown === 0;
   const good = polarity === 'neutral' || flat ? null : polarity === 'up-good' ? value > 0 : value < 0;
   const color = good === null ? 'var(--muted)' : good ? 'var(--pos)' : 'var(--neg)';
-  const background = good === null
-    ? 'var(--elev-sub)'
-    : good ? 'var(--pos-dim)' : 'var(--neg-dim)';
   const text = flat
     ? format === 'percent' ? '0%' : format === 'points' ? '0.0 pp' : '$0.00'
     : format === 'percent'
@@ -291,12 +290,10 @@ export const DeltaBadge: React.FC<DeltaBadgeProps> = ({
 
   return (
     <span
-      className="inline-flex items-center rounded-full font-mono tabular-nums font-semibold whitespace-nowrap"
+      className="inline-flex items-center font-mono tabular-nums font-semibold whitespace-nowrap"
       style={{
         color,
-        backgroundColor: background,
-        fontSize: size === 'md' ? 11 : 10,
-        padding: size === 'md' ? '3px 9px' : '2px 7px',
+        fontSize: size === 'md' ? 13 : 12,
       }}
     >
       {arrow}{text}{suffix ? ` ${suffix}` : ''}

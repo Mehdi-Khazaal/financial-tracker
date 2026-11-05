@@ -86,8 +86,9 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       key: 'expenses',
       label: 'Expenses',
       value: dollars(metrics.expenses),
-      color: 'var(--neg)',
-      accent: 'var(--neg)',
+      // Spending is shown in plain ink: it is not a verdict.
+      color: 'var(--fg)',
+      accent: 'var(--fg)',
       hint: metrics.refunds > 0
         ? `Money spent, with ${dollars(metrics.refunds)} of refunds already subtracted from the categories they came back to.`
         : 'Money spent. Refunds are subtracted from the category they came back to rather than counted as income.',
@@ -162,26 +163,15 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
   const desktopColumns = tiles.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5';
 
   return (
-    <div className={`grid grid-cols-2 md:grid-cols-3 ${desktopColumns} gap-2.5 md:gap-3`}>
+    <div className={`metric-strip metric-strip--dense grid grid-cols-2 ${desktopColumns}`}
+      style={{ borderTop: '1px solid var(--line)' }}>
       {tiles.map(tile => (
-        <div
-          key={tile.key}
-          className="rounded-xl p-3.5 md:p-4 flex flex-col"
-          style={{
-            backgroundColor: 'var(--elev-1)',
-            border: '1px solid var(--line)',
-            borderTop: `2px solid ${tile.accent}`,
-            boxShadow: 'var(--edge-light)',
-          }}
-        >
-          <div className="flex items-center gap-1 mb-2">
-            <p className="label">{tile.label}</p>
+        <div key={tile.key} className="metric-tile min-w-0 flex flex-col">
+          <div className="flex items-center gap-1 mb-1">
+            <p className="metric-label truncate">{tile.label}</p>
             <InfoHint label={`How ${tile.label} is calculated`} text={tile.hint} />
           </div>
-          <p
-            className="font-mono font-bold text-sm md:text-base leading-none mb-2"
-            style={{ color: tile.color, fontVariantNumeric: 'tabular-nums' }}
-          >
+          <p className="metric-value mb-1.5" style={{ color: tile.color }}>
             {tile.value}
           </p>
           <div className="mt-auto flex flex-col gap-1 items-start">

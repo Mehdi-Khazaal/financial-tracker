@@ -162,7 +162,8 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
                       className="hidden sm:block absolute left-0 right-0 text-center font-mono tabular-nums text-[11px] font-semibold whitespace-nowrap"
                       style={{
                         bottom: `calc(${bar.bottomPct + Math.max(bar.heightPct, 0.6)}% + 4px)`,
-                        color: bar.color,
+                        // Bar colours can be light greys; labels stay in readable ink.
+                        color: 'var(--fg)',
                       }}
                     >
                       {bar.kind === 'cost' ? '−' : ''}{dollars(bar.magnitude, 0)}
@@ -204,8 +205,8 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
                     iconSize={8}
                     wrapperStyle={{ fontSize: 11, color: 'var(--muted)' }}
                   />
-                  <Bar dataKey="Income" fill="var(--pos)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Expenses" fill="var(--neg)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Income" fill="var(--pos)" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="Expenses" fill="var(--fg)" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -227,7 +228,7 @@ const CashFlowCard: React.FC<Props> = ({ cashFlow, period }) => {
                     <Amount
                       value={step.kind === 'cost' ? -Math.abs(step.value) : step.value}
                       className="text-sm font-semibold"
-                      color={step.color}
+                      color="var(--fg)"
                     />
                   </dd>
                 </div>

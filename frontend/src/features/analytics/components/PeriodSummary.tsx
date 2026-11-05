@@ -28,7 +28,7 @@ const PeriodSummary: React.FC<Props> = ({ summary }) => {
     >
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
         <div className="min-w-0">
-          <p className="label mb-1.5">Your period at a glance</p>
+          <p className="sr-only">Your period at a glance</p>
           <h2
             id="analytics-summary-heading"
             className="text-lg md:text-xl font-semibold leading-snug"

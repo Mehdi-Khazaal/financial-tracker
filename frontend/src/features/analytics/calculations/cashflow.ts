@@ -81,7 +81,7 @@ export function buildCashFlow(options: {
     value: metrics.income,
     base: 0,
     kind: 'income',
-    color: 'var(--pos)',
+    color: 'var(--fg)',
     hint: 'Money received, excluding transfers between your own accounts and credit-card payments.',
   });
 
@@ -94,7 +94,7 @@ export function buildCashFlow(options: {
       value: -fixed,
       base: cursor,
       kind: 'cost',
-      color: 'var(--warn)',
+      color: 'color-mix(in oklab, var(--fg) 45%, var(--bg))',
       hint: 'Spending matched to a bill or subscription you have set up as recurring.',
     });
     cursor -= variable;
@@ -104,7 +104,7 @@ export function buildCashFlow(options: {
       value: -variable,
       base: cursor,
       kind: 'cost',
-      color: 'var(--neg)',
+      color: 'color-mix(in oklab, var(--fg) 25%, var(--bg))',
       hint: 'Spending that is not matched to a recurring bill.',
     });
   } else {
@@ -115,7 +115,7 @@ export function buildCashFlow(options: {
       value: -metrics.expenses,
       base: cursor,
       kind: 'cost',
-      color: 'var(--neg)',
+      color: 'color-mix(in oklab, var(--fg) 25%, var(--bg))',
       hint: 'All spending in the period, with refunds already subtracted.',
     });
   }

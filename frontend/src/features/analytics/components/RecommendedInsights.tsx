@@ -11,26 +11,26 @@ interface Props {
 const TONE: Record<InsightTone, { color: string; background: string; label: string; icon: string }> = {
   positive: {
     color: 'var(--pos)',
-    background: 'var(--pos-dim)',
+    background: 'transparent',
     label: 'Going well',
     icon: 'M5 10.5l3.5 3.5 7-7',
   },
   info: {
     color: 'var(--muted)',
-    background: 'var(--elev-sub)',
+    background: 'transparent',
     label: 'Worth knowing',
     // A circled "i": the bare stroke on this low-contrast tile read as a stray mark.
     icon: 'M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM10 9.5v4M10 6.5v.01',
   },
   warning: {
     color: 'var(--warn)',
-    background: 'color-mix(in oklab, var(--warn) 12%, transparent)',
+    background: 'transparent',
     label: 'Keep an eye on',
     icon: 'M10 6.5v4.5m0 3v.01M10 2.5l7.5 13h-15l7.5-13z',
   },
   action: {
     color: 'var(--accent)',
-    background: 'color-mix(in oklab, var(--accent) 12%, transparent)',
+    background: 'transparent',
     label: 'To review',
     icon: 'M4 10h12m-5-5l5 5-5 5',
   },

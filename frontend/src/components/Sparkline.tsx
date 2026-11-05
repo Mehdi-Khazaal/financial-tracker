@@ -58,7 +58,7 @@ const Sparkline: React.FC<Props> = ({ data, width = 480, height = 72, color = 'v
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill={`url(#sg-${uid})`}
+      <path d={areaPath} fill="none"
         style={drawIn ? { animation: 'sparkFill 700ms ease 350ms both' } : undefined} />
       <path d={linePath} fill="none" stroke={color} strokeWidth={2}
         strokeLinecap="round" vectorEffect="non-scaling-stroke"
