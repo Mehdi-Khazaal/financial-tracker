@@ -48,7 +48,7 @@ const SuggestionList: React.FC<Props> = ({
           const group = chosenGroups[s.identity] ?? s.group_key;
           const busy = busyIdentity === s.identity;
           return (
-            <li key={s.identity} className="card p-4" style={{ borderColor: s.confidence === 'high' ? 'rgba(249,115,22,0.28)' : undefined }}>
+            <li key={s.identity} className="card p-4" style={{ borderColor: s.confidence === 'high' ? 'color-mix(in oklab, var(--accent) 28%, transparent)' : undefined }}>
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">

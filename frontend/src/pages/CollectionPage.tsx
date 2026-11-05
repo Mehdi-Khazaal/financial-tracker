@@ -248,8 +248,8 @@ const CollectionPage: React.FC = () => {
           {collection.start_date && !collection.is_archived && (
             <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
               style={{
-                backgroundColor: collection.suggestion_count > 0 ? 'oklch(72% 0.17 55 / 0.1)' : 'var(--elev-1)',
-                border: `1px solid ${collection.suggestion_count > 0 ? 'oklch(72% 0.17 55 / 0.25)' : 'var(--line)'}`,
+                backgroundColor: collection.suggestion_count > 0 ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'var(--elev-1)',
+                border: `1px solid ${collection.suggestion_count > 0 ? 'color-mix(in oklab, var(--accent) 25%, transparent)' : 'var(--line)'}`,
               }}>
               <p className="text-sm min-w-0" style={{ color: 'var(--fg)' }}>
                 {collection.suggestion_count > 0

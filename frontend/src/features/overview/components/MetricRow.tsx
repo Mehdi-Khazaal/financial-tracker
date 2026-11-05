@@ -126,7 +126,7 @@ const MetricRow: React.FC<Props> = ({
         hint="Current value of your holdings. Net worth counts account balances only, so buying an asset lowers it by the price paid — the figure below adds both together. Live prices are fetched on the Portfolio page."
         to="/portfolio"
       >
-        <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: '#a855f7' }}>
+        <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--cat-4)' }}>
           {dollars(investments)}
         </p>
         <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>

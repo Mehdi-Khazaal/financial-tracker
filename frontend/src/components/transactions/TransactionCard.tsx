@@ -133,7 +133,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
           : {
             borderBottom: '1px solid var(--line)',
             opacity: isDragging ? 0.25 : 1,
-            backgroundColor: selectable && selected ? 'oklch(72% 0.17 55 / 0.08)' : undefined,
+            backgroundColor: selectable && selected ? 'color-mix(in oklab, var(--accent) 8%, transparent)' : undefined,
           }
       }
     >
@@ -164,7 +164,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
       {mobileCard && (
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-          style={{ backgroundColor: pos ? 'oklch(78% 0.16 150 / 0.12)' : 'oklch(70% 0.17 25 / 0.1)' }}
+          style={{ backgroundColor: pos ? 'color-mix(in oklab, var(--pos) 12%, transparent)' : 'color-mix(in oklab, var(--neg) 10%, transparent)' }}
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
             {pos ? (

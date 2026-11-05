@@ -60,7 +60,7 @@ const STATUS_LABELS: Record<LoanState, string> = {
 };
 
 const STATUS_COLORS: Record<LoanState, string> = {
-  active: '#f59e0b',
+  active: 'var(--warn)',
   repaid: 'var(--pos)',
   // Not red: writing a loan off is a decision the user made, not a failure.
   'written-off': 'var(--muted)',

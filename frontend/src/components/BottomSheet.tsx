@@ -137,7 +137,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children, size =
     <div className="sheet-root">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-black/70"
+        className="absolute inset-0 bg-black/40"
         style={{ animation: 'fadeOut 200ms ease reverse both' }}
         onClick={onClose}
         aria-hidden="true"
@@ -152,7 +152,7 @@ const BottomSheet: React.FC<Props> = ({ isOpen, onClose, title, children, size =
         tabIndex={-1}
         className={`bottom-sheet-panel sheet-panel--${size} slide-up outline-none`}
         style={{
-          background: 'linear-gradient(180deg, #1b1b1e, #101012)',
+          background: 'linear-gradient(180deg, var(--elev-1), var(--elev-1))',
           border: '1px solid var(--line-strong)',
           boxShadow: 'var(--edge-light), var(--shadow-modal)',
         }}

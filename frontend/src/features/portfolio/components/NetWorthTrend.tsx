@@ -130,7 +130,7 @@ const NetWorthTrend: React.FC<Props> = ({ snapshots, wealth }) => {
               role="img"
               aria-label={range.summary}
             >
-              <Sparkline data={range.points.map(p => p.value)} height={96} color="#F97316" />
+              <Sparkline data={range.points.map(p => p.value)} height={96} color="var(--accent)" />
             </figure>
 
             <div

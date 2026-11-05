@@ -17,8 +17,8 @@ interface Props {
 const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const TYPE_COLORS: Record<string, string> = {
-  checking: 'var(--accent)', savings: 'var(--pos)', cash: '#f59e0b',
-  investment: '#a855f7', credit_card: 'var(--neg)',
+  checking: 'var(--accent)', savings: 'var(--pos)', cash: 'var(--warn)',
+  investment: 'var(--cat-4)', credit_card: 'var(--neg)',
 };
 
 const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal, allGoals, accounts }) => {
@@ -155,7 +155,7 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
               const color = TYPE_COLORS[account.type] ?? 'var(--accent)';
 
               return (
-                <div key={account.id} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: `1px solid ${isOver ? 'oklch(70% 0.17 25 / 0.4)' : 'var(--line)'}` }}>
+                <div key={account.id} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--elev-1)', border: `1px solid ${isOver ? 'color-mix(in oklab, var(--neg) 40%, transparent)' : 'var(--line)'}` }}>
                   {/* Account header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -196,7 +196,7 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
                         onChange={e => handleChange(account.id, e.target.value)}
                         className="input-dark pl-7 text-sm py-2"
                         placeholder="0.00"
-                        style={isOver ? { borderColor: 'oklch(70% 0.17 25 / 0.5)' } : {}}
+                        style={isOver ? { borderColor: 'color-mix(in oklab, var(--neg) 50%, transparent)' } : {}}
                       />
                     </div>
                     {available > 0 && (
@@ -213,7 +213,7 @@ const ManageAllocationsModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, g
                         type="button"
                         onClick={() => handleClear(account.id)}
                         className="px-3 py-2 text-xs font-semibold rounded-xl transition-all"
-                        style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)' }}>
+                        style={{ backgroundColor: 'color-mix(in oklab, var(--neg) 10%, transparent)', color: 'var(--neg)' }}>
                         Clear
                       </button>
                     )}

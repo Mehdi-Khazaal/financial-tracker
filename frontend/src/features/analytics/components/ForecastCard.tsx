@@ -68,8 +68,8 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
           <span
             className="font-mono text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap"
             style={{
-              color: forecast.confidence === 'low' ? '#f59e0b' : 'var(--muted)',
-              backgroundColor: forecast.confidence === 'low' ? 'rgba(245,158,11,0.12)' : 'var(--elev-sub)',
+              color: forecast.confidence === 'low' ? 'var(--warn)' : 'var(--muted)',
+              backgroundColor: forecast.confidence === 'low' ? 'color-mix(in oklab, var(--warn) 12%, transparent)' : 'var(--elev-sub)',
             }}
             title={CONFIDENCE_COPY[forecast.confidence]}
           >
@@ -141,7 +141,7 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
                   </span>
                   <span
                     className="font-mono text-[10px] px-2 py-0.5 rounded-full shrink-0"
-                    style={{ color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)' }}
+                    style={{ color: 'var(--warn)', backgroundColor: 'color-mix(in oklab, var(--warn) 12%, transparent)' }}
                   >
                     +{(risk.pct * 100).toFixed(0)}%
                   </span>

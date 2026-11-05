@@ -84,7 +84,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
             <button key={t} type="button" onClick={() => setType(t)}
               className="flex-1 py-2 text-sm font-semibold rounded-lg transition-all"
               style={type === t
-                ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
+                ? { backgroundColor: t === 'expense' ? 'color-mix(in oklab, var(--neg) 15%, transparent)' : 'color-mix(in oklab, var(--pos) 15%, transparent)',
                     color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
                 : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
               {t === 'expense' ? <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Expense</> : <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Income</>}
@@ -114,11 +114,11 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           onClick={() => setIsVariable(v => !v)}
           className="flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all"
           style={{
-            backgroundColor: isVariable ? 'rgba(245,158,11,.08)' : 'var(--elev-1)',
-            border: `1px solid ${isVariable ? 'rgba(245,158,11,.3)' : 'var(--line)'}`,
+            backgroundColor: isVariable ? 'color-mix(in oklab, var(--warn) 8%, transparent)' : 'var(--elev-1)',
+            border: `1px solid ${isVariable ? 'color-mix(in oklab, var(--warn) 30%, transparent)' : 'var(--line)'}`,
           }}>
           <div className="text-left">
-            <p className="text-sm font-semibold" style={{ color: isVariable ? '#f59e0b' : 'var(--fg)' }}>
+            <p className="text-sm font-semibold" style={{ color: isVariable ? 'var(--warn)' : 'var(--fg)' }}>
               Variable amount
             </p>
             <p className="text-xs text-muted mt-0.5">
@@ -126,7 +126,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
             </p>
           </div>
           <div className="w-10 h-6 rounded-full transition-all relative ml-3 shrink-0"
-            style={{ backgroundColor: isVariable ? '#f59e0b' : 'var(--line)' }}>
+            style={{ backgroundColor: isVariable ? 'var(--warn)' : 'var(--line)' }}>
             <div className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
               style={{ left: isVariable ? '22px' : '4px' }} />
           </div>
@@ -140,7 +140,7 @@ const AddRecurringModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <button key={p.value} type="button" onClick={() => setPeriod(p.value)}
                 className="pill transition-all"
                 style={period === p.value
-                  ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                  ? { backgroundColor: 'color-mix(in oklab, var(--accent) 15%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)' }
                   : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 {p.label}
               </button>

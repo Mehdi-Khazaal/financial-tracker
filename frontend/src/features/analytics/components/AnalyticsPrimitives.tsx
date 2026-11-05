@@ -315,8 +315,8 @@ export const ConfidenceChip: React.FC<{ months: number }> = ({ months }) => {
       style={{
         fontSize: 9,
         padding: '2px 6px',
-        color: weak ? '#f59e0b' : 'var(--dim)',
-        backgroundColor: weak ? 'rgba(245,158,11,0.12)' : 'var(--elev-sub)',
+        color: weak ? 'var(--warn)' : 'var(--dim)',
+        backgroundColor: weak ? 'color-mix(in oklab, var(--warn) 12%, transparent)' : 'var(--elev-sub)',
       }}
       title={weak
         ? `Average based on only ${months} month${months === 1 ? '' : 's'} — treat as a rough guide`
@@ -393,7 +393,7 @@ export const chartTooltipProps = {
     color: 'var(--fg)',
     boxShadow: 'var(--shadow-modal)',
   },
-  cursor: { fill: 'oklch(72% 0.17 55 / 0.06)' },
+  cursor: { fill: 'color-mix(in oklab, var(--accent) 6%, transparent)' },
   wrapperStyle: { zIndex: 80, pointerEvents: 'none' as const, outline: 'none' },
   allowEscapeViewBox: { x: false, y: true },
 };

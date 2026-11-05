@@ -116,7 +116,7 @@ const OverviewHero: React.FC<Props> = ({
 
           {sparkValues.length > 1 && (
             <figure className="blurrable mt-5 -mx-1 mb-0" style={{ height: 52 }} role="img" aria-label={chartSummary}>
-              <Sparkline data={sparkValues} height={52} color="#F97316" />
+              <Sparkline data={sparkValues} height={52} color="var(--accent)" />
             </figure>
           )}
 

@@ -77,7 +77,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
         {noCash || noBank ? (
           <div className="py-8 text-center space-y-2">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)' }}>
+              style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 10%, transparent)' }}>
               <svg viewBox="0 0 20 20" fill="var(--pos)" className="w-6 h-6">
                 <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
               </svg>

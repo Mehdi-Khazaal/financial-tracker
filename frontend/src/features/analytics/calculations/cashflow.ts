@@ -94,7 +94,7 @@ export function buildCashFlow(options: {
       value: -fixed,
       base: cursor,
       kind: 'cost',
-      color: '#f59e0b',
+      color: 'var(--warn)',
       hint: 'Spending matched to a bill or subscription you have set up as recurring.',
     });
     cursor -= variable;

@@ -200,7 +200,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
         badge={(
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-            style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}
+            style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 12%, transparent)', color: 'var(--pos)' }}
           >
             PLAID
           </span>
@@ -215,7 +215,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
             disabled={busy}
             aria-busy={sync.busy}
             className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-            style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.1)', color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.2)' }}
+            style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 10%, transparent)', color: 'var(--pos)', border: '1px solid color-mix(in oklab, var(--pos) 20%, transparent)' }}
           >
             {BUTTON_LABEL[sync.phase] ?? 'Sync all now'}
           </button>
@@ -341,7 +341,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
       {hasItems && (
         <div
           className="mt-6 pt-4"
-          style={{ borderTop: '1px solid oklch(70% 0.17 25 / 0.25)' }}
+          style={{ borderTop: '1px solid color-mix(in oklab, var(--neg) 25%, transparent)' }}
           role="group"
           aria-labelledby="settings-danger-zone"
         >
@@ -393,7 +393,7 @@ const ConnectionsSection: React.FC<Props> = ({ connections }) => {
             disabled={connections.resetting}
             aria-busy={connections.resetting}
             className="min-h-[44px] px-3 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-            style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
+            style={{ backgroundColor: 'color-mix(in oklab, var(--neg) 8%, transparent)', color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 20%, transparent)' }}
           >
             {connections.resetting ? 'Clearing…' : 'Reset & Start Fresh'}
           </button>

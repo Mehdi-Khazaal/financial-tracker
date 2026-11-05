@@ -256,7 +256,7 @@ const CategorizeSheet: React.FC<Props> = ({
             <button
               onClick={() => onDelete(current)}
               className="flex-1 py-3 text-sm font-semibold rounded-xl transition-all active:scale-95"
-              style={{ color: 'var(--neg)', backgroundColor: 'oklch(70% 0.17 25 / 0.1)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}
+              style={{ color: 'var(--neg)', backgroundColor: 'color-mix(in oklab, var(--neg) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--neg) 20%, transparent)' }}
             >
               Delete
             </button>

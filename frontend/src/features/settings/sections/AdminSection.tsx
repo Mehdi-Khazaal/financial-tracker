@@ -84,7 +84,7 @@ const AdminSection: React.FC<Props> = ({ admin, usage }) => (
         badge={(
           <span
             className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
-            style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}
+            style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--accent)' }}
           >
             ADMIN
           </span>
@@ -124,7 +124,7 @@ const AdminSection: React.FC<Props> = ({ admin, usage }) => (
                     onClick={() => { void admin.requestReset(user); }}
                     disabled={admin.resettingId === user.id}
                     className="min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
-                    style={{ backgroundColor: 'rgba(245,158,11,.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.2)' }}
+                    style={{ backgroundColor: 'color-mix(in oklab, var(--warn) 10%, transparent)', color: 'var(--warn)', border: '1px solid color-mix(in oklab, var(--warn) 20%, transparent)' }}
                   >
                     {admin.resettingId === user.id ? '…' : 'Reset PW'}
                   </button>
@@ -139,7 +139,7 @@ const AdminSection: React.FC<Props> = ({ admin, usage }) => (
                     {user.is_admin && (
                       <span
                         className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                        style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }}
+                        style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--accent)' }}
                       >
                         admin
                       </span>
@@ -147,7 +147,7 @@ const AdminSection: React.FC<Props> = ({ admin, usage }) => (
                     {user.is_verified && (
                       <span
                         className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0"
-                        style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}
+                        style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 12%, transparent)', color: 'var(--pos)' }}
                       >
                         verified
                       </span>

@@ -46,7 +46,7 @@ const AddLoanModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="New Loan">
       <form onSubmit={handleSubmit} className="px-5 pb-6 space-y-4">
-        <div className="h-0.5 w-12 rounded-full mb-1 mx-auto" style={{ backgroundColor: '#f59e0b' }} />
+        <div className="h-0.5 w-12 rounded-full mb-1 mx-auto" style={{ backgroundColor: 'var(--warn)' }} />
 
         {/* Borrower */}
         <div>
@@ -109,7 +109,7 @@ const AddLoanModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           type="submit"
           disabled={loading || !borrowerName.trim() || !amount}
           className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-          style={{ backgroundColor: '#f59e0b', color: 'var(--ink-on-fill)' }}>
+          style={{ backgroundColor: 'var(--warn)', color: 'var(--ink-on-fill)' }}>
           {loading ? 'Saving…' : `Record Loan${amount ? ` · ${dollars(parseFloat(amount || '0'))}` : ''}`}
         </button>
       </form>

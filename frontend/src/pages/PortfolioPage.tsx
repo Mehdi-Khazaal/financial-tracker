@@ -49,11 +49,11 @@ const typeLabel = (type: string): string =>
 
 const INVESTMENT_META: Record<string, { icon: string; color: string }> = {
   stock:  { icon: 'M3 15.5l4.5-4.5 3 3L17 7.5M13 7.5h4v4', color: 'var(--pos)' },
-  crypto: { icon: 'M10 3v14M7 3v14M6 6h5.5a2.5 2.5 0 010 5H6m0 0h6.25a2.5 2.5 0 010 5H6', color: '#f59e0b' },
-  gold:   { icon: 'M6.5 14h7l-1.5-5h-4L6.5 14zM4 17h12l-1.5-3h-9L4 17z', color: '#f59e0b' },
+  crypto: { icon: 'M10 3v14M7 3v14M6 6h5.5a2.5 2.5 0 010 5H6m0 0h6.25a2.5 2.5 0 010 5H6', color: 'var(--warn)' },
+  gold:   { icon: 'M6.5 14h7l-1.5-5h-4L6.5 14zM4 17h12l-1.5-3h-9L4 17z', color: 'var(--warn)' },
   silver: { icon: 'M6.5 14h7l-1.5-5h-4L6.5 14zM4 17h12l-1.5-3h-9L4 17z', color: 'var(--muted)' },
   etf:    { icon: 'M4 16V9m4 7V5m4 11v-5m4 5V3', color: 'var(--accent)' },
-  bond:   { icon: 'M5 4h10v12H5zM7.5 7h5M7.5 10h5M7.5 13h3', color: '#a855f7' },
+  bond:   { icon: 'M5 4h10v12H5zM7.5 7h5M7.5 10h5M7.5 13h3', color: 'var(--cat-4)' },
   other:  { icon: 'M3 15l5-5 3 3 6-8M14 5h3v3', color: 'var(--muted)' },
 };
 
@@ -69,15 +69,15 @@ const InvestmentTypeIcon: React.FC<{ type?: string; className?: string }> = ({ t
 
 const ASSET_META: Record<string, { icon: string; color: string }> = {
   real_estate: { icon: 'M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z', color: 'var(--accent)' },
-  vehicle:     { icon: 'M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H11a1 1 0 001-1v-1h2v1a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H17a1 1 0 001-1V8a1 1 0 00-.293-.707l-3-3A1 1 0 0014 4H3z', color: '#a855f7' },
+  vehicle:     { icon: 'M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H11a1 1 0 001-1v-1h2v1a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H17a1 1 0 001-1V8a1 1 0 00-.293-.707l-3-3A1 1 0 0014 4H3z', color: 'var(--cat-4)' },
   business:    { icon: 'M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4zM18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9z', color: 'var(--pos)' },
-  jewelry:     { icon: 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z', color: '#f59e0b' },
+  jewelry:     { icon: 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z', color: 'var(--warn)' },
   art:         { icon: 'M4 3a2 2 0 100 4h12a2 2 0 100-4H4zm-2 6a1 1 0 011-1h14a1 1 0 110 2v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3a1 1 0 010-2z', color: 'var(--neg)' },
   other:       { icon: 'M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z', color: 'var(--muted)' },
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  checking: 'var(--accent)', savings: 'var(--pos)', cash: '#f59e0b', investment: '#a855f7', credit_card: 'var(--neg)',
+  checking: 'var(--accent)', savings: 'var(--pos)', cash: 'var(--warn)', investment: 'var(--cat-4)', credit_card: 'var(--neg)',
 };
 
 const PortfolioPage: React.FC = () => {
@@ -535,7 +535,7 @@ const PortfolioPage: React.FC = () => {
                     <button key={t} onClick={() => setInvFilter(t)}
                       className="pill shrink-0 transition-all"
                       style={invFilter === t
-                        ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                        ? { backgroundColor: 'color-mix(in oklab, var(--accent) 15%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)' }
                         : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                       {typeLabel(t)}
                     </button>
@@ -580,7 +580,7 @@ const PortfolioPage: React.FC = () => {
                                 {isGain ? '+' : '-'}{Math.abs(gainPct).toFixed(2)}%
                               </span>
                             ) : (
-                              <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: fetchingPrices ? '#f59e0b' : 'var(--muted)' }}>
+                              <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: fetchingPrices ? 'var(--warn)' : 'var(--muted)' }}>
                                 {fetchingPrices ? 'Fetching...' : 'No live price'}
                               </span>
                             )}
@@ -653,7 +653,7 @@ const PortfolioPage: React.FC = () => {
               {assets.length === 0 ? (
                 <EmptyState
                   iconPath="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"
-                  iconColor="#a855f7"
+                  iconColor="var(--cat-4)"
                   title="No assets yet"
                   description="Track real estate, vehicles, jewelry, and other valuable items."
                   action={{ label: 'Add Asset', onClick: () => setShowAddAsset(true) }}
@@ -681,7 +681,7 @@ const PortfolioPage: React.FC = () => {
                               <button onClick={() => setEditAsset(asset)}
                                 aria-label={`Edit ${asset.name}`}
                                 className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center"
-                                style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}>
+                                style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
                                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                               </button>
                               <button onClick={() => handleDeleteAsset(asset.id, asset.name)}
@@ -753,7 +753,7 @@ const PortfolioPage: React.FC = () => {
                   {goalSummary.behindCount > 0 && (
                     <div>
                       <p className="text-[10px] uppercase tracking-widest mb-0.5 text-muted">Behind schedule</p>
-                      <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: '#f59e0b' }}>{goalSummary.behindCount}</p>
+                      <p className="font-mono tabular-nums text-sm font-semibold" style={{ color: 'var(--warn)' }}>{goalSummary.behindCount}</p>
                     </div>
                   )}
                   <div>

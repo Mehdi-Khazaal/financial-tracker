@@ -105,7 +105,7 @@ const EditAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, account
             ))}
           </div>
           {type !== account.type && (
-            <p className="text-[11px] mt-2" style={{ color: '#f59e0b' }}>
+            <p className="text-[11px] mt-2" style={{ color: 'var(--warn)' }}>
               ⚠ Changing type affects how this account is counted (e.g. spendable balance)
             </p>
           )}

@@ -40,9 +40,9 @@ const ICONS: Record<ToastType, string> = {
 };
 
 const COLORS: Record<ToastType, { bg: string; border: string; icon: string }> = {
-  success: { bg: 'rgba(34,197,94,.1)',   border: 'rgba(34,197,94,.25)',   icon: '#22C55E' },
-  error:   { bg: 'rgba(239,68,68,.1)',   border: 'rgba(239,68,68,.25)',   icon: '#EF4444' },
-  info:    { bg: 'rgba(249,115,22,.1)',  border: 'rgba(249,115,22,.25)',  icon: '#F97316' },
+  success: { bg: 'color-mix(in oklab, var(--pos) 10%, transparent)',   border: 'color-mix(in oklab, var(--pos) 25%, transparent)',   icon: 'var(--pos)' },
+  error:   { bg: 'color-mix(in oklab, var(--neg) 10%, transparent)',   border: 'color-mix(in oklab, var(--neg) 25%, transparent)',   icon: 'var(--neg)' },
+  info:    { bg: 'color-mix(in oklab, var(--accent) 10%, transparent)',  border: 'color-mix(in oklab, var(--accent) 25%, transparent)',  icon: 'var(--accent)' },
 };
 
 // ── Single toast ───────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const ConfirmDialog: React.FC<{
   onAnswer: (val: boolean) => void;
 }> = ({ state, onAnswer }) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-    <div className="absolute inset-0 bg-black/70" onClick={() => onAnswer(false)} />
+    <div className="absolute inset-0 bg-black/40" onClick={() => onAnswer(false)} />
     <div className="scale-in relative w-full max-w-sm rounded-2xl p-6"
       style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
       {state.title && (
@@ -89,8 +89,8 @@ const ConfirmDialog: React.FC<{
           onClick={() => onAnswer(true)}
           className="pressable flex-1 py-2.5 text-sm font-semibold rounded-xl"
           style={state.danger
-            ? { backgroundColor: 'var(--neg-dim)', color: 'var(--neg)', border: '1px solid rgba(239,68,68,.25)' }
-            : { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(249,115,22,.25)' }}>
+            ? { backgroundColor: 'var(--neg-dim)', color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 25%, transparent)' }
+            : { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>
           Confirm
         </button>
       </div>

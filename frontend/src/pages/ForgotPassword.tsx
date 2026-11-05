@@ -39,7 +39,7 @@ const ForgotPassword: React.FC = () => {
           {sent ? (
             <div className="text-center space-y-4">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
-                style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.08)', color: 'var(--pos)' }}>
+                style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 8%, transparent)', color: 'var(--pos)' }}>
                 <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
@@ -53,7 +53,7 @@ const ForgotPassword: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="rounded-xl px-4 py-3 text-sm font-medium"
-                  style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.15)' }}>
+                  style={{ backgroundColor: 'color-mix(in oklab, var(--neg) 8%, transparent)', color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 15%, transparent)' }}>
                   {error}
                 </div>
               )}

@@ -23,14 +23,14 @@ const TONE: Record<InsightTone, { color: string; background: string; label: stri
     icon: 'M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM10 9.5v4M10 6.5v.01',
   },
   warning: {
-    color: '#f59e0b',
-    background: 'rgba(245,158,11,0.12)',
+    color: 'var(--warn)',
+    background: 'color-mix(in oklab, var(--warn) 12%, transparent)',
     label: 'Keep an eye on',
     icon: 'M10 6.5v4.5m0 3v.01M10 2.5l7.5 13h-15l7.5-13z',
   },
   action: {
     color: 'var(--accent)',
-    background: 'oklch(72% 0.17 55 / 0.12)',
+    background: 'color-mix(in oklab, var(--accent) 12%, transparent)',
     label: 'To review',
     icon: 'M4 10h12m-5-5l5 5-5 5',
   },

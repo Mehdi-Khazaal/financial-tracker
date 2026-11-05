@@ -70,7 +70,7 @@ const SetupChecklist: React.FC<Props> = ({ userId, hasAccounts, hasBudget, onSet
                 aria-hidden="true"
                 className="mt-0.5 w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold"
                 style={step.done
-                  ? { backgroundColor: 'var(--pos)', color: '#0A0A0B' }
+                  ? { backgroundColor: 'var(--pos)', color: 'var(--ink-on-fill)' }
                   : { border: '1px solid var(--line-strong)', color: 'var(--dim)' }}
               >
                 {step.done ? '✓' : ''}

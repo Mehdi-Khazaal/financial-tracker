@@ -249,7 +249,7 @@ const CollectionFormSheet: React.FC<Props> = ({ isOpen, onClose, editing = null,
             </button>
             <button type="button" onClick={handleDelete} disabled={saving}
               className="flex-1 min-h-[44px] text-sm font-semibold rounded-lg mt-2 disabled:opacity-40"
-              style={{ color: 'var(--neg)', backgroundColor: 'oklch(70% 0.17 25 / 0.08)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }}>
+              style={{ color: 'var(--neg)', backgroundColor: 'color-mix(in oklab, var(--neg) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--neg) 20%, transparent)' }}>
               Delete
             </button>
           </div>

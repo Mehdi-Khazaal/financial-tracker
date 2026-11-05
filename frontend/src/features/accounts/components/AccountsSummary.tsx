@@ -96,7 +96,7 @@ const AccountsSummary: React.FC<Props> = ({ totals }) => {
               label="Brokerage cash"
               hint={DEFINITIONS.brokerage}
               value={dollars(totals.investmentAccounts)}
-              color="#a855f7"
+              color="var(--cat-4)"
               note="Not in net worth"
             />
           )}

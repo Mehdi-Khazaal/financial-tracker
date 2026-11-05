@@ -154,9 +154,9 @@ const ConnectionCard: React.FC<Props> = ({
           aria-label={`Disconnect ${name}`}
           className="shrink-0 min-h-[44px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
           style={{
-            backgroundColor: 'oklch(70% 0.17 25 / 0.1)',
+            backgroundColor: 'color-mix(in oklab, var(--neg) 10%, transparent)',
             color: 'var(--neg)',
-            border: '1px solid oklch(70% 0.17 25 / 0.2)',
+            border: '1px solid color-mix(in oklab, var(--neg) 20%, transparent)',
           }}
         >
           {disconnecting ? '…' : 'Disconnect'}

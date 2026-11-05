@@ -71,7 +71,7 @@ const AddAccountModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                 aria-pressed={type === t.value}
                 aria-label={`${t.label}: ${t.desc}`}
                 style={type === t.value
-                  ? { borderColor: 'var(--accent)', backgroundColor: 'oklch(72% 0.17 55 / 0.08)' }
+                  ? { borderColor: 'var(--accent)', backgroundColor: 'color-mix(in oklab, var(--accent) 8%, transparent)' }
                   : { borderColor: 'var(--line)', backgroundColor: 'var(--elev-1)' }}>
                 <AccountTypeIcon type={t.value} className="w-8 h-8" iconClassName="w-4 h-4" />
                 <span className="text-xs font-semibold" style={{ color: type === t.value ? 'var(--accent)' : 'var(--muted)' }}>

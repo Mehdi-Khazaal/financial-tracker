@@ -62,7 +62,7 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
     <Link
       to={linkToReview()}
       className="block rounded-xl px-4 py-4 pressable"
-      style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.12)', border: '1px solid oklch(72% 0.17 55 / 0.28)' }}
+      style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 28%, transparent)' }}
       aria-label={`Review uncategorized transactions. ${review.unreviewed} of ${review.total} transactions in ${monthName} need a category.`}
     >
       <div className="flex items-center justify-between gap-3">

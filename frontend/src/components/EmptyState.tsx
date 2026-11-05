@@ -13,7 +13,7 @@ const EmptyState: React.FC<Props> = ({
 }) => (
   <div className="card py-14 flex flex-col items-center text-center px-6">
     <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-      style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.08)', border: '1px solid oklch(72% 0.17 55 / 0.15)' }}>
+      style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 15%, transparent)' }}>
       <svg viewBox="0 0 20 20" fill={iconColor} className="w-7 h-7">
         <path d={iconPath} />
       </svg>

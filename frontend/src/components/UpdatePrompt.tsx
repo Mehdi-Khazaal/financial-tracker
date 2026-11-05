@@ -39,7 +39,7 @@ const UpdatePrompt: React.FC = () => {
           type="button"
           onClick={() => window.location.reload()}
           className="pressable shrink-0 rounded-full px-3 text-xs font-semibold"
-          style={{ minHeight: 36, background: 'var(--accent)', color: '#0A0A0B' }}
+          style={{ minHeight: 36, background: 'var(--accent)', color: 'var(--ink-on-fill)' }}
         >
           Reload
         </button>

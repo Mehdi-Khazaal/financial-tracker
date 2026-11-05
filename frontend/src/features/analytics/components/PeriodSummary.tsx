@@ -7,7 +7,7 @@ interface Props {
 
 const VERDICT_STYLE: Record<string, { label: string; color: string; background: string }> = {
   stronger: { label: 'Stronger period', color: 'var(--pos)', background: 'var(--pos-dim)' },
-  weaker: { label: 'Tighter period', color: '#f59e0b', background: 'rgba(245,158,11,0.12)' },
+  weaker: { label: 'Tighter period', color: 'var(--warn)', background: 'color-mix(in oklab, var(--warn) 12%, transparent)' },
   steady: { label: 'Steady', color: 'var(--muted)', background: 'var(--elev-sub)' },
 };
 

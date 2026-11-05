@@ -64,7 +64,7 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       label: 'Net worth',
       value: dollars(currentNetWorth),
       color: 'var(--fg)',
-      accent: 'rgba(241,241,243,0.25)',
+      accent: 'color-mix(in oklab, var(--fg) 25%, transparent)',
       hint: 'The current total of all your accounts except investments, which Fintrack tracks separately in Portfolio. This is a live balance, not a figure for the selected period.',
       delta: netWorth.points.length > 1
         ? <DeltaBadge value={netWorth.change} polarity="up-good" suffix={`/ ${netWorth.points.length}mo`} />
@@ -75,7 +75,7 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       label: 'Income',
       value: `+${dollars(metrics.income)}`,
       color: 'var(--pos)',
-      accent: '#22C55E',
+      accent: 'var(--pos)',
       hint: 'Money received from outside your accounts. Transfers between your own accounts and credit-card payments are excluded, since neither is new money.',
       delta: incomeChange != null
         ? <DeltaBadge value={incomeChange} format="percent" polarity="up-good" />
@@ -87,7 +87,7 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       label: 'Expenses',
       value: dollars(metrics.expenses),
       color: 'var(--neg)',
-      accent: '#EF4444',
+      accent: 'var(--neg)',
       hint: metrics.refunds > 0
         ? `Money spent, with ${dollars(metrics.refunds)} of refunds already subtracted from the categories they came back to.`
         : 'Money spent. Refunds are subtracted from the category they came back to rather than counted as income.',
@@ -120,8 +120,8 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
       value: metrics.savingsRate != null ? percent(metrics.savingsRate) : '—',
       color: metrics.savingsRate == null
         ? 'var(--muted)'
-        : metrics.savingsRate >= 0.2 ? 'var(--pos)' : metrics.savingsRate >= 0 ? '#f59e0b' : 'var(--neg)',
-      accent: '#f59e0b',
+        : metrics.savingsRate >= 0.2 ? 'var(--pos)' : metrics.savingsRate >= 0 ? 'var(--warn)' : 'var(--neg)',
+      accent: 'var(--warn)',
       hint: 'The share of income left after expenses. Changes are shown in percentage points — the gap between two rates — because expressing a rate change as a percentage of itself overstates it. Shown as a dash when no income was recorded, since there is nothing to take a share of.',
       // Percentage points, not percent change. See the hint above.
       delta: savings.rateDelta != null

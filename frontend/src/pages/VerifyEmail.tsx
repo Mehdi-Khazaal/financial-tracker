@@ -45,7 +45,7 @@ const VerifyEmail: React.FC = () => {
           {status === 'success' && (
             <div className="space-y-3">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
-                style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.08)', color: 'var(--pos)' }}>
+                style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 8%, transparent)', color: 'var(--pos)' }}>
                 <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
@@ -61,7 +61,7 @@ const VerifyEmail: React.FC = () => {
           {status === 'error' && (
             <div className="space-y-3">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
-                style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.08)', color: 'var(--neg)' }}>
+                style={{ backgroundColor: 'color-mix(in oklab, var(--neg) 8%, transparent)', color: 'var(--neg)' }}>
                 <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />

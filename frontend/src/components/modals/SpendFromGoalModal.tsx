@@ -90,7 +90,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                         onClick={() => setAccountId(String(alloc.account_id))}
                         className="w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left"
                         style={selected
-                          ? { backgroundColor: 'oklch(70% 0.17 25 / 0.1)', border: '1px solid oklch(70% 0.17 25 / 0.3)' }
+                          ? { backgroundColor: 'color-mix(in oklab, var(--neg) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--neg) 30%, transparent)' }
                           : { backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)' }}>
                         <span className="text-sm font-medium text-text">{alloc.account_name}</span>
                         <span className="font-mono text-sm font-semibold" style={{ color: 'var(--pos)' }}>

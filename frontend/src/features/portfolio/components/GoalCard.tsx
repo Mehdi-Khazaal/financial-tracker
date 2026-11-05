@@ -25,7 +25,7 @@ const PACE_COLORS: Record<GoalPace, string> = {
   'date-passed': 'var(--neg)',
   ahead: 'var(--pos)',
   'on-track': 'var(--pos)',
-  behind: '#f59e0b',
+  behind: 'var(--warn)',
   unknown: 'var(--muted)',
 };
 
@@ -150,7 +150,7 @@ const GoalCard: React.FC<Props> = ({
           <button
             onClick={onManageAllocations}
             className="text-xs font-semibold px-3 rounded-lg"
-            style={{ color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.25)', minHeight: 36 }}
+            style={{ color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', minHeight: 36 }}
           >
             Manage allocation
           </button>

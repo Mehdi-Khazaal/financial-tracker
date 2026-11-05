@@ -469,7 +469,7 @@ const AccountsPage: React.FC = () => {
               {loans.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { label: 'Outstanding', value: `$${fmt(totalOutstanding)}`, color: '#f59e0b' },
+                    { label: 'Outstanding', value: `$${fmt(totalOutstanding)}`, color: 'var(--warn)' },
                     { label: 'Total Lent',  value: `$${fmt(totalLent)}`,        color: 'var(--fg)' },
                     { label: 'Recovered',   value: `$${fmt(totalRecovered)}`,   color: 'var(--pos)' },
                   ].map(s => (
@@ -492,7 +492,7 @@ const AccountsPage: React.FC = () => {
                   {activeLoans.length > 0 && (
                     <div className="space-y-3">
                       <p className="label">Waiting for repayment
-                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,.15)', color: '#f59e0b' }}>
+                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in oklab, var(--warn) 15%, transparent)', color: 'var(--warn)' }}>
                           {activeLoans.length}
                         </span>
                       </p>

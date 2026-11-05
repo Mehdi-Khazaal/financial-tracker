@@ -145,7 +145,7 @@ const TwoFactorSection: React.FC = () => {
       <div className="flex items-center justify-between gap-3">
         <h2 className="label" id="settings-2fa-heading">Two-factor authentication</h2>
         {(stage.kind === 'on' || stage.kind === 'disable') && (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)' }}>On</span>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'color-mix(in oklab, var(--pos) 15%, transparent)', color: 'var(--pos)' }}>On</span>
         )}
       </div>
 
@@ -248,7 +248,7 @@ const TwoFactorSection: React.FC = () => {
           {errorLine}
           <div className="flex gap-2">
             <button type="button" className="btn-ghost pressable flex-1" style={{ minHeight: 44 }} onClick={() => { reset(); void load(); }}>Cancel</button>
-            <button type="submit" className="pressable flex-1 rounded-xl text-sm font-semibold" style={{ minHeight: 44, backgroundColor: 'oklch(70% 0.17 25 / 0.1)', color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.2)' }} disabled={busy || !password || code.trim().length < 6}>
+            <button type="submit" className="pressable flex-1 rounded-xl text-sm font-semibold" style={{ minHeight: 44, backgroundColor: 'color-mix(in oklab, var(--neg) 10%, transparent)', color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 20%, transparent)' }} disabled={busy || !password || code.trim().length < 6}>
               Turn off two-factor
             </button>
           </div>

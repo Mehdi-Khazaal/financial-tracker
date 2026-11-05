@@ -62,7 +62,7 @@ const AnalyticsHeader: React.FC<Props> = ({
               aria-pressed={active}
               className="pill min-h-[44px] shrink-0 pressable transition-all"
               style={active
-                ? { backgroundColor: 'oklch(72% 0.17 55 / 0.15)', color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' }
+                ? { backgroundColor: 'color-mix(in oklab, var(--accent) 15%, transparent)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)' }
                 : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)', border: '1px solid transparent' }}
             >
               {option.id === 'custom' && active ? shortMonthLabel(customMonth) : option.label}
@@ -103,7 +103,7 @@ const AnalyticsHeader: React.FC<Props> = ({
                     onClick={() => { onCustomMonthChange(month); setMonthOpen(false); }}
                     className="menu-item justify-between text-sm font-medium w-full"
                     style={month === customMonth
-                      ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
+                      ? { backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--accent)' }
                       : { color: 'var(--fg)' }}
                   >
                     {monthLabel(month)}

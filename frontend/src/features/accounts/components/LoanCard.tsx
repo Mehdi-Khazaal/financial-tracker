@@ -86,7 +86,7 @@ const LoanCard: React.FC<Props> = ({
         {view.dueStatus !== 'none' && view.daysUntilDue != null && (
           <p
             className="text-[11px] mb-3"
-            style={{ color: view.dueStatus === 'overdue' ? 'var(--neg)' : view.dueStatus === 'due-soon' ? '#f59e0b' : 'var(--muted)' }}
+            style={{ color: view.dueStatus === 'overdue' ? 'var(--neg)' : view.dueStatus === 'due-soon' ? 'var(--warn)' : 'var(--muted)' }}
           >
             {view.dueStatus === 'overdue'
               ? `Past due — expected ${formatDate(loan.due_date as string)}`
@@ -147,7 +147,7 @@ const LoanCard: React.FC<Props> = ({
               onClick={() => onRepayment(loan)}
               disabled={repaying || !repayInput || parseFloat(repayInput) <= 0}
               className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95 disabled:opacity-40 shrink-0"
-              style={{ backgroundColor: 'var(--pos)', color: '#08130c' }}
+              style={{ backgroundColor: 'var(--pos)', color: 'var(--ink-on-fill)' }}
             >
               {repaying ? '…' : 'Record'}
             </button>
@@ -158,7 +158,7 @@ const LoanCard: React.FC<Props> = ({
             <button
               onClick={() => onMarkRepaid(loan.id)}
               className="text-xs font-semibold rounded-lg px-3"
-              style={{ color: 'var(--pos)', border: '1px solid oklch(78% 0.16 150 / 0.25)', minHeight: 36 }}
+              style={{ color: 'var(--pos)', border: '1px solid color-mix(in oklab, var(--pos) 25%, transparent)', minHeight: 36 }}
             >
               Mark fully repaid
             </button>

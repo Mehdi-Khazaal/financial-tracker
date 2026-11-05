@@ -712,7 +712,7 @@ const Transactions: React.FC = () => {
                       className="menu-item justify-between text-sm font-medium"
                       role="option" aria-selected={m === selectedMonth}
                       style={m === selectedMonth
-                        ? { backgroundColor: 'oklch(72% 0.17 55 / 0.12)', color: 'var(--accent)' }
+                        ? { backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--accent)' }
                         : { color: 'var(--fg)' }}
                     >
                       {formatMonth(m)}
@@ -755,9 +755,9 @@ const Transactions: React.FC = () => {
               onClick={() => setShowFilters(v => !v)}
               className="header-action text-sm"
               style={{
-                backgroundColor: showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.15)' : 'var(--elev-1)',
+                backgroundColor: showFilters || hasActiveFilters ? 'color-mix(in oklab, var(--accent) 15%, transparent)' : 'var(--elev-1)',
                 color: showFilters || hasActiveFilters ? 'var(--accent)' : 'var(--fg)',
-                border: `1px solid ${showFilters || hasActiveFilters ? 'oklch(72% 0.17 55 / 0.3)' : 'var(--line)'}`,
+                border: `1px solid ${showFilters || hasActiveFilters ? 'color-mix(in oklab, var(--accent) 30%, transparent)' : 'var(--line)'}`,
               }}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
@@ -780,7 +780,7 @@ const Transactions: React.FC = () => {
               onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
               className="header-action text-sm"
               aria-pressed={selectMode}
-              style={selectMode ? { color: 'var(--accent)', border: '1px solid oklch(72% 0.17 55 / 0.3)' } : undefined}
+              style={selectMode ? { color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)' } : undefined}
             >
               {selectMode ? 'Done' : 'Select'}
             </button>
@@ -857,13 +857,13 @@ const Transactions: React.FC = () => {
                   {[
                     {
                       label: 'Income', hint: 'Money in',
-                      bg: 'oklch(78% 0.16 150 / 0.15)', color: 'var(--pos)',
+                      bg: 'color-mix(in oklab, var(--pos) 15%, transparent)', color: 'var(--pos)',
                       icon: <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />,
                       action: () => { setTxType('income'); setShowTx(true); setShowAddMenu(false); },
                     },
                     {
                       label: 'Expense', hint: 'Money out',
-                      bg: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)',
+                      bg: 'color-mix(in oklab, var(--neg) 15%, transparent)', color: 'var(--neg)',
                       icon: <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />,
                       action: () => { setTxType('expense'); setShowTx(true); setShowAddMenu(false); },
                     },
@@ -887,7 +887,7 @@ const Transactions: React.FC = () => {
                     className="menu-item"
                     role="menuitem"
                   >
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.15)' }}>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 15%, transparent)' }}>
                       <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }}>
                         <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
                       </svg>
@@ -1006,8 +1006,8 @@ const Transactions: React.FC = () => {
                     <span
                       className="text-[11px] font-bold px-2 py-0.5 rounded-full leading-none"
                       style={uncategorized.length > 0
-                        ? { backgroundColor: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' }
-                        : { backgroundColor: 'oklch(78% 0.16 150 / 0.12)', color: 'var(--pos)' }}
+                        ? { backgroundColor: 'color-mix(in oklab, var(--neg) 15%, transparent)', color: 'var(--neg)' }
+                        : { backgroundColor: 'color-mix(in oklab, var(--pos) 12%, transparent)', color: 'var(--pos)' }}
                     >
                       {uncategorized.length}
                     </span>
@@ -1032,7 +1032,7 @@ const Transactions: React.FC = () => {
                 <div
                   className="app-scrollbar flex-1 overflow-y-auto"
                   style={{
-                    backgroundColor: dragOverTarget === 'uncategorized' ? 'oklch(70% 0.17 25 / 0.04)' : 'transparent',
+                    backgroundColor: dragOverTarget === 'uncategorized' ? 'color-mix(in oklab, var(--neg) 4%, transparent)' : 'transparent',
                     transition: 'background-color 0.15s',
                   }}
                   onDragOver={handleDragOver('uncategorized')}
@@ -1041,7 +1041,7 @@ const Transactions: React.FC = () => {
                 >
                   {dragOverTarget === 'uncategorized' && (
                     <div className="mx-3 mt-2 mb-1 rounded-lg border border-dashed py-1.5 text-center"
-                      style={{ borderColor: 'oklch(70% 0.17 25 / 0.5)' }}>
+                      style={{ borderColor: 'color-mix(in oklab, var(--neg) 50%, transparent)' }}>
                       <p className="text-[9px] font-semibold" style={{ color: 'var(--neg)' }}>Remove category</p>
                     </div>
                   )}
@@ -1099,7 +1099,7 @@ const Transactions: React.FC = () => {
                   Uncategorized
                   {uncategorized.length > 0 && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                      style={{ backgroundColor: 'oklch(70% 0.17 25 / 0.15)', color: 'var(--neg)' }}>
+                      style={{ backgroundColor: 'color-mix(in oklab, var(--neg) 15%, transparent)', color: 'var(--neg)' }}>
                       {uncategorized.length}
                     </span>
                   )}
@@ -1191,7 +1191,7 @@ const Transactions: React.FC = () => {
                           className="flex-1 py-2 text-xs font-semibold rounded-lg capitalize transition-all"
                           style={pendingType === t
                             ? {
-                                backgroundColor: t === 'income' ? 'oklch(78% 0.16 150 / 0.2)' : t === 'expense' ? 'oklch(70% 0.17 25 / 0.2)' : 'var(--elev-1)',
+                                backgroundColor: t === 'income' ? 'color-mix(in oklab, var(--pos) 20%, transparent)' : t === 'expense' ? 'color-mix(in oklab, var(--neg) 20%, transparent)' : 'var(--elev-1)',
                                 color: t === 'income' ? 'var(--pos)' : t === 'expense' ? 'var(--neg)' : 'var(--fg)',
                                 boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                               }
@@ -1284,7 +1284,7 @@ const Transactions: React.FC = () => {
                   </button>
                   <button onClick={clearFilters}
                     className="px-4 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-95"
-                    style={{ color: 'var(--neg)', border: '1px solid oklch(70% 0.17 25 / 0.25)', backgroundColor: 'oklch(70% 0.17 25 / 0.07)' }}>
+                    style={{ color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 25%, transparent)', backgroundColor: 'color-mix(in oklab, var(--neg) 7%, transparent)' }}>
                     Clear
                   </button>
                 </div>

@@ -181,7 +181,7 @@ const Navigation: React.FC = () => {
         {/* Logo + collapse */}
         <div className="flex items-center h-16 px-4 shrink-0" style={{ borderBottom: '1px solid var(--line)' }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'linear-gradient(135deg, #F97316 0%, #C2410C 100%)', boxShadow: '0 2px 10px rgba(249,115,22,0.35)' }}>
+            style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)', boxShadow: '0 2px 10px color-mix(in oklab, var(--accent) 35%, transparent)' }}>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: '17px', color: '#fff', lineHeight: 1, fontStyle: 'italic' }}>F</span>
           </div>
           {!collapsed && (

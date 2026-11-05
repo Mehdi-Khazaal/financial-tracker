@@ -50,7 +50,7 @@ const CollectionCard: React.FC<{ collection: Collection; todayKey: string }> = (
           )}
           {collection.suggestion_count > 0 && (
             <p className="inline-block mt-2 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-              style={{ color: 'var(--accent)', backgroundColor: 'oklch(72% 0.17 55 / 0.12)' }}>
+              style={{ color: 'var(--accent)', backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)' }}>
               {plural(collection.suggestion_count, 'transaction')} to review
             </p>
           )}

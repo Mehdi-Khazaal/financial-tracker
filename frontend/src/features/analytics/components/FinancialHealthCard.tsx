@@ -10,7 +10,7 @@ interface Props {
 const LABEL_COLOR: Record<string, string> = {
   Excellent: 'var(--pos)',
   Good: 'var(--pos)',
-  Fair: '#f59e0b',
+  Fair: 'var(--warn)',
   'Needs attention': 'var(--neg)',
 };
 
@@ -124,7 +124,7 @@ const FinancialHealthCard: React.FC<Props> = ({ health }) => {
           )}
           {health.weaknesses.length > 0 && (
             <div>
-              <p className="label mb-1.5" style={{ color: '#f59e0b' }}>Holding the score back</p>
+              <p className="label mb-1.5" style={{ color: 'var(--warn)' }}>Holding the score back</p>
               <ul className="space-y-1">
                 {health.weaknesses.map(factor => (
                   <li key={factor.key} className="text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>
@@ -164,7 +164,7 @@ const FinancialHealthCard: React.FC<Props> = ({ health }) => {
                     className="h-full rounded-full"
                     style={{
                       width: `${factor.score}%`,
-                      backgroundColor: factor.score >= 60 ? 'var(--pos)' : factor.score >= 40 ? '#f59e0b' : 'var(--neg)',
+                      backgroundColor: factor.score >= 60 ? 'var(--pos)' : factor.score >= 40 ? 'var(--warn)' : 'var(--neg)',
                     }}
                   />
                 </div>

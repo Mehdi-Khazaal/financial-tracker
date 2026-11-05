@@ -31,7 +31,7 @@ interface Props {
 
 const utilizationColor = (pct: number): string => {
   if (pct < 30) return 'var(--pos)';
-  if (pct < 70) return '#f59e0b';
+  if (pct < 70) return 'var(--warn)';
   return 'var(--neg)';
 };
 

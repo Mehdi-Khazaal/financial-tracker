@@ -30,7 +30,7 @@ const LegalPage: React.FC<Props> = ({ title, updated, draft = true, children }) 
         <div
           role="note"
           className="card p-4 mb-8"
-          style={{ borderColor: 'rgba(249,115,22,0.35)' }}
+          style={{ borderColor: 'color-mix(in oklab, var(--accent) 35%, transparent)' }}
         >
           <p className="label mb-1" style={{ color: 'var(--accent)' }}>Draft</p>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>

@@ -113,7 +113,7 @@ const AccountCard: React.FC<Props> = ({
             onClick={() => onEdit(account)}
             aria-label={`Edit ${account.name}`}
             className="w-11 h-11 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all"
-            style={{ backgroundColor: 'oklch(72% 0.17 55 / 0.1)', color: 'var(--accent)' }}
+            style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 10%, transparent)', color: 'var(--accent)' }}
           >
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
               <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />

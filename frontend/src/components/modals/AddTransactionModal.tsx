@@ -149,7 +149,7 @@ const AddTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, defa
                   className="min-h-[44px] flex-1 py-2 text-sm font-semibold rounded-lg transition-all"
                   aria-pressed={type === t}
                   style={type === t
-                    ? { backgroundColor: t === 'expense' ? 'oklch(70% 0.17 25 / 0.15)' : 'oklch(78% 0.16 150 / 0.15)',
+                    ? { backgroundColor: t === 'expense' ? 'color-mix(in oklab, var(--neg) 15%, transparent)' : 'color-mix(in oklab, var(--pos) 15%, transparent)',
                         color: t === 'expense' ? 'var(--neg)' : 'var(--pos)' }
                     : { backgroundColor: 'var(--elev-sub)', color: 'var(--muted)' }}>
                   {t === 'expense' ? <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>Expense</> : <><svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 inline mr-1"><path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Income</>}

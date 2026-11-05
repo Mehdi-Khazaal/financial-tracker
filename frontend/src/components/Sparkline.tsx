@@ -12,7 +12,7 @@ type Props = {
 
 /** Lightweight SVG sparkline — smooth cubic path, gradient fill, glowing
     endpoint. Pure transform/opacity/stroke animation, no chart library. */
-const Sparkline: React.FC<Props> = ({ data, width = 480, height = 72, color = '#F97316', animate = true, className }) => {
+const Sparkline: React.FC<Props> = ({ data, width = 480, height = 72, color = 'var(--accent)', animate = true, className }) => {
   const uid = useId().replace(/:/g, '');
 
   const { linePath, areaPath, lastX, lastY } = useMemo(() => {

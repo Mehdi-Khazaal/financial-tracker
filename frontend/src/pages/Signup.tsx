@@ -41,8 +41,8 @@ const Signup: React.FC = () => {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    background: 'rgba(255,255,255,0.028)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'color-mix(in oklab, var(--fg) 2.8%, transparent)',
+    border: '1px solid color-mix(in oklab, var(--fg) 8%, transparent)',
     borderRadius: '12px',
     padding: '14px 16px',
     fontSize: '15px',
@@ -54,11 +54,11 @@ const Signup: React.FC = () => {
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(249,115,22,0.45)';
-    e.target.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.09), 0 0 22px rgba(249,115,22,0.06)';
+    e.target.style.borderColor = 'color-mix(in oklab, var(--accent) 45%, transparent)';
+    e.target.style.boxShadow = '0 0 0 3px color-mix(in oklab, var(--accent) 9%, transparent), 0 0 22px color-mix(in oklab, var(--accent) 6%, transparent)';
   };
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+    e.target.style.borderColor = 'color-mix(in oklab, var(--fg) 8%, transparent)';
     e.target.style.boxShadow = 'none';
   };
 
@@ -79,7 +79,7 @@ const Signup: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '1.25rem',
-      backgroundColor: '#0A0A0B',
+      backgroundColor: 'var(--ink-on-fill)',
       position: 'relative',
       overflow: 'hidden',
     }}>
@@ -89,7 +89,7 @@ const Signup: React.FC = () => {
         position: 'absolute', top: '-18%', right: '-12%',
         width: 'min(78vw, 620px)', height: 'min(78vw, 620px)',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(249,115,22,0.13) 0%, rgba(249,115,22,0.05) 42%, transparent 68%)',
+        background: 'radial-gradient(circle, color-mix(in oklab, var(--accent) 13%, transparent) 0%, color-mix(in oklab, var(--accent) 5%, transparent) 42%, transparent 68%)',
         animation: 'authOrb 10s ease-in-out infinite',
         pointerEvents: 'none',
       }} />
@@ -97,7 +97,7 @@ const Signup: React.FC = () => {
         position: 'absolute', bottom: '-12%', left: '-8%',
         width: 'min(40vw, 340px)', height: 'min(40vw, 340px)',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 66%)',
+        background: 'radial-gradient(circle, color-mix(in oklab, var(--accent) 7%, transparent) 0%, transparent 66%)',
         animation: 'authOrb 14s ease-in-out infinite reverse',
         pointerEvents: 'none',
       }} />
@@ -105,7 +105,7 @@ const Signup: React.FC = () => {
       {/* ── Dot-grid texture ─────────────────────────────────────── */}
       <div aria-hidden="true" style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px)',
+        backgroundImage: 'radial-gradient(circle, color-mix(in oklab, var(--fg) 2.2%, transparent) 1px, transparent 1px)',
         backgroundSize: '30px 30px',
         pointerEvents: 'none',
       }} />
@@ -113,12 +113,12 @@ const Signup: React.FC = () => {
       {/* ── Vignettes ────────────────────────────────────────────── */}
       <div aria-hidden="true" style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: '28%',
-        background: 'linear-gradient(to bottom, rgba(10,10,11,0.9), transparent)',
+        background: 'linear-gradient(to bottom, color-mix(in oklab, var(--bg) 90%, transparent), transparent)',
         pointerEvents: 'none',
       }} />
       <div aria-hidden="true" style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%',
-        background: 'linear-gradient(to top, rgba(10,10,11,0.7), transparent)',
+        background: 'linear-gradient(to top, color-mix(in oklab, var(--bg) 70%, transparent), transparent)',
         pointerEvents: 'none',
       }} />
 
@@ -134,8 +134,8 @@ const Signup: React.FC = () => {
         }}>
           <div style={{
             width: '68px', height: '68px', borderRadius: '20px',
-            background: 'linear-gradient(140deg, #F97316 0%, #C2410C 100%)',
-            boxShadow: '0 0 0 1px rgba(249,115,22,0.25), 0 10px 40px rgba(249,115,22,0.45), 0 0 90px rgba(249,115,22,0.12)',
+            background: 'linear-gradient(140deg, var(--accent) 0%, var(--accent) 100%)',
+            boxShadow: '0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent), 0 10px 40px color-mix(in oklab, var(--accent) 45%, transparent), 0 0 90px color-mix(in oklab, var(--accent) 12%, transparent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: '1.75rem',
           }}>
@@ -170,7 +170,7 @@ const Signup: React.FC = () => {
 
         {/* Auth card */}
         <div style={{
-          background: 'linear-gradient(180deg, #171719, #101012)',
+          background: 'linear-gradient(180deg, var(--elev-1), var(--elev-1))',
           borderRadius: '18px',
           border: '1px solid var(--line-strong)',
           boxShadow: 'var(--edge-light), 0 24px 58px rgba(0,0,0,0.55)',
@@ -181,8 +181,8 @@ const Signup: React.FC = () => {
 
           {error && (
             <div style={{
-              background: 'rgba(239,68,68,0.07)',
-              border: '1px solid rgba(239,68,68,0.18)',
+              background: 'color-mix(in oklab, var(--neg) 7%, transparent)',
+              border: '1px solid color-mix(in oklab, var(--neg) 18%, transparent)',
               borderRadius: '10px',
               padding: '11px 15px',
               marginBottom: '1.25rem',
@@ -302,28 +302,28 @@ const Signup: React.FC = () => {
                 borderRadius: '12px',
                 border: 'none',
                 background: loading
-                  ? 'rgba(249,115,22,0.45)'
-                  : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                  ? 'color-mix(in oklab, var(--accent) 45%, transparent)'
+                  : 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
                 color: 'var(--ink-on-fill)',
                 fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans)',
                 letterSpacing: '-0.01em',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 8px 28px rgba(249,115,22,0.38), 0 2px 8px rgba(0,0,0,0.3)',
+                boxShadow: loading ? 'none' : '0 8px 28px color-mix(in oklab, var(--accent) 38%, transparent), 0 2px 8px rgba(0,0,0,0.3)',
                 transition: 'box-shadow 0.2s, transform 0.2s',
                 position: 'relative',
                 overflow: 'hidden',
               }}
               onMouseEnter={e => {
                 if (!loading) {
-                  e.currentTarget.style.boxShadow = '0 14px 36px rgba(249,115,22,0.5), 0 2px 8px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.boxShadow = '0 14px 36px color-mix(in oklab, var(--accent) 50%, transparent), 0 2px 8px rgba(0,0,0,0.3)';
                   e.currentTarget.style.transform = 'translateY(-1px)';
                 }
               }}
               onMouseLeave={e => {
                 if (!loading) {
-                  e.currentTarget.style.boxShadow = '0 8px 28px rgba(249,115,22,0.38), 0 2px 8px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.boxShadow = '0 8px 28px color-mix(in oklab, var(--accent) 38%, transparent), 0 2px 8px rgba(0,0,0,0.3)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }
               }}
@@ -387,7 +387,7 @@ const Signup: React.FC = () => {
             alignItems: 'center',
             gap: '12px',
           }}>
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06))' }} />
+            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, transparent, color-mix(in oklab, var(--fg) 6%, transparent))' }} />
             <span style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '9px',
@@ -395,7 +395,7 @@ const Signup: React.FC = () => {
               color: 'var(--dim)',
               textTransform: 'uppercase',
             }}>Fintrack</span>
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.06))' }} />
+            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to left, transparent, color-mix(in oklab, var(--fg) 6%, transparent))' }} />
           </div>
         </div>
 

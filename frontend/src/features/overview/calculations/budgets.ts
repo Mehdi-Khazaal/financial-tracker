@@ -37,7 +37,7 @@ export function describeBudget(item: BudgetProgress): BudgetView {
   const remaining = Number(item.remaining) || 0;
   const rawPercent = available > 0 ? (spent / available) * 100 : spent > 0 ? 100 : 0;
   const tone: BudgetTone = item.over || rawPercent > 100 ? 'over' : rawPercent >= TIGHT_AT ? 'tight' : 'room';
-  const color = tone === 'over' ? 'var(--neg)' : tone === 'tight' ? '#f59e0b' : 'var(--accent)';
+  const color = tone === 'over' ? 'var(--neg)' : tone === 'tight' ? 'var(--warn)' : 'var(--accent)';
   const statusLabel = tone === 'over'
     ? `${money(spent - available)} over`
     : tone === 'tight'

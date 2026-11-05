@@ -104,7 +104,7 @@ const DeleteSection: React.FC = () => {
   };
 
   return (
-    <section className="card p-5" aria-labelledby="settings-delete-heading" style={{ borderColor: 'rgba(239,68,68,0.25)' }}>
+    <section className="card p-5" aria-labelledby="settings-delete-heading" style={{ borderColor: 'color-mix(in oklab, var(--neg) 25%, transparent)' }}>
       <h2 className="label mb-1" id="settings-delete-heading" style={{ color: 'var(--neg)' }}>Delete account</h2>
       <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
         Removes your bank connections at Plaid, your devices, and every record — immediately and permanently. Export first if you want to keep anything.
@@ -152,9 +152,9 @@ const AccountSection: React.FC<Props> = ({ username, email, onSignOut }) => (
         onClick={onSignOut}
         className="mt-4 w-full min-h-[44px] py-2.5 text-sm font-semibold rounded-xl transition-all"
         style={{
-          backgroundColor: 'oklch(70% 0.17 25 / 0.08)',
+          backgroundColor: 'color-mix(in oklab, var(--neg) 8%, transparent)',
           color: 'var(--neg)',
-          border: '1px solid oklch(70% 0.17 25 / 0.15)',
+          border: '1px solid color-mix(in oklab, var(--neg) 15%, transparent)',
         }}
       >
         Sign out

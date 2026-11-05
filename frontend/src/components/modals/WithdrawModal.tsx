@@ -73,13 +73,13 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Withdraw Cash">
       <div className="px-5 pb-6">
         {/* Header accent */}
-        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: '#f59e0b' }} />
+        <div className="h-0.5 w-12 rounded-full mb-5 mx-auto" style={{ backgroundColor: 'var(--warn)' }} />
 
         {noCash || noBank ? (
           <div className="py-8 text-center space-y-2">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ backgroundColor: 'rgba(245,158,11,.1)' }}>
-              <svg viewBox="0 0 20 20" fill="#f59e0b" className="w-6 h-6">
+              style={{ backgroundColor: 'color-mix(in oklab, var(--warn) 10%, transparent)' }}>
+              <svg viewBox="0 0 20 20" fill="var(--warn)" className="w-6 h-6">
                 <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
               </svg>
             </div>
@@ -130,10 +130,10 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                     <p className="font-semibold text-text">{fromAccount.name}</p>
                   </div>
                   <div className="flex flex-col items-center gap-0.5">
-                    <svg viewBox="0 0 20 20" fill="#f59e0b" className="w-5 h-5">
+                    <svg viewBox="0 0 20 20" fill="var(--warn)" className="w-5 h-5">
                       <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
-                    <p className="font-mono font-bold text-sm" style={{ color: '#f59e0b' }}>
+                    <p className="font-mono font-bold text-sm" style={{ color: 'var(--warn)' }}>
                       ${parseFloat(amount).toFixed(2)}
                     </p>
                   </div>
@@ -161,7 +161,7 @@ const WithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               type="submit"
               disabled={loading || !amount || parseFloat(amount) <= 0}
               className="w-full py-3.5 font-bold text-sm rounded-2xl transition-all active:scale-95 disabled:opacity-40"
-              style={{ backgroundColor: '#f59e0b', color: 'var(--ink-on-fill)' }}>
+              style={{ backgroundColor: 'var(--warn)', color: 'var(--ink-on-fill)' }}>
               {loading ? 'Processing…' : `Withdraw${amount ? ` · ${dollars(parseFloat(amount || '0'))}` : ''}`}
             </button>
           </form>

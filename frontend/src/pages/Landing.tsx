@@ -48,7 +48,7 @@ const Landing: React.FC = () => (
         <div
           aria-hidden="true"
           className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(140deg, #F97316 0%, #C2410C 100%)', boxShadow: '0 6px 20px rgba(249,115,22,0.35)' }}
+          style={{ background: 'linear-gradient(140deg, var(--accent) 0%, var(--accent) 100%)', boxShadow: '0 6px 20px color-mix(in oklab, var(--accent) 35%, transparent)' }}
         >
           <span style={{ fontFamily: 'var(--font-money)', fontStyle: 'italic', color: '#fff', fontSize: 18, lineHeight: 1 }}>F</span>
         </div>

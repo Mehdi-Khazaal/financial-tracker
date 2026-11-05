@@ -130,7 +130,7 @@ export const EditBillSheet: React.FC<{
               <button key={value} type="button" onClick={() => setPeriod(value)} aria-pressed={period === value}
                 className="pill pressable"
                 style={period === value
-                  ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(249,115,22,0.35)' }
+                  ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 35%, transparent)' }
                   : { backgroundColor: 'var(--elev-1)', color: 'var(--muted)' }}>
                 {label}
               </button>

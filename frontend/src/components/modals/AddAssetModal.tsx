@@ -141,7 +141,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
               <button key={t.value} type="button" onClick={() => { setAssetType(t.value); setTicker(''); }}
                 className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all"
                 style={assetType === t.value
-                  ? { borderColor: 'var(--accent)', backgroundColor: 'oklch(72% 0.17 55 / 0.08)' }
+                  ? { borderColor: 'var(--accent)', backgroundColor: 'color-mix(in oklab, var(--accent) 8%, transparent)' }
                   : { borderColor: 'var(--line)', backgroundColor: 'var(--elev-1)' }}>
                 <span className="text-xl">{t.icon}</span>
                 <span className="text-xs font-semibold" style={{ color: assetType === t.value ? 'var(--accent)' : 'var(--muted)' }}>
