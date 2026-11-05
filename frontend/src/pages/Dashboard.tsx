@@ -186,10 +186,10 @@ const Dashboard: React.FC = () => {
           {/* ── Greeting ── */}
           <div className="product-page-header topbar-safe">
             <div>
-              <p className="label mb-1">{monthLabel}</p>
-              <h1 className="product-page-title mt-0.5">
-                {greeting}, {user?.username}
-              </h1>
+              <h1 className="product-page-title">Dashboard</h1>
+              <p className="text-[13px] mt-0.5" style={{ color: 'var(--muted)' }}>
+                {greeting}, {user?.username} · {monthLabel}
+              </p>
             </div>
           </div>
 
@@ -201,8 +201,8 @@ const Dashboard: React.FC = () => {
                 pill — the conventional reading, and the same two-step separation
                 the mobile segmented control already uses. */}
             <div
-              className="flex p-1 rounded-xl gap-0.5 max-w-xs"
-              style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}
+              className="inline-flex rounded-md overflow-hidden"
+              style={{ border: '1px solid var(--line-strong)' }}
               role="tablist"
               aria-label="Dashboard views"
             >
@@ -210,15 +210,10 @@ const Dashboard: React.FC = () => {
                 <button key={t} onClick={() => setTab(t)}
                   role="tab"
                   aria-selected={tab === t}
-                  className="flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all"
+                  className="px-4 py-2 text-sm capitalize transition-colors"
                   style={tab === t
-                    ? {
-                      backgroundColor: 'var(--elev-2)',
-                      color: 'var(--fg)',
-                      border: '1px solid var(--line-strong)',
-                      boxShadow: 'var(--edge-light), 0 1px 4px rgba(0,0,0,0.45)',
-                    }
-                    : { color: 'var(--muted)', border: '1px solid transparent' }}>
+                    ? { backgroundColor: 'var(--fg)', color: 'var(--bg)', fontWeight: 600 }
+                    : { backgroundColor: 'var(--elev-1)', color: 'var(--fg)' }}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
               ))}

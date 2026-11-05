@@ -89,23 +89,20 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
     : goals.reduce((sum, g) => sum + (Number(g.current_amount) || 0), 0);
 
   return (
-    <div className="space-y-4 md:space-y-5">
+    <div>
       {/* ── First run ── */}
       {props.userId != null && props.onManageBudgets && (
-        <SetupChecklist
-          userId={props.userId}
-          hasAccounts={accounts.length > 0}
-          hasBudget={(props.budgets?.budgets.length ?? 0) > 0}
-          onSetBudget={props.onManageBudgets}
-        />
+        <div className="mb-6">
+          <SetupChecklist
+            userId={props.userId}
+            hasAccounts={accounts.length > 0}
+            hasBudget={(props.budgets?.budgets.length ?? 0) > 0}
+            onSetBudget={props.onManageBudgets}
+          />
+        </div>
       )}
 
-      {/* ── Primary ── */}
-      <MorningBrief
-        items={model.brief}
-        dateLabel={today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-      />
-
+      {/* ── Primary: what you are worth, then this month in one strip ── */}
       <OverviewHero
         netWorth={model.netWorth}
         availableToSpend={model.availableToSpend}
@@ -114,7 +111,6 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         comparison={model.comparison}
       />
 
-      {/* ── Secondary ── */}
       <MetricRow
         monthName={model.activity.monthName}
         income={model.metrics.income}
@@ -131,31 +127,24 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         recurringCount={model.recurringCount}
       />
 
-      <div className="grid md:grid-cols-2 gap-4 md:gap-5 items-start">
-        <MonthActivityCard
-          activity={model.activity}
-          nextCharge={model.nextCharge}
-          invested={model.metrics.investments}
-          showNextCharge={!model.brief.some(item => item.id === 'bill-due')}
-        />
-        <ImportReviewCard review={model.review} monthName={model.activity.monthName} />
-      </div>
-
-      <CollectionsNowCard items={model.collections} todayKey={dateKey(today)} />
-
-      {/* ── Reference ── */}
-      <div className="grid md:grid-cols-[3fr_2fr] gap-4 md:gap-6 items-start">
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="label">Accounts</p>
-            <Link to={linkToBanking()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
-              View all →
-            </Link>
-          </div>
-          <AccountsGrid accounts={accounts} />
+      {/* ── Then what needs you, and the reference lists ── */}
+      <div className="grid lg:grid-cols-[3fr_2fr] gap-x-12 gap-y-9 pt-8 items-start">
+        <div className="space-y-9 min-w-0">
+          <MorningBrief
+            items={model.brief}
+            dateLabel={today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          />
+          <ImportReviewCard review={model.review} monthName={model.activity.monthName} />
+          <MonthActivityCard
+            activity={model.activity}
+            nextCharge={model.nextCharge}
+            invested={model.metrics.investments}
+            showNextCharge={!model.brief.some(item => item.id === 'bill-due')}
+          />
         </div>
 
-        <div className="space-y-4 md:space-y-5">
+        <div className="space-y-9 min-w-0">
+          <CollectionsNowCard items={model.collections} todayKey={dateKey(today)} />
           {props.onManageBudgets && (
             <BudgetsCard
               summary={props.budgets ?? null}
@@ -165,6 +154,15 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
             />
           )}
           {!goalsFailed && <GoalsList goals={goals} today={today} />}
+          <section aria-labelledby="overview-accounts-heading">
+            <div className="flex items-baseline justify-between mb-2">
+              <h2 className="section-title" id="overview-accounts-heading">Accounts</h2>
+              <Link to={linkToBanking()} className="section-link">
+                View all →
+              </Link>
+            </div>
+            <AccountsGrid accounts={accounts} />
+          </section>
         </div>
       </div>
     </div>

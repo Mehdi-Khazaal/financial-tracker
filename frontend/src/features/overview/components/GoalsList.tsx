@@ -21,28 +21,28 @@ interface Props {
 const GoalsList: React.FC<Props> = ({ goals, today }) => {
   if (goals.length === 0) {
     return (
-      <div
-        className="rounded-lg py-10 px-4 text-center flex flex-col items-center justify-center gap-2"
-        style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}
-      >
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>No savings goals yet</p>
-        <Link to={linkToSavings()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
-          Add a goal →
-        </Link>
-      </div>
+      <section aria-label="Savings goals">
+        <h2 className="section-title mb-2">Savings goals</h2>
+        <div className="flex items-center justify-between gap-3 py-3.5" style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>No savings goals yet</p>
+          <Link to={linkToSavings()} className="section-link">
+            Add a goal →
+          </Link>
+        </div>
+      </section>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="label">Savings Goals</p>
-        <Link to={linkToSavings()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+    <section aria-label="Savings goals">
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="section-title">Savings goals</h2>
+        <Link to={linkToSavings()} className="section-link">
           View all →
         </Link>
       </div>
 
-      <div className="space-y-2">
+      <div className="row-list">
         {goals.slice(0, 4).map(goal => {
           const status = describeGoal(goal, today);
           const target = Number(goal.target_amount) || 0;
@@ -54,8 +54,7 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
               key={goal.id}
               to={linkToGoal(goal.id)}
               aria-label={`${goal.name}: ${status.statusLabel}, ${status.rawProgress.toFixed(0)} percent funded. Open goal.`}
-              className="card-hover rounded-lg p-4 block"
-              style={{ backgroundColor: 'var(--elev-1)' }}
+              className="row-link block py-3"
             >
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="text-sm font-medium truncate min-w-0" style={{ color: 'var(--fg)' }}>{goal.name}</p>
@@ -85,7 +84,7 @@ const GoalsList: React.FC<Props> = ({ goals, today }) => {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 };
 

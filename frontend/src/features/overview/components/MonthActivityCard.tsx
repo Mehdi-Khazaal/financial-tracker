@@ -35,10 +35,10 @@ interface Props {
 
 const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, invested, showNextCharge = true }) => {
   return (
-    <section className="ledger-panel p-4" aria-labelledby="overview-activity-heading">
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="label" id="overview-activity-heading">{activity.monthName} activity</p>
-        <Link to="/transactions" className="text-xs font-medium" style={{ color: 'var(--accent)' }}>
+    <section aria-labelledby="overview-activity-heading">
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <h2 className="section-title" id="overview-activity-heading">{activity.monthName} activity</h2>
+        <Link to="/transactions" className="section-link">
           View all →
         </Link>
       </div>
@@ -48,8 +48,8 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, invested, sh
       {/* No `tabular-nums` on a count or a date — privacy mode blurs that class,
           and hiding how many transactions posted protects nothing. */}
       <p
-        className="font-mono text-2xl font-semibold"
-        style={{ color: activity.postedCount === 0 ? 'var(--muted)' : 'var(--fg)' }}
+        className="font-mono text-2xl font-semibold pt-3"
+        style={{ color: activity.postedCount === 0 ? 'var(--muted)' : 'var(--fg)', borderTop: '1px solid var(--line)' }}
       >
         {activity.postedCount}
         <span className="text-xs ml-2 font-normal" style={{ color: 'var(--muted)', fontFamily: 'var(--font-sans)' }}>
@@ -57,7 +57,7 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, invested, sh
         </span>
       </p>
 
-      <dl className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid var(--line)' }}>
+      <dl className="mt-3 pt-3 pb-3 space-y-2" style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-xs" style={{ color: 'var(--dim)' }}>Last posted</dt>
           <dd className="text-xs font-mono" style={{ color: 'var(--muted)' }}>
@@ -74,7 +74,7 @@ const MonthActivityCard: React.FC<Props> = ({ activity, nextCharge, invested, sh
             </dt>
             {/* Not counted as spending — it bought something still held. The
                 Analytics tile carries the fuller explanation. */}
-            <dd className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--accent)' }}>
+            <dd className="text-xs font-mono tabular-nums shrink-0" style={{ color: 'var(--fg)' }}>
               {dollars(Math.abs(invested))}
             </dd>
           </div>

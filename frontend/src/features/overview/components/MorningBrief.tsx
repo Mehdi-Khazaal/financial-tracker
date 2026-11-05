@@ -55,8 +55,8 @@ export const SensitiveSentence: React.FC<{ children: string }> = ({ children }) 
 };
 
 const TONE_COLOR: Record<BriefTone, string> = {
-  attention: 'var(--accent)',
-  neutral: 'var(--muted)',
+  attention: 'var(--neg)',
+  neutral: 'var(--dim)',
   positive: 'var(--pos)',
 };
 
@@ -78,29 +78,26 @@ interface Props {
 }
 
 const MorningBrief: React.FC<Props> = ({ items, dateLabel }) => (
-  <section
-    className="ledger-panel px-4 py-4 md:px-5 md:py-5"
-    aria-labelledby="morning-brief-heading"
-  >
+  <section aria-labelledby="morning-brief-heading">
     {/* The page header already greets by name; repeating it here would spend
         the brief's first line on something the user just read. */}
-    <div className="flex items-baseline justify-between gap-3 mb-3.5">
-      <h2 className="label" id="morning-brief-heading">Today</h2>
-      <p className="label shrink-0 truncate">{dateLabel}</p>
+    <div className="flex items-baseline justify-between gap-3 mb-2">
+      <h2 className="section-title" id="morning-brief-heading">Today</h2>
+      <p className="text-[13px] shrink-0 truncate" style={{ color: 'var(--muted)' }}>{dateLabel}</p>
     </div>
 
     {items.length === 0 ? (
       // Nothing qualified. Saying so is the honest option; padding the brief
       // with a manufactured observation is what this module exists to avoid.
-      <p className="text-sm" style={{ color: 'var(--muted)' }}>
+      <p className="text-sm py-3.5" style={{ color: 'var(--muted)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
         Nothing needs your attention this morning.
       </p>
     ) : (
-      <ul className="space-y-2.5">
+      <ul className="row-list">
         {items.map(item => {
           const color = TONE_COLOR[item.tone];
           return (
-            <li key={item.id} className="flex items-start gap-2.5">
+            <li key={item.id} className="flex items-start gap-3 py-3">
               <svg
                 viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth={1.6}
                 strokeLinecap="round" strokeLinejoin="round"
@@ -123,8 +120,8 @@ const MorningBrief: React.FC<Props> = ({ items, dateLabel }) => (
               {item.action && (
                 <Link
                   to={item.action.to}
-                  className="shrink-0 text-xs font-semibold flex items-center px-1.5 rounded-md"
-                  style={{ color, minHeight: 32 }}
+                  className="section-link shrink-0 flex items-center px-1"
+                  style={{ minHeight: 28 }}
                 >
                   {item.action.label}
                 </Link>

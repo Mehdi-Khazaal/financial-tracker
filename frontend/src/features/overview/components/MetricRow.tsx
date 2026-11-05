@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
-import { MINUS, dollars, percent } from '../../analytics/format';
+import { dollars, percent } from '../../analytics/format';
 import { linkToCards, linkToSavings } from '../../../lib/deepLinks';
 import type { SpendingPace } from '../calculations/brief';
 import type { RecurringMonth } from '../../analytics/types';
@@ -44,18 +44,17 @@ const Tile: React.FC<{
 }> = ({ label, hint, to, children }) => {
   const body = (
     <>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <p className="label truncate">{label}</p>
+      <div className="flex items-center gap-1.5 mb-1">
+        <p className="metric-label truncate">{label}</p>
         {hint && <InfoHint label={`What ${label} means`} text={hint} />}
       </div>
       {children}
     </>
   );
 
-  const className = 'ledger-cell px-3.5 py-3 min-w-0 block';
   return to
-    ? <Link to={to} className={`${className} card-hover`}>{body}</Link>
-    : <div className={className}>{body}</div>;
+    ? <Link to={to} className="metric-tile min-w-0 block">{body}</Link>
+    : <div className="metric-tile min-w-0">{body}</div>;
 };
 
 const MetricRow: React.FC<Props> = ({
@@ -69,16 +68,16 @@ const MetricRow: React.FC<Props> = ({
   const desktopColumns = tileCount === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4';
 
   return (
-  <div className={`grid grid-cols-2 ${desktopColumns} gap-2.5 md:gap-3`}>
+  <div className={`metric-strip grid grid-cols-2 ${desktopColumns}`}>
     <Tile
       label={`${monthName} spending`}
       hint="Money spent this month. Refunds reduce the category they came from; credit-card payments and transfers between your own accounts are excluded."
       to="/?tab=analytics"
     >
-      <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--neg)' }}>
-        {MINUS}{dollars(expenses)}
+      <p className="metric-value">
+        {dollars(expenses)}
       </p>
-      <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>
+      <p className="metric-note">
         {pace
           ? `${percent(Math.abs(pace.delta))} ${pace.delta < 0 ? 'below' : 'above'} usual`
           : `+${dollars(income)} in`}
@@ -91,10 +90,10 @@ const MetricRow: React.FC<Props> = ({
         hint="What your tracked recurring bills and subscriptions cost this calendar month: what has already been paid, plus every charge still due before the month ends. Manage them on the Recurring page."
         to="/recurring"
       >
-        <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--fg)' }}>
+        <p className="metric-value">
           {dollars(recurringMonth.expected)}
         </p>
-        <p className="text-[10px] mt-1 truncate tabular-nums" style={{ color: 'var(--dim)' }}>
+        <p className="metric-note tabular-nums">
           {recurringMonth.remaining > 0
             ? `${dollars(recurringMonth.paid)} paid · ${dollars(recurringMonth.remaining)} to come`
             : 'All paid this month'}
@@ -107,13 +106,10 @@ const MetricRow: React.FC<Props> = ({
       hint="Total owed across your credit cards. The purchases behind it were already counted as spending, so paying a card down is not new spending."
       to={linkToCards()}
     >
-      <p
-        className="font-mono tabular-nums text-lg font-semibold leading-tight"
-        style={{ color: cardDebt > 0 ? 'var(--neg)' : 'var(--pos)' }}
-      >
+      <p className="metric-value">
         {cardDebt > 0 ? `${dollars(cardDebt)}` : 'Paid off'}
       </p>
-      <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>
+      <p className="metric-note">
         {cardDebt > 0
           ? cardUtilization != null ? `${percent(cardUtilization, 0, true)} of limit used` : 'owed'
           : 'Nothing outstanding'}
@@ -126,10 +122,10 @@ const MetricRow: React.FC<Props> = ({
         hint="Current value of your holdings. Net worth counts account balances only, so buying an asset lowers it by the price paid — the figure below adds both together. Live prices are fetched on the Portfolio page."
         to="/portfolio"
       >
-        <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--cat-4)' }}>
+        <p className="metric-value">
           {dollars(investments)}
         </p>
-        <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>
+        <p className="metric-note">
           {physicalAssets > 0 ? `+ ${dollars(physicalAssets)} in assets` : 'Held, not spent'}
         </p>
       </Tile>
@@ -140,10 +136,10 @@ const MetricRow: React.FC<Props> = ({
       hint="Money you have labelled against savings goals. It still sits in your accounts — this is a label, not a separate balance, so it is not added to anything."
       to={linkToSavings()}
     >
-      <p className="font-mono tabular-nums text-lg font-semibold leading-tight" style={{ color: 'var(--pos)' }}>
+      <p className="metric-value">
         {dollars(allocatedToGoals)}
       </p>
-      <p className="text-[10px] mt-1 truncate" style={{ color: 'var(--dim)' }}>
+      <p className="metric-note">
         {goalCount === 0
           ? 'No goals yet'
           : `across ${goalCount === 1 ? '1 goal' : `${goalCount} goals`}`}

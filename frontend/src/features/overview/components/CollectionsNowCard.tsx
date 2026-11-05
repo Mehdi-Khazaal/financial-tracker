@@ -15,18 +15,17 @@ const CollectionsNowCard: React.FC<{ items: DashboardCollection[]; todayKey: str
   if (items.length === 0) return null;
   return (
     <section aria-labelledby="overview-collections">
-      <div className="flex items-center justify-between mb-3">
-        <p id="overview-collections" className="label">Collections</p>
-        <Link to={linkToCollections()} className="text-xs font-medium" style={{ color: 'var(--accent)' }}>View all →</Link>
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 id="overview-collections" className="section-title">Collections</h2>
+        <Link to={linkToCollections()} className="section-link">View all →</Link>
       </div>
-      <div className="grid sm:grid-cols-2 gap-2">
+      <div className="row-list">
         {items.slice(0, 4).map(({ collection, monthSpent }) => {
           const net = serverTotals(collection).net;
           const amount = collection.active ? netDisplay(net) : { text: dollars(monthSpent), color: undefined };
           const budget = collection.active ? budgetProgress(net, collection.budget) : null;
           return (
-            <Link key={collection.id} to={linkToCollection(collection.id)} className="rounded-lg p-4 flex items-center gap-3 pressable"
-              style={{ backgroundColor: 'var(--elev-1)' }}>
+            <Link key={collection.id} to={linkToCollection(collection.id)} className="row-link flex items-center gap-3 py-3">
               <CollectionBadge collection={collection} size="sm" />
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{collection.name}</span>

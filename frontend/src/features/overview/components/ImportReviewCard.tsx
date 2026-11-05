@@ -24,7 +24,7 @@ interface Props {
 const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
   if (review.isComplete) {
     return (
-      <section className="ledger-panel px-4 py-3" aria-labelledby="overview-review-heading">
+      <section className="py-3" aria-labelledby="overview-review-heading" style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
         <div className="flex items-center gap-3">
           <svg
             viewBox="0 0 20 20" fill="none" stroke="var(--pos)" strokeWidth={1.7}
@@ -48,8 +48,8 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
           </div>
           <Link
             to={linkToReview()}
-            className="shrink-0 text-xs font-medium flex items-center px-1"
-            style={{ color: 'var(--accent)', minHeight: 36 }}
+            className="section-link shrink-0 flex items-center px-1"
+            style={{ minHeight: 36 }}
           >
             Review →
           </Link>
@@ -61,18 +61,18 @@ const ImportReviewCard: React.FC<Props> = ({ review, monthName }) => {
   return (
     <Link
       to={linkToReview()}
-      className="block rounded-xl px-4 py-4 pressable"
-      style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 28%, transparent)' }}
+      className="row-link block py-4"
+      style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}
       aria-label={`Review uncategorized transactions. ${review.unreviewed} of ${review.total} transactions in ${monthName} need a category.`}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="label mb-1">Transaction review</p>
+          <p className="text-[13px] mb-0.5" style={{ color: 'var(--muted)' }}>Transaction review</p>
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--fg)' }}>
             {plural(review.unreviewed, 'transaction')} {verbFor(review.unreviewed, 'need')} a category
           </p>
         </div>
-        <span className="font-mono text-xs font-bold shrink-0" style={{ color: 'var(--accent)' }} aria-hidden="true">
+        <span className="font-mono text-sm font-semibold shrink-0" style={{ color: 'var(--accent)' }} aria-hidden="true">
           {review.rate}%
         </span>
       </div>

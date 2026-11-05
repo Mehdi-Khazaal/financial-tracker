@@ -95,7 +95,8 @@ describe('OverviewTab — beginning of month', () => {
     // The month totals now live in the secondary metric band, out of the
     // net-worth card, but they are still shown rather than suppressed.
     expect(screen.getByText('August spending')).toBeInTheDocument();
-    expect(screen.getByText('−$0.00')).toBeInTheDocument();
+    // Spending is shown in plain ink, not as a red negative: it is not a verdict.
+    expect(screen.getByText('August spending').closest('.metric-tile')).toHaveTextContent('$0.00');
     expect(screen.getByText('+$0.00 in')).toBeInTheDocument();
   });
 
@@ -286,11 +287,15 @@ describe('OverviewTab — net worth hero', () => {
 });
 
 describe('OverviewTab — morning brief', () => {
-  it('is the first thing on the page', () => {
+  it('comes right after net worth and the month strip', () => {
     const { container } = renderTab({ transactions: [tx('2026-08-01', -20)] });
 
-    const sections = container.querySelectorAll('section');
-    expect(sections[0]).toHaveAttribute('aria-labelledby', 'morning-brief-heading');
+    const sections = Array.from(container.querySelectorAll('section'));
+    expect(sections[0]).toHaveAttribute('aria-labelledby', 'overview-net-worth-label');
+    const brief = sections.findIndex(section => section.getAttribute('aria-labelledby') === 'morning-brief-heading');
+    expect(brief).toBeGreaterThan(0);
+    // First of the sections below the strip.
+    expect(sections.slice(1, brief).every(section => !section.closest('.metric-strip'))).toBe(true);
   });
 
   it('leads with unresolved imports and links to the review', () => {

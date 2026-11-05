@@ -26,36 +26,37 @@ const BudgetsCard: React.FC<Props> = ({ summary, today, onManage, unavailable = 
 
   if (unavailable) {
     return (
-      <div className="rounded-lg py-8 px-4 text-center" style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>Budgets could not be loaded</p>
-      </div>
+      <section aria-label="Budgets">
+        <h2 className="section-title mb-2">Budgets</h2>
+        <p className="text-sm py-3.5" style={{ color: 'var(--muted)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>Budgets could not be loaded</p>
+      </section>
     );
   }
 
   if (view.items.length === 0) {
     return (
-      <div
-        className="rounded-lg py-10 px-4 text-center flex flex-col items-center justify-center gap-2"
-        style={{ backgroundColor: 'var(--elev-1)', border: '1px dashed var(--line)' }}
-      >
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>No budgets yet</p>
-        <button type="button" onClick={onManage} className="text-xs font-medium pressable" style={{ color: 'var(--accent)', minHeight: 44 }}>
-          Set a budget →
-        </button>
-      </div>
+      <section aria-label="Budgets">
+        <h2 className="section-title mb-2">Budgets</h2>
+        <div className="flex items-center justify-between gap-3 py-1" style={{ borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>No budgets yet</p>
+          <button type="button" onClick={onManage} className="section-link" style={{ minHeight: 44 }}>
+            Set a budget →
+          </button>
+        </div>
+      </section>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="label">Budgets</p>
-        <button type="button" onClick={onManage} className="text-xs font-medium pressable" style={{ color: 'var(--accent)', minHeight: 44 }}>
+    <section aria-label="Budgets">
+      <div className="flex items-center justify-between">
+        <h2 className="section-title">Budgets</h2>
+        <button type="button" onClick={onManage} className="section-link" style={{ minHeight: 40 }}>
           Manage →
         </button>
       </div>
 
-      <div className="rounded-lg p-4 mb-2" style={{ backgroundColor: 'var(--elev-1)' }}>
+      <div className="py-3" style={{ borderTop: '1px solid var(--line)' }}>
         <div className="flex items-baseline justify-between gap-2">
           <p className="font-mono tabular-nums text-sm" style={{ color: 'var(--fg)' }}>
             {dollars(view.spent)}<span style={{ color: 'var(--dim)' }}> / {dollars(view.budgeted)}</span>
@@ -74,9 +75,9 @@ const BudgetsCard: React.FC<Props> = ({ summary, today, onManage, unavailable = 
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="row-list">
         {view.items.slice(0, MAX_ROWS).map(item => (
-          <div key={item.id} className="rounded-lg p-4" style={{ backgroundColor: 'var(--elev-1)' }} aria-label={`${item.name}: ${item.statusLabel}`}>
+          <div key={item.id} className="py-3" aria-label={`${item.name}: ${item.statusLabel}`}>
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-sm font-medium truncate min-w-0" style={{ color: 'var(--fg)' }}>{item.name}</p>
               <p className="font-mono tabular-nums text-xs font-bold shrink-0" style={{ color: item.color }}>
@@ -94,12 +95,12 @@ const BudgetsCard: React.FC<Props> = ({ summary, today, onManage, unavailable = 
           </div>
         ))}
         {view.items.length > MAX_ROWS && (
-          <button type="button" onClick={onManage} className="text-xs font-medium px-1 pressable" style={{ color: 'var(--accent)', minHeight: 44 }}>
+          <button type="button" onClick={onManage} className="section-link text-left py-2" style={{ minHeight: 44 }}>
             {view.items.length - MAX_ROWS} more →
           </button>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 

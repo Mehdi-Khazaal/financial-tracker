@@ -57,105 +57,95 @@ const OverviewHero: React.FC<Props> = ({
 
   return (
     <section
-      className="hero-card rounded-xl p-6 md:p-8"
+      className="pb-7"
       aria-labelledby="overview-net-worth-label"
-      style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line)', boxShadow: 'var(--edge-light), var(--shadow-card)' }}
+      style={{ borderBottom: '1px solid var(--line)' }}
     >
-      {/* One card, one question: what am I worth, and what can I spend. The
-          month totals and the excluded pools moved to the metric band below —
-          printing them here implied they were part of this figure. */}
-      <div className="relative" style={{ zIndex: 1 }}>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 mb-3">
-            <p className="label" id="overview-net-worth-label">Net Worth</p>
+      {/* One question: what am I worth, and what can I spend. No box around
+          it; the size of the number carries the hierarchy. */}
+      <div className="flex flex-wrap items-end gap-x-10 gap-y-6">
+        <div className="min-w-0 mr-auto">
+          <div className="flex items-center gap-1.5 mb-2">
+            <h2 className="text-[13px] font-medium" id="overview-net-worth-label" style={{ color: 'var(--muted)' }}>Net Worth</h2>
             <InfoHint label="How net worth is calculated" text={NET_WORTH_DEFINITION} />
           </div>
 
-          <p className="value-display" style={{ fontSize: 'clamp(2.25rem, 5vw, 4rem)' }}>
-            $<CountUp value={netWorth.current} duration={1100} />
+          <p className="value-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 3.5rem)', letterSpacing: '-0.025em' }}>
+            $<CountUp value={netWorth.current} duration={900} />
           </p>
 
+          {/* Timeframe, dollar change and percentage change — all three named. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-sm" style={{ color: 'var(--muted)' }}>
+            <span>{netWorth.timeframeLabel}</span>
+            {netWorth.hasTrend && netWorth.change !== 0 && (
+              <>
+                <span
+                  className="font-mono tabular-nums font-semibold"
+                  style={{ color: netWorth.change >= 0 ? 'var(--pos)' : 'var(--neg)' }}
+                >
+                  {netWorth.change >= 0 ? '+' : '−'}{dollars(Math.abs(netWorth.change))}
+                  {netWorth.pctChange != null && ` · ${signedPercent(netWorth.pctChange)}`}
+                </span>
+                <span className="font-mono tabular-nums" style={{ color: 'var(--dim)' }}>
+                  from {dollars(netWorth.start)}
+                </span>
+              </>
+            )}
+            {!netWorth.hasTrend && (
+              <span style={{ color: 'var(--dim)' }}>
+                A trend appears once there are two months of history.
+              </span>
+            )}
+          </div>
+
           {/* The wider figure, stated once and next to the narrow one it is
-              constantly mistaken for. Suppressed when nothing is held, where it
-              would only restate net worth. */}
+              constantly mistaken for. Suppressed when nothing is held. */}
           {totalWealth != null && (
-            <div className="flex items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-1.5 mt-1">
               <p className="font-mono tabular-nums text-xs" style={{ color: 'var(--dim)' }}>
                 {dollars(totalWealth)} including holdings
               </p>
               <InfoHint label="How total wealth is calculated" text={TOTAL_WEALTH_DEFINITION} />
             </div>
           )}
-
-          {/* Timeframe, dollar change and percentage change — all three named. */}
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2.5">
-            <span className="label">{netWorth.timeframeLabel}</span>
-            {netWorth.hasTrend && netWorth.change !== 0 && (
-              <>
-                <span
-                  className="font-mono tabular-nums text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{
-                    color: netWorth.change >= 0 ? 'var(--pos)' : 'var(--neg)',
-                    backgroundColor: netWorth.change >= 0 ? 'var(--pos-dim)' : 'var(--neg-dim)',
-                  }}
-                >
-                  {netWorth.change >= 0 ? '↑' : '↓'} {dollars(Math.abs(netWorth.change))}
-                  {netWorth.pctChange != null && ` · ${signedPercent(netWorth.pctChange)}`}
-                </span>
-                <span className="font-mono tabular-nums text-[11px]" style={{ color: 'var(--dim)' }}>
-                  from {dollars(netWorth.start)}
-                </span>
-              </>
-            )}
-            {!netWorth.hasTrend && (
-              <span className="text-[11px]" style={{ color: 'var(--dim)' }}>
-                A trend appears once there are two months of history.
-              </span>
-            )}
-          </div>
-
-          {sparkValues.length > 1 && (
-            <figure className="blurrable mt-5 -mx-1 mb-0" style={{ height: 52 }} role="img" aria-label={chartSummary}>
-              <Sparkline data={sparkValues} height={52} color="var(--accent)" />
-            </figure>
-          )}
-
-          <div className="flex flex-wrap gap-8 md:gap-12 mt-5 pt-5" style={{ borderTop: '1px solid var(--line)' }}>
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <p className="label">Available to spend</p>
-                <InfoHint label="What available to spend means" text={AVAILABLE_DEFINITION} />
-              </div>
-              <p className="font-mono tabular-nums text-sm font-medium" style={{ color: 'var(--pos)' }}>
-                {dollars(availableToSpend)}
-              </p>
-            </div>
-
-            {comparison.kind !== 'none' && (
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <p className="label">{comparison.label}</p>
-                  <InfoHint label="What this comparison measures" text={comparison.hint} />
-                </div>
-                {/* Sans with tabular figures: it is a sentence, not a number.
-                    The `tabular-nums` class is also what privacy mode blurs. */}
-                <p className="text-sm font-medium tabular-nums" style={{ color: toneColor[comparison.tone] }}>
-                  {comparison.text}
-                </p>
-              </div>
-            )}
-          </div>
         </div>
 
+        {sparkValues.length > 1 && (
+          <figure className="blurrable m-0 w-full sm:w-[340px]" style={{ height: 72 }} role="img" aria-label={chartSummary}>
+            <Sparkline data={sparkValues} height={72} color="var(--accent)" />
+          </figure>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-x-10 gap-y-4 mt-6">
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <p className="text-[13px]" style={{ color: 'var(--muted)' }}>Available to spend</p>
+            <InfoHint label="What available to spend means" text={AVAILABLE_DEFINITION} />
+          </div>
+          <p className="font-mono tabular-nums text-base font-semibold" style={{ color: 'var(--fg)' }}>
+            {dollars(availableToSpend)}
+          </p>
+        </div>
+
+        {comparison.kind !== 'none' && (
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 mb-1">
+              <p className="text-[13px]" style={{ color: 'var(--muted)' }}>{comparison.label}</p>
+              <InfoHint label="What this comparison measures" text={comparison.hint} />
+            </div>
+            {/* Sans with tabular figures: it is a sentence, not a number.
+                The `tabular-nums` class is also what privacy mode blurs. */}
+            <p className="text-base font-medium tabular-nums" style={{ color: toneColor[comparison.tone] }}>
+              {comparison.text}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Why the numbers above look the way they do. Only when they need saying. */}
       {activity.headline && (
-        <div
-          className="relative mt-5 pt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1"
-          style={{ zIndex: 1, borderTop: '1px solid var(--line)' }}
-          role="status"
-        >
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-2 gap-y-1" role="status">
           <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>{activity.headline}</p>
           {activity.detail && (
             <p className="text-xs" style={{ color: 'var(--muted)' }}>{activity.detail}</p>
