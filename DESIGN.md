@@ -55,11 +55,11 @@ Progress bars animate width in 200ms and not at all under `prefers-reduced-motio
 
 ## Z-scale
 
-`--z-sticky 20 → nav 40 → topbar 50 → backdrop 60 → modal 70 → toast 80 → grain 90`. No arbitrary values.
+`--z-sticky 20 → nav 40 → topbar 50 → backdrop 60 → modal 70 → toast 80`. No arbitrary values.
 
 ## Texture
 
-Fixed full-viewport film grain (`body::after`, 3% opacity SVG noise). Hero card gets a slow ember shimmer + radial glow (`.hero-card`).
+No grain and no looping animations: both repainted the screen continuously and cost battery on phones. The hero card keeps a static radial glow (`.hero-card`).
 
 ## Component vocabulary
 
