@@ -13,6 +13,7 @@ import type {
   Account,
   Asset,
   Category,
+  Collection,
   MonthSnapshot,
   RecurringOverview,
   RecurringTransaction,
@@ -40,6 +41,7 @@ import {
   type BriefItem, type SpendingPace,
 } from './calculations/brief';
 import { calculateAccountTotals } from '../accounts/calculations/totals';
+import { dashboardCollections, type DashboardCollection } from '../collections/calculations/periods';
 import { valuePortfolio } from '../portfolio/calculations/investments';
 import { totalWealth } from '../portfolio/calculations/wealth';
 
@@ -55,6 +57,8 @@ export interface OverviewSources {
   assets: Asset[];
   /** Names of sources that failed to load, from the Dashboard loader. */
   failedSources: string[];
+  /** Trips, holidays, moves; empty when there are none or they failed to load. */
+  collections?: Collection[];
 }
 
 export interface NetWorthTrend {
@@ -108,7 +112,11 @@ export interface OverviewModel {
   recurringMonth: RecurringMonth | null;
   /** Active tracked bills, for the tile's caption. */
   recurringCount: number;
+  /** Collections running now or with spending this month; usually empty. */
+  collections: DashboardCollection[];
 }
+
+const EMPTY_COLLECTIONS: Collection[] = [];
 
 /** Stable "now" for a mounted page, so memos don't invalidate every render. */
 export function useToday(): Date {
@@ -124,6 +132,7 @@ const monthLabelOf = (month: string): string => {
 
 export function useOverviewModel(sources: OverviewSources, today: Date): OverviewModel {
   const { accounts, transactions, categories, goals, recurring, recurringOverview = null, snapshots, assets, failedSources } = sources;
+  const collections = sources.collections ?? EMPTY_COLLECTIONS;
 
   const ctx = useMemo(
     () => buildClassificationContext(accounts, categories),
@@ -290,6 +299,7 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       lastCompleted,
       undeclaredRecurringCount,
       heroShowsActivityContext: activity.headline != null,
+      collections,
     });
 
     return {
@@ -325,6 +335,7 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       undeclaredRecurringCount,
       recurringMonth: monthFromOverview(recurringOverview),
       recurringCount: recurringOverview?.bill_count ?? 0,
+      collections: dashboardCollections(collections, transactions, ctx, monthKey),
     };
-  }, [accounts, transactions, categories, goals, recurring, recurringOverview, snapshots, assets, failedSources, ctx, today]);
+  }, [accounts, transactions, categories, goals, recurring, recurringOverview, snapshots, assets, failedSources, collections, ctx, today]);
 }

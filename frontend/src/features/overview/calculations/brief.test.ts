@@ -1,4 +1,4 @@
-import type { Account, Transaction } from '../../../types';
+import type { Account, Collection, Transaction } from '../../../types';
 import type { Forecast, PeriodMetrics, PrimaryGoal } from '../../analytics/types';
 import { EMPTY_METRICS } from '../../analytics/calculations/metrics';
 import { buildMonthActivity } from './activity';
@@ -448,5 +448,38 @@ describe('the brief stays short', () => {
 
   it('honours a smaller limit for narrow screens', () => {
     expect(buildMorningBrief({ ...base, ...crowded }, 3)).toHaveLength(3);
+  });
+});
+
+describe('collections in the brief', () => {
+  const collection = (overrides: Partial<Collection> = {}): Collection => ({
+    id: 4, name: 'Ohio trip', emoji: null, color: null, note: null, start_date: '2026-08-01', end_date: '2026-08-09',
+    budget: null, is_archived: false, created_at: null, active: false, suggestion_count: 0,
+    totals: { spent: '1300', returned: '60', net: '1240', count: 18, first_date: null, last_date: null }, ...overrides,
+  });
+
+  it('says nothing about collections that need nothing', () => {
+    expect(ids({ collections: [] })).toEqual(ids());
+    expect(ids({ collections: [collection({ end_date: '2026-08-01' })] })).toEqual(ids());
+    expect(ids({ collections: [collection({ end_date: '2026-08-12', active: true })] })).toEqual(ids());
+    expect(ids({ collections: [collection({ is_archived: true, active: true, suggestion_count: 3 })] })).toEqual(ids());
+  });
+
+  it('asks about suggestions for a running collection', () => {
+    const item = find('collection-review-4', { collections: [collection({ active: true, end_date: null, suggestion_count: 3 })] });
+    expect(item?.text).toBe('3 transactions might belong to Ohio trip');
+    expect(item?.action?.to).toBe('/collections/4?review=1');
+  });
+
+  it('gives the total once a collection has ended, against its budget when it has one', () => {
+    expect(find('collection-ended-4', { collections: [collection()] })).toMatchObject({
+      text: 'Ohio trip cost $1,240.00 in total', detail: '18 transactions.', tone: 'positive',
+    });
+    expect(find('collection-ended-4', { collections: [collection({ budget: '1000' })] })).toMatchObject({
+      detail: '$240.00 over its $1,000.00 budget.', tone: 'neutral',
+    });
+    expect(find('collection-ended-4', { collections: [collection({ budget: '1500' })] })?.detail)
+      .toBe('$260.00 under its $1,500.00 budget.');
+    expect(find('collection-ended-4', { collections: [collection({ totals: { ...collection().totals, count: 0 } })] })).toBeUndefined();
   });
 });

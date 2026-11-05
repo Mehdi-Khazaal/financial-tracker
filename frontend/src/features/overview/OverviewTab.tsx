@@ -5,6 +5,7 @@ import type {
   Asset,
   BudgetProgressSummary,
   Category,
+  Collection,
   MonthSnapshot,
   RecurringOverview,
   RecurringTransaction,
@@ -21,6 +22,8 @@ import AccountsGrid from './components/AccountsGrid';
 import GoalsList from './components/GoalsList';
 import BudgetsCard from './components/BudgetsCard';
 import SetupChecklist from './components/SetupChecklist';
+import CollectionsNowCard from './components/CollectionsNowCard';
+import { dateKey } from '../analytics/period';
 import { linkToBanking } from '../../lib/deepLinks';
 
 /**
@@ -56,6 +59,8 @@ export interface OverviewTabProps {
   budgets?: BudgetProgressSummary | null;
   /** Owner of the per-user setup flags. */
   userId?: number;
+  /** Trips, holidays, moves. */
+  collections?: Collection[];
   onManageBudgets?: () => void;
 }
 
@@ -73,6 +78,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
       snapshots: props.snapshots,
       assets: props.assets,
       failedSources: props.failedSources,
+      collections: props.collections,
     },
     today,
   );
@@ -134,6 +140,8 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
         />
         <ImportReviewCard review={model.review} monthName={model.activity.monthName} />
       </div>
+
+      <CollectionsNowCard items={model.collections} todayKey={dateKey(today)} />
 
       {/* ── Reference ── */}
       <div className="grid md:grid-cols-[3fr_2fr] gap-4 md:gap-6 items-start">

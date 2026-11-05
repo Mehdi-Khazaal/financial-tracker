@@ -20,7 +20,7 @@
  *      echoed one card lower.
  */
 
-import type { Account, Transaction } from '../../../types';
+import type { Account, Collection, Transaction } from '../../../types';
 import type { Forecast, PeriodMetrics, PrimaryGoal, UpcomingBill } from '../../analytics/types';
 import { dollars, monthLabel, plural, relativeDays, signedPercent, verbFor } from '../../analytics/format';
 import {
@@ -32,7 +32,7 @@ import { dateKey, daysBetween } from '../../analytics/period';
 import type { MonthActivity } from '../types';
 import { HIGH_UTILIZATION, cardUtilization, totalCardDebt } from './accounts';
 import {
-  linkToBanking, linkToCards, linkToGoal, linkToRecurring, linkToReview,
+  linkToBanking, linkToCards, linkToCollection, linkToGoal, linkToRecurring, linkToReview,
 } from '../../../lib/deepLinks';
 
 export type BriefTone = 'attention' | 'neutral' | 'positive';
@@ -147,7 +147,12 @@ export interface BriefInputs {
   lastCompleted: { month: string; net: number } | null;
   /** True when the hero is already showing the quiet-month explanation. */
   heroShowsActivityContext: boolean;
+  /** Trips, holidays, moves. Optional: most days there is nothing to say about them. */
+  collections?: Collection[];
 }
+
+/** A collection that ended this many days ago or fewer still gets its total in the brief. */
+const COLLECTION_RECAP_DAYS = 3;
 
 /** How many lines the brief will show. */
 export const BRIEF_LIMIT = 4;
@@ -163,6 +168,7 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
     primaryGoal, savingsMonths,
     recentMetrics, recentTransactions, declaredRecurringKeys, pace, forecast,
     upcoming, undeclaredRecurringCount, lastCompleted, heroShowsActivityContext,
+    collections = [],
   } = inputs;
 
   const items: BriefItem[] = [];
@@ -420,6 +426,41 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
       action: null,
     });
   }
+
+  // ── Collections: waiting picks, and the total once one ends ─────────────────
+
+  const todayKey = dateKey(today);
+  collections.filter(c => !c.is_archived).forEach(c => {
+    if (c.active && c.suggestion_count > 0) {
+      items.push({
+        id: `collection-review-${c.id}`,
+        priority: 7.5,
+        tone: 'neutral',
+        icon: 'info',
+        text: `${plural(c.suggestion_count, 'transaction')} might belong to ${c.name}`,
+        detail: 'From its dates. Nothing is added until you pick it.',
+        action: { label: 'Review', to: linkToCollection(c.id, true) },
+      });
+    }
+    const ended = c.end_date ? daysBetween(c.end_date, todayKey) : -1;
+    if (ended >= 1 && ended <= COLLECTION_RECAP_DAYS && c.totals.count > 0) {
+      const net = Number(c.totals.net) || 0;
+      const budget = Number(c.budget) || 0;
+      items.push({
+        id: `collection-ended-${c.id}`,
+        priority: 10.5,
+        tone: budget > 0 && net > budget ? 'neutral' : 'positive',
+        icon: 'check',
+        text: `${c.name} cost ${dollars(net)} in total`,
+        detail: budget > 0
+          ? net > budget
+            ? `${dollars(net - budget)} over its ${dollars(budget)} budget.`
+            : `${dollars(budget - net)} under its ${dollars(budget)} budget.`
+          : `${plural(c.totals.count, 'transaction')}.`,
+        action: { label: 'Open', to: linkToCollection(c.id) },
+      });
+    }
+  });
 
   return items.sort((a, b) => a.priority - b.priority);
 }

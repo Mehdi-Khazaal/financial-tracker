@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
-import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary } from '../types';
+import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary, Collection } from '../types';
 import {
   fetchAllTransactions, getAccounts, getSavingsGoals, getCategories,
   getNetWorthHistory, getAssets, getRecurring, getRecurringOverview,
-  getBudgetProgress,
+  getBudgetProgress, getCollections,
 } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
   const [recurring, setRecurring]             = useState<RecurringTransaction[]>([]);
   const [recurringOverview, setRecurringOverview] = useState<RecurringOverview | null>(null);
   const [budgets, setBudgets]                 = useState<BudgetProgressSummary | null>(null);
+  const [collections, setCollections]         = useState<Collection[]>([]);
   const [showBudgets, setShowBudgets]         = useState(false);
   const [loading, setLoading]                 = useState(true);
   const [loadError, setLoadError]             = useState(false);
@@ -108,6 +109,11 @@ const Dashboard: React.FC = () => {
         : null);
       setFailedSources(failed);
       setLoadError(failed.length > 0);
+      // Collections only add a card and brief lines when there are some, so a
+      // failure here stays quiet rather than raising the page's error banner.
+      getCollections()
+        .then(res => setCollections(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setCollections([]));
     } catch {
       setFailedSources(SOURCES);
       setLoadError(true);
@@ -242,6 +248,7 @@ const Dashboard: React.FC = () => {
               budgets={budgets}
               userId={user?.id ?? 0}
               onManageBudgets={() => setShowBudgets(true)}
+              collections={collections}
             />
           )}
 
