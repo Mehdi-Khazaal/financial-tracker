@@ -309,7 +309,7 @@ const Navigation: React.FC = () => {
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} className="w-5 h-5 relative">
                   <path d={item.icon} />
                 </svg>
-                <span className="font-mono text-[9px] font-medium leading-none tracking-wider uppercase relative">{item.mobileLabel}</span>
+                <span className="font-mono text-xs font-medium leading-none relative">{item.mobileLabel}</span>
               </Link>
             );
           })}

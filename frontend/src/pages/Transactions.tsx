@@ -1000,7 +1000,7 @@ const Transactions: React.FC = () => {
                       {uncategorized.length > 0 && (
                         <div className="w-1.5 h-1.5 rounded-full pulse-dot shrink-0" style={{ backgroundColor: 'var(--neg)' }} />
                       )}
-                      <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--dim)' }}>Inbox</p>
+                      <p className="text-xs font-bold" style={{ color: 'var(--dim)' }}>Inbox</p>
                     </div>
                     <span
                       className="text-[11px] font-bold px-2 py-0.5 rounded-full leading-none"
@@ -1183,7 +1183,7 @@ const Transactions: React.FC = () => {
 
                   {/* Type */}
                   <div className="col-span-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Type</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Type</p>
                     <div className="flex p-0.5 rounded-xl" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
                       {(['all', 'income', 'expense'] as const).map(t => (
                         <button key={t} onClick={() => setPendingType(t)}
@@ -1202,7 +1202,7 @@ const Transactions: React.FC = () => {
 
                   {/* From */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>From</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>From</p>
                     <input type="date" value={pendingDateFrom} onChange={e => setPendingDateFrom(e.target.value)}
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
                       style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: pendingDateFrom ? 'var(--fg)' : 'var(--dim)', outline: 'none' }} />
@@ -1210,7 +1210,7 @@ const Transactions: React.FC = () => {
 
                   {/* To */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>To</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>To</p>
                     <input type="date" value={pendingDateTo} onChange={e => setPendingDateTo(e.target.value)}
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
                       style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: pendingDateTo ? 'var(--fg)' : 'var(--dim)', outline: 'none' }} />
@@ -1218,7 +1218,7 @@ const Transactions: React.FC = () => {
 
                   {/* Account */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Account</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Account</p>
                     <select value={pendingAccount} onChange={e => setPendingAccount(e.target.value)}
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
                       style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
@@ -1229,7 +1229,7 @@ const Transactions: React.FC = () => {
 
                   {/* Category */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Category</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Category</p>
                     <select value={pendingCategory} onChange={e => setPendingCategory(e.target.value)}
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
                       style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>
@@ -1241,7 +1241,7 @@ const Transactions: React.FC = () => {
 
                   {/* Min $ */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Min $</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Min $</p>
                     <input type="number" min="0" step="0.01" value={pendingAmountMin}
                       onChange={e => setPendingAmountMin(e.target.value)} placeholder="0.00"
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
@@ -1250,7 +1250,7 @@ const Transactions: React.FC = () => {
 
                   {/* Max $ */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Max $</p>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Max $</p>
                     <input type="number" min="0" step="0.01" value={pendingAmountMax}
                       onChange={e => setPendingAmountMax(e.target.value)} placeholder="Any"
                       className="w-full text-xs px-2.5 py-2.5 rounded-xl"
@@ -1260,7 +1260,7 @@ const Transactions: React.FC = () => {
                   {/* Collection */}
                   {collections.length > 0 && (
                     <div className="col-span-2">
-                      <label htmlFor="filter-collection" className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--dim)' }}>Collection</label>
+                      <label htmlFor="filter-collection" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--dim)' }}>Collection</label>
                       <select id="filter-collection" value={pendingCollection} onChange={e => setPendingCollection(e.target.value)}
                         className="w-full text-xs px-2.5 py-2.5 rounded-xl"
                         style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)', color: 'var(--fg)', outline: 'none' }}>

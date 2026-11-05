@@ -229,7 +229,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         )}
         {mobileCard && (
           <div className="mt-2 flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
+            <span className="font-mono text-xs" style={{ color: 'var(--accent)' }}>
               Review
             </span>
             <span className="h-px flex-1" style={{ backgroundColor: 'var(--line)' }} />

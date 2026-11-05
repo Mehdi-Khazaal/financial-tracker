@@ -68,7 +68,6 @@ const Signup: React.FC = () => {
     fontFamily: 'var(--font-mono)',
     fontSize: '10px',
     letterSpacing: '0.13em',
-    textTransform: 'uppercase',
     color: 'var(--muted)',
     marginBottom: '8px',
   };
@@ -116,7 +115,6 @@ const Signup: React.FC = () => {
             fontFamily: 'var(--font-mono)',
             fontSize: '11px',
             letterSpacing: '0.11em',
-            textTransform: 'uppercase',
             color: 'var(--muted)',
             margin: 0,
           }}>
@@ -349,7 +347,6 @@ const Signup: React.FC = () => {
               fontSize: '9px',
               letterSpacing: '0.18em',
               color: 'var(--dim)',
-              textTransform: 'uppercase',
             }}>Fintrack</span>
             <div style={{ flex: 1, height: '1px', background: 'var(--line)' }} />
           </div>

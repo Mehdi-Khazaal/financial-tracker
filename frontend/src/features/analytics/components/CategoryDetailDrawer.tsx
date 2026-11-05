@@ -280,7 +280,7 @@ const CategoryDetailDrawer: React.FC<Props> = ({
                         {amount > 0 ? '+' : '−'}{dollars(Math.abs(amount))}
                       </p>
                       <p
-                        className="text-[9px] mt-1 font-mono uppercase tracking-wider"
+                        className="text-xs mt-1 font-mono"
                         style={{ color: KIND_COLORS[kind] }}
                       >
                         {KIND_LABELS[kind]}

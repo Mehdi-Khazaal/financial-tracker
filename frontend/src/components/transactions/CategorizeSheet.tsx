@@ -212,7 +212,7 @@ const CategorizeSheet: React.FC<Props> = ({
         <div className="px-4 pt-4 pb-2">
           {sessionSuggestions.length > 0 && (
             <div className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--accent)' }}>
+              <p className="text-xs font-bold mb-2" style={{ color: 'var(--accent)' }}>
                 Suggested
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -233,7 +233,7 @@ const CategorizeSheet: React.FC<Props> = ({
 
           {remainingCategories.length > 0 && (
             <>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--dim)' }}>
+              <p className="text-xs font-bold mb-2" style={{ color: 'var(--dim)' }}>
                 {sessionSuggestions.length > 0 ? 'All other categories' : 'All categories'}
               </p>
               <div className="grid grid-cols-2 gap-2">

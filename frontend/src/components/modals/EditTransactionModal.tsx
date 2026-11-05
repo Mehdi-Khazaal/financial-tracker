@@ -182,7 +182,7 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
               <div key={row.label}
                 className="flex items-center justify-between px-4 py-3"
                 style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--line)' : 'none' }}>
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--dim)' }}>{row.label}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--dim)' }}>{row.label}</p>
                 <div className="flex items-center gap-1.5">
                   {row.color && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />}
                   <p className="text-sm font-medium" style={{ color: row.label === 'Type' ? row.color : 'var(--fg)' }}>{row.value}</p>

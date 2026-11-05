@@ -124,7 +124,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--bg)', border: '1px solid var(--line)' }}>
                 <div className="flex items-center justify-center gap-3 text-sm">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Cash</p>
+                    <p className="text-xs text-muted mb-0.5">Cash</p>
                     <p className="font-semibold text-text">{fromAccount.name}</p>
                   </div>
                   <div className="flex flex-col items-center gap-0.5">
@@ -136,7 +136,7 @@ const DepositModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted mb-0.5">Bank</p>
+                    <p className="text-xs text-muted mb-0.5">Bank</p>
                     <p className="font-semibold text-text">{toAccount.name}</p>
                   </div>
                 </div>
