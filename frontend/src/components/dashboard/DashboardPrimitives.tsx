@@ -19,11 +19,9 @@ export const AccountTypeIcon: React.FC<{ type: string; className?: string; iconC
 }) => {
   const meta = ACCOUNT_TYPE_META[type] ?? ACCOUNT_TYPE_META.checking;
   return (
-    <div
-      className={`${className} rounded-xl flex items-center justify-center shrink-0`}
-      style={{ backgroundColor: 'var(--elev-sub)', border: '1px solid var(--line)' }}
-    >
-      <svg viewBox="0 0 20 20" fill={meta.iconColor} className={iconClassName}>
+    // A plain icon in muted ink: no tinted tile, no per-type colour.
+    <div className={`${className} flex items-center justify-center shrink-0`} aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="var(--muted)" className={iconClassName}>
         <path d={meta.iconPath} />
       </svg>
     </div>

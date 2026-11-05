@@ -163,8 +163,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
 
       {mobileCard && (
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-          style={{ backgroundColor: pos ? 'color-mix(in oklab, var(--pos) 12%, transparent)' : 'color-mix(in oklab, var(--neg) 10%, transparent)' }}
+          className="w-6 h-9 flex items-center justify-center shrink-0 mt-0.5"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
             {pos ? (

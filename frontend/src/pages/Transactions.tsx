@@ -820,8 +820,7 @@ const Transactions: React.FC = () => {
                       className="menu-item"
                       role="menuitem"
                     >
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: 'var(--elev-sub)' }}>
+                      <div className="w-5 h-6 flex items-center justify-center shrink-0">
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
                       </div>
                       <div className="text-left">
@@ -872,7 +871,7 @@ const Transactions: React.FC = () => {
                       className="menu-item"
                       role="menuitem"
                     >
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: item.bg }}>
+                      <div className="w-5 h-6 flex items-center justify-center shrink-0">
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: item.color }}>{item.icon}</svg>
                       </div>
                       <div className="text-left">
@@ -887,7 +886,7 @@ const Transactions: React.FC = () => {
                     className="menu-item"
                     role="menuitem"
                   >
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'color-mix(in oklab, var(--accent) 15%, transparent)' }}>
+                    <div className="w-5 h-6 flex items-center justify-center shrink-0">
                       <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }}>
                         <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
                       </svg>
@@ -902,7 +901,7 @@ const Transactions: React.FC = () => {
                     className="menu-item"
                     role="menuitem"
                   >
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--elev-1)' }}>
+                    <div className="w-5 h-6 flex items-center justify-center shrink-0">
                       <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }}>
                         <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                       </svg>

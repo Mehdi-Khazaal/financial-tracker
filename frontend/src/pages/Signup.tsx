@@ -56,7 +56,7 @@ const Signup: React.FC = () => {
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'color-mix(in oklab, var(--accent) 45%, transparent)';
-    e.target.style.boxShadow = '0 0 0 3px color-mix(in oklab, var(--accent) 9%, transparent), 0 0 22px color-mix(in oklab, var(--accent) 6%, transparent)';
+    e.target.style.boxShadow = '0 0 0 3px var(--accent-dim)';
   };
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'color-mix(in oklab, var(--fg) 8%, transparent)';
@@ -80,48 +80,10 @@ const Signup: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '1.25rem',
-      backgroundColor: 'var(--ink-on-fill)',
+      backgroundColor: 'var(--bg)',
       position: 'relative',
       overflow: 'hidden',
     }}>
-
-      {/* ── Ambient orbs ─────────────────────────────────────────── */}
-      <div aria-hidden="true" style={{
-        position: 'absolute', top: '-18%', right: '-12%',
-        width: 'min(78vw, 620px)', height: 'min(78vw, 620px)',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, color-mix(in oklab, var(--accent) 13%, transparent) 0%, color-mix(in oklab, var(--accent) 5%, transparent) 42%, transparent 68%)',
-        animation: 'authOrb 10s ease-in-out infinite',
-        pointerEvents: 'none',
-      }} />
-      <div aria-hidden="true" style={{
-        position: 'absolute', bottom: '-12%', left: '-8%',
-        width: 'min(40vw, 340px)', height: 'min(40vw, 340px)',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, color-mix(in oklab, var(--accent) 7%, transparent) 0%, transparent 66%)',
-        animation: 'authOrb 14s ease-in-out infinite reverse',
-        pointerEvents: 'none',
-      }} />
-
-      {/* ── Dot-grid texture ─────────────────────────────────────── */}
-      <div aria-hidden="true" style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(circle, color-mix(in oklab, var(--fg) 2.2%, transparent) 1px, transparent 1px)',
-        backgroundSize: '30px 30px',
-        pointerEvents: 'none',
-      }} />
-
-      {/* ── Vignettes ────────────────────────────────────────────── */}
-      <div aria-hidden="true" style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '28%',
-        background: 'linear-gradient(to bottom, color-mix(in oklab, var(--bg) 90%, transparent), transparent)',
-        pointerEvents: 'none',
-      }} />
-      <div aria-hidden="true" style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%',
-        background: 'linear-gradient(to top, color-mix(in oklab, var(--bg) 70%, transparent), transparent)',
-        pointerEvents: 'none',
-      }} />
 
       {/* ── Content ──────────────────────────────────────────────── */}
       <div style={{ width: '100%', maxWidth: '400px', position: 'relative', zIndex: 10 }}>
@@ -140,7 +102,6 @@ const Signup: React.FC = () => {
           <h1 style={{
             fontFamily: 'var(--font-serif)',
             fontSize: 'clamp(1.85rem, 5.5vw, 2.4rem)',
-            fontStyle: 'italic',
             letterSpacing: '-0.025em',
             color: 'var(--fg)',
             lineHeight: 1.05,
@@ -165,10 +126,10 @@ const Signup: React.FC = () => {
 
         {/* Auth card */}
         <div style={{
-          background: 'linear-gradient(180deg, var(--elev-1), var(--elev-1))',
+          background: 'var(--elev-1)',
           borderRadius: '18px',
           border: '1px solid var(--line-strong)',
-          boxShadow: 'var(--edge-light), 0 24px 58px rgba(0,0,0,0.55)',
+          boxShadow: 'none',
           padding: '2rem',
           animation: 'authReveal 0.65s cubic-bezier(.32,1,.4,1) both',
           animationDelay: '0.18s',
@@ -298,27 +259,27 @@ const Signup: React.FC = () => {
                 border: 'none',
                 background: loading
                   ? 'color-mix(in oklab, var(--accent) 45%, transparent)'
-                  : 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
+                  : 'var(--accent)',
                 color: 'var(--ink-on-fill)',
                 fontSize: '15px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-sans)',
                 letterSpacing: '-0.01em',
                 cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 8px 28px color-mix(in oklab, var(--accent) 38%, transparent), 0 2px 8px rgba(0,0,0,0.3)',
+                boxShadow: 'none',
                 transition: 'box-shadow 0.2s, transform 0.2s',
                 position: 'relative',
                 overflow: 'hidden',
               }}
               onMouseEnter={e => {
                 if (!loading) {
-                  e.currentTarget.style.boxShadow = '0 14px 36px color-mix(in oklab, var(--accent) 50%, transparent), 0 2px 8px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.boxShadow = 'none';
                   e.currentTarget.style.transform = 'translateY(-1px)';
                 }
               }}
               onMouseLeave={e => {
                 if (!loading) {
-                  e.currentTarget.style.boxShadow = '0 8px 28px color-mix(in oklab, var(--accent) 38%, transparent), 0 2px 8px rgba(0,0,0,0.3)';
+                  e.currentTarget.style.boxShadow = 'none';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }
               }}
@@ -382,7 +343,7 @@ const Signup: React.FC = () => {
             alignItems: 'center',
             gap: '12px',
           }}>
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, transparent, color-mix(in oklab, var(--fg) 6%, transparent))' }} />
+            <div style={{ flex: 1, height: '1px', background: 'var(--line)' }} />
             <span style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '9px',
@@ -390,7 +351,7 @@ const Signup: React.FC = () => {
               color: 'var(--dim)',
               textTransform: 'uppercase',
             }}>Fintrack</span>
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to left, transparent, color-mix(in oklab, var(--fg) 6%, transparent))' }} />
+            <div style={{ flex: 1, height: '1px', background: 'var(--line)' }} />
           </div>
         </div>
 
