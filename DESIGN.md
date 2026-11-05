@@ -1,73 +1,72 @@
-# Design — "Ledger" system
+# Design — Swiss / utility system
 
-Dark-only product UI. A private banker's desk at night: warm near-black, one ember accent, serif money, mono labels. All tokens live in `frontend/src/index.css` (`:root`) and are mirrored in `tailwind.config.js`.
+Calm and fast to scan. Neutral greys, one strong colour, big clear numbers, thin rules instead of boxes. Light by default, dark when the device is dark (or when the user picks it in Settings → Preferences → Appearance). All tokens live in `frontend/src/index.css` (`:root`, plus the dark block) and are mirrored in `tailwind.config.js`.
 
-## Color
+## Colour
 
-Values below are what ships in `index.css` (audited 2026-09-18; the earlier table had drifted).
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--bg` | `#FAFAF8` | `#0F1012` | Page background |
+| `--elev-1` | `#FFFFFF` | `#16181B` | Panels, inputs, menus, sheets |
+| `--elev-sub` | `#F1F1EE` | `#1B1D21` | Hover, chips, subtle fills |
+| `--fg` | `#141414` | `#F1F1EE` | Primary text; also spending figures (spending is not a verdict) |
+| `--muted` / `--dim` | `#57574F` / `#6B6B63` | `#A1A19A` / `#8E8E87` | Secondary / tertiary text (≥ 4.5:1 on every surface) |
+| `--line` / `--line-strong` | `#E4E4E0` / `#CFCFC8` | `#26282C` / `#34373C` | Hairline rules / control borders |
+| `--accent` | `#2347D9` | `#7B93FF` | The one strong colour: links, the primary action, selection, the chart line |
+| `--logo-bg` | `#2347D9` | `#4A6BF2` | The logo tile |
+| `--ink-on-fill` | `#FFFFFF` | `#0B0C0E` | Text on a solid accent fill |
+| `--pos` / `--neg` | `#15803D` / `#B42318` | `#4ADE80` / `#F97066` | Money in / over budget, debt. Semantic only. |
+| `--warn` | `#A15C07` | `#FBBF24` | Close to a limit |
 
-| Token | Value | Use |
-|---|---|---|
-| `--bg` | `#070708` | App background |
-| `--elev-1` / `--elev-2` | `#121214` / `#18181B` | Cards, panels / raised controls |
-| `--elev-sub` | `#0D0D0F` | Nested surfaces, inputs |
-| `--fg` | `#F1F1F3` | Primary text |
-| `--muted` / `--dim` | `#9CA3AF` / `#858B96` | Secondary / tertiary text (both ≥ 4.5:1 on every surface) |
-| `--line` / `--line-strong` | `rgba(255,255,255,.09)` / `rgba(255,255,255,.18)` | Structural borders |
-| `--accent` | `#F97316` | THE accent — actions, selection, brand. One per page, locked. |
-| `--ink-on-fill` | `#0A0A0B` | Text and icons on any saturated fill (ember, green, red, amber) |
-| `--pos` / `--neg` | `#22C55E` / `#EF4444` | Semantic only (money in/out). Never decorative. |
-
-Category palette: `--cat-1`…`--cat-8` (fixed 8 colors for user categories).
-Shadows are tinted warm-black (`--shadow-card/float/modal`), never pure black; cards carry a 1px top edge-light (`--edge-light`).
+Tints are `color-mix(in oklab, var(--token) N%, transparent)`, never hard-coded rgba, so both modes follow. Saved palettes (category and collection colour presets) stay as hex because they are stored data.
 
 ## Typography
 
-- **System UI sans** (`--font-sans`: SF Pro on Apple platforms, then Inter, Geist, `system-ui`) — UI, body, buttons
-- **DM Serif Display** (`--font-money`) — large monetary values (`.value-display`)
-- **DM Mono** (`--font-mono`) — labels (`.label`: 10px uppercase 0.13em tracking), amounts, dates
-- All numerals tabular (`tabular-nums`), money formatted `$1,234.56`
+- **IBM Plex Sans** for everything (`--font-sans`; `--font-mono`, `--font-display` and `--font-money` all resolve to it). One family; hierarchy comes from size and weight.
+- All figures tabular (`font-variant-numeric: tabular-nums` on `body`), so amounts line up without a monospace face.
+- Section titles 15px semibold (`.section-title`). Labels are 13px sentence case in `--muted` (`.label`, `.metric-label`) — no uppercase tracked eyebrows.
+
+## Layout
+
+- Prefer rules to boxes. A section is a title, then rows divided by hairlines (`.row-list`, `.row-link`). Figures sit in a strip divided by vertical rules (`.metric-strip`).
+- Where a panel is still useful (`.card`, `.ledger-panel`) it is a flat `--elev-1` surface with one hairline: no gradient, no glow, no shadow. Cells inside a panel (`.ledger-cell`) are just a rule above, never a box inside a box.
+- Only floating layers (menus, sheets, toasts, the palette) cast a shadow (`--shadow-float`, `--shadow-modal`).
 
 ## Shape
 
-Radii: 10 / 14 / 18px (`--radius-sm/md/lg`); pills and quick-action buttons are full-round.
+Radii 6 / 8 / 10px (`--radius-sm/md/lg`); Tailwind's `rounded-*` scale is tightened to match. Segmented controls are bordered strips with the active segment filled in `--fg`.
+
+## Charts
+
+Thin lines, no gradient fills, square bars. Money in is ink, outflows are greys, the result is the accent. Labels are in readable ink, never in a light chart colour.
 
 ## Motion
 
-Curves in tokens — never default easings:
-- `--ease-out: cubic-bezier(0.23,1,0.32,1)` — enters, hovers (UI default)
-- `--ease-drawer: cubic-bezier(0.32,0.72,0,1)` — sheets/drawers
-- `--ease-exit: cubic-bezier(0.4,0,1,1)` — exits (faster than enters)
+Curves in tokens (`--ease-out`, `--ease-drawer`, `--ease-exit`). Transitions 120–260ms; feedback is opacity, not bouncing scale. No grain and no looping animations (they repainted every frame). `prefers-reduced-motion` strips movement.
 
-Rules: UI transitions 140–250ms, transform/opacity only, `.pressable` scale(0.97) on `:active`, hovers gated behind `(hover: hover)`, keyboard-initiated UI (⌘K palette) opens with no animation, list entrances use `.stagger-in` (45ms steps). `prefers-reduced-motion` strips movement, keeps fades.
+## Logo
 
-Progress bars animate width in 200ms and not at all under `prefers-reduced-motion`.
+The Tally mark (`components/LogoMark.tsx`): four strokes crossed by a fifth on a rounded `--logo-bg` square; three strokes below 20px. The same drawing is rendered into every icon in `frontend/public/` (favicon.svg/.png/.ico, icon-192/512, maskable, apple-touch-icon).
 
 ## Accessibility (checked, not aspirational)
 
-`e2e/a11y.spec.ts` runs axe (WCAG 2.2 A/AA) on every page and on the Phase 4 sheets at 390px and 1440px, and fails on serious/critical findings or any horizontal page overflow. The rules it enforces, and the ones behind them:
+`e2e/a11y.spec.ts` runs axe (WCAG 2.2 A/AA) on every page at 390px and 1440px and fails on serious/critical findings or horizontal overflow.
 
-- **Contrast**: body text ≥ 4.5:1. White on ember is 2.8:1, so text on a saturated fill uses `--ink-on-fill` (7:1 on ember). User-chosen category colours pick ink or white with `readableOn()` (`utils/contrast.ts`). `--neg` text on its own tint drops to 4.06:1; use `#F87171` there.
-- **Targets**: 44px (`--hit-min`) for controls; inline hints (`InfoHint`) keep a 16px circle inside a 24px target.
-- **Names**: every icon-only button has an `aria-label`; labels are tied to inputs with `htmlFor`/`id`; a labelled `div` carries a role.
-- **Disabled primary** (`.btn-gradient:disabled`) drops to 45% opacity with no shadow — a disabled button must not look pressable.
-- **Sheets**: a titled sheet pads its body 16px below the header rule.
+- **Contrast**: body text ≥ 4.5:1 in both modes. User-chosen category colours pick ink or white with `readableOn()` (`utils/contrast.ts`).
+- **Targets**: 44px (`--hit-min`) for controls.
+- **Names**: icon-only buttons have an `aria-label`; inputs have labels.
+- **Disabled primary** drops to 45% opacity.
 
 ## Z-scale
 
-`--z-sticky 20 → nav 40 → topbar 50 → backdrop 60 → modal 70 → toast 80`. No arbitrary values.
-
-## Texture
-
-No grain and no looping animations: both repainted the screen continuously and cost battery on phones. The hero card keeps a static radial glow (`.hero-card`).
+`--z-sticky 20 → nav 40 → topbar 50 → backdrop 60 → modal 70 → toast 80`.
 
 ## Component vocabulary
 
-`.card`, `.card-hover`, `.btn-gradient` (primary), `.btn-ghost`, `.btn-danger`, `.qa-btn` (quick actions), `.input-dark`, `.pill-*`, `.skeleton`, `.label`, `.cmdk-*` (command palette), `.bottom-nav-item`/`.bn-pill` (mobile nav). Same control = same class everywhere.
+`.card`, `.ledger-panel`, `.ledger-cell`, `.btn-gradient` (the solid primary; name kept), `.btn-ghost`, `.btn-danger`, `.input-dark`, `.form-label`, `.header-action` / `--primary`, `.menu-surface` / `.menu-item`, `.pill-*`, `.section-title`, `.section-link`, `.row-list`, `.row-link`, `.metric-strip`, `.skeleton`, `.cmdk-*`.
 
 ## App-level features with design hooks
 
-- **Privacy mode**: `body.privacy-on` blurs `.value-display`, `.stat-value`, `.tabular-nums`, and inline `font-variant-numeric` amounts (`UIContext`, eye toggle in TopBar)
-- **Command palette**: ⌘K / Ctrl+K (`CommandPalette.tsx`) — navigation, quick actions, preferences
-- **CountUp / Sparkline** components for animated numbers and 12-month trajectories
-- Mobile PWA chrome: safe-area insets, 64px bottom nav with animated active pill + haptics, pull-to-refresh
+- **Light / dark**: `utils/theme.ts` + `public/theme-init.js` (applies a saved choice before first paint).
+- **Privacy mode**: `body.privacy-on` blurs amounts (`.value-display`, `.stat-value`, `.tabular-nums`).
+- **Command palette**: ⌘K / Ctrl+K (`CommandPalette.tsx`).

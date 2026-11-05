@@ -19,7 +19,7 @@ Fintrack answers "where does my money stand right now?" in under two seconds, an
 
 ## Brand Personality
 
-Precise, calm, ledger-like. A private banker's desk at night: warm near-black surfaces, a single ember-orange accent, serif numerals for money, mono for labels. Confidence through restraint — the data is the decoration.
+Precise, calm, Swiss. Neutral surfaces, one cobalt accent, one typeface with even-width figures, thin rules instead of boxes. Confidence through restraint — the data is the decoration.
 
 ## Anti-references
 
@@ -32,21 +32,21 @@ Precise, calm, ledger-like. A private banker's desk at night: warm near-black su
 1. **The number is the hero.** Monetary values get the display serif, everything else serves them.
 2. **Unseen details compound.** Press feedback, origin-aware menus, tabular numerals, staggered entrances — each invisible alone, together they make it feel expensive.
 3. **Fast beats fancy.** UI motion stays under 250ms with strong ease-out curves; keyboard-initiated actions don't animate.
-4. **One accent, locked.** Ember orange (#F97316) marks action and state. Green/red are semantic only.
+4. **One accent, locked.** Cobalt blue (#2347D9; #7B93FF in dark mode) marks action and state. Green/red are semantic only, and spending itself is never painted red.
 5. **Mobile is not a fallback.** Every surface works one-handed on a phone with the PWA chrome (safe areas, bottom nav, touch targets ≥44px).
 6. **Nothing happens without you.** The assistant proposes; the user confirms. Every write it wants to make — including what it remembers — waits for a tap.
 
 ## Multi-user rules
 
 - Every record is scoped to the account that created it, on every route, job, cron task, push notification and assistant tool. A test suite proves zero cross-visibility.
-- The public front door at `/` is a landing page in the Ledger style; the app sits behind sign-in.
+- The public front door at `/` is a landing page in the same style; the app sits behind sign-in.
 - Email verification can be required (`REQUIRE_EMAIL_VERIFICATION`); until verified, the ledger is gated and the person can resend the mail or leave.
 - The assistant has per-user daily caps on messages and estimated cost; the operator sees usage per person.
 - Privacy Policy and Terms are linked from sign-up and Settings. They are drafts until the operator reviews them.
 
 ## Accessibility & Inclusion
 
-- Dark theme only (by design — verify all text ≥4.5:1 against the near-black surfaces)
+- Light and dark themes, following the device by default (Settings → Preferences → Appearance pins one). Verify all text ≥4.5:1 in both.
 - `prefers-reduced-motion` honored everywhere: movement removed, opacity transitions kept
 - Visible `:focus-visible` rings; hover effects gated behind `(hover: hover)`
 - Touch targets ≥44px on mobile
