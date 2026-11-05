@@ -2,6 +2,8 @@ import { COLLECTION_PATHS } from '../../vite.proxy';
 import api, {
   MAX_TRANSACTION_PAGES,
   PAGE_SIZE,
+  clearReadCache,
+  createTransaction,
   fetchAllTransactions,
   getAccounts,
   getAssets,
@@ -12,6 +14,66 @@ import api, {
   getTransactions,
   getTransfers,
 } from './api';
+
+beforeEach(() => clearReadCache());
+
+describe('shared read cache', () => {
+  const withAdapter = async (respond: (url: string, method: string) => { status: number; data: unknown }, run: () => Promise<void>) => {
+    const originalAdapter = api.defaults.adapter;
+    api.defaults.adapter = async config => {
+      const { status, data } = respond(config.url || '', String(config.method));
+      const response = { data, status, statusText: '', headers: { 'content-type': 'application/json' }, config, request: {} };
+      if (status >= 400) throw Object.assign(new Error(`HTTP ${status}`), { config, response, isAxiosError: true });
+      return response;
+    };
+    try { await run(); } finally { api.defaults.adapter = originalAdapter; }
+  };
+
+  it('hands the same ledger to every page until something is written', async () => {
+    const calls: string[] = [];
+    await withAdapter((url, method) => { calls.push(`${method} ${url}`); return { status: 200, data: [] }; }, async () => {
+      await fetchAllTransactions();
+      await fetchAllTransactions();
+      await getAccounts();
+      await getAccounts();
+      expect(calls).toEqual(['get /transactions', 'get /accounts']);
+
+      await createTransaction({ amount: -1 });
+      await fetchAllTransactions();
+      await getAccounts();
+      expect(calls.slice(-2)).toEqual(['get /transactions', 'get /accounts']);
+    });
+  });
+
+  it('does not keep a failed read or a filtered one, and forgets everything on request', async () => {
+    let fail = true;
+    const calls: string[] = [];
+    await withAdapter(url => { calls.push(url); return fail ? { status: 500, data: {} } : { status: 200, data: [] }; }, async () => {
+      await expect(getCategories()).rejects.toThrow();
+      fail = false;
+      await getCategories();
+      expect(calls).toEqual(['/categories', '/categories']);
+
+      await fetchAllTransactions({ account_id: 1 });
+      await fetchAllTransactions({ account_id: 1 });
+      expect(calls.filter(u => u === '/transactions')).toHaveLength(2);
+
+      clearReadCache();
+      await getCategories();
+      expect(calls.filter(u => u === '/categories')).toHaveLength(3);
+    });
+  });
+
+  it('clears after a failed write too', async () => {
+    const calls: string[] = [];
+    await withAdapter((url, method) => { calls.push(`${method} ${url}`); return method === 'post' ? { status: 500, data: {} } : { status: 200, data: [] }; }, async () => {
+      await getAccounts();
+      await expect(createTransaction({ amount: -1 })).rejects.toThrow();
+      await getAccounts();
+      expect(calls.filter(c => c === 'get /accounts')).toHaveLength(2);
+    });
+  });
+});
 
 describe('API client', () => {
   it('uses the same-origin API proxy for cookie authentication', () => {

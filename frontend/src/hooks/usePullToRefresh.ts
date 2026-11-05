@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { clearReadCache } from '../utils/api';
 
 const THRESHOLD = 65;
 
@@ -35,6 +36,8 @@ export const usePullToRefresh = (onRefresh: () => Promise<void> | void) => {
         setRefreshing(true);
         setPullDistance(0);
         setPulling(false);
+        // Pulling means "get me the latest": skip anything cached.
+        clearReadCache();
         try { await onRefresh(); } finally { setRefreshing(false); }
       } else {
         setPulling(false);

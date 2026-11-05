@@ -90,6 +90,45 @@ api.interceptors.response.use(
   }
 );
 
+// ── Shared read cache ─────────────────────────────────────────────────────────
+// Dashboard, Transactions, Accounts and Portfolio each need the same ledger.
+// Every page used to download the whole history again on every visit, which
+// grew slower with every bank sync. Reads of the shared lists are kept for a
+// short while and handed to whichever page asks; any write clears them, so a
+// page never shows data from before a change the user just made. Pull to
+// refresh clears them too.
+export const READ_CACHE_MS = 2 * 60 * 1000;
+const readCache = new Map<string, { at: number; promise: Promise<unknown> }>();
+
+function cachedRead<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = readCache.get(key);
+  if (hit && Date.now() - hit.at < READ_CACHE_MS) return hit.promise as Promise<T>;
+  const promise = load();
+  readCache.set(key, { at: Date.now(), promise });
+  // A failed read is not kept, so "Try again" really tries again.
+  promise.catch(() => {
+    if (readCache.get(key)?.promise === promise) readCache.delete(key);
+  });
+  return promise;
+}
+
+/** Forget every cached read: after a write, on pull-to-refresh, on sign-in or out. */
+export function clearReadCache(): void {
+  readCache.clear();
+}
+
+api.interceptors.response.use(
+  res => {
+    if (WRITE_METHODS.has(String(res.config?.method || '').toLowerCase())) clearReadCache();
+    return res;
+  },
+  err => {
+    // A failed write may still have changed something on the server.
+    if (WRITE_METHODS.has(String(err?.config?.method || '').toLowerCase())) clearReadCache();
+    return Promise.reject(err);
+  },
+);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (identifier: string, password: string) =>
   api.post('/auth/login', { identifier, password });
@@ -136,13 +175,13 @@ export const verifyEmail = (token: string) =>
   api.get('/auth/verify-email', { params: { token } });
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
-export const getAccounts    = () => api.get('/accounts');
+export const getAccounts    = () => cachedRead('accounts', () => api.get('/accounts'));
 export const createAccount  = (data: any) => api.post('/accounts', data);
 export const updateAccount  = (id: number, data: any) => api.put(`/accounts/${id}`, data);
 export const deleteAccount  = (id: number) => api.delete(`/accounts/${id}`);
 
 // ── Categories ────────────────────────────────────────────────────────────────
-export const getCategories   = () => api.get('/categories');
+export const getCategories   = () => cachedRead('categories', () => api.get('/categories'));
 export const createCategory  = (data: any) => api.post('/categories', data);
 export const updateCategory  = (id: number, data: any) => api.put(`/categories/${id}`, data);
 export const deleteCategory  = (id: number) => api.delete(`/categories/${id}`);
@@ -192,9 +231,20 @@ export interface TransactionPage {
   loaded: number;
 }
 
-export const fetchAllTransactions = async (
+export const fetchAllTransactions = (
   params: Record<string, any> = {},
   maxPages = MAX_TRANSACTION_PAGES,
+): Promise<TransactionPage> => {
+  // The whole ledger is shared between pages; a filtered fetch is not.
+  if (Object.keys(params).length === 0 && maxPages === MAX_TRANSACTION_PAGES) {
+    return cachedRead('transactions:all', () => fetchTransactionPages(params, maxPages));
+  }
+  return fetchTransactionPages(params, maxPages);
+};
+
+const fetchTransactionPages = async (
+  params: Record<string, any>,
+  maxPages: number,
 ): Promise<TransactionPage> => {
   const all: any[] = [];
   let truncated = false;
@@ -437,7 +487,7 @@ export const importTransactions = (data: ImportRequest) => api.post('/transactio
 export const undoImport = (batchId: string) => api.delete(`/transactions/import/${batchId}`);
 
 // ── Collections ───────────────────────────────────────────────────────────────
-export const getCollections = () => api.get<Collection[]>('/collections');
+export const getCollections = () => cachedRead('collections', () => api.get<Collection[]>('/collections'));
 export const getCollection = (id: number) => api.get<Collection>(`/collections/${id}`);
 export const createCollection = (data: CollectionDraft) => api.post<Collection>('/collections', data);
 export const updateCollection = (id: number, data: Partial<CollectionDraft>) => api.put<Collection>(`/collections/${id}`, data);
