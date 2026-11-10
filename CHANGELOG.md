@@ -1,6 +1,31 @@
 # Changelog
 
-## [Unreleased] — the Fintrack upgrade (branch `fable/upgrade`)
+## [Unreleased] — trust and planning (branch `feat/trust-and-planning`)
+
+### Before deploying
+Nothing manual. Migrations `20261110_000029` to `20261110_000034` are additive (one new table for prices, four for the paycheck plan, nullable columns elsewhere) and run at boot. Checked on Postgres: the chain matches the models, and every revision reverts and re-applies.
+
+### Added
+- **Live gold and silver**: a holding with a metal, weight and purity is valued daily from the COMEX price (`GC=F`, `SI=F`). The asset form has presets (1 oz coin, 10 g bar, English and Ottoman gold lira) and a live preview; cards show the metal value against what was paid.
+- **Paycheck plan** (Portfolio → Savings): pick the payers that are paychecks, set an amount per goal per payday. Each payday shows the bills due before the next one, each goal's share and what is free; ticking a line sets the money aside. A push goes out when a paycheck lands.
+- **Goal plan**: goals are funded in an order you set. Each goal shows when it is really reached at your saving rate and paycheck plan, and whether that is in time. Goal cards and the assistant use the same dates.
+- **Transfers**: a `transfer` category type that is never income or spending, and suggestions in Review for card payments and moves between your own accounts, filed in one tap.
+- Goals can be edited (name, target, date) and one can be marked as the emergency fund.
+
+### Changed
+- **Net worth includes holdings** everywhere, valued at today's prices; history counts each holding from the day it was acquired. One figure on the Dashboard, Analytics, Accounts, Portfolio and the assistant.
+- Prices are fetched and stored on the server (`market_prices`) instead of in the browser.
+- "Available to spend" and the emergency-fund ratio leave out money set aside for goals.
+- The assistant's monthly income and spending use the app's own rules (card payments, transfers and asset purchases are no longer income or spending).
+
+### Fixed
+- The net-worth chart's latest point came from a stale month-end snapshot and disagreed with the headline.
+- Past account balances ignored transfers between your own accounts.
+- Spending was shown in red on Transactions.
+- A usage-based bill (gas, electricity) going up a little was reported as a price rise.
+- Settings' category types overflowed a 320 px phone once a fourth type existed.
+
+## [Released 2026-09-18] — the Fintrack upgrade (branch `fable/upgrade`)
 
 Everything since `main` @ `1843c6d`. The full record, with reasoning per phase, is in `docs/UPGRADE_LOG.md`; deployment steps are in `docs/DEPLOY.md`.
 

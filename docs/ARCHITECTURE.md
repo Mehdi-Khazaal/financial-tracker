@@ -75,6 +75,24 @@ flowchart LR
 
 **Splits** (`services/splits.py`) never move money. Lines add up exactly to the parent, and the parent keeps the largest line's category. Budgets, the assistant's category totals and the analytics category views read the lines. An amount change, recategorizing the whole transaction, or a bank revision drops the split.
 
+## Money definitions
+
+Each figure has one definition on the server and, where the screens compute it too, one mirror in `frontend/src/features`. Tests pin the same cases on both sides.
+
+| Figure | Server | Frontend mirror |
+|---|---|---|
+| What a transaction counts as (income, expense, refund, card payment, investment, **transfer**) | `services/classification.py` | `features/analytics/calculations/transactions.ts` |
+| **Net worth** = account balances (cards negative, investment-type accounts left out) + holdings at current value | `services/net_worth.py` | `features/portfolio/calculations/wealth.ts` |
+| A holding's current value: metal (weight × purity × metal price), market (ticker price × quantity), or recorded | `services/valuation.py` | the server's valuation is passed in (`GET /assets/valuations`) |
+| Available to spend, emergency cash (goal money left out) | `services/cash_position.py` | `features/accounts/calculations/totals.ts` |
+| Goal plan: goals funded in priority order, paycheck lines first | `services/goal_plan.py` | `features/portfolio/calculations/goalPlan.ts` |
+
+- **Market prices** live in `market_prices`, one row per symbol (`stock:GLD`, `crypto:BTC`, `metal:XAU`), shared by every user. A reader serves the stored price and refreshes an old one in the background; a price never fetched is fetched inline. A failed lookup keeps the last good price. The assistant never waits on a provider (`refresh="never"`).
+- **Net-worth history** (`/history/net-worth`): past months are each account's month-end balance plus every holding acquired by then at its recorded value; the current month is today's balances and today's valuation, never a stored snapshot.
+- **Past balances** walk back from today's balance through `balance_movements()` (`services/balance_snapshots.py`): transactions plus transfers. On a bank-linked account the bank's own row wins, and a recorded transfer counts only when no transaction of the same amount sits within five days of it.
+- **Transfers** between the user's own accounts are either rows in `transfers` or imported rows filed under a `transfer` category. Review suggests the second kind (`services/transfer_suggestions.py`); nothing is filed without a tap.
+- **Paycheck plan** (`services/paycheck_plan.py`): a payday is a date on which any chosen payer deposited. Its split is bills due before the next payday, a fixed line per goal, and what is free. Ticking a line can set its amount aside for the goal if the line's account holds that much unassigned.
+
 ## Bank sync
 
 ```mermaid
@@ -97,6 +115,8 @@ sequenceDiagram
 ```
 
 Sync health for each item (last source, counts, errors) is recorded and shown in Settings → Connections.
+
+After a sync that imported anything, a paycheck from a paycheck-plan payer within the last six days sends one "Payday" push with the split, in place of the generic "Bank sync complete" push (`_notify_payday` in `routers/plaid_router/sync.py`).
 
 ## Assistant
 

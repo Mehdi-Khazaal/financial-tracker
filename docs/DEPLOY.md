@@ -98,3 +98,23 @@ DATABASE_URL=postgresql://…/scratch python scripts/check_schema_drift.py
 ```
 
 Both refuse to run against anything but a local database.
+
+Without a known local Postgres password, a throwaway cluster on another port needs none (trust authentication, local only):
+
+```bash
+initdb -D /tmp/pgdrift -U postgres --auth=trust
+pg_ctl -D /tmp/pgdrift -o "-p 55432" -l /tmp/pgdrift.log start
+psql -h localhost -p 55432 -U postgres -c "CREATE DATABASE fintrack_drift"
+export DATABASE_URL=postgresql://postgres@localhost:55432/fintrack_drift
+alembic upgrade head && python scripts/check_schema_drift.py
+alembic downgrade base && alembic upgrade head && python scripts/check_schema_drift.py
+pg_ctl -D /tmp/pgdrift -m fast stop
+```
+
+## After deploying `feat/trust-and-planning`
+
+Nothing is required for the release itself. To get its value:
+
+1. Portfolio → Assets: edit each gold piece and turn on "Value it by its gold or silver" with its weight and karat. Until then a piece keeps its recorded value.
+2. Portfolio → Savings: set up the paycheck plan, then order the goals in the goal plan.
+3. Optional: Settings → Connections → "Rebuild bank history" brings back card payments that were deleted after import. They arrive uncategorized; Review suggests them as transfers. With them back, past account balances read correctly.
