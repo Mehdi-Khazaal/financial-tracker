@@ -71,6 +71,17 @@ def test_a_22_karat_gold_lira_is_priced_by_its_gold_content(db_session, user):
     assert holding.current_value == Decimal("941.71")
 
 
+def test_a_lebanese_21_karat_lira_matches_the_form_preview(db_session, user):
+    """Lebanor's George V lira: 8 g at 21k, which is 7 g of gold."""
+    lira = _asset(db_session, user, name="Gold Lira", quantity=Decimal("1"), total_value=Decimal("1050"),
+                  metal="gold", weight_grams=Decimal("8"), purity=Decimal("0.875"))
+    _gold_at(db_session, "4000")
+
+    holding = value_assets([lira], stored_quotes(db_session, [GOLD])).holdings[0]
+
+    assert holding.current_value == Decimal("900.22")
+
+
 def test_jewelry_reads_below_its_price_because_the_making_charge_is_not_gold(db_session, user):
     ring = _asset(db_session, user, name="Gold", quantity=Decimal("1"), total_value=Decimal("1200"),
                   metal="gold", weight_grams=Decimal("8"), purity=Decimal("0.75"))

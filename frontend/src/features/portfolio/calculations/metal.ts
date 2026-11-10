@@ -46,6 +46,9 @@ export const PRESETS: MetalPreset[] = [
   { id: 'gold-oz', label: '1 oz gold coin or bar', metal: 'gold', grams: TROY_OUNCE_GRAMS, purity: 0.9999 },
   { id: 'gold-10g', label: '10 g gold bar', metal: 'gold', grams: 10, purity: 0.9999 },
   { id: 'lira-english', label: 'Gold lira, English (7.99 g, 22k)', metal: 'gold', grams: 7.98805, purity: 0.9167 },
+  // The George V design struck in Lebanon (Lebanor and others): 8 g at 21k,
+  // not the Royal Mint's 7.99 g at 22k.
+  { id: 'lira-lebanese', label: 'Gold lira, Lebanese (8 g, 21k)', metal: 'gold', grams: 8, purity: 0.875 },
   { id: 'lira-ottoman', label: 'Gold lira, Ottoman (7.22 g, 22k)', metal: 'gold', grams: 7.216, purity: 0.9167 },
   { id: 'silver-oz', label: '1 oz silver coin', metal: 'silver', grams: TROY_OUNCE_GRAMS, purity: 0.999 },
 ];

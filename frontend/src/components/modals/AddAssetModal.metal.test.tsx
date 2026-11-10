@@ -48,6 +48,23 @@ describe('AddAssetModal metal pricing', () => {
     })));
   });
 
+  it('fills a Lebanese 21k lira from its preset', async () => {
+    const lira = { ...ounces, name: 'Gold Lira', quantity: 1, value_per_unit: 1050, total_value: 1050 };
+    render(<AddAssetModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} mode="physical" asset={lira} />);
+
+    fireEvent.click(metalToggle());
+    fireEvent.change(screen.getByLabelText('Common pieces'), { target: { value: 'lira-lebanese' } });
+
+    expect(screen.getByLabelText('Purity')).toHaveValue('0.875');
+    expect(screen.getByLabelText('Weight of one piece')).toHaveValue(8);
+    expect(await screen.findByText(/this is worth about \$900\.22 today/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAsset).toHaveBeenCalledWith(8, expect.objectContaining({
+      metal: 'gold', weight_grams: 8, purity: 0.875,
+    })));
+  });
+
   it('turning it off on an edit clears it', async () => {
     render(
       <AddAssetModal

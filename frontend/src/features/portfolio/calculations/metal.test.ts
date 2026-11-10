@@ -1,4 +1,4 @@
-import { TROY_OUNCE_GRAMS, describeMetal, fineOunces, gramsFrom, metalValue } from './metal';
+import { PRESETS, TROY_OUNCE_GRAMS, describeMetal, fineOunces, gramsFrom, metalValue } from './metal';
 import { metalFieldsFrom, metalPayload, EMPTY_METAL_FIELDS } from '../components/MetalPricingFields';
 
 /**
@@ -11,6 +11,15 @@ describe('metal arithmetic', () => {
   it('values coins by their fine gold, like the server', () => {
     expect(metalValue(TROY_OUNCE_GRAMS, 0.9999, 2, 4000)).toBeCloseTo(7999.20, 2);
     expect(metalValue(7.988, 0.9167, 1, 4000)).toBeCloseTo(941.71, 2);
+  });
+
+  it('values a Lebanese 21k lira below the English 22k one', () => {
+    const lebanese = PRESETS.find(p => p.id === 'lira-lebanese')!;
+    const english = PRESETS.find(p => p.id === 'lira-english')!;
+    // 8 g × 0.875 = 7 g of gold, against 7.32 g in a Royal Mint sovereign.
+    expect(metalValue(lebanese.grams, lebanese.purity, 1, 4000)).toBeCloseTo(900.22, 2);
+    expect(metalValue(english.grams, english.purity, 1, 4000)).toBeCloseTo(941.71, 2);
+    expect(describeMetal({ metal: 'gold', weight_grams: lebanese.grams, purity: lebanese.purity })).toBe('8 g · 21k gold');
   });
 
   it('has no value until every input is there', () => {
