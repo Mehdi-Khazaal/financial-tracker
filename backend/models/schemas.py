@@ -256,6 +256,30 @@ class AssetResponse(AssetBase):
     updated_at: datetime
 
 
+
+class HoldingValueResponse(BaseModel):
+    """One holding valued with the stored market price, or its recorded value."""
+
+    asset_id: int
+    current_value: Decimal
+    recorded_value: Decimal
+    # Null when the holding has no market price: its change is unknown, not zero.
+    change_since_recorded: Optional[Decimal] = None
+    price_per_unit: Optional[Decimal] = None
+    source: Literal["market", "recorded"]
+    priced_at: Optional[datetime] = None
+
+
+class HoldingsValuationResponse(BaseModel):
+    total: Decimal
+    recorded_total: Decimal
+    priced_count: int
+    # When the oldest price in use was fetched.
+    as_of: Optional[datetime] = None
+    # True when old prices were served and a refresh is running behind them.
+    refreshing: bool = False
+    holdings: List[HoldingValueResponse]
+
 # ─── Savings Goal ─────────────────────────────────────────────────────────────
 class SavingsGoalBase(BaseModel):
     name: str

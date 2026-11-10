@@ -385,6 +385,22 @@ class Transfer(Base):
     to_account = relationship("Account", foreign_keys=[to_account_id], back_populates="incoming_transfers")
 
 
+class MarketPrice(Base):
+    """The last market price fetched for one symbol, shared by every user.
+
+    A quote is public data, so one row per symbol serves everyone. Keys carry
+    their source (`stock:GLD`, `crypto:BTC`) so a stock ticker and a coin with
+    the same letters never share a price. See `services.market_prices`.
+    """
+
+    __tablename__ = "market_prices"
+
+    key = Column(String(40), primary_key=True)
+    price = Column(Numeric(18, 6), nullable=False)
+    change_pct = Column(Numeric(9, 4), nullable=True)
+    fetched_at = Column(DateTime, nullable=False, default=utc_now)
+
+
 class Asset(Base):
     __tablename__ = "assets"
 

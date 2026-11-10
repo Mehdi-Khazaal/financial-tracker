@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from models.database import get_db, Asset
+from models.database import get_db, Asset, SessionLocal, utc_now
 from models.auth import User
-from models.schemas import AssetCreate, AssetUpdate, AssetResponse
+from models.schemas import AssetCreate, AssetUpdate, AssetResponse, HoldingsValuationResponse, HoldingValueResponse
+from services.market_prices import get_quotes, keys_needing_refresh, refresh_quotes
+from services.valuation import price_keys, value_assets
 from utils.auth import get_current_user
 from utils.etag import check_etag, compute_user_etag, set_etag_headers
+from utils.limiter import limiter
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -38,6 +41,61 @@ def get_assets(
     if asset_class:
         q = q.filter(Asset.asset_class == asset_class)
     return q.order_by(Asset.created_at.desc()).all()
+
+
+def _refresh_prices_in_background(keys: list[str]) -> None:
+    """Refresh stored prices after the response, on a session of its own."""
+    db = SessionLocal()
+    try:
+        refresh_quotes(db, keys)
+    finally:
+        db.close()
+
+
+@router.get("/valuations", response_model=HoldingsValuationResponse)
+@limiter.limit("60/minute")
+def get_valuations(
+    request: Request,
+    background: BackgroundTasks,
+    refresh: bool = Query(False, description="Fetch every price now instead of serving stored ones."),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every holding valued with stored market prices.
+
+    Answers from stored prices so the Dashboard never waits on a market data
+    provider. A price that has never been fetched is fetched now; one that is
+    merely old is served as it is and refreshed in the background, so the next
+    read is current. `refresh=true` (the Portfolio "Refresh" button) fetches
+    every price before answering.
+    """
+    del request  # used by the rate limiter
+    assets = db.query(Asset).filter(Asset.user_id == current_user.id).order_by(Asset.id).all()
+    keys = price_keys(assets)
+    quotes = get_quotes(db, keys, refresh="always" if refresh else "missing")
+    stale = [] if refresh else keys_needing_refresh(quotes, keys, utc_now())
+    if stale:
+        background.add_task(_refresh_prices_in_background, stale)
+    valuation = value_assets(assets, quotes)
+    return HoldingsValuationResponse(
+        total=valuation.total,
+        recorded_total=valuation.recorded_total,
+        priced_count=valuation.priced_count,
+        as_of=valuation.as_of,
+        refreshing=bool(stale),
+        holdings=[
+            HoldingValueResponse(
+                asset_id=h.asset_id,
+                current_value=h.current_value,
+                recorded_value=h.recorded_value,
+                change_since_recorded=h.change_since_recorded,
+                price_per_unit=h.price_per_unit,
+                source=h.source,
+                priced_at=h.priced_at,
+            )
+            for h in valuation.holdings
+        ],
+    )
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
