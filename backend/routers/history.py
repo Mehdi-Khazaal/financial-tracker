@@ -11,7 +11,8 @@ from models.auth import User
 from utils.auth import get_current_user
 from services.balance_snapshots import balance_movements
 from services.net_worth import accounts_total, counts_toward_net_worth, holdings_recorded_by
-from services.valuation import value_holdings
+from services.market_prices import get_quotes
+from services.valuation import price_keys, value_assets
 from utils.dates import user_today
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -128,7 +129,7 @@ def net_worth_history(
         if account_ids and len(snap_for_month) == len(account_ids):
             return sum(snap_for_month.values(), Decimal("0"))
         if movements is None:
-            movements = [m for rows in balance_movements(db, current_user.id, account_ids).values() for m in rows]
+            movements = [m for rows in balance_movements(db, current_user.id, counted).values() for m in rows]
         later = sum((amount for moved_on, amount in movements if moved_on > month_end), Decimal("0"))
         return current_accounts - later
 
@@ -136,7 +137,7 @@ def net_worth_history(
     for month_end, label in month_targets:
         if month_end >= today:
             accounts_value = current_accounts
-            holdings_value = value_holdings(db, current_user.id, refresh="never").total
+            holdings_value = value_assets(assets, get_quotes(db, price_keys(assets), refresh="never")).total
         else:
             accounts_value = accounts_at(month_end)
             holdings_value = holdings_recorded_by(assets, month_end)
@@ -164,7 +165,7 @@ def account_balance_history(
     ).first()
     if not account:
         return []
-    movements = balance_movements(db, current_user.id, [account.id])[account.id]
+    movements = balance_movements(db, current_user.id, [account])[account.id]
     return _balance_history(Decimal(str(account.balance)), movements, months, user_today(current_user))
 
 
@@ -178,7 +179,7 @@ def account_balances_history(
     accounts = db.query(Account).filter(Account.user_id == current_user.id).all()
     if not accounts:
         return {}
-    movements = balance_movements(db, current_user.id, [account.id for account in accounts])
+    movements = balance_movements(db, current_user.id, accounts)
     today = user_today(current_user)
     return {
         account.id: _balance_history(Decimal(str(account.balance)), movements[account.id], months, today)
