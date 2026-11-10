@@ -654,6 +654,26 @@ describe('recurring', () => {
     expect(outlook.next30DaysTotal).toBe(125);
   });
 
+  it('flags a subscription price rise but not a usage bill that read higher', () => {
+    const bill = (id: number, description: string, isVariable: boolean): RecurringTransaction => ({
+      id, user_id: 1, account_id: CHECKING, category_id: null,
+      amount: -38, description, period: 'monthly',
+      next_date: '2026-07-27', is_active: true, is_variable: isVariable, created_at: '',
+    });
+    const outlook = buildRecurringOutlook({
+      recurring: [bill(4, 'Peoples Gas', true), bill(5, 'Streamflix', false)],
+      transactions: [
+        tx('2026-05-27', -37.24, null, CHECKING, 'Peoples Gas'),
+        tx('2026-06-27', -38.08, null, CHECKING, 'Peoples Gas'),
+        tx('2026-05-20', -15.99, null, CHECKING, 'Streamflix'),
+        tx('2026-06-20', -17.99, null, CHECKING, 'Streamflix'),
+      ],
+      accounts, categories, ctx, today: TODAY,
+    });
+
+    expect(outlook.subscriptions.increased.map(i => i.name)).toEqual(['Streamflix']);
+  });
+
   it('leaves income schedules out of the bills list', () => {
     const payday: RecurringTransaction = {
       id: 3, user_id: 1, account_id: CHECKING, category_id: SALARY,

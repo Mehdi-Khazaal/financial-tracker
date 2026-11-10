@@ -136,6 +136,10 @@ function findIncreases(
   const out: SubscriptionInsight['increased'] = [];
   recurring.forEach(rec => {
     if (!rec.is_active || Number(rec.amount) >= 0) return;
+    // A usage-based bill (gas, electricity, water) moves every month with use.
+    // A higher reading is not a price rise, and flagging one ("Peoples Gas went
+    // up by $0.84") put noise where a real suggestion belonged.
+    if (rec.is_variable) return;
     const key = normalizeMerchantName(rec.description);
     if (!key) return;
     const charges = transactions
