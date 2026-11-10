@@ -79,6 +79,18 @@ export interface Asset {
   updated_at: string;
 }
 
+/** A row or pair the server thinks is a move between the user's own accounts. */
+export interface TransferSuggestion {
+  transaction_ids: number[];
+  reason: 'pair' | 'card-payment' | 'bank-category';
+  detail: string;
+  amount: number | string;
+  date: string;
+  from_account_id: number | null;
+  to_account_id: number | null;
+  descriptions: string[];
+}
+
 /** One holding as `GET /assets/valuations` values it. Money arrives as decimal strings. */
 export interface HoldingValue {
   asset_id: number;

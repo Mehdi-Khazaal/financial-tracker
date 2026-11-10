@@ -226,6 +226,27 @@ class TransferResponse(TransferBase):
     created_at: datetime
 
 
+
+# ─── Transfer suggestions ─────────────────────────────────────────────────────
+class TransferSuggestionResponse(BaseModel):
+    transaction_ids: List[int]
+    reason: Literal["pair", "card-payment", "bank-category"]
+    detail: str
+    amount: Decimal
+    date: date
+    from_account_id: Optional[int] = None
+    to_account_id: Optional[int] = None
+    descriptions: List[str] = []
+
+
+class MarkTransferRequest(BaseModel):
+    transaction_ids: List[int] = Field(min_length=1, max_length=500)
+
+
+class MarkTransferResponse(BaseModel):
+    updated: int
+    category_id: int
+
 # ─── Asset ────────────────────────────────────────────────────────────────────
 class AssetBase(BaseModel):
     name: str

@@ -25,6 +25,7 @@ import TransactionCard, { type CollectionChip } from '../components/transactions
 import AddToCollectionSheet, { addedMessage } from '../features/collections/components/AddToCollectionSheet';
 import CategorizeSheet from '../components/transactions/CategorizeSheet';
 import CategoryBoard from '../features/transactions/components/CategoryBoard';
+import TransferSuggestions from '../features/transactions/components/TransferSuggestions';
 import CollectionsView from '../features/collections/components/CollectionsView';
 import DayHeader from '../features/transactions/components/DayHeader';
 import { buildBoard, categoryTotal } from '../features/transactions/calculations/board';
@@ -985,6 +986,8 @@ const Transactions: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <TransferSuggestions accounts={accounts} onChanged={() => void load()} />
 
             <div className="hidden md:flex flex-1 overflow-hidden">
 

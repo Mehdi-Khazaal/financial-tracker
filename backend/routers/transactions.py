@@ -6,9 +6,13 @@ from datetime import date
 from decimal import Decimal
 from models.database import get_db, CollectionTransaction, Transaction
 from models.auth import User
-from models.schemas import TransactionCollectionsUpdate, TransactionCreate, TransactionResponse, TransactionSplitsUpdate, TransactionUpdate
+from models.schemas import (
+    MarkTransferRequest, MarkTransferResponse, TransactionCollectionsUpdate, TransactionCreate,
+    TransactionResponse, TransactionSplitsUpdate, TransactionUpdate, TransferSuggestionResponse,
+)
 from services import collections as collection_service
 from services import splits as split_service
+from services import transfer_suggestions
 from services.ledger import LedgerResourceNotFound, LedgerService
 from utils.auth import get_current_user
 
@@ -113,6 +117,60 @@ def get_transactions(
         .limit(limit)
         .all()
     )
+
+
+@router.get("/transfer-suggestions", response_model=List[TransferSuggestionResponse])
+def list_transfer_suggestions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Uncategorized rows that look like moves between the user's own accounts.
+
+    Read-only: see `services.transfer_suggestions`. The Review tab offers each
+    one, and nothing is filed until the user confirms it.
+    """
+    return [
+        TransferSuggestionResponse(
+            transaction_ids=s.transaction_ids,
+            reason=s.reason,
+            detail=s.detail,
+            amount=s.amount,
+            date=s.on,
+            from_account_id=s.from_account_id,
+            to_account_id=s.to_account_id,
+            descriptions=s.descriptions,
+        )
+        for s in transfer_suggestions.suggest(db, current_user.id)
+    ]
+
+
+@router.post("/mark-transfer", response_model=MarkTransferResponse)
+def mark_transfer(
+    body: MarkTransferRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """File the given transactions under the user's Transfer category.
+
+    All or nothing: every id must be the user's own, unsplit transaction, or
+    nothing changes. Goes through the ledger like any category change, so the
+    rows are marked as categorised by the user.
+    """
+    ids = sorted(set(body.transaction_ids))
+    owned = (
+        db.query(Transaction.id)
+        .filter(Transaction.user_id == current_user.id, Transaction.id.in_(ids))
+        .all()
+    )
+    if len(owned) != len(ids):
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    split = db.query(Transaction.id).filter(Transaction.id.in_(ids), Transaction.id.in_(split_service.split_parent_ids(current_user.id))).first()
+    if split is not None:
+        raise HTTPException(status_code=400, detail="A split transaction cannot be filed as a transfer. Remove the split first.")
+
+    category = transfer_suggestions.transfer_category(db, current_user.id)
+    db.commit()
+    ledger = LedgerService(db)
+    for transaction_id in ids:
+        ledger.update_transaction(current_user.id, transaction_id, {"category_id": category.id})
+    return MarkTransferResponse(updated=len(ids), category_id=category.id)
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)

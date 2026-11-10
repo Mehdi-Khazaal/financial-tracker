@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type {
   Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, RuleDraft, Transaction,
+  TransferSuggestion,
 } from '../types';
 
 const api = axios.create({
@@ -268,6 +269,11 @@ const fetchTransactionPages = async (
   return { transactions: all, truncated, loaded: all.length };
 };
 export const createTransaction = (data: any) => api.post('/transactions', data);
+/** Uncategorized rows that look like moves between the user's own accounts. */
+export const getTransferSuggestions = () => api.get<TransferSuggestion[]>('/transactions/transfer-suggestions');
+/** File these rows under the user's Transfer category. All or nothing. */
+export const markTransfers = (transactionIds: number[]) =>
+  api.post<{ updated: number; category_id: number }>('/transactions/mark-transfer', { transaction_ids: transactionIds });
 export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);
 export const deleteTransaction = (id: number) => api.delete(`/transactions/${id}`);
 
