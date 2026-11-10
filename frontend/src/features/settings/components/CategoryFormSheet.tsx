@@ -26,6 +26,7 @@ const TYPE_LABEL: Record<Category['type'], string> = {
   expense: 'expense',
   income: 'income',
   investment: 'investment',
+  transfer: 'transfer',
 };
 
 interface Props {

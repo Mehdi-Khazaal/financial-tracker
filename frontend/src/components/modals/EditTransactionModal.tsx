@@ -147,8 +147,8 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
         color: splits.length > 0 ? undefined : cat?.color },
       // Mirrors how the ledger counts it, so this row cannot contradict the
       // "Investment" label the transaction carries everywhere else.
-      { label: 'Type',     value: cat?.type === 'investment' ? 'Investment' : pos ? 'Income' : 'Expense',
-        color: cat?.type === 'investment' ? 'var(--accent)' : pos ? 'var(--pos)' : 'var(--neg)' },
+      { label: 'Type',     value: cat?.type === 'investment' ? 'Investment' : cat?.type === 'transfer' ? 'Transfer' : pos ? 'Income' : 'Expense',
+        color: cat?.type === 'investment' ? 'var(--accent)' : cat?.type === 'transfer' ? 'var(--muted)' : pos ? 'var(--pos)' : 'var(--fg)' },
     ];
 
     return (

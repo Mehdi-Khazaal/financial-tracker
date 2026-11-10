@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from models.auth import User
@@ -26,6 +26,7 @@ from models.database import (
     Transaction,
 )
 from routers.assistant import _user_today
+from services.classification import NOT_SPENDING_CATEGORY_TYPES, Lookups, classify, load_lookups
 from services.net_worth import current_net_worth
 from services.valuation import value_holdings
 from routers.assistant.helpers import _clean_text, _jsonable, _num, _parse_date
@@ -122,6 +123,11 @@ def _t_list_transactions(
     ]
 
 
+def _is_spending_category():
+    """SQL filter for rows whose category can be spending (or that have none)."""
+    return or_(Category.id.is_(None), Category.type.notin_(NOT_SPENDING_CATEGORY_TYPES))
+
+
 def _t_spending_by_category(db: Session, user: User, date_from: Optional[str] = None, date_to: Optional[str] = None, **_) -> list:
     from models.database import TransactionSplit
     from services.splits import split_parent_ids
@@ -130,12 +136,14 @@ def _t_spending_by_category(db: Session, user: User, date_from: Optional[str] = 
         db.query(Category.name, Transaction.amount)
         .join(Category, Category.id == Transaction.category_id, isouter=True)
         .filter(Transaction.user_id == user.id, Transaction.amount < 0, ~Transaction.id.in_(split_parent_ids(user.id)))
+        .filter(_is_spending_category())
     )
     lines = (
         db.query(Category.name, TransactionSplit.amount)
         .join(Transaction, Transaction.id == TransactionSplit.transaction_id)
         .join(Category, Category.id == TransactionSplit.category_id, isouter=True)
         .filter(TransactionSplit.user_id == user.id, TransactionSplit.amount < 0)
+        .filter(_is_spending_category())
     )
     if date_from:
         whole = whole.filter(Transaction.transaction_date >= _parse_date(date_from))
@@ -165,16 +173,16 @@ def _t_cashflow_trend(db: Session, user: User, months: int = 6, **_) -> list:
         .order_by(Transaction.transaction_date)
         .all()
     )
-    buckets = {}
+    lookups = load_lookups(db, user.id)
+    raw: dict[str, dict] = {}
     for offset in range(months):
         index = start_index + offset
-        buckets[f"{index // 12:04d}-{index % 12 + 1:02d}"] = {"income": Decimal("0"), "spending": Decimal("0")}
+        raw[f"{index // 12:04d}-{index % 12 + 1:02d}"] = {"income": Decimal("0"), "spending": Decimal("0"), "refunds": Decimal("0")}
     for transaction in rows:
         key = transaction.transaction_date.strftime("%Y-%m")
-        if transaction.amount >= 0:
-            buckets[key]["income"] += transaction.amount
-        else:
-            buckets[key]["spending"] += abs(transaction.amount)
+        if key in raw:
+            _add_to_flow(raw[key], transaction, lookups)
+    buckets = {month: _close_flow(values) for month, values in raw.items()}
     return [
         {
             "month": month,
@@ -265,6 +273,31 @@ def _add_months(value: date, delta: int) -> date:
     return date(index // 12, index % 12 + 1, 1)
 
 
+def _add_to_flow(bucket: dict, transaction: Transaction, lookups: Lookups) -> None:
+    """Add one transaction to a month's income and spending, by the app's rules.
+
+    Income and spending used to be split by sign alone, so a card payment
+    counted as income, buying gold counted as spending and a move between the
+    user's own accounts counted as both. The rule is now the one every screen
+    uses (`services.classification`): refunds come off spending, and card
+    payments, transfers and asset purchases count as neither.
+    """
+    kind = classify(transaction, lookups)
+    amount = Decimal(str(transaction.amount))
+    if kind == "income":
+        bucket["income"] += amount
+    elif kind == "expense":
+        bucket["spending"] += abs(amount)
+    elif kind == "refund":
+        bucket["refunds"] += abs(amount)
+
+
+def _close_flow(bucket: dict) -> dict:
+    """Net refunds against spending, floored at zero like the Analytics screen."""
+    spending = max(Decimal("0"), bucket["spending"] - bucket["refunds"])
+    return {"income": bucket["income"], "spending": spending}
+
+
 def _monthly_flows(db: Session, user: User, *, months: int, today: date) -> list[dict]:
     """Income/spending per calendar month, oldest first, excluding this month.
 
@@ -281,18 +314,16 @@ def _monthly_flows(db: Session, user: User, *, months: int, today: date) -> list
         )
         .all()
     )
-    buckets: dict[str, dict] = {}
+    lookups = load_lookups(db, user.id)
+    raw: dict[str, dict] = {}
     for offset in range(months):
         month = _add_months(first_complete, offset)
-        buckets[month.strftime("%Y-%m")] = {"income": Decimal("0"), "spending": Decimal("0")}
+        raw[month.strftime("%Y-%m")] = {"income": Decimal("0"), "spending": Decimal("0"), "refunds": Decimal("0")}
     for transaction in rows:
         key = transaction.transaction_date.strftime("%Y-%m")
-        if key not in buckets:
-            continue
-        if transaction.amount >= 0:
-            buckets[key]["income"] += transaction.amount
-        else:
-            buckets[key]["spending"] += abs(transaction.amount)
+        if key in raw:
+            _add_to_flow(raw[key], transaction, lookups)
+    buckets = {month: _close_flow(values) for month, values in raw.items()}
     return [
         {
             "month": month,
@@ -602,6 +633,7 @@ def _t_analyze_spending_trends(db: Session, user: User, months: int = 6, **_) ->
             Transaction.transaction_date >= start,
             Transaction.transaction_date < _month_floor(today),
         )
+        .filter(_is_spending_category())
         .all()
     )
 

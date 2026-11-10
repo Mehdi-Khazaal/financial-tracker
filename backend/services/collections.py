@@ -12,7 +12,8 @@ Analytics screen (`frontend/src/features/analytics/calculations/transactions.ts`
 * any other positive amount is money received (a friend paying you back) and
   comes off the cost too.
 
-So `net = spent - returned`. If you change a rule here, change it there too.
+So `net = spent - returned`. The rules live in `services.classification`; a
+transfer between the user's own accounts counts as neither.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from models.database import Account, Category, Collection, CollectionTransaction, RecurringTransaction, Transaction, utc_now
+from models.database import Collection, CollectionTransaction, RecurringTransaction, Transaction, utc_now
 from services.merchants import merchant_key
 
 ZERO = Decimal("0")
@@ -44,36 +45,8 @@ class CardPaymentNotAllowed(Exception):
 
 
 # ─── Classification ───────────────────────────────────────────────────────────
-@dataclass
-class Lookups:
-    account_types: dict[int, str]
-    category_types: dict[int, str]
-
-
-def load_lookups(db: Session, user_id: int) -> Lookups:
-    accounts = dict(db.query(Account.id, Account.type).filter(Account.user_id == user_id).all())
-    categories = dict(db.query(Category.id, Category.type).filter((Category.user_id == user_id) | (Category.user_id.is_(None))).all())
-    return Lookups(accounts, categories)
-
-
-def classify_values(amount, category_id: Optional[int], account_id: Optional[int], lookups: Lookups) -> str:
-    amount = Decimal(str(amount or 0))
-    if amount == 0:
-        return "excluded"
-    category_type = lookups.category_types.get(category_id) if category_id is not None else None
-    if category_type == "investment":
-        return "investment"
-    if amount < 0:
-        return "expense"
-    if category_type == "expense":
-        return "refund"
-    if lookups.account_types.get(account_id) == "credit_card":
-        return "card-payment"
-    return "income"
-
-
-def classify(tx: Transaction, lookups: Lookups) -> str:
-    return classify_values(tx.amount, tx.category_id, tx.account_id, lookups)
+# Shared with every other total on the server; see `services.classification`.
+from services.classification import Lookups, classify, classify_values, load_lookups  # noqa: E402,F401
 
 
 # ─── Totals ───────────────────────────────────────────────────────────────────
@@ -289,8 +262,8 @@ def suggestions(db: Session, user_id: int, collection: Collection, today: date, 
     Only dated collections get suggestions. After the user has reviewed them,
     only transactions that arrived since come back, unless `include_reviewed`.
     Each one says whether it looks like part of the trip: regular bills,
-    investments and money coming in start unchecked. Card payments are left
-    out, since they can't be added.
+    investments and money coming in start unchecked. Card payments and
+    transfers between the user's own accounts are left out.
     """
     if collection.start_date is None:
         return []
@@ -314,7 +287,9 @@ def suggestions(db: Session, user_id: int, collection: Collection, today: date, 
     out: list[Suggestion] = []
     for tx in rows:
         kind = classify(tx, lookups)
-        if kind in ("excluded", "card-payment"):
+        # Card payments and transfers move money between the user's own
+        # accounts; they are never part of what a trip cost.
+        if kind in ("excluded", "card-payment", "transfer"):
             continue
         if kind in REASONS:
             out.append(Suggestion(tx, False, REASONS[kind]))

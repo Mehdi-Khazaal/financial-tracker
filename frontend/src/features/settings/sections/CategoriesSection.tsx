@@ -26,7 +26,7 @@ import { EmptyBlock, LoadingBlock, SectionErrorBlock } from '../components/Setti
  *     it is that field the user has to change.
  */
 
-export const CATEGORY_TABS = ['expense', 'income', 'investment'] as const;
+export const CATEGORY_TABS = ['expense', 'income', 'investment', 'transfer'] as const;
 export type CategoryTab = typeof CATEGORY_TABS[number];
 
 const TAB_ACCENT: Record<CategoryTab, { tint: string; color: string }> = {
@@ -34,6 +34,7 @@ const TAB_ACCENT: Record<CategoryTab, { tint: string; color: string }> = {
   expense: { tint: 'color-mix(in oklab, var(--neg) 15%, transparent)', color: 'var(--neg)' },
   income: { tint: 'color-mix(in oklab, var(--pos) 15%, transparent)', color: 'var(--pos)' },
   investment: { tint: 'var(--accent-dim)', color: 'var(--accent)' },
+  transfer: { tint: 'var(--elev-sub)', color: 'var(--muted)' },
 };
 
 /** Case-insensitive substring match on a trimmed query. */

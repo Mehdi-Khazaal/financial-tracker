@@ -14,7 +14,8 @@ export interface Category {
   id: number;
   user_id: number | null;
   name: string;
-  type: 'income' | 'expense' | 'investment';
+  /** `transfer`: money moving between your own accounts — never income or spending. */
+  type: 'income' | 'expense' | 'investment' | 'transfer';
   color: string;
   is_system: boolean;
   created_at: string;

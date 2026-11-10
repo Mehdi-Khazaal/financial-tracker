@@ -39,6 +39,8 @@ SYSTEM_CATEGORIES = [
     {"name": "Subscriptions",      "type": "expense", "color": "#a78bfa"},
     {"name": "Groceries",          "type": "expense", "color": "#f5a623"},
     {"name": "Other",              "type": "expense", "color": "#7880a0"},
+    # Card payments and moves between the user's own accounts.
+    {"name": "Transfer",           "type": "transfer", "color": "#7880a0"},
 ]
 
 

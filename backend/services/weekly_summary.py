@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from models.auth import User
 from models.database import Category, RecurringTransaction, Transaction, TransactionSplit
 from services import user_preferences
+from services.classification import NOT_SPENDING_CATEGORY_TYPES
 from utils.dates import user_today
 from utils.logging import get_logger, kv
 
@@ -112,7 +113,8 @@ def build_summary(db: Session, user: User, today: date) -> WeeklySummary:
     for row in rows:
         for category_id, amount in lines_by_parent.get(row.id, [(row.category_id, Decimal(str(row.amount)))]):
             kind = categories[category_id].type if category_id in categories else None
-            if amount < 0 and kind != "investment":
+            # Buying an asset or moving money between your own accounts is not spending.
+            if amount < 0 and kind not in NOT_SPENDING_CATEGORY_TYPES:
                 delta = -amount
             elif amount > 0 and kind == "expense":
                 delta = -amount  # a refund

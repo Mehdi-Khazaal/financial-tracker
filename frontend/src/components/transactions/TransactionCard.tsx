@@ -9,9 +9,10 @@ import { KIND_COLORS, KIND_LABELS } from '../../features/analytics/calculations/
  *
  * A negative amount already reads as spending and a positive one as money in,
  * so tagging those adds noise. A refund and a card payment are the two that
- * look like income and are not, so those — and only those — say what they are.
+ * look like income and are not, so those say what they are — as do purchases of
+ * an asset and transfers, which read as spending by sign and are not.
  */
-const NEEDS_LABEL: TransactionKind[] = ['refund', 'card-payment', 'investment'];
+const NEEDS_LABEL: TransactionKind[] = ['refund', 'card-payment', 'investment', 'transfer'];
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

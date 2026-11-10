@@ -61,7 +61,7 @@ export interface ResolvedPeriod extends PeriodRange {
  * - `excluded`    — zero-amount rows
  */
 export type TransactionKind =
-  | 'income' | 'expense' | 'refund' | 'card-payment' | 'investment' | 'excluded';
+  | 'income' | 'expense' | 'refund' | 'card-payment' | 'investment' | 'transfer' | 'excluded';
 
 export interface ClassificationContext {
   accountTypeById: Map<number, Account['type']>;

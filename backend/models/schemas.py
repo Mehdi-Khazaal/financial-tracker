@@ -56,7 +56,10 @@ class AccountResponse(AccountBase):
 # extends `CategoryBase`, so a type accepted on write but missing here would not
 # merely reject the write — it would make an existing row unserializable and
 # take down `GET /categories` for the whole account.
-CategoryType = Literal["income", "expense", "investment"]
+# `transfer`: money moving between the user's own accounts (a card payment from
+# checking, a move to savings). Never income or spending; see
+# `services.classification`.
+CategoryType = Literal["income", "expense", "investment", "transfer"]
 
 # Colour is validated by *shape*, not against a palette.
 #

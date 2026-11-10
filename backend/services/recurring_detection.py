@@ -189,10 +189,10 @@ def detect(
     """
     accounts = db.query(Account).filter(Account.user_id == user_id).all()
     account_types = {a.id: a.type for a in accounts}
-    category_names = {
-        c.id: c.name
-        for c in db.query(Category).filter((Category.user_id == user_id) | (Category.user_id.is_(None))).all()
-    }
+    categories = db.query(Category).filter((Category.user_id == user_id) | (Category.user_id.is_(None))).all()
+    category_names = {c.id: c.name for c in categories}
+    # Moves between the user's own accounts are never bills, whatever their rhythm.
+    transfer_categories = {c.id for c in categories if c.type == "transfer"}
 
     rows: Iterable[Transaction] = (
         db.query(Transaction)
@@ -208,6 +208,8 @@ def detect(
     groups: dict[tuple[str, bool], list[Transaction]] = {}
     for tx in rows:
         if tx.amount == 0 or _is_card_payment(tx, account_types):
+            continue
+        if tx.category_id in transfer_categories:
             continue
         if (tx.personal_finance_category_primary or "").upper() in _NEVER_BILLS_PFC_PRIMARY:
             continue

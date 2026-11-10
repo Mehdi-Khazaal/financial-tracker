@@ -1,9 +1,14 @@
 /**
  * Transaction classification — the rule every other calculation defers to.
  *
- * Fintrack stores transfers in their own table, so money moved between the
- * user's own accounts never reaches this module. What *does* reach it and must
- * not be double-counted:
+ * Money moved between the user's own accounts reaches this module two ways:
+ * as a row in the transfers table (which never does), and as an imported bank
+ * row the user files under a `transfer` category — a card payment from
+ * checking, a move to savings. What reaches it and must not be counted:
+ *
+ *   • Transfers. Filed under a `transfer` category: neither income nor
+ *     spending, in either direction. Deleting these rows instead broke every
+ *     account's balance history, because history is rebuilt from them.
  *
  *   • Credit-card payments. Recorded as a positive amount on a `credit_card`
  *     account. The purchases that created the balance were already counted as
@@ -48,7 +53,9 @@ export function classifyTransaction(
   if (!Number.isFinite(amount) || amount === 0) return 'excluded';
 
   const categoryType = tx.category_id != null ? ctx.categoryTypeById.get(tx.category_id) : undefined;
-  // Before the sign check: a purchase is negative and would exit as an expense.
+  // Before the sign check: a payment or a purchase is negative and would exit
+  // as an expense.
+  if (categoryType === 'transfer') return 'transfer';
   if (categoryType === 'investment') return 'investment';
 
   if (amount < 0) return 'expense';
@@ -102,6 +109,7 @@ export const KIND_LABELS: Record<TransactionKind, string> = {
   refund: 'Refund',
   'card-payment': 'Card payment',
   investment: 'Investment',
+  transfer: 'Transfer',
   excluded: 'Not counted',
 };
 
@@ -112,6 +120,7 @@ export const KIND_COLORS: Record<TransactionKind, string> = {
   refund: 'var(--pos)',
   'card-payment': 'var(--muted)',
   investment: 'var(--muted)',
+  transfer: 'var(--muted)',
   excluded: 'var(--dim)',
 };
 
@@ -122,6 +131,7 @@ export const KIND_EXPLANATIONS: Record<TransactionKind, string> = {
   refund: 'Money returned into an expense category — subtracted from that category rather than counted as income.',
   'card-payment': 'A payment into a credit-card account — excluded, because the original purchases were already counted as spending.',
   investment: 'Money moved into or out of an asset you hold — excluded from spending, because it changed form rather than leaving.',
+  transfer: 'Money moved between your own accounts, such as a card payment or a move to savings — neither income nor spending.',
   excluded: 'Zero-value entry, not counted.',
 };
 
