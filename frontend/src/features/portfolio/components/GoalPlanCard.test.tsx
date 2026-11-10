@@ -70,7 +70,13 @@ describe('GoalPlanCard', () => {
   it('is honest when there is no saving history yet', () => {
     render(<GoalPlanCard plan={plan(goals, null)} onReordered={vi.fn()} />);
     expect(screen.getByText(/not enough saving history yet/i)).toBeInTheDocument();
-    expect(screen.getAllByText('No saving yet to plan with')).toHaveLength(3);
+    expect(screen.getAllByText('Waiting for money left over each month')).toHaveLength(3);
+  });
+
+  it('tells apart no history from history showing nothing kept', () => {
+    render(<GoalPlanCard plan={plan(goals, -250)} onReordered={vi.fn()} />);
+    expect(screen.getByText(/spent about what you earned/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not enough saving history/i)).not.toBeInTheDocument();
   });
 });
 

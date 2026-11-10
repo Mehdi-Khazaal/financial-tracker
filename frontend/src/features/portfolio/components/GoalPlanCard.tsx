@@ -61,7 +61,10 @@ const GoalPlanCard: React.FC<Props> = ({ plan, onReordered }) => {
         )}
         {saving$ != null
           ? <>You keep about <span className="tabular-nums font-semibold" style={{ color: 'var(--fg)' }}>{dollars(saving$)}</span> a month</>
-          : 'There is not enough saving history yet to plan with'}
+          : plan.monthlySaving == null
+            ? 'There is not enough saving history yet to plan with'
+            // Two different facts: no history, or history showing nothing kept.
+            : 'Over recent months you have spent about what you earned, so nothing is left over for goals'}
         {plan.fromPaychecks > 0 && (
           <>, and your paycheck plan puts <span className="tabular-nums font-semibold" style={{ color: 'var(--fg)' }}>{dollars(plan.fromPaychecks)}</span> a month toward goals</>
         )}

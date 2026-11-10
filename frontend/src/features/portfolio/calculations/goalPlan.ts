@@ -174,6 +174,6 @@ export function describePlannedGoal(p: PlannedGoal): string {
     case 'never':
       return 'Not within ten years at this rate';
     default:
-      return 'No saving yet to plan with';
+      return 'Waiting for money left over each month';
   }
 }
