@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from models.database import Base, engine
 from routers import accounts, assets, auth, categories, transactions
-from routers import account, admin, assistant, budgets, collections, cron, health, history, loans, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
+from routers import account, admin, assistant, budgets, collections, cron, health, history, loans, paycheck_plan, plaid_router, preferences, push, recurring_transactions, rules, savings_goals, stocks, transaction_import, transfers, two_factor
 from utils.limiter import limiter
 from utils.logging import get_logger, kv
 from utils.migrations import OUTCOME_INITIALIZED, OUTCOME_UPGRADED, record_schema_state, run_startup_migrations
@@ -216,6 +216,7 @@ app.include_router(admin.router)
 app.include_router(cron.router)
 app.include_router(plaid_router.router)
 app.include_router(assistant.router)
+app.include_router(paycheck_plan.router)
 
 
 # No-store caching plus the security headers (CSP, COOP, CORP, HSTS in prod).

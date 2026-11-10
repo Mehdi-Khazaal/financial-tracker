@@ -2,12 +2,13 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
-import { Account, Asset, Category, HoldingsValuation, MonthSnapshot, SavingsGoal, Transaction } from '../types';
+import { Account, Asset, Category, HoldingsValuation, MonthSnapshot, PaycheckPlan, SavingsGoal, Transaction } from '../types';
 import {
   getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal,
   fetchAllTransactions, getCategories, getNetWorthHistory,
-  getHoldingValuations, forgetHoldingValuations,
+  getHoldingValuations, forgetHoldingValuations, getPaycheckPlan,
 } from '../utils/api';
+import PaycheckPlanCard from '../features/paycheck/components/PaycheckPlanCard';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import EmptyState from '../components/EmptyState';
@@ -115,6 +116,7 @@ const PortfolioPage: React.FC = () => {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
   const [editGoalDetails, setEditGoalDetails] = useState<SavingsGoal | null>(null);
+  const [paycheckPlan, setPaycheckPlan] = useState<PaycheckPlan | null>(null);
   const [spendGoal, setSpendGoal] = useState<SavingsGoal | null>(null);
 
   // Holdings are valued on the server from stored market prices — the same
@@ -213,8 +215,20 @@ const PortfolioPage: React.FC = () => {
 
   useEffect(() => { void loadValuations(); }, [loadValuations]);
 
+  // The paycheck plan is extra: without it the Savings tab still works, so a
+  // failure leaves the card out rather than raising the page's error banner.
+  const loadPaycheckPlan = useCallback(async () => {
+    try {
+      const res = await getPaycheckPlan();
+      setPaycheckPlan(res.data);
+    } catch {
+      setPaycheckPlan(null);
+    }
+  }, []);
+  useEffect(() => { void loadPaycheckPlan(); }, [loadPaycheckPlan]);
+
   useEffect(() => { load(); }, [load]);
-  const { pulling, refreshing, pullDistance } = usePullToRefresh(async () => { await Promise.all([load(), loadValuations()]); });
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(async () => { await Promise.all([load(), loadValuations(), loadPaycheckPlan()]); });
 
   // Arriving from a goal named on Overview. Waits for the goals to load so the
   // element being scrolled to actually exists.
@@ -803,6 +817,15 @@ const PortfolioPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              <PaycheckPlanCard
+                plan={paycheckPlan}
+                goals={goals}
+                accounts={accounts}
+                today={savingsToday}
+                onPlanChange={setPaycheckPlan}
+                onGoalsChanged={() => void load()}
+              />
 
               <div className="grid md:grid-cols-2 gap-4">
                 {/* Account overview */}

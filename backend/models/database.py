@@ -685,6 +685,78 @@ class AssistantMemory(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+# ─── Paycheck plan ────────────────────────────────────────────────────────────
+class PaycheckPlan(Base):
+    """What to do with each paycheck: which deposits are pay, and how to split them.
+
+    One per user. A payday is every date a paycheck source deposited money;
+    deposits from several employers on the same day are one payday. See
+    `services.paycheck_plan`.
+    """
+
+    __tablename__ = "paycheck_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    notify = Column(Boolean, nullable=False, default=True, server_default="true")
+    # The payday the last push went out for, so each payday is announced once.
+    last_notified_payday = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    sources = relationship("PaycheckSource", cascade="all, delete-orphan", order_by="PaycheckSource.id")
+    lines = relationship("PaycheckLine", cascade="all, delete-orphan", order_by="PaycheckLine.position")
+
+
+class PaycheckSource(Base):
+    """A payer whose deposits are paychecks, by merchant key ("philips")."""
+
+    __tablename__ = "paycheck_sources"
+    __table_args__ = (UniqueConstraint("plan_id", "merchant_key", name="uq_paycheck_source_key"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("paycheck_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    merchant_key = Column(String(120), nullable=False)
+    name = Column(String(120), nullable=False)
+
+
+class PaycheckLine(Base):
+    """Put this much toward this goal from every payday, kept in this account."""
+
+    __tablename__ = "paycheck_lines"
+    __table_args__ = (UniqueConstraint("plan_id", "goal_id", name="uq_paycheck_line_goal"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("paycheck_plans.id", ondelete="CASCADE"), nullable=False, index=True)
+    goal_id = Column(Integer, ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
+    amount = Column(Numeric(15, 2), nullable=False)
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+
+    goal = relationship("SavingsGoal")
+    account = relationship("Account")
+
+
+class PaycheckCheckoff(Base):
+    """A line ticked off for one payday, and whether its money was set aside."""
+
+    __tablename__ = "paycheck_checkoffs"
+    __table_args__ = (UniqueConstraint("line_id", "payday", name="uq_paycheck_checkoff_line_payday"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    line_id = Column(Integer, ForeignKey("paycheck_lines.id", ondelete="CASCADE"), nullable=False, index=True)
+    payday = Column(Date, nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    # True when ticking also added `amount` to the goal's money set aside in
+    # `account_id`; un-ticking takes it back out.
+    set_aside = Column(Boolean, nullable=False, default=False, server_default="false")
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
+    done_at = Column(DateTime, default=utc_now)
+
+
 class AccountBalanceSnapshot(Base):
     """Materialized month-end closing balances per account.
 

@@ -85,6 +85,66 @@ export interface Asset {
   updated_at: string;
 }
 
+// ── Paycheck plan ────────────────────────────────────────────────────────────
+// Money arrives from the API as decimal strings.
+export type Money = number | string;
+
+export interface PaycheckSource {
+  merchant_key: string;
+  name: string;
+}
+
+export interface PaycheckLine {
+  id: number;
+  goal_id: number;
+  goal_name: string;
+  amount: Money;
+  account_id: number | null;
+  account_name: string | null;
+}
+
+export interface PaycheckSourceSuggestion extends PaycheckSource {
+  count: number;
+  typical_amount: Money;
+  gap_days: number;
+}
+
+export interface PaydayLine extends PaycheckLine {
+  done: boolean;
+  set_aside: boolean;
+}
+
+export interface Payday {
+  date: string;
+  amount: Money;
+  deposits: { name: string; amount: Money; account_id: number }[];
+  next_payday: string;
+  bills: { name: string; amount: Money; date: string; paid: boolean }[];
+  bills_total: Money;
+  lines: PaydayLine[];
+  planned_total: Money;
+  free: Money;
+}
+
+export interface PaycheckPlan {
+  /** True once at least one paycheck source is chosen. */
+  configured: boolean;
+  notify: boolean;
+  sources: PaycheckSource[];
+  lines: PaycheckLine[];
+  suggested_sources: PaycheckSourceSuggestion[];
+  /** Usual days between paydays. */
+  gap_days: number;
+  paydays_per_month: Money;
+  latest: Payday | null;
+}
+
+export interface PaycheckPlanInput {
+  sources: PaycheckSource[];
+  lines: { goal_id: number; amount: number; account_id: number | null }[];
+  notify: boolean;
+}
+
 /** A row or pair the server thinks is a move between the user's own accounts. */
 export interface TransferSuggestion {
   transaction_ids: number[];

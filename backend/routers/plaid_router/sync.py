@@ -467,6 +467,29 @@ def _notify_balances(db: Session, user_id: int) -> None:
         logger.exception("plaid_balance_notify_failed %s", kv(user_id=user_id))
 
 
+def _notify_payday(db, user_id: int) -> bool:
+    """Push the paycheck plan when a paycheck has just landed. True when sent."""
+    from models.auth import User
+    from services import paycheck_plan
+    from utils.dates import user_today
+
+    try:
+        user = db.get(User, user_id)
+        if user is None:
+            return False
+        current = paycheck_plan.payday_to_announce(db, user_id, user_today(user))
+        if current is None:
+            return False
+        title, body = paycheck_plan.payday_message(current)
+        send_push_to_user(db, user_id, title, body, url="/portfolio?tab=savings", tag="payday")
+        paycheck_plan.mark_announced(db, user_id, current.payday.on)
+        return True
+    except Exception:
+        logger.exception("payday_notify_failed %s", kv(user_id=user_id))
+        db.rollback()
+        return False
+
+
 def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_SOURCE_OTHER):
     """Background task — owns its own DB session so it outlives the request.
 
@@ -490,13 +513,17 @@ def _do_sync_and_notify(plaid_item_db_id: int, user_id: int, source: str = SYNC_
             _reconcile_recurring(db, user_id)
             _notify_budgets(db, user_id)
             _notify_balances(db, user_id)
-            send_push_to_user(
-                db, user_id,
-                "Bank sync complete",
-                f"{count} new transaction{'s' if count != 1 else ''} imported from {item.institution_name or 'your bank'}.",
-                url="/transactions",
-                tag="plaid-sync",
-            )
+            # A paycheck landing is the one sync worth its own message: what
+            # arrived, what is spoken for, what is free. It replaces the
+            # generic "sync complete" push rather than adding a second one.
+            if not _notify_payday(db, user_id):
+                send_push_to_user(
+                    db, user_id,
+                    "Bank sync complete",
+                    f"{count} new transaction{'s' if count != 1 else ''} imported from {item.institution_name or 'your bank'}.",
+                    url="/transactions",
+                    tag="plaid-sync",
+                )
     except Exception:
         logger.exception("plaid_sync_failed %s", kv(item_id=plaid_item_db_id, user_id=user_id))
     finally:

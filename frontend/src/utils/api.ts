@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, MetalPrice, RuleDraft, Transaction,
-  TransferSuggestion,
+  TransferSuggestion, PaycheckPlan, PaycheckPlanInput,
 } from '../types';
 
 const api = axios.create({
@@ -298,6 +298,15 @@ export const getHoldingValuations = (refresh = false) => {
   promise.catch(() => readCache.delete('valuations'));
   return promise;
 };
+
+// ── Paycheck plan ────────────────────────────────────────────────────────────
+export const getPaycheckPlan = () => api.get<PaycheckPlan>('/paycheck-plan');
+export const savePaycheckPlan = (plan: PaycheckPlanInput) => api.put<PaycheckPlan>('/paycheck-plan', plan);
+/** Mark a line done for a payday; with `setAside`, also set its money aside for the goal. */
+export const tickPaycheckLine = (payday: string, lineId: number, setAside: boolean) =>
+  api.post<PaycheckPlan>('/paycheck-plan/ticks', { payday, line_id: lineId, set_aside: setAside });
+export const untickPaycheckLine = (payday: string, lineId: number) =>
+  api.delete<PaycheckPlan>(`/paycheck-plan/lines/${lineId}/ticks/${payday}`);
 
 /** Gold and silver per troy ounce, for previewing a piece's value. */
 export const getMetalPrices = () => cachedRead('metal-prices', () => api.get<MetalPrice[]>('/assets/metal-prices'));

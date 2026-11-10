@@ -45,6 +45,7 @@ from routers import (
     health,
     history,
     loans,
+    paycheck_plan,
     plaid_router,
     preferences,
     push,
@@ -130,6 +131,7 @@ app.include_router(budgets.router)
 app.include_router(collections.router)
 app.include_router(rules.router)
 app.include_router(transaction_import.router)
+app.include_router(paycheck_plan.router)
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[auth_utils.get_db] = override_get_db
 
