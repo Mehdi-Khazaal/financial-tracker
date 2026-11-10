@@ -2,12 +2,12 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
-import { Account, Asset, HoldingsValuation, Loan, MonthSnapshot, Transaction } from '../types';
+import { Account, Asset, HoldingsValuation, Loan, MonthSnapshot, SavingsGoal, Transaction } from '../types';
 import {
   getAccounts, deleteAccount, getAccountHistories,
   getLoans, updateLoan, deleteLoan,
   fetchAllTransactions, cleanDescription,
-  getAssets, getHoldingValuations,
+  getAssets, getHoldingValuations, getSavingsGoals,
 } from '../utils/api';
 import { downloadCSV, printPDF } from '../utils/export';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
@@ -61,6 +61,7 @@ const AccountsPage: React.FC = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [showAddLoan, setShowAddLoan] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [valuations, setValuations] = useState<Valuations>(NO_VALUATIONS);
   const [repayInput, setRepayInput] = useState<Record<number, string>>({});
   const [repaying, setRepaying] = useState<number | null>(null);
@@ -85,6 +86,10 @@ const AccountsPage: React.FC = () => {
       getHoldingValuations()
         .then(res => setValuations(indexValuations(res.data as HoldingsValuation)))
         .catch(() => setValuations(NO_VALUATIONS));
+      // Goals decide what is available to spend: their money is promised.
+      getSavingsGoals()
+        .then(res => setGoals(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setGoals([]));
       const results = await Promise.allSettled([getAccounts(), fetchAllTransactions(), getLoans(), getAccountHistories(6)]);
       const labels = ['accounts', 'transactions', 'loans', 'history'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
@@ -189,7 +194,7 @@ const AccountsPage: React.FC = () => {
   // backend's net-worth series all share. This page used to compute its own,
   // and quietly disagreed with them about credit-card debt.
   const ccAccounts   = accounts.filter(a => a.type === 'credit_card');
-  const totals       = calculateAccountTotals(accounts);
+  const totals       = calculateAccountTotals(accounts, goals);
   const netWorth     = calculateNetWorth(accounts, assets, valuations);
   const totalOwed    = totals.cardDebt;
   const totalLimit   = totals.creditLimit;

@@ -29,8 +29,12 @@ const WINDOW = 6;
 export interface HealthInputs {
   /** Completed months only, ascending. */
   monthly: { month: string; metrics: PeriodMetrics }[];
-  /** Checking + savings + cash balances. */
-  liquidBalance: number;
+  /**
+   * Cash you could fall back on: checking + savings + cash, less money set
+   * aside for goals other than the emergency fund (`AccountTotals.emergencyCash`).
+   * Plain liquid balance counted a trip fund as emergency cover.
+   */
+  emergencyCash: number;
   /** Positive dollar amount of credit-card debt. */
   creditCardDebt: number;
   /** Sum of credit limits, or 0 when unknown. */
@@ -91,16 +95,16 @@ function scoreWindow(inputs: HealthInputs, months: { month: string; metrics: Per
   });
 
   // 3. Emergency fund, expressed in months of cover.
-  const monthsCover = avgExpenses > 0 ? inputs.liquidBalance / avgExpenses : 0;
+  const monthsCover = avgExpenses > 0 ? inputs.emergencyCash / avgExpenses : 0;
   factors.push({
     key: 'emergency-fund',
     label: 'Emergency fund',
     score: band(monthsCover, 0, 6),
     weight: 0.2,
     detail: avgExpenses > 0
-      ? `${dollars(inputs.liquidBalance)} in cash covers ${monthsCover.toFixed(1)} months of spending`
-      : `${dollars(inputs.liquidBalance)} in cash and savings`,
-    explanation: 'Full marks at six months of typical spending held in checking, savings, or cash.',
+      ? `${dollars(inputs.emergencyCash)} you could fall back on covers ${monthsCover.toFixed(1)} months of spending`
+      : `${dollars(inputs.emergencyCash)} you could fall back on`,
+    explanation: 'Full marks at six months of typical spending held in checking, savings or cash and not set aside for another goal. Your emergency fund counts.',
   });
 
   // 4. Spending stability, robust to a single unusual month.

@@ -35,6 +35,7 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
         name=goal.name,
         target_amount=goal.target_amount,
         deadline=goal.deadline,
+        is_emergency_fund=bool(goal.is_emergency_fund),
         created_at=goal.created_at,
         allocations=allocs,
         current_amount=current,
@@ -74,6 +75,7 @@ def create_goal(goal: SavingsGoalCreate, db: Session = Depends(get_db), current_
         name=goal.name,
         target_amount=goal.target_amount,
         deadline=goal.deadline,
+        is_emergency_fund=goal.is_emergency_fund,
     )
     db.add(db_goal)
     db.commit()

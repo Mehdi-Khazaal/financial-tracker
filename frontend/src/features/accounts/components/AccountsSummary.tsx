@@ -22,7 +22,7 @@ export const DEFINITIONS = {
   netWorth:
     'Your account balances, with credit-card balances subtracting and brokerage cash left out, plus everything you hold at its current value. The same figure the Dashboard, Analytics, Portfolio and Fin show.',
   availableToSpend:
-    'Checking and cash only — money you can spend without moving anything first. Savings, brokerage and credit are excluded.',
+    'Checking and cash that is not set aside for a goal — money you can spend without moving anything first or breaking a promise to a goal. Savings, brokerage and credit are excluded.',
   liquid:
     'Checking, savings and cash. Money you hold, whether or not it is earmarked for something.',
   brokerage:
@@ -91,7 +91,7 @@ const AccountsSummary: React.FC<Props> = ({ totals, netWorth }) => {
             hint={DEFINITIONS.availableToSpend}
             value={dollars(totals.availableToSpend)}
             color="var(--pos)"
-            note="Checking and cash"
+            note={totals.setAside > 0 ? `${dollars(totals.setAside)} set aside for goals` : 'Checking and cash'}
           />
           <Figure
             label="Liquid funds"

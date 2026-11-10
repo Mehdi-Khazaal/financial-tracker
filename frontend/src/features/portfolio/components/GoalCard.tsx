@@ -35,6 +35,8 @@ interface Props {
   /** Accounts this goal is allocated against, for the context links. */
   allocationAccounts: { id: number; name: string; amount: number }[];
   onManageAllocations: () => void;
+  /** Name, target, date and the emergency-fund mark. */
+  onEdit?: () => void;
   onSpend: () => void;
   onDelete: () => void;
 }
@@ -49,7 +51,7 @@ const Fact: React.FC<{ label: string; value: string; color?: string }> = ({ labe
 );
 
 const GoalCard: React.FC<Props> = ({
-  progress, isFocused = false, allocationAccounts, onManageAllocations, onSpend, onDelete,
+  progress, isFocused = false, allocationAccounts, onManageAllocations, onEdit, onSpend, onDelete,
 }) => {
   const { presentation, goal } = progress;
   const paceColor = PACE_COLORS[progress.pace];
@@ -154,6 +156,16 @@ const GoalCard: React.FC<Props> = ({
           >
             Manage allocation
           </button>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="text-xs font-medium px-2.5 rounded-lg"
+              style={{ color: 'var(--muted)', border: '1px solid var(--line)', minHeight: 36 }}
+              aria-label={`Edit goal ${goal.name}`}
+            >
+              Edit
+            </button>
+          )}
           {allocationAccounts.length > 0 && (
             <button
               onClick={onSpend}

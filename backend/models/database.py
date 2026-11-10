@@ -572,6 +572,10 @@ class SavingsGoal(Base):
     # been notified about. A push goes out only when a save *crosses* a
     # milestone, never merely because the goal still sits above one.
     milestone_notified = Column(Integer, nullable=False, default=0, server_default="0")
+    # Money set aside for this goal is the emergency fund. Every other goal's
+    # money is promised to something, so it is left out of "available to
+    # spend" and out of the emergency-fund cover; this goal's only of the first.
+    is_emergency_fund = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

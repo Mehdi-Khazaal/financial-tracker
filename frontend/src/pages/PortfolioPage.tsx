@@ -113,6 +113,7 @@ const PortfolioPage: React.FC = () => {
   const [snapshots, setSnapshots] = useState<MonthSnapshot[]>([]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
+  const [editGoalDetails, setEditGoalDetails] = useState<SavingsGoal | null>(null);
   const [spendGoal, setSpendGoal] = useState<SavingsGoal | null>(null);
 
   // Holdings are valued on the server from stored market prices — the same
@@ -851,6 +852,7 @@ const PortfolioPage: React.FC = () => {
                             isFocused={focusGoalId === goal.id}
                             allocationAccounts={allocationAccounts}
                             onManageAllocations={() => setEditGoal(goal)}
+                            onEdit={() => setEditGoalDetails(goal)}
                             onSpend={() => setSpendGoal(goal)}
                             onDelete={() => handleDeleteGoal(goal.id, goal.name)}
                           />
@@ -895,6 +897,7 @@ const PortfolioPage: React.FC = () => {
         asset={editAsset?.asset_class === 'physical' ? editAsset : null}
       />
       <AddSavingsGoalModal isOpen={showAddGoal} onClose={() => setShowAddGoal(false)} onSuccess={load} />
+      <AddSavingsGoalModal isOpen={!!editGoalDetails} onClose={() => setEditGoalDetails(null)} onSuccess={load} goal={editGoalDetails} />
       <SpendFromGoalModal isOpen={!!spendGoal} onClose={() => setSpendGoal(null)} onSuccess={load} goal={spendGoal} />
       <ManageAllocationsModal isOpen={!!editGoal} onClose={() => setEditGoal(null)} onSuccess={load} goal={editGoal} allGoals={goals} accounts={accounts} />
     </AppShell>

@@ -310,6 +310,7 @@ class SavingsGoalBase(BaseModel):
     target_amount: Decimal
     account_id: Optional[int] = None
     deadline: Optional[date] = None
+    is_emergency_fund: bool = False
 
 class SavingsGoalCreate(SavingsGoalBase):
     pass
@@ -319,6 +320,7 @@ class SavingsGoalUpdate(BaseModel):
     target_amount: Optional[Decimal] = None
     account_id: Optional[int] = None
     deadline: Optional[date] = None
+    is_emergency_fund: Optional[bool] = None
 
 # ─── Recurring Transaction ────────────────────────────────────────────────────
 class RecurringTransactionBase(BaseModel):
@@ -480,6 +482,7 @@ class SavingsGoalResponse(BaseModel):
     name: str
     target_amount: Decimal
     deadline: Optional[date] = None
+    is_emergency_fund: bool = False
     created_at: datetime
     allocations: list[AllocationResponse] = []
     current_amount: Decimal = Decimal("0")

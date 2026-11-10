@@ -26,6 +26,7 @@ from models.database import (
     Transaction,
 )
 from routers.assistant import _user_today
+from services.cash_position import cash_position
 from services.classification import NOT_SPENDING_CATEGORY_TYPES, Lookups, classify, load_lookups
 from services.net_worth import current_net_worth
 from services.valuation import value_holdings
@@ -67,8 +68,11 @@ def _t_get_overview(db: Session, user: User, **_) -> dict:
         .filter(Loan.user_id == user.id, Loan.status == "active")
         .scalar()
     )
+    cash = cash_position(db, user.id)
     return {
         "net_worth": _jsonable(worth.total),
+        "available_to_spend": _jsonable(cash.available_to_spend),
+        "set_aside_for_goals": _jsonable(cash.set_aside),
         "liquid_balance": _jsonable(liquid),
         "credit_card_balance": _jsonable(credit),
         "holdings_value": _jsonable(worth.holdings),
@@ -356,13 +360,15 @@ def _t_financial_health(db: Session, user: User, **_) -> dict:
     flows = _monthly_flows(db, user, months=6, today=today)
     averages = _average_monthly(flows)
 
-    liquid = Decimal(str(overview["liquid_balance"]))
+    cash = cash_position(db, user.id)
     credit_debt = abs(Decimal(str(overview["credit_card_balance"])))
     avg_spending = averages["spending"]
     avg_income = averages["income"]
 
     savings_rate = (averages["net"] / avg_income * 100) if avg_income else None
-    runway_months = (liquid / avg_spending) if avg_spending else None
+    # Cover is cash not promised to another goal: the app's emergency-fund
+    # figure. Liquid balance alone counted a summer-trip fund as cover.
+    runway_months = (cash.emergency_cash / avg_spending) if avg_spending else None
 
     return {
         "as_of": today.isoformat(),
@@ -372,6 +378,9 @@ def _t_financial_health(db: Session, user: User, **_) -> dict:
         "avg_monthly_surplus": _jsonable(averages["net"].quantize(Decimal("0.01"))),
         "savings_rate_pct": _jsonable(savings_rate.quantize(Decimal("0.1"))) if savings_rate is not None else None,
         "emergency_fund_months": _jsonable(runway_months.quantize(Decimal("0.1"))) if runway_months is not None else None,
+        "emergency_cash": _jsonable(cash.emergency_cash),
+        "available_to_spend": _jsonable(cash.available_to_spend),
+        "set_aside_for_goals": _jsonable(cash.set_aside),
         "liquid_balance": overview["liquid_balance"],
         "credit_card_debt": _jsonable(credit_debt),
         "holdings_value": overview["holdings_value"],

@@ -53,10 +53,7 @@ import { buildPeriodSummary } from './calculations/summary';
 import { calculateFinancialHealth } from './calculations/health';
 import { calculateForecast } from './calculations/forecast';
 import { monthlyRecurringExpense } from './calculations/recurring';
-import {
-  LIQUID_TYPES,
-  sumByTypes,
-} from '../accounts/calculations/totals';
+import { calculateAccountTotals } from '../accounts/calculations/totals';
 import { NO_VALUATIONS, type Valuations } from '../portfolio/calculations/investments';
 import { calculateNetWorth, withCurrentNetWorth } from '../portfolio/calculations/wealth';
 
@@ -236,14 +233,14 @@ export function useAnalyticsModel(
     const monthly = monthlyMetrics(transactions, completedMonths, ctx);
 
     // Canonical populations, shared with Accounts and Overview.
-    const liquidBalance = sumByTypes(accounts, LIQUID_TYPES);
+    const { emergencyCash } = calculateAccountTotals(accounts, goals);
     const cards = accounts.filter(a => a.type === 'credit_card');
     const creditCardDebt = cards.reduce((s, a) => s + Math.max(0, -Number(a.balance)), 0);
     const creditLimit = cards.reduce((s, a) => s + (Number(a.credit_limit) || 0), 0);
 
     const health = calculateFinancialHealth({
       monthly,
-      liquidBalance,
+      emergencyCash,
       creditCardDebt,
       creditLimit,
       monthlyRecurringExpense: monthlyRecurringExpense(recurring),

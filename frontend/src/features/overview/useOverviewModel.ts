@@ -169,7 +169,8 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
     // Every account figure below comes from the canonical definitions in
     // `features/accounts/calculations/totals`. These used to be inline reduces
     // that happened to agree; a shared call cannot drift.
-    const accountTotals = calculateAccountTotals(accounts);
+    // Goals matter here: money set aside for one is not available to spend.
+    const accountTotals = calculateAccountTotals(accounts, goals);
     const worth = calculateNetWorth(accounts, assets, valuations);
     const currentNetWorth = worth.total;
 

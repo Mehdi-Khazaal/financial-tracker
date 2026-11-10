@@ -127,6 +127,8 @@ export interface SavingsGoal {
   name: string;
   target_amount: number;
   deadline: string | null;
+  /** Its money is emergency cover; every other goal's is promised elsewhere. */
+  is_emergency_fund?: boolean;
   created_at: string;
   allocations: GoalAllocation[];
   current_amount: number;

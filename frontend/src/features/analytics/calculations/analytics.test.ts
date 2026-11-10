@@ -676,7 +676,7 @@ describe('calculateFinancialHealth', () => {
   it('declines to score without enough history', () => {
     const health = calculateFinancialHealth({
       monthly: [monthFor(3000, 2000, '2026-06')],
-      liquidBalance: 5000, creditCardDebt: 0, creditLimit: 0,
+      emergencyCash: 5000, creditCardDebt: 0, creditLimit: 0,
       monthlyRecurringExpense: 0, hasCreditCards: false,
     });
     expect(health.available).toBe(false);
@@ -687,7 +687,7 @@ describe('calculateFinancialHealth', () => {
   it('explains every factor it uses', () => {
     const health = calculateFinancialHealth({
       monthly: ['2026-04', '2026-05', '2026-06'].map(m => monthFor(4000, 2000, m)),
-      liquidBalance: 12000, creditCardDebt: 0, creditLimit: 0,
+      emergencyCash: 12000, creditCardDebt: 0, creditLimit: 0,
       monthlyRecurringExpense: 400, hasCreditCards: false,
     });
 
@@ -707,12 +707,12 @@ describe('calculateFinancialHealth', () => {
   it('does not punish high spending that is matched by high income', () => {
     const modest = calculateFinancialHealth({
       monthly: ['2026-04', '2026-05', '2026-06'].map(m => monthFor(2000, 1400, m)),
-      liquidBalance: 4200, creditCardDebt: 0, creditLimit: 0,
+      emergencyCash: 4200, creditCardDebt: 0, creditLimit: 0,
       monthlyRecurringExpense: 0, hasCreditCards: false,
     });
     const bigSpender = calculateFinancialHealth({
       monthly: ['2026-04', '2026-05', '2026-06'].map(m => monthFor(20000, 14000, m)),
-      liquidBalance: 42000, creditCardDebt: 0, creditLimit: 0,
+      emergencyCash: 42000, creditCardDebt: 0, creditLimit: 0,
       monthlyRecurringExpense: 0, hasCreditCards: false,
     });
     // Same ratios, ten times the amounts — the score should not move.
@@ -722,14 +722,14 @@ describe('calculateFinancialHealth', () => {
   it('adds a debt factor only when credit cards exist', () => {
     const withCards = calculateFinancialHealth({
       monthly: ['2026-04', '2026-05', '2026-06'].map(m => monthFor(3000, 2000, m)),
-      liquidBalance: 6000, creditCardDebt: 600, creditLimit: 3000,
+      emergencyCash: 6000, creditCardDebt: 600, creditLimit: 3000,
       monthlyRecurringExpense: 0, hasCreditCards: true,
     });
     expect(withCards.factors.some(f => f.key === 'debt')).toBe(true);
 
     const withoutCards = calculateFinancialHealth({
       monthly: ['2026-04', '2026-05', '2026-06'].map(m => monthFor(3000, 2000, m)),
-      liquidBalance: 6000, creditCardDebt: 0, creditLimit: 0,
+      emergencyCash: 6000, creditCardDebt: 0, creditLimit: 0,
       monthlyRecurringExpense: 0, hasCreditCards: false,
     });
     expect(withoutCards.factors.some(f => f.key === 'debt')).toBe(false);

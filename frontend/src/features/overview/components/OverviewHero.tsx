@@ -25,7 +25,7 @@ export const NET_WORTH_DEFINITION =
   'Your account balances (checking, savings, cash, with credit-card balances subtracting) plus everything you hold at its current value: a market price for stocks, funds and coins, and what you recorded for the rest. Buying an asset with cash leaves it unchanged. The same figure as Analytics, Portfolio, Accounts, the charts and Fin.';
 
 export const AVAILABLE_DEFINITION =
-  'Money in checking and cash accounts, which you can spend without moving anything first. Savings balances, investments and credit are excluded.';
+  'Money in checking and cash accounts that is not set aside for a goal, so you can spend it without breaking a promise to one. Savings balances, investments and credit are excluded.';
 
 interface Props {
   netWorth: NetWorthTrend;

@@ -1,4 +1,4 @@
-import type { Account } from '../../../types';
+import type { Account, SavingsGoal } from '../../../types';
 import {
   calculateAccountTotals,
   netWorthFromAccounts,
@@ -186,5 +186,53 @@ describe('edge cases', () => {
 
   it('counts every account regardless of type', () => {
     expect(calculateAccountTotals(portfolio).count).toBe(5);
+  });
+});
+
+describe('goal money is not available to spend', () => {
+  // The live account: "Available to spend $5,603.28" while $4,910 of it was a
+  // cash account set aside entirely for a summer trip.
+  const acct = (id: number, type: Account['type'], balance: number): Account => ({
+    id, user_id: 1, name: `A${id}`, type, balance, credit_limit: null, currency: 'USD', created_at: '', updated_at: '',
+  });
+  const goal = (id: number, allocations: [number, number][], emergency = false): SavingsGoal => ({
+    id, user_id: 1, name: `G${id}`, target_amount: 1000, deadline: null, created_at: '',
+    is_emergency_fund: emergency, current_amount: allocations.reduce((s, [, a]) => s + a, 0),
+    allocations: allocations.map(([account_id, amount], i) => ({ id: id * 10 + i, account_id, account_name: '', amount })),
+  });
+  const accounts = [acct(47, 'checking', 693.28), acct(48, 'savings', 4000.04), acct(52, 'cash', 4910), acct(49, 'credit_card', -384.92)];
+  const goals = [
+    goal(1, [[48, 500]], true),       // Emergency Funds
+    goal(2, [[52, 4910]]),            // Summer 2027
+    goal(3, [[48, 2500.04]]),         // Education
+    goal(4, [[48, 1000]]),            // Trip
+  ];
+
+  it('leaves goal money out of available to spend', () => {
+    const totals = calculateAccountTotals(accounts, goals);
+    expect(totals.availableToSpend).toBeCloseTo(693.28, 2);
+    expect(totals.setAside).toBeCloseTo(8910.04, 2);
+    expect(totals.liquid).toBeCloseTo(9603.32, 2);
+  });
+
+  it('counts free money and the emergency fund as cover, and nothing promised elsewhere', () => {
+    expect(calculateAccountTotals(accounts, goals).emergencyCash).toBeCloseTo(1193.28, 2);
+  });
+
+  it('is unchanged for someone with no goals', () => {
+    const totals = calculateAccountTotals(accounts);
+    expect(totals.availableToSpend).toBeCloseTo(5603.28, 2);
+    expect(totals.emergencyCash).toBeCloseTo(totals.liquid, 6);
+    expect(totals.setAside).toBe(0);
+  });
+
+  it('never frees more than an account holds, or borrows from another account', () => {
+    const totals = calculateAccountTotals([acct(1, 'checking', 300), acct(2, 'cash', 100)], [goal(9, [[2, 250]])]);
+    expect(totals.availableToSpend).toBe(300);
+    expect(totals.emergencyCash).toBe(300);
+  });
+
+  it('still counts an overdraft against you', () => {
+    expect(calculateAccountTotals([acct(1, 'checking', -40), acct(2, 'cash', 100)]).availableToSpend).toBe(60);
   });
 });

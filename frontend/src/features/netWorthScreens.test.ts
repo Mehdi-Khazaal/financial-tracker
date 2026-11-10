@@ -89,3 +89,19 @@ describe('one net worth on every screen', () => {
     expect(analytics.netWorth.change).toBeCloseTo(overview.netWorth.change, 2);
   });
 });
+
+describe('the Overview hero leaves goal money out of available to spend', () => {
+  it('shows $693.28, not $5,603.28, when the cash account is set aside for a trip', () => {
+    const goals = [{
+      id: 2, user_id: 1, name: 'Summer 2027', target_amount: 20000, deadline: '2027-06-30', created_at: '',
+      is_emergency_fund: false, current_amount: 4910,
+      allocations: [{ id: 1, account_id: 52, account_name: 'Home', amount: 4910 }],
+    }];
+    const { result } = renderHook(() => useOverviewModel({
+      accounts, transactions: [], categories: [], goals, recurring: [],
+      snapshots, assets, valuations, failedSources: [],
+    }, TODAY));
+
+    expect(result.current.availableToSpend).toBeCloseTo(693.28, 2);
+  });
+});

@@ -21,7 +21,7 @@
  * for the Overview components that still import it.
  */
 
-import type { Account } from '../../../types';
+import type { Account, SavingsGoal } from '../../../types';
 import {
   amountOwed,
   cardUtilization,
@@ -56,10 +56,23 @@ export interface AccountTotals {
    * `features/portfolio/calculations/wealth`.
    */
   netBalance: number;
-  /** Checking + cash. */
+  /**
+   * Checking + cash, less whatever is set aside there for any goal — the
+   * emergency fund included, since it is not everyday money either. It used
+   * to ignore goals, so a cash account set aside entirely for a trip counted
+   * as spendable.
+   */
   availableToSpend: number;
-  /** Checking + savings + cash. */
+  /** Checking + savings + cash, earmarked or not. */
   liquid: number;
+  /** Goal money held in checking, savings and cash. */
+  setAside: number;
+  /**
+   * Checking + savings + cash, less what is set aside for goals other than
+   * the emergency fund: the cash you could fall back on. The emergency-fund
+   * cover ratio is built on this, not on `liquid`.
+   */
+  emergencyCash: number;
   /** Everything a savings goal can be earmarked against — all but credit cards. */
   allocatable: number;
   /**
@@ -95,11 +108,53 @@ export const sumByTypes = (accounts: Account[], types: Account['type'][]): numbe
 export const netWorthFromAccounts = (accounts: Account[]): number =>
   sumBalances(accounts.filter(a => a.type !== 'investment'));
 
-export function calculateAccountTotals(accounts: Account[]): AccountTotals {
+/**
+ * What an account frees once goal money is taken out. Clamped per account: an
+ * account cannot free more than it holds, and over-allocating one account does
+ * not reach into another. An overdraft still counts against you as it is.
+ */
+const freeIn = (balance: number, promised: number): number =>
+  balance <= 0 ? balance : Math.max(0, balance - promised);
+
+/** Goal money per account, for all goals and for goals other than the emergency fund. */
+function promisedByAccount(goals: SavingsGoal[]) {
+  const all = new Map<number, number>();
+  const others = new Map<number, number>();
+  goals.forEach(goal => {
+    (goal.allocations ?? []).forEach(a => {
+      const amount = Number(a.amount) || 0;
+      all.set(a.account_id, (all.get(a.account_id) ?? 0) + amount);
+      if (!goal.is_emergency_fund) others.set(a.account_id, (others.get(a.account_id) ?? 0) + amount);
+    });
+  });
+  return { all, others };
+}
+
+/**
+ * Account totals. Pass the goals wherever "available to spend" or the
+ * emergency fund is shown: without them, goal money is treated as free. The
+ * server applies the same rules in `services/cash_position.py`.
+ */
+export function calculateAccountTotals(accounts: Account[], goals: SavingsGoal[] = []): AccountTotals {
+  const promised = promisedByAccount(goals);
+  let availableToSpend = 0;
+  let setAside = 0;
+  let emergencyCash = 0;
+  accounts.forEach(account => {
+    if (!LIQUID_TYPES.includes(account.type)) return;
+    const balance = Number(account.balance) || 0;
+    setAside += promised.all.get(account.id) ?? 0;
+    emergencyCash += freeIn(balance, promised.others.get(account.id) ?? 0);
+    if (SPENDABLE_TYPES.includes(account.type)) {
+      availableToSpend += freeIn(balance, promised.all.get(account.id) ?? 0);
+    }
+  });
   return {
     netBalance: netWorthFromAccounts(accounts),
-    availableToSpend: sumByTypes(accounts, SPENDABLE_TYPES),
+    availableToSpend,
     liquid: sumByTypes(accounts, LIQUID_TYPES),
+    setAside,
+    emergencyCash,
     allocatable: sumByTypes(accounts, ALLOCATABLE_TYPES),
     investmentAccounts: sumByTypes(accounts, ['investment']),
     cardDebt: totalCardDebt(accounts),
