@@ -41,6 +41,17 @@ FLOORS: dict[str, float] = {
     "services/recurring_bills.py": 85.0,
     "services/transaction_enrichment.py": 85.0,
     "routers/plaid_router/sync.py": 80.0,
+    # Net worth, holdings and planning (2026-11-10)
+    "services/classification.py": 90.0,
+    "services/net_worth.py": 90.0,
+    "services/valuation.py": 90.0,
+    "services/market_prices.py": 90.0,
+    "services/cash_position.py": 95.0,
+    "services/transfer_suggestions.py": 90.0,
+    "services/paycheck_plan.py": 90.0,
+    "services/goal_plan.py": 95.0,
+    "routers/paycheck_plan.py": 90.0,
+    "routers/history.py": 90.0,
     # Accounts and secrets
     "utils/totp.py": 95.0,
     "utils/secret_box.py": 95.0,
