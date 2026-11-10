@@ -85,8 +85,10 @@ const CategoriesSection: React.FC<Props> = ({ categories }) => {
       {/* Totals live on the tabs, and stay totals — a badge that quietly became
           a filtered count would misreport how many categories exist. The
           "N of M" line below reports the filtering instead. */}
+      {/* Four types do not fit one row on a 320px phone, so they sit two by
+          two there and in one row from the small breakpoint up. */}
       <div
-        className="flex p-1 rounded-xl mb-3"
+        className="grid grid-cols-2 gap-1 sm:flex sm:gap-0 p-1 rounded-xl mb-3"
         role="tablist"
         aria-label="Category type"
         style={{ backgroundColor: 'var(--elev-1)' }}
