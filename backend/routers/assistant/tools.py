@@ -26,48 +26,53 @@ from models.database import (
     Transaction,
 )
 from routers.assistant import _user_today
+from services.net_worth import current_net_worth
+from services.valuation import value_holdings
 from routers.assistant.helpers import _clean_text, _jsonable, _num, _parse_date
 from services import recurring_groups
 from services.recurring_schedule import UnsupportedPeriodError, occurrences_per_year
 
 
 # ─── Read-tool implementations (execute immediately) ─────────────────────────
+# Checking, savings and cash: the app's "liquid" population.
+LIQUID_ACCOUNT_TYPES = {"checking", "savings", "cash"}
+
+
 def _t_get_overview(db: Session, user: User, **_) -> dict:
-    """The assistant's financial snapshot.
+    """The assistant's financial snapshot, using the app's own net worth.
 
-    `estimated_net_worth` is deliberately broader than the app's headline net
-    worth: it adds portfolio assets and money lent out, because someone asking
-    an assistant "what am I worth" means everything, not just bank balances.
+    Prices come from the store only (`refresh="never"`): Fin never waits on a
+    market data provider in the middle of an answer. The screens fetch prices,
+    so what Fin reads is what the user last saw.
 
-    What it must not do is *omit* a component. Credit card balances were
-    excluded from every term — `liquid` filters them out and nothing added them
-    back — so a card debt of $500 simply did not exist here, and Fin answered
-    with a number higher than the Accounts page for the same person. Card
-    balances are signed (negative when owed, positive when the issuer owes the
-    holder), so they are added, not subtracted.
+    `net_worth` is `services.net_worth`: account balances (credit cards
+    negative, investment-type accounts left out) plus holdings at their current
+    value. It is the same figure every screen shows, so Fin and the Dashboard
+    can never quote two different numbers.
 
-    One known difference remains and is left alone on purpose: `liquid` counts
-    `investment`-type accounts, while the app's own net worth excludes them and
-    reports them beside the portfolio. Changing that would redefine a number
-    the assistant already reports rather than fix a missing one.
+    The parts are reported so the total can be checked: `liquid_balance` +
+    `credit_card_balance` + `holdings_value` = `net_worth`. Cash sitting in
+    investment-type accounts and money lent to other people are reported but
+    not added — the first is already counted through the holdings it bought,
+    the second may not come back.
     """
     accounts = db.query(Account).filter(Account.user_id == user.id).all()
-    liquid = sum((a.balance for a in accounts if a.type != "credit_card"), Decimal("0"))
-    credit = sum((a.balance for a in accounts if a.type == "credit_card"), Decimal("0"))
-    assets_total = db.query(func.coalesce(func.sum(Asset.total_value), 0)).filter(Asset.user_id == user.id).scalar()
+    worth = current_net_worth(db, user.id, refresh="never")
+    liquid = sum((Decimal(str(a.balance)) for a in accounts if a.type in LIQUID_ACCOUNT_TYPES), Decimal("0"))
+    credit = sum((Decimal(str(a.balance)) for a in accounts if a.type == "credit_card"), Decimal("0"))
+    investment_cash = sum((Decimal(str(a.balance)) for a in accounts if a.type == "investment"), Decimal("0"))
     loans_out = (
         db.query(func.coalesce(func.sum(Loan.amount - Loan.amount_repaid), 0))
         .filter(Loan.user_id == user.id, Loan.status == "active")
         .scalar()
     )
     return {
+        "net_worth": _jsonable(worth.total),
         "liquid_balance": _jsonable(liquid),
         "credit_card_balance": _jsonable(credit),
-        "assets_total": _jsonable(assets_total),
+        "holdings_value": _jsonable(worth.holdings),
+        "investment_account_cash": _jsonable(investment_cash),
         "loans_owed_to_you": _jsonable(loans_out),
-        "estimated_net_worth": _jsonable(
-            liquid + credit + Decimal(str(assets_total)) + Decimal(str(loans_out))
-        ),
         "account_count": len(accounts),
     }
 
@@ -232,8 +237,17 @@ def _t_list_loans(db: Session, user: User, **_) -> list:
 
 def _t_list_assets(db: Session, user: User, **_) -> list:
     rows = db.query(Asset).filter(Asset.user_id == user.id).all()
+    values = {h.asset_id: h for h in value_holdings(db, user.id, refresh="never").holdings}
     return [
-        {"id": a.id, "name": a.name, "type": a.type, "asset_class": a.asset_class, "total_value": _jsonable(a.total_value)}
+        {
+            "id": a.id,
+            "name": a.name,
+            "type": a.type,
+            "asset_class": a.asset_class,
+            "recorded_value": _jsonable(a.total_value),
+            "current_value": _jsonable(values[a.id].current_value) if a.id in values else _jsonable(a.total_value),
+            "priced_from": values[a.id].source if a.id in values else "recorded",
+        }
         for a in rows
     ]
 
@@ -329,8 +343,8 @@ def _t_financial_health(db: Session, user: User, **_) -> dict:
         "emergency_fund_months": _jsonable(runway_months.quantize(Decimal("0.1"))) if runway_months is not None else None,
         "liquid_balance": overview["liquid_balance"],
         "credit_card_debt": _jsonable(credit_debt),
-        "investable_assets": overview["assets_total"],
-        "estimated_net_worth": overview["estimated_net_worth"],
+        "holdings_value": overview["holdings_value"],
+        "net_worth": overview["net_worth"],
         "monthly_history": [
             {
                 "month": f["month"],
@@ -396,22 +410,29 @@ def _t_project_savings_goals(db: Session, user: User, **_) -> list:
 
 
 def _t_analyze_portfolio(db: Session, user: User, **_) -> dict:
-    """Allocation, concentration, and per-holding cost basis.
+    """Allocation, concentration, and per-holding value.
 
-    Returns quantity and purchase date per holding so the assistant can look up
-    the live price with web_search and work out real gain/loss.
+    Each holding carries its recorded value and its current value from the
+    app's own valuation (a stored market price where one exists), so the
+    assistant quotes the same figures the Portfolio page shows.
     """
     assets = db.query(Asset).filter(Asset.user_id == user.id).all()
+    values = {h.asset_id: h for h in value_holdings(db, user.id, refresh="never").holdings}
+
+    def current(asset: Asset) -> Decimal:
+        held = values.get(asset.id)
+        return held.current_value if held else Decimal(str(asset.total_value or 0))
+
     investments = [a for a in assets if (a.asset_class or "physical") == "investment"]
-    total_investment = sum((a.total_value or Decimal("0") for a in investments), Decimal("0"))
-    total_all = sum((a.total_value or Decimal("0") for a in assets), Decimal("0"))
+    total_investment = sum((current(a) for a in investments), Decimal("0"))
+    total_all = sum((current(a) for a in assets), Decimal("0"))
 
     by_type: dict[str, Decimal] = {}
     for asset in investments:
         key = (asset.type or "other").lower()
-        by_type[key] = by_type.get(key, Decimal("0")) + (asset.total_value or Decimal("0"))
+        by_type[key] = by_type.get(key, Decimal("0")) + current(asset)
 
-    holdings = sorted(investments, key=lambda a: a.total_value or Decimal("0"), reverse=True)
+    holdings = sorted(investments, key=current, reverse=True)
     largest = holdings[0] if holdings else None
 
     return {
@@ -429,7 +450,7 @@ def _t_analyze_portfolio(db: Session, user: User, **_) -> dict:
             for key, value in sorted(by_type.items(), key=lambda kv: kv[1], reverse=True)
         ],
         "largest_holding_share_pct": _jsonable(
-            ((largest.total_value or Decimal("0")) / total_investment * 100).quantize(Decimal("0.1"))
+            (current(largest) / total_investment * 100).quantize(Decimal("0.1"))
         )
         if largest and total_investment
         else None,
@@ -441,14 +462,18 @@ def _t_analyze_portfolio(db: Session, user: User, **_) -> dict:
                 "quantity": _jsonable(a.quantity),
                 "value_per_unit_recorded": _jsonable(a.value_per_unit),
                 "total_value_recorded": _jsonable(a.total_value),
+                "current_value": _jsonable(current(a)),
+                "priced_from": values[a.id].source if a.id in values else "recorded",
+                "price_as_of": _jsonable(values[a.id].priced_at) if a.id in values else None,
                 "currency": a.currency or "USD",
                 "purchase_date": _jsonable(a.purchase_date),
             }
             for a in holdings
         ],
         "note": (
-            "value_per_unit_recorded is the value stored in the ledger, not a live "
-            "quote. Look up current prices with web_search before judging performance."
+            "current_value uses the app's stored market price when priced_from is "
+            "'market' (see price_as_of), otherwise the recorded value. Look up a "
+            "fresher price with web_search before judging short-term performance."
         ),
     }
 

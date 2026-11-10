@@ -1,13 +1,13 @@
 """The assistant's numbers must agree with the app's.
 
-`get_overview` is what Fin answers "how am I doing" from. It reports a
-deliberately broader net worth than the Accounts page — it adds portfolio
-assets and money lent out, because someone asking an assistant what they are
-worth means everything.
+`get_overview` is what Fin answers "how am I doing" from. Its `net_worth` is
+the app's own (`services.net_worth`): account balances plus holdings at their
+current value. Fin used to report a broader "estimated" figure that also added
+money lent out, so the Dashboard and Fin quoted two different net worths for
+the same person. Lent money is still reported, beside the total, not in it.
 
-Broader is fine. *Missing a component* is not. Credit card balances were
-excluded from every term, so a card debt simply did not exist in Fin's answer
-and it quoted a number higher than the Accounts page for the same person.
+Credit card balances must never go missing: they were once excluded from every
+term, so a card debt simply did not exist in Fin's answer.
 """
 
 from decimal import Decimal
@@ -45,7 +45,7 @@ def test_card_debt_lowers_net_worth(db_session, user, cash):
 
     result = _t_get_overview(db_session, user)
 
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("500")
+    assert Decimal(str(result["net_worth"])) == Decimal("500")
 
 
 def test_a_card_in_credit_raises_net_worth(db_session, user, cash):
@@ -54,7 +54,7 @@ def test_a_card_in_credit_raises_net_worth(db_session, user, cash):
 
     result = _t_get_overview(db_session, user)
 
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("1050")
+    assert Decimal(str(result["net_worth"])) == Decimal("1050")
 
 
 def test_several_cards_net_against_each_other(db_session, user, cash):
@@ -64,16 +64,16 @@ def test_several_cards_net_against_each_other(db_session, user, cash):
     result = _t_get_overview(db_session, user)
 
     assert Decimal(str(result["credit_card_balance"])) == Decimal("-450")
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("550")
+    assert Decimal(str(result["net_worth"])) == Decimal("550")
 
 
 def test_no_cards_is_unchanged(db_session, user, cash):
     """Anyone without a card sees exactly what they saw before."""
     result = _t_get_overview(db_session, user)
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("1000")
+    assert Decimal(str(result["net_worth"])) == Decimal("1000")
 
 
-def test_assets_and_loans_still_count(db_session, user, cash):
+def test_holdings_count_and_loans_are_reported_beside_the_total(db_session, user, cash):
     db_session.add(Asset(
         user_id=user.id, name="Gold", type="gold",
         quantity=Decimal("1"), value_per_unit=Decimal("2000"), total_value=Decimal("2000"),
@@ -88,8 +88,9 @@ def test_assets_and_loans_still_count(db_session, user, cash):
 
     result = _t_get_overview(db_session, user)
 
-    # 1000 cash − 500 card + 2000 gold + 200 still owed to the user.
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("2700")
+    # 1000 cash − 500 card + 2000 gold. The 200 still owed is reported, not added.
+    assert Decimal(str(result["net_worth"])) == Decimal("2500")
+    assert Decimal(str(result["loans_owed_to_you"])) == Decimal("200")
 
 
 def test_the_reported_parts_still_add_up_to_the_total(db_session, user, cash):
@@ -106,10 +107,9 @@ def test_the_reported_parts_still_add_up_to_the_total(db_session, user, cash):
     parts = (
         Decimal(str(result["liquid_balance"]))
         + Decimal(str(result["credit_card_balance"]))
-        + Decimal(str(result["assets_total"]))
-        + Decimal(str(result["loans_owed_to_you"]))
+        + Decimal(str(result["holdings_value"]))
     )
-    assert parts == Decimal(str(result["estimated_net_worth"]))
+    assert parts == Decimal(str(result["net_worth"]))
 
 
 def test_one_users_cards_do_not_reach_another(db_session, user, cash):
@@ -131,4 +131,25 @@ def test_one_users_cards_do_not_reach_another(db_session, user, cash):
 
     result = _t_get_overview(db_session, user)
 
-    assert Decimal(str(result["estimated_net_worth"])) == Decimal("1000")
+    assert Decimal(str(result["net_worth"])) == Decimal("1000")
+
+
+def test_fin_quotes_the_same_net_worth_as_the_history_endpoint(client, db_session, user, auth_headers, cash):
+    """The figure Fin quotes is the chart's "now" point, to the cent."""
+    _card(db_session, user, -384.92)
+    db_session.add(Asset(
+        user_id=user.id, name="Gold Ounce", type="jewelry", asset_class="physical",
+        quantity=Decimal("2"), value_per_unit=Decimal("4000"), total_value=Decimal("8000"),
+    ))
+    db_session.add(Account(
+        user_id=user.id, name="Brokerage", type="investment",
+        balance=Decimal("5000"), currency="USD",
+    ))
+    db_session.commit()
+
+    fin = _t_get_overview(db_session, user)
+    chart = client.get("/history/net-worth?months=1", headers=auth_headers).json()
+
+    assert Decimal(str(fin["net_worth"])) == Decimal(chart[-1]["net_worth"]) == Decimal("8615.08")
+    # Brokerage cash is shown but not counted: its holdings already are.
+    assert Decimal(str(fin["investment_account_cash"])) == Decimal("5000")

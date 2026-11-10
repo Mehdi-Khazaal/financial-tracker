@@ -42,6 +42,31 @@ def _iter_month_ends(from_date: date, to_date: date) -> Iterable[date]:
             year += 1
 
 
+Movement = tuple[date, Decimal]
+
+
+def balance_movements(session: Session, user_id: int, account_ids: Iterable[int]) -> dict[int, list[Movement]]:
+    """Every dated change to each account's balance, keyed by account id.
+
+    A past balance is the current balance minus every movement dated after
+    it. This is the single list of what counts as a movement, shared by the
+    stored snapshots and the on-the-fly history endpoints so they cannot
+    disagree.
+    """
+    ids = list(account_ids)
+    by_account: dict[int, list[Movement]] = {aid: [] for aid in ids}
+    if not ids:
+        return by_account
+    rows = session.execute(
+        select(Transaction.account_id, Transaction.transaction_date, Transaction.amount)
+        .where(Transaction.user_id == user_id)
+        .where(Transaction.account_id.in_(ids))
+    ).all()
+    for account_id, moved_on, amount in rows:
+        by_account[account_id].append((moved_on, Decimal(str(amount))))
+    return by_account
+
+
 def refresh_snapshots_for_user(
     session: Session,
     user_id: int,
@@ -75,18 +100,7 @@ def refresh_snapshots_for_user(
     if not accounts:
         return 0
 
-    account_ids = [a.id for a in accounts]
-    # Fetch only the columns we need — the raw amount tuples are enough.
-    tx_rows = session.execute(
-        select(Transaction.account_id, Transaction.transaction_date, Transaction.amount)
-        .where(Transaction.user_id == user_id)
-        .where(Transaction.account_id.in_(account_ids))
-    ).all()
-
-    # Group transactions by account for O(1) lookup while iterating snapshot dates.
-    by_account: dict[int, list[tuple[date, Decimal]]] = {aid: [] for aid in account_ids}
-    for account_id, tx_date, amount in tx_rows:
-        by_account[account_id].append((tx_date, Decimal(str(amount))))
+    by_account = balance_movements(session, user_id, [a.id for a in accounts])
 
     snapshot_dates = list(_iter_month_ends(start, today))
     if include_today and today not in snapshot_dates:

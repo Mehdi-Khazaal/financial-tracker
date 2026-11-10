@@ -135,6 +135,19 @@ app.dependency_overrides[auth_utils.get_db] = override_get_db
 
 
 @pytest.fixture(autouse=True)
+def no_market_data(monkeypatch):
+    """No test reaches a real market data provider.
+
+    Holdings are valued from stored prices, and a missing price is fetched.
+    Without this a test that merely creates a holding would call Yahoo or
+    CoinGecko. Tests that need prices install their own lookup table.
+    """
+    from services import market_prices
+
+    monkeypatch.setattr(market_prices, "fetch_for_key", lambda key: None)
+
+
+@pytest.fixture(autouse=True)
 def reset_database():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

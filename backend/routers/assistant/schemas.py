@@ -25,7 +25,7 @@ def _all_tool_schemas() -> list:
     return [
         {
             "name": "get_overview",
-            "description": "Get a snapshot of the user's finances: liquid balance, credit card balances, assets, loans owed, and estimated net worth (all of those combined, with card debt subtracted).",
+            "description": "Get a snapshot of the user's finances: net worth (the same figure the app shows: liquid balance plus holdings at current value, with card debt subtracted), its parts, and money lent to others (reported, not counted in net worth).",
             "input_schema": {"type": "object", "properties": {}},
         },
         {
