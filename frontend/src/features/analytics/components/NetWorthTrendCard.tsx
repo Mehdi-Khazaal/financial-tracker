@@ -42,7 +42,7 @@ const NetWorthTrendCard: React.FC<Props> = ({ netWorth, window, onWindowChange }
         id="analytics-networth-heading"
         eyebrow="Net worth"
         title="How your position has moved"
-        hint="Month-end totals across all accounts except investments, which Fintrack tracks separately in Portfolio. Snapshots are taken nightly."
+        hint="Account balances plus holdings at each month end. A holding counts from the day you bought it, at the value you recorded; the current month uses today's balances and prices."
         right={
           <div className="flex gap-1 rounded-lg p-0.5" style={{ backgroundColor: 'var(--elev-sub)' }} role="group" aria-label="Chart range">
             {WINDOWS.map(months => (

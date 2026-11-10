@@ -1,5 +1,9 @@
-import type { Asset } from '../../../types';
-import { tickerOf, valueAsset, valuePortfolio, type PriceMap } from './investments';
+import type { Asset, HoldingsValuation } from '../../../types';
+import { indexValuations, valueAsset, valuePortfolio } from './investments';
+import { marketValuations } from './valuations.testing';
+
+/** Prices by ticker, as the browser used to hold them. */
+type PriceMap = Record<string, number>;
 
 /**
  * Investment valuation regressions.
@@ -52,7 +56,7 @@ describe('mixed priced and unpriced holdings', () => {
 
   it('counts every holding, not just the priced one', () => {
     // VTI live: 40 × 268 = 10,720. Gold + bond recorded: 11,000.
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     expect(result.total).toBeCloseTo(21720, 2);
     // The old headline reported only the tickered holding.
@@ -60,14 +64,14 @@ describe('mixed priced and unpriced holdings', () => {
   });
 
   it('never reports less than the recorded total when prices have risen', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     expect(result.total).toBeGreaterThan(result.recordedTotal);
     expect(oldPortfolioValue(holdings, prices)).toBeLessThan(result.recordedTotal);
   });
 
   it('separates the priced and unpriced parts of the total', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     expect(result.pricedValue).toBeCloseTo(10720, 2);
     expect(result.unpricedRecordedValue).toBeCloseTo(11000, 2);
@@ -75,7 +79,7 @@ describe('mixed priced and unpriced holdings', () => {
   });
 
   it('reports how much of the total is backed by a live price', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     expect(result.pricedCount).toBe(1);
     expect(result.unpricedCount).toBe(2);
@@ -83,7 +87,7 @@ describe('mixed priced and unpriced holdings', () => {
   });
 
   it('measures change against priced holdings only', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     // 10,720 − 10,000. The unpriced 11,000 contributes nothing either way,
     // because its change is unknown rather than zero.
@@ -102,7 +106,7 @@ describe('all holdings priced', () => {
   const prices: PriceMap = { AAPL: 180, MSFT: 280 };
 
   it('values everything live', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     // 10 × 180 = 1,800 and 5 × 280 = 1,400.
     expect(result.total).toBeCloseTo(3200, 2);
@@ -111,12 +115,12 @@ describe('all holdings priced', () => {
   });
 
   it('agrees with the old behaviour in this case, which is why it went unnoticed', () => {
-    expect(valuePortfolio(holdings, prices).total)
+    expect(valuePortfolio(holdings, marketValuations(holdings, prices)).total)
       .toBeCloseTo(oldPortfolioValue(holdings, prices), 2);
   });
 
   it('nets gains against losses', () => {
-    const result = valuePortfolio(holdings, prices);
+    const result = valuePortfolio(holdings, marketValuations(holdings, prices));
 
     // +300 on Apple, −100 on Microsoft.
     expect(result.changeSinceRecorded).toBeCloseTo(200, 2);
@@ -155,7 +159,7 @@ describe('no holding has a live price', () => {
 
 describe('zero holdings', () => {
   it('totals to zero without dividing by anything', () => {
-    const result = valuePortfolio([], { AAPL: 180 });
+    const result = valuePortfolio([], marketValuations([], { AAPL: 180 }));
 
     expect(result.total).toBe(0);
     expect(result.recordedTotal).toBe(0);
@@ -168,31 +172,25 @@ describe('zero holdings', () => {
 describe('missing ticker', () => {
   it('treats a nameless-symbol holding as unpriced even when prices exist', () => {
     const holding = asset({ name: 'My rare coin collection', total_value: 900, quantity: 1, value_per_unit: 900 });
-    const result = valueAsset(holding, { AAPL: 180 });
+    const result = valueAsset(holding, marketValuations([holding], { AAPL: 180 }));
 
     expect(result.hasLivePrice).toBe(false);
     expect(result.currentValue).toBe(900);
     expect(result.changeSinceRecorded).toBeNull();
   });
 
-  it('reads a bracketed ticker and a bare one', () => {
-    expect(tickerOf(asset({ name: 'Vanguard ETF (VTI)' }))).toBe('VTI');
-    expect(tickerOf(asset({ name: 'MSFT' }))).toBe('MSFT');
-    expect(tickerOf(asset({ name: 'My Apartment' }))).toBeNull();
-  });
-
   it('does not match a price that exists for a different symbol', () => {
     const holding = asset({ name: 'Tesla (TSLA)', quantity: 2, value_per_unit: 200, total_value: 400 });
 
-    expect(valueAsset(holding, { AAPL: 180 }).hasLivePrice).toBe(false);
-    expect(valueAsset(holding, { AAPL: 180 }).currentValue).toBe(400);
+    expect(valueAsset(holding, marketValuations([holding], { AAPL: 180 })).hasLivePrice).toBe(false);
+    expect(valueAsset(holding, marketValuations([holding], { AAPL: 180 })).currentValue).toBe(400);
   });
 });
 
 describe('zero or missing recorded value', () => {
   it('survives a zero recorded value without producing Infinity', () => {
     const holding = asset({ name: 'Freebie (FREE)', quantity: 1, value_per_unit: 0, total_value: 0 });
-    const result = valueAsset(holding, { FREE: 25 });
+    const result = valueAsset(holding, marketValuations([holding], { FREE: 25 }));
 
     expect(result.currentValue).toBe(25);
     expect(result.changeSinceRecorded).toBe(25);
@@ -203,7 +201,7 @@ describe('zero or missing recorded value', () => {
   it('treats a null quantity as one unit', () => {
     const holding = asset({ name: 'Lump (LUMP)', quantity: null, value_per_unit: 500, total_value: 500 });
 
-    expect(valueAsset(holding, { LUMP: 600 }).currentValue).toBe(600);
+    expect(valueAsset(holding, marketValuations([holding], { LUMP: 600 })).currentValue).toBe(600);
   });
 
   it('survives a null recorded value', () => {
@@ -214,9 +212,14 @@ describe('zero or missing recorded value', () => {
     expect(result.currentValue).toBe(0);
   });
 
-  it('ignores a non-finite price rather than poisoning the total', () => {
+  it('ignores a non-numeric server value rather than poisoning the total', () => {
     const holding = asset({ name: 'Broken (BRK)', quantity: 1, value_per_unit: 100, total_value: 100 });
-    const result = valueAsset(holding, { BRK: Number.NaN });
+    const result = valueAsset(holding, {
+      [holding.id]: {
+        asset_id: holding.id, current_value: 'not a number', recorded_value: 100,
+        change_since_recorded: null, price_per_unit: null, source: 'market', priced_at: null,
+      },
+    });
 
     expect(result.hasLivePrice).toBe(false);
     expect(result.currentValue).toBe(100);
@@ -226,7 +229,7 @@ describe('zero or missing recorded value', () => {
 describe('change since recorded, per holding', () => {
   it('is positive when the live price is above the recorded one', () => {
     const holding = asset({ name: 'Apple (AAPL)', quantity: 10, value_per_unit: 150, total_value: 1500 });
-    const result = valueAsset(holding, { AAPL: 180 });
+    const result = valueAsset(holding, marketValuations([holding], { AAPL: 180 }));
 
     expect(result.changeSinceRecorded).toBeCloseTo(300, 2);
     expect(result.changePct).toBeCloseTo(0.2, 4);
@@ -234,7 +237,7 @@ describe('change since recorded, per holding', () => {
 
   it('is negative when it is below', () => {
     const holding = asset({ name: 'Apple (AAPL)', quantity: 10, value_per_unit: 150, total_value: 1500 });
-    const result = valueAsset(holding, { AAPL: 120 });
+    const result = valueAsset(holding, marketValuations([holding], { AAPL: 120 }));
 
     expect(result.changeSinceRecorded).toBeCloseTo(-300, 2);
     expect(result.changePct).toBeCloseTo(-0.2, 4);
@@ -244,5 +247,42 @@ describe('change since recorded, per holding', () => {
     const holding = asset({ name: 'Gold bars', type: 'gold', quantity: 3, value_per_unit: 2000, total_value: 6000 });
 
     expect(valueAsset(holding, {}).changeSinceRecorded).toBeNull();
+  });
+});
+
+describe('indexValuations', () => {
+  const response: HoldingsValuation = {
+    total: '1143.54', recorded_total: '1300.01', priced_count: 1, as_of: '2026-11-10T15:00:00', refreshing: false,
+    holdings: [{
+      asset_id: 7, current_value: '1143.54', recorded_value: '1300.01', change_since_recorded: '-156.47',
+      price_per_unit: '369.300000', source: 'market', priced_at: '2026-11-10T15:00:00',
+    }],
+  };
+
+  it('keys the server valuation by asset id, and the strings value as numbers', () => {
+    const holding = asset({ id: 7, name: 'GOLD (GLD)', quantity: 3.0965, value_per_unit: 419.84, total_value: 1300.01 });
+    const result = valueAsset(holding, indexValuations(response));
+
+    expect(result.hasLivePrice).toBe(true);
+    expect(result.currentValue).toBeCloseTo(1143.54, 2);
+    expect(result.pricePerUnit).toBeCloseTo(369.30, 2);
+    expect(result.changeSinceRecorded).toBeCloseTo(-156.47, 2);
+  });
+
+  it('is empty for a missing or malformed response', () => {
+    expect(indexValuations(null)).toEqual({});
+    expect(indexValuations(undefined)).toEqual({});
+    expect(indexValuations({ ...response, holdings: undefined as unknown as [] })).toEqual({});
+  });
+
+  it('treats a holding the server valued at its recorded value as unpriced', () => {
+    const holding = asset({ id: 9, name: 'Gold Ounce', type: 'jewelry', total_value: 8000, quantity: 2 });
+    const result = valueAsset(holding, {
+      9: { asset_id: 9, current_value: '8000', recorded_value: '8000', change_since_recorded: null, price_per_unit: null, source: 'recorded', priced_at: null },
+    });
+
+    expect(result.hasLivePrice).toBe(false);
+    expect(result.currentValue).toBe(8000);
+    expect(result.changeSinceRecorded).toBeNull();
   });
 });

@@ -5,7 +5,8 @@ import {
 } from './accounts/calculations/totals';
 import { totalCardDebt, cardUtilization } from './accounts/calculations/cards';
 import { valuePortfolio } from './portfolio/calculations/investments';
-import { totalWealth } from './portfolio/calculations/wealth';
+import { calculateNetWorth, withCurrentNetWorth } from './portfolio/calculations/wealth';
+import { marketValuations } from './portfolio/calculations/valuations.testing';
 import { summariseGoals } from './portfolio/calculations/goals';
 import { buildNetWorthRange } from './portfolio/calculations/netWorthRange';
 import { buildClassificationContext } from './analytics/calculations/transactions';
@@ -59,27 +60,23 @@ const goals: SavingsGoal[] = [
   { id: 1, user_id: 1, name: 'Summer 2027', target_amount: 12000, deadline: null, created_at: '', current_amount: 3000, allocations: [{ id: 1, account_id: 2, account_name: 'Emergency', amount: 3000 }] },
 ];
 
-// ── Total wealth ──────────────────────────────────────────────────────────────
+// ── Net worth = accounts + holdings ───────────────────────────────────────────
 
-describe('total wealth widens net worth without redefining it', () => {
-  it('reuses the net-worth definition rather than recomputing one', () => {
-    expect(totalWealth(accounts, holdings, {}).netWorth).toBe(netWorthFromAccounts(accounts));
+describe('net worth is accounts plus holdings, built from the shared parts', () => {
+  it('uses the account rule and the holdings valuation rather than recomputing either', () => {
+    const worth = calculateNetWorth(accounts, holdings);
+    expect(worth.accounts).toBe(netWorthFromAccounts(accounts));
+    expect(worth.holdings).toBe(valuePortfolio(holdings).total);
+    expect(worth.total).toBe(worth.accounts + worth.holdings);
   });
 
-  it('is exactly net worth plus the portfolio valuation both screens already use', () => {
-    const wealth = totalWealth(accounts, holdings, {});
-    expect(wealth.total).toBe(
-      netWorthFromAccounts(accounts) + valuePortfolio(holdings, {}).total,
+  it('moves with prices only because the holdings valuation does', () => {
+    const recorded = calculateNetWorth(accounts, holdings);
+    const priced = calculateNetWorth(accounts, holdings, marketValuations(holdings, { VTI: 300 }));
+    expect(priced.total - recorded.total).toBe(
+      valuePortfolio(holdings, marketValuations(holdings, { VTI: 300 })).total - valuePortfolio(holdings).total,
     );
-  });
-
-  it('moves with prices only because the portfolio valuation does', () => {
-    const flat = totalWealth(accounts, holdings, {});
-    const priced = totalWealth(accounts, holdings, { VTI: 300 });
-    expect(priced.total - flat.total).toBe(
-      valuePortfolio(holdings, { VTI: 300 }).total - valuePortfolio(holdings, {}).total,
-    );
-    expect(priced.netWorth).toBe(flat.netWorth);
+    expect(priced.accounts).toBe(recorded.accounts);
   });
 });
 
@@ -111,7 +108,7 @@ describe('buying an asset is not spending on any screen', () => {
       quantity: 1, value_per_unit: 2000, total_value: 2000, currency: 'USD',
       purchase_date: null, created_at: '', updated_at: '',
     }];
-    const wealth = totalWealth(accounts, bought, {});
+    const wealth = calculateNetWorth(accounts, bought);
     expect(wealth.total).toBe(netWorthFromAccounts(accounts) + 2000);
     expect(calculatePeriodMetrics([gold], ctx).expenses).toBe(0);
   });
@@ -120,26 +117,24 @@ describe('buying an asset is not spending on any screen', () => {
 // ── Net worth ─────────────────────────────────────────────────────────────────
 
 describe('net worth is one number everywhere', () => {
-  it('is the same on Accounts, Overview and the backend rule', () => {
+  it('has the same account part on Accounts, Overview and the backend rule', () => {
     const canonical = accounts
       .filter(a => a.type !== 'investment')
       .reduce((s, a) => s + Number(a.balance), 0);
 
-    // Accounts summary, Overview hero and `/history/net-worth` all resolve here.
+    // `/history/net-worth` reports this as `accounts`.
     expect(netWorthFromAccounts(accounts)).toBe(canonical);
-    expect(calculateAccountTotals(accounts).netWorth).toBe(canonical);
+    expect(calculateAccountTotals(accounts).netBalance).toBe(canonical);
     expect(canonical).toBe(15700);
   });
 
-  it('is the same figure Portfolio charts', () => {
-    // The trend reads stored snapshots built from the same rule; its final
-    // point must therefore equal the live figure for the same month.
-    const range = buildNetWorthRange(
-      [{ month: '2026-07', net_worth: 14000 }, { month: '2026-08', net_worth: netWorthFromAccounts(accounts) }],
-      12,
-    );
+  it('is the figure every chart ends on, even when the stored series is stale', () => {
+    // The live account showed $9,572.59 on the chart and $9,218.40 above it.
+    const worth = calculateNetWorth(accounts, holdings);
+    const stale = [{ month: '2026-07', net_worth: 14000 }, { month: '2026-08', net_worth: worth.total + 354.19 }];
+    const range = buildNetWorthRange(withCurrentNetWorth(stale, worth, '2026-08'), 12);
 
-    expect(range.current).toBe(netWorthFromAccounts(accounts));
+    expect(range.current).toBe(worth.total);
   });
 
   it('subtracts card debt on every screen', () => {
@@ -180,7 +175,7 @@ describe('account populations stay distinct and ordered', () => {
   });
 
   it('net worth and allocatable are deliberately different questions', () => {
-    expect(totals.netWorth).not.toBe(totals.allocatable);
+    expect(totals.netBalance).not.toBe(totals.allocatable);
   });
 });
 
@@ -208,27 +203,28 @@ describe('card debt is one number everywhere', () => {
 // ── Investments ───────────────────────────────────────────────────────────────
 
 describe('investment value agrees between Dashboard and Portfolio', () => {
-  it('is the recorded total when no prices are available, which is the Dashboard case', () => {
-    // Overview never fetches prices, so it passes an empty map and gets the
-    // recorded total — the same function Portfolio calls with live prices.
-    const dashboard = valuePortfolio(holdings, {});
+  // Both screens pass the same server valuation, so they cannot disagree. The
+  // Dashboard used to value holdings at their recorded values while Portfolio
+  // priced them live, and showed $1,300.01 for a holding worth $1,143.54.
+  const valuations = marketValuations(holdings, { VTI: 268 });
 
-    expect(dashboard.total).toBe(16000);
-    expect(dashboard.total).toBe(dashboard.recordedTotal);
+  it('is the same figure on both screens', () => {
+    const dashboard = valuePortfolio(holdings, valuations);
+    const portfolio = valuePortfolio(holdings, valuations);
+
+    expect(dashboard.total).toBe(portfolio.total);
+    expect(dashboard.total).toBeCloseTo(16720, 2);
   });
 
-  it('rises on Portfolio only because Portfolio has prices, not a different rule', () => {
-    const dashboard = valuePortfolio(holdings, {});
-    const portfolio = valuePortfolio(holdings, { VTI: 268 });
-
-    expect(portfolio.total).toBeGreaterThan(dashboard.total);
-    // The difference is exactly the priced holding's movement, nothing else.
-    expect(portfolio.total - dashboard.total).toBeCloseTo(720, 2);
+  it('is the recorded total when no valuation has loaded', () => {
+    const unpriced = valuePortfolio(holdings);
+    expect(unpriced.total).toBe(16000);
+    expect(unpriced.total).toBe(unpriced.recordedTotal);
   });
 
-  it('counts every holding exactly once in both cases', () => {
-    expect(valuePortfolio(holdings, {}).count).toBe(holdings.length);
-    expect(valuePortfolio(holdings, { VTI: 268 }).count).toBe(holdings.length);
+  it('counts every holding exactly once either way', () => {
+    expect(valuePortfolio(holdings).count).toBe(holdings.length);
+    expect(valuePortfolio(holdings, valuations).count).toBe(holdings.length);
   });
 
   it('never double counts brokerage cash with holdings', () => {
@@ -237,8 +233,8 @@ describe('investment value agrees between Dashboard and Portfolio', () => {
     const totals = calculateAccountTotals(accounts);
     const valuation = valuePortfolio(holdings, {});
 
-    expect(totals.netWorth + valuation.total).not.toBe(
-      totals.netWorth + totals.investmentAccounts + valuation.total,
+    expect(totals.netBalance + valuation.total).not.toBe(
+      totals.netBalance + totals.investmentAccounts + valuation.total,
     );
   });
 });

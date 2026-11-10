@@ -50,11 +50,12 @@ export const ALLOCATABLE_TYPES: Account['type'][] = ['checking', 'savings', 'cas
 
 export interface AccountTotals {
   /**
-   * Net worth: every account except `investment`, with credit-card balances
-   * subtracting because they are stored negative. Matches Overview, Analytics
-   * and the backend's `/history/net-worth` exactly.
+   * The account part of net worth: every account except `investment`, with
+   * credit-card balances subtracting because they are stored negative. Net
+   * worth itself adds holdings — see `calculateNetWorth` in
+   * `features/portfolio/calculations/wealth`.
    */
-  netWorth: number;
+  netBalance: number;
   /** Checking + cash. */
   availableToSpend: number;
   /** Checking + savings + cash. */
@@ -85,18 +86,18 @@ export const sumByTypes = (accounts: Account[], types: Account['type'][]): numbe
   sumBalances(accounts.filter(a => types.includes(a.type)));
 
 /**
- * Net worth from account balances alone.
+ * The account part of net worth.
  *
- * Exported on its own because it is the single most reused figure in the app —
- * Overview's hero, the Accounts summary and the net-worth chart must never be
- * able to drift apart.
+ * Net worth is this plus holdings (`calculateNetWorth`). Kept on its own
+ * because it is also what `/history/net-worth` reports as `accounts`, and the
+ * two must never drift apart.
  */
 export const netWorthFromAccounts = (accounts: Account[]): number =>
   sumBalances(accounts.filter(a => a.type !== 'investment'));
 
 export function calculateAccountTotals(accounts: Account[]): AccountTotals {
   return {
-    netWorth: netWorthFromAccounts(accounts),
+    netBalance: netWorthFromAccounts(accounts),
     availableToSpend: sumByTypes(accounts, SPENDABLE_TYPES),
     liquid: sumByTypes(accounts, LIQUID_TYPES),
     allocatable: sumByTypes(accounts, ALLOCATABLE_TYPES),

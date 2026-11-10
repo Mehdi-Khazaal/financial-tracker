@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { MonthSnapshot } from '../../../types';
-import type { TotalWealth } from '../calculations/wealth';
+import type { NetWorthBreakdown } from '../calculations/wealth';
 import Sparkline from '../../../components/Sparkline';
 import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
 import { dollars, signedPercent } from '../../analytics/format';
@@ -23,25 +23,19 @@ import {
  * nothing.
  */
 
-export const TOTAL_WEALTH_DEFINITION =
-  'Account balances plus the current value of everything you hold. Net worth above covers '
-  + 'accounts only, so buying an asset lowers it by the price paid — this figure is the one '
-  + 'that stays flat when you convert cash into gold or shares. Holdings with a ticker are '
-  + 'priced live; the rest contribute the value you recorded.';
-
 export const TREND_DEFINITION =
-  'Month-end account balances, excluding brokerage, with credit-card balances subtracting. '
-  + 'The same definition the dashboard and the Accounts page use. Investment holdings are '
-  + 'valued separately below, so nothing is counted twice.';
+  'Account balances (credit cards subtracting, brokerage cash left out) plus everything you hold. '
+  + 'Each past month counts the holdings you had by its end at the value you recorded; this month '
+  + 'uses today’s balances and prices. Buying an asset with cash leaves it unchanged. The same '
+  + 'figure the Dashboard, Accounts and Fin show.';
 
 interface Props {
   snapshots: MonthSnapshot[];
   /**
-   * Accounts plus holdings. Optional — the trend stands on its own, and the
-   * line is suppressed when there is nothing held, where it would just restate
-   * net worth.
+   * The two parts of the current figure. Optional, and the line is suppressed
+   * when nothing is held, where it would just restate the total.
    */
-  wealth?: TotalWealth | null;
+  wealth?: NetWorthBreakdown | null;
 }
 
 const NetWorthTrend: React.FC<Props> = ({ snapshots, wealth }) => {
@@ -69,12 +63,9 @@ const NetWorthTrend: React.FC<Props> = ({ snapshots, wealth }) => {
               {dollars(range.current)}
             </p>
             {wealth && wealth.holdingCount > 0 && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <p className="font-mono tabular-nums text-[11px]" style={{ color: 'var(--dim)' }}>
-                  {dollars(wealth.total)} including holdings
-                </p>
-                <InfoHint label="How total wealth is calculated" text={TOTAL_WEALTH_DEFINITION} />
-              </div>
+              <p className="font-mono tabular-nums text-[11px] mt-1.5" style={{ color: 'var(--dim)' }}>
+                {wealth.accounts < 0 ? '−' : ''}{dollars(Math.abs(wealth.accounts))} in accounts · {dollars(wealth.holdings)} in holdings
+              </p>
             )}
           </div>
 

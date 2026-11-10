@@ -9,10 +9,8 @@ import type { RecurringMonth } from '../../analytics/types';
 /**
  * The secondary metric band.
  *
- * These four used to live inside the net-worth hero as a 2×2 grid, which had
- * two problems. Assets and investments are *excluded* from net worth, so
- * printing them inside that card implied the opposite; and month spending is a
- * secondary question sharing space with the page's primary one.
+ * These four used to live inside the net-worth hero as a 2×2 grid, where month
+ * spending was a secondary question sharing space with the page's primary one.
  *
  * Pulling them out lets the hero say one thing, and gives each metric a
  * destination — every tile here is a link to the page that explains it.
@@ -123,7 +121,7 @@ const MetricRow: React.FC<Props> = ({
     {showAssets && (
       <Tile
         label="Investments"
-        hint="Current value of your holdings. Net worth counts account balances only, so buying an asset lowers it by the price paid — the figure below adds both together. Live prices are fetched on the Portfolio page."
+        hint="Current value of your investments, priced from the latest stored market price, with your other assets beneath. Both are part of net worth, at the same values Portfolio shows."
         to="/portfolio"
       >
         <p className="metric-value">

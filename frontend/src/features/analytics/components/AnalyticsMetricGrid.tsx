@@ -62,10 +62,10 @@ const AnalyticsMetricGrid: React.FC<Props> = ({
     {
       key: 'net-worth',
       label: 'Net worth',
-      value: dollars(currentNetWorth),
+      value: (currentNetWorth < 0 ? '−' : '') + dollars(Math.abs(currentNetWorth)),
       color: 'var(--fg)',
       accent: 'color-mix(in oklab, var(--fg) 25%, transparent)',
-      hint: 'The current total of all your accounts except investments, which Fintrack tracks separately in Portfolio. This is a live balance, not a figure for the selected period.',
+      hint: 'Your account balances plus everything you hold at its current value, the same figure the Overview, Portfolio and Fin show. A live position, not a figure for the selected period.',
       delta: netWorth.points.length > 1
         ? <DeltaBadge value={netWorth.change} polarity="up-good" suffix={`/ ${netWorth.points.length}mo`} />
         : undefined,

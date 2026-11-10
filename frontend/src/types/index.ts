@@ -78,6 +78,29 @@ export interface Asset {
   updated_at: string;
 }
 
+/** One holding as `GET /assets/valuations` values it. Money arrives as decimal strings. */
+export interface HoldingValue {
+  asset_id: number;
+  current_value: number | string;
+  recorded_value: number | string;
+  /** Null when unpriced: the change is unknown, not zero. */
+  change_since_recorded: number | string | null;
+  price_per_unit: number | string | null;
+  source: 'market' | 'recorded';
+  priced_at: string | null;
+}
+
+export interface HoldingsValuation {
+  total: number | string;
+  recorded_total: number | string;
+  priced_count: number;
+  /** When the oldest price in use was fetched. */
+  as_of: string | null;
+  /** True when stored prices were served and a refresh is running behind them. */
+  refreshing: boolean;
+  holdings: HoldingValue[];
+}
+
 export interface GoalAllocation {
   id: number;
   account_id: number;
@@ -208,8 +231,10 @@ export interface RecurringOverview {
 
 export interface MonthSnapshot {
   month: string;
+  /** Accounts plus holdings — the one net worth every screen shows. */
   net_worth?: number;
   accounts?: number;
+  holdings?: number;
   balance?: number;
 }
 

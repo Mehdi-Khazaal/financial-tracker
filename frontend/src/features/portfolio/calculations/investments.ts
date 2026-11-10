@@ -20,23 +20,27 @@
  * optional and never enters the arithmetic, there is no edit path to correct a
  * recorded value afterwards, and no market history is stored. So the figure is
  * "change since you recorded this", and that is what it is now called.
+ *
+ * **Prices come from the server.** Each screen used to price holdings itself:
+ * Portfolio fetched tickers in the browser, the Dashboard used recorded values,
+ * and the assistant knew only those. One holding, three values. The server now
+ * values every holding from stored market prices (`GET /assets/valuations`)
+ * and every screen passes that same valuation in here.
  */
 
-import type { Asset } from '../../../types';
+import type { Asset, HoldingValue, HoldingsValuation } from '../../../types';
 
-/** Live prices by ticker symbol, as `PortfolioPage` caches them. */
-export type PriceMap = Record<string, number>;
+/** The server's valuation of each holding, keyed by asset id. */
+export type Valuations = Readonly<Record<number, HoldingValue>>;
 
-/**
- * Ticker extracted from an asset name — `Vanguard ETF (VTI)` → `VTI`, or a
- * bare `VTI`. Mirrors the lookup the page has always used.
- */
-export function tickerOf(asset: Asset): string | null {
-  const name = asset.name ?? '';
-  const bracketed = name.match(/\(([A-Z0-9]+)\)/)?.[1];
-  if (bracketed) return bracketed;
-  const trimmed = name.trim();
-  return /^[A-Z0-9]{1,10}$/.test(trimmed) ? trimmed : null;
+export const NO_VALUATIONS: Valuations = Object.freeze({});
+
+/** Index a `GET /assets/valuations` response by asset id. */
+export function indexValuations(valuation: HoldingsValuation | null | undefined): Valuations {
+  if (!valuation || !Array.isArray(valuation.holdings)) return NO_VALUATIONS;
+  const byId: Record<number, HoldingValue> = {};
+  valuation.holdings.forEach(h => { byId[h.asset_id] = h; });
+  return byId;
 }
 
 export interface AssetValuation {
@@ -60,18 +64,17 @@ export interface AssetValuation {
   changePct: number | null;
 }
 
-export function valueAsset(asset: Asset, prices: PriceMap): AssetValuation {
-  const ticker = tickerOf(asset);
-  const livePrice = ticker != null ? prices[ticker] : undefined;
-  const hasLivePrice = typeof livePrice === 'number' && Number.isFinite(livePrice);
+export function valueAsset(asset: Asset, valuations: Valuations = NO_VALUATIONS): AssetValuation {
+  const held = valuations[asset.id];
+  const currentFromServer = held ? Number(held.current_value) : NaN;
+  const hasLivePrice = held != null && held.source !== 'recorded' && Number.isFinite(currentFromServer);
 
   const recordedValue = Number(asset.total_value) || 0;
   const recordedPerUnit = Number(asset.value_per_unit) || 0;
-  const pricePerUnit = hasLivePrice ? (livePrice as number) : recordedPerUnit;
+  const livePerUnit = held?.price_per_unit != null ? Number(held.price_per_unit) : NaN;
+  const pricePerUnit = hasLivePrice && Number.isFinite(livePerUnit) ? livePerUnit : recordedPerUnit;
 
-  // Quantity defaults to 1 so a holding recorded as a lump sum still values.
-  const quantity = Number(asset.quantity ?? 1) || 0;
-  const currentValue = hasLivePrice ? pricePerUnit * quantity : recordedValue;
+  const currentValue = hasLivePrice ? currentFromServer : recordedValue;
 
   const changeSinceRecorded = hasLivePrice ? currentValue - recordedValue : null;
 
@@ -115,8 +118,8 @@ export interface PortfolioValuation {
   pricedShare: number | null;
 }
 
-export function valuePortfolio(assets: Asset[], prices: PriceMap): PortfolioValuation {
-  const holdings = assets.map(a => valueAsset(a, prices));
+export function valuePortfolio(assets: Asset[], valuations: Valuations = NO_VALUATIONS): PortfolioValuation {
+  const holdings = assets.map(a => valueAsset(a, valuations));
 
   const priced = holdings.filter(h => h.hasLivePrice);
   const unpriced = holdings.filter(h => !h.hasLivePrice);

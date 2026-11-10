@@ -55,9 +55,10 @@ import { calculateForecast } from './calculations/forecast';
 import { monthlyRecurringExpense } from './calculations/recurring';
 import {
   LIQUID_TYPES,
-  netWorthFromAccounts,
   sumByTypes,
 } from '../accounts/calculations/totals';
+import { NO_VALUATIONS, type Valuations } from '../portfolio/calculations/investments';
+import { calculateNetWorth, withCurrentNetWorth } from '../portfolio/calculations/wealth';
 
 export interface AnalyticsSources {
   transactions: Transaction[];
@@ -71,6 +72,8 @@ export interface AnalyticsSources {
   recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
+  /** The server's valuation of each holding; empty until it loads. */
+  valuations?: Valuations;
 }
 
 export interface AnalyticsModel {
@@ -127,6 +130,7 @@ export function useAnalyticsModel(
 ): AnalyticsModel {
   const { transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets } = sources;
   const collections = sources.collections ?? NO_COLLECTIONS;
+  const valuations = sources.valuations ?? NO_VALUATIONS;
   const { periodId, customMonth, netWorthWindow } = selection;
 
   const availableMonths = useMemo(() => {
@@ -176,7 +180,10 @@ export function useAnalyticsModel(
       today,
     });
 
-    const netWorth = calculateNetWorthChange(snapshots, {
+    // The same net worth the Overview hero shows, and the chart's last point
+    // set to it, so "now" is one number on both tabs.
+    const worth = calculateNetWorth(accounts, assets, valuations);
+    const netWorth = calculateNetWorthChange(withCurrentNetWorth(snapshots, worth, monthKeyOf(today)), {
       transactions,
       assets,
       ctx,
@@ -302,7 +309,7 @@ export function useAnalyticsModel(
       typical,
       baseline,
       baselineLabel: baselineDescription(baseline.length),
-      currentNetWorth: netWorthFromAccounts(accounts),
+      currentNetWorth: worth.total,
       periodTransactions,
       // A running total, so a month with no purchases still shows the year's
       // contributions rather than reading as though nothing was ever invested.
@@ -311,6 +318,6 @@ export function useAnalyticsModel(
     };
   }, [
     availableMonths, period, today, transactions, categories, accounts, goals,
-    recurring, recurringOverview, snapshots, assets, ctx, netWorthWindow, collections,
+    recurring, recurringOverview, snapshots, assets, valuations, ctx, netWorthWindow, collections,
   ]);
 }

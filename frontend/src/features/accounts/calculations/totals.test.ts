@@ -98,9 +98,9 @@ describe('the four populations are distinct and named', () => {
 
     // Net worth subtracts the card and drops brokerage: 15,700.
     // Allocatable keeps brokerage and drops the card: 47,200.
-    expect(totals.netWorth).toBeCloseTo(15700, 2);
+    expect(totals.netBalance).toBeCloseTo(15700, 2);
     expect(totals.allocatable).toBeCloseTo(47200, 2);
-    expect(totals.allocatable).not.toBeCloseTo(totals.netWorth, 2);
+    expect(totals.allocatable).not.toBeCloseTo(totals.netBalance, 2);
   });
 
   it('allocatable excludes credit cards, because debt cannot be earmarked', () => {
@@ -171,7 +171,7 @@ describe('edge cases', () => {
   it('handles no accounts at all', () => {
     const totals = calculateAccountTotals([]);
 
-    expect(totals.netWorth).toBe(0);
+    expect(totals.netBalance).toBe(0);
     expect(totals.availableToSpend).toBe(0);
     expect(totals.utilization).toBeNull();
     expect(totals.count).toBe(0);
@@ -181,7 +181,7 @@ describe('edge cases', () => {
     const broken = [account('checking', Number.NaN), account('cash', 100)];
 
     expect(calculateAccountTotals(broken).availableToSpend).toBe(100);
-    expect(Number.isFinite(calculateAccountTotals(broken).netWorth)).toBe(true);
+    expect(Number.isFinite(calculateAccountTotals(broken).netBalance)).toBe(true);
   });
 
   it('counts every account regardless of type', () => {

@@ -3,6 +3,9 @@ import CountUp from '../../../components/CountUp';
 import Sparkline from '../../../components/Sparkline';
 import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
 import { dollars, signedPercent } from '../../analytics/format';
+
+/** A balance can be negative; `dollars` drops the sign. */
+const signedDollars = (value: number) => (value < 0 ? '−' : '') + dollars(Math.abs(value));
 import type { MonthActivity, SpendingComparison } from '../types';
 import type { NetWorthTrend } from '../useOverviewModel';
 
@@ -12,20 +15,14 @@ import type { NetWorthTrend } from '../useOverviewModel';
  * The loudest thing on the page, and now the only thing in this card: what you
  * are worth, how that has moved, and what you can actually spend today.
  *
- * The month totals and the asset pools that used to share this card moved out
- * to the metric band. They were secondary questions competing with the primary
- * one, and worse, assets and investments are *excluded* from net worth — sitting
- * them inside a card headed "Net Worth" implied the opposite of the truth.
+ * Net worth counts holdings: account balances plus everything you hold at its
+ * current value. It used to be balances only, with a second "including
+ * holdings" figure beside it, so buying gold read as a loss and the page
+ * carried two net worths. The split now sits under the one number instead.
  */
 
 export const NET_WORTH_DEFINITION =
-  'The total of your account balances — checking, savings, cash and credit cards — with credit-card balances subtracting. Investments and physical assets are tracked separately and are not included here, which is the same definition Analytics and the net-worth chart use.';
-
-export const TOTAL_WEALTH_DEFINITION =
-  'Account balances plus the current value of everything you hold. Net worth above covers '
-  + 'accounts only, so converting cash into gold or shares lowers it by the price paid even '
-  + 'though you are no worse off — this figure is the one that stays flat. Holdings count at '
-  + 'their recorded value here; the Portfolio page prices tickers live.';
+  'Your account balances (checking, savings, cash, with credit-card balances subtracting) plus everything you hold at its current value: a market price for stocks, funds and coins, and what you recorded for the rest. Buying an asset with cash leaves it unchanged. The same figure as Analytics, Portfolio, Accounts, the charts and Fin.';
 
 export const AVAILABLE_DEFINITION =
   'Money in checking and cash accounts, which you can spend without moving anything first. Savings balances, investments and credit are excluded.';
@@ -33,8 +30,8 @@ export const AVAILABLE_DEFINITION =
 interface Props {
   netWorth: NetWorthTrend;
   availableToSpend: number;
-  /** Accounts plus holdings, or null when nothing is held. */
-  totalWealth: number | null;
+  /** The two parts of net worth, or null when nothing is held. */
+  parts: { accounts: number; holdings: number } | null;
   activity: MonthActivity;
   comparison: SpendingComparison;
 }
@@ -46,7 +43,7 @@ const toneColor: Record<SpendingComparison['tone'], string> = {
 };
 
 const OverviewHero: React.FC<Props> = ({
-  netWorth, availableToSpend, totalWealth, activity, comparison,
+  netWorth, availableToSpend, parts, activity, comparison,
 }) => {
   const sparkValues = netWorth.points.map(p => p.value);
 
@@ -98,15 +95,12 @@ const OverviewHero: React.FC<Props> = ({
             )}
           </div>
 
-          {/* The wider figure, stated once and next to the narrow one it is
-              constantly mistaken for. Suppressed when nothing is held. */}
-          {totalWealth != null && (
-            <div className="flex items-center gap-1.5 mt-1">
-              <p className="font-mono tabular-nums text-xs" style={{ color: 'var(--dim)' }}>
-                {dollars(totalWealth)} including holdings
-              </p>
-              <InfoHint label="How total wealth is calculated" text={TOTAL_WEALTH_DEFINITION} />
-            </div>
+          {/* What the number is made of. Suppressed when nothing is held,
+              because then it is all accounts. */}
+          {parts != null && (
+            <p className="font-mono tabular-nums text-xs mt-1" style={{ color: 'var(--dim)' }}>
+              {signedDollars(parts.accounts)} in accounts · {dollars(parts.holdings)} in holdings
+            </p>
           )}
         </div>
 

@@ -13,6 +13,7 @@ import type {
   Transaction,
 } from '../../types';
 import { useOverviewModel } from './useOverviewModel';
+import type { Valuations } from '../portfolio/calculations/investments';
 import MorningBrief from './components/MorningBrief';
 import OverviewHero from './components/OverviewHero';
 import MetricRow from './components/MetricRow';
@@ -54,6 +55,8 @@ export interface OverviewTabProps {
   recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
+  /** The server's valuation of each holding. */
+  valuations?: Valuations;
   failedSources: string[];
   today: Date;
   budgets?: BudgetProgressSummary | null;
@@ -77,6 +80,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
       recurringOverview: props.recurringOverview ?? null,
       snapshots: props.snapshots,
       assets: props.assets,
+      valuations: props.valuations,
       failedSources: props.failedSources,
       collections: props.collections,
     },
@@ -106,7 +110,7 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
       <OverviewHero
         netWorth={model.netWorth}
         availableToSpend={model.availableToSpend}
-        totalWealth={model.totalWealth}
+        parts={model.netWorthParts}
         activity={model.activity}
         comparison={model.comparison}
       />

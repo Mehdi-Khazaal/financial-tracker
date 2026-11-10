@@ -1,5 +1,6 @@
 import type { Asset, SavingsGoal } from '../../../types';
 import { valuePortfolio } from './investments';
+import { marketValuations } from './valuations.testing';
 import { describeGoalProgress, summariseGoals } from './goals';
 import { buildNetWorthRange } from './netWorthRange';
 
@@ -55,7 +56,7 @@ describe('market prices fail', () => {
   });
 
   it('a partial price failure still values the holdings that did resolve', () => {
-    const valuation = valuePortfolio(holdings, { VTI: 268 });
+    const valuation = valuePortfolio(holdings, marketValuations(holdings, { VTI: 268 }));
 
     expect(valuation.pricedCount).toBe(1);
     expect(valuation.total).toBeCloseTo(10720 + 6000, 2);

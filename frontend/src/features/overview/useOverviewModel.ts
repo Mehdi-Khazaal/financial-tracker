@@ -42,8 +42,8 @@ import {
 } from './calculations/brief';
 import { calculateAccountTotals } from '../accounts/calculations/totals';
 import { dashboardCollections, type DashboardCollection } from '../collections/calculations/periods';
-import { valuePortfolio } from '../portfolio/calculations/investments';
-import { totalWealth } from '../portfolio/calculations/wealth';
+import { NO_VALUATIONS, valuePortfolio, type Valuations } from '../portfolio/calculations/investments';
+import { calculateNetWorth, withCurrentNetWorth } from '../portfolio/calculations/wealth';
 
 export interface OverviewSources {
   accounts: Account[];
@@ -55,6 +55,8 @@ export interface OverviewSources {
   recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
+  /** The server's valuation of each holding; empty until it loads. */
+  valuations?: Valuations;
   /** Names of sources that failed to load, from the Dashboard loader. */
   failedSources: string[];
   /** Trips, holidays, moves; empty when there are none or they failed to load. */
@@ -94,12 +96,8 @@ export interface OverviewModel {
   /** Checking + cash. Money that can be spent without moving anything first. */
   availableToSpend: number;
   physicalAssets: number;
-  /**
-   * Accounts plus every holding, or null when nothing is held. Net worth is
-   * account balances only, so this is the figure that does not move when cash
-   * is converted into an asset.
-   */
-  totalWealth: number | null;
+  /** The two parts of net worth, or null when nothing is held. */
+  netWorthParts: { accounts: number; holdings: number } | null;
   investments: number;
   cardDebt: number;
   creditLimit: number;
@@ -134,6 +132,7 @@ const monthLabelOf = (month: string): string => {
 
 export function useOverviewModel(sources: OverviewSources, today: Date): OverviewModel {
   const { accounts, transactions, categories, goals, recurring, recurringOverview = null, snapshots, assets, failedSources } = sources;
+  const valuations = sources.valuations ?? NO_VALUATIONS;
   const collections = sources.collections ?? EMPTY_COLLECTIONS;
 
   const ctx = useMemo(
@@ -171,9 +170,10 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
     // `features/accounts/calculations/totals`. These used to be inline reduces
     // that happened to agree; a shared call cannot drift.
     const accountTotals = calculateAccountTotals(accounts);
-    const currentNetWorth = accountTotals.netWorth;
+    const worth = calculateNetWorth(accounts, assets, valuations);
+    const currentNetWorth = worth.total;
 
-    const points = snapshots
+    const points = withCurrentNetWorth(snapshots, worth, monthKey)
       .slice(-12)
       .map(snap => ({
         month: snap.month,
@@ -319,19 +319,16 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       forecast,
       netWorth,
       availableToSpend: accountTotals.availableToSpend,
+      // The same server valuation Portfolio and Fin use, so a holding has one
+      // value wherever it appears.
       physicalAssets: valuePortfolio(
-        assets.filter(a => a.asset_class === 'physical'), {},
+        assets.filter(a => a.asset_class === 'physical'), valuations,
       ).total,
-      // The same valuation Portfolio runs, with an empty price map — Overview
-      // makes no market calls, so every holding contributes its recorded
-      // value. One function, two inputs, no second definition.
       investments: valuePortfolio(
-        assets.filter(a => a.asset_class === 'investment'), {},
+        assets.filter(a => a.asset_class === 'investment'), valuations,
       ).total,
-      // Same empty price map, same reason. Passing every asset — physical and
-      // investment alike — because the question is what you are worth in total.
-      totalWealth: assets.length > 0
-        ? totalWealth(accounts, assets, {}).total
+      netWorthParts: assets.length > 0
+        ? { accounts: worth.accounts, holdings: worth.holdings }
         : null,
       cardDebt: accountTotals.cardDebt,
       creditLimit: accountTotals.creditLimit,
@@ -343,5 +340,5 @@ export function useOverviewModel(sources: OverviewSources, today: Date): Overvie
       recurringCount: recurringOverview?.bill_count ?? 0,
       collections: dashboardCollections(collections, transactions, ctx, monthKey),
     };
-  }, [accounts, transactions, categories, goals, recurring, recurringOverview, snapshots, assets, failedSources, collections, ctx, today]);
+  }, [accounts, transactions, categories, goals, recurring, recurringOverview, snapshots, assets, valuations, failedSources, collections, ctx, today]);
 }

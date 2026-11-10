@@ -27,6 +27,7 @@ import KeyRatiosCard from './components/KeyRatiosCard';
 import ForecastCard from './components/ForecastCard';
 import BudgetProgressCard from './components/BudgetProgressCard';
 import CollectionsSpendCard from './components/CollectionsSpendCard';
+import type { Valuations } from '../portfolio/calculations/investments';
 
 interface Props {
   transactions: Transaction[];
@@ -37,6 +38,8 @@ interface Props {
   recurringOverview?: RecurringOverview | null;
   snapshots: MonthSnapshot[];
   assets: Asset[];
+  /** The server's valuation of each holding. */
+  valuations?: Valuations;
   failedSources: string[];
   /** Category drawer to open on mount, when arriving from a deep link. */
   initialCategoryId?: number | null;
@@ -77,7 +80,7 @@ const readStoredPeriod = (): PeriodId => {
  * out, net worth, what is committed, budgets, and the ratios underneath it all.
  */
 const AnalyticsTab: React.FC<Props> = ({
-  transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, failedSources,
+  transactions, categories, accounts, goals, recurring, recurringOverview = null, snapshots, assets, valuations, failedSources,
   initialCategoryId = null, budgets = null, onManageBudgets, collections = NO_COLLECTIONS,
 }) => {
   const navigate = useNavigate();
@@ -105,8 +108,8 @@ const AnalyticsTab: React.FC<Props> = ({
   );
 
   const sources = useMemo(
-    () => ({ transactions: modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, collections }),
-    [modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, collections],
+    () => ({ transactions: modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, valuations, collections }),
+    [modelTransactions, categories, accounts, goals, recurring, recurringOverview, snapshots, assets, valuations, collections],
   );
 
   const model = useAnalyticsModel(

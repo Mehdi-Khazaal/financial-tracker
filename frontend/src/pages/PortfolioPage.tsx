@@ -2,12 +2,12 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
-import { Account, Asset, Category, MonthSnapshot, SavingsGoal, Transaction } from '../types';
+import { Account, Asset, Category, HoldingsValuation, MonthSnapshot, SavingsGoal, Transaction } from '../types';
 import {
   getAssets, deleteAsset, getAccounts, getSavingsGoals, deleteSavingsGoal,
   fetchAllTransactions, getCategories, getNetWorthHistory,
+  getHoldingValuations, forgetHoldingValuations,
 } from '../utils/api';
-import { getStockPrice } from '../utils/stockApi';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import EmptyState from '../components/EmptyState';
@@ -28,11 +28,14 @@ import { buildClassificationContext } from '../features/analytics/calculations/t
 import { monthKeyOf, resolvePeriod } from '../features/analytics/period';
 import {
   CHANGE_SINCE_RECORDED_DEFINITION,
+  NO_VALUATIONS,
   PORTFOLIO_TOTAL_DEFINITION,
+  indexValuations,
   valuePortfolio,
+  type Valuations,
 } from '../features/portfolio/calculations/investments';
 import { calculateAccountTotals } from '../features/accounts/calculations/totals';
-import { totalWealth } from '../features/portfolio/calculations/wealth';
+import { calculateNetWorth, withCurrentNetWorth } from '../features/portfolio/calculations/wealth';
 import { InfoHint } from '../features/analytics/components/AnalyticsPrimitives';
 
 type Tab = 'investments' | 'assets' | 'savings';
@@ -90,7 +93,8 @@ const PortfolioPage: React.FC = () => {
 
   // Investments
   const [investments, setInvestments] = useState<Asset[]>([]);
-  const [stockPrices, setStockPrices] = useState<Record<string, number>>({});
+  const [valuations, setValuations] = useState<Valuations>(NO_VALUATIONS);
+  const [pricesAsOf, setPricesAsOf] = useState<string | null>(null);
   const [fetchingPrices, setFetchingPrices] = useState(false);
   const [invFilter, setInvFilter] = useState('all');
   const [showAddInv, setShowAddInv] = useState(false);
@@ -111,35 +115,36 @@ const PortfolioPage: React.FC = () => {
   const [editGoal, setEditGoal] = useState<SavingsGoal | null>(null);
   const [spendGoal, setSpendGoal] = useState<SavingsGoal | null>(null);
 
-  const getSymbol = (name: string) =>
-    name.match(/\(([A-Z0-9]+)\)/)?.[1] ??
-    (/^[A-Z0-9]{1,10}$/.test(name.trim()) ? name.trim() : null);
-
-  const fetchPricesBackground = useCallback(async (invs: Asset[], force = false) => {
-    const tickerAssets = invs.filter(a => a.type === 'stock' || a.type === 'crypto' || a.type === 'etf');
-    if (!tickerAssets.length) return;
-    const symbols = tickerAssets.map(a => getSymbol(a.name)).filter((s): s is string => !!s);
-    if (!symbols.length) return;
-    if (!force) {
-      const cached = localStorage.getItem('stock_prices_cache');
-      const cacheTime = localStorage.getItem('stock_prices_cache_time');
-      if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000) {
-        const cachedPrices = JSON.parse(cached) as Record<string, number>;
-        if (symbols.every(s => cachedPrices[s] != null)) { setStockPrices(cachedPrices); return; }
+  // Holdings are valued on the server from stored market prices — the same
+  // valuation the Dashboard and Fin read. When the server answers from prices
+  // that are getting old it refreshes them behind the response, so the page
+  // asks once more a few seconds later to pick the new ones up.
+  const loadValuations = useCallback(async (refresh = false) => {
+    if (refresh) setFetchingPrices(true);
+    try {
+      const res = await getHoldingValuations(refresh);
+      const data = res.data as HoldingsValuation;
+      setValuations(indexValuations(data));
+      setPricesAsOf(data.as_of ?? null);
+      if (!refresh && data.refreshing) {
+        window.setTimeout(() => {
+          forgetHoldingValuations();
+          getHoldingValuations()
+            .then(next => {
+              setValuations(indexValuations(next.data as HoldingsValuation));
+              setPricesAsOf((next.data as HoldingsValuation).as_of ?? null);
+            })
+            .catch(() => { /* keep the values already shown */ });
+        }, 4000);
       }
+    } catch {
+      // Without a valuation every holding counts at its recorded value, which
+      // the page already says per holding.
+      setValuations(NO_VALUATIONS);
+    } finally {
+      if (refresh) setFetchingPrices(false);
     }
-    setFetchingPrices(true);
-    const prices: Record<string, number> = {};
-    await Promise.all(tickerAssets.map(async asset => {
-      const sym = getSymbol(asset.name);
-      if (!sym) return;
-      const price = await getStockPrice(sym);
-      if (price != null) { prices[sym] = price; setStockPrices(prev => ({ ...prev, [sym]: price })); }
-    }));
-    localStorage.setItem('stock_prices_cache', JSON.stringify(prices));
-    localStorage.setItem('stock_prices_cache_time', Date.now().toString());
-    setFetchingPrices(false);
-  }, []);  
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,7 +170,6 @@ const PortfolioPage: React.FC = () => {
       if (investmentsResult.status === 'fulfilled') {
         const invs: Asset[] = Array.isArray(investmentsResult.value.data) ? investmentsResult.value.data : [];
         setInvestments(invs);
-        fetchPricesBackground(invs);
       }
       const assetsResult = results[1];
       if (assetsResult.status === 'fulfilled') {
@@ -203,10 +207,12 @@ const PortfolioPage: React.FC = () => {
       setLoadError(true);
     }
     finally { setLoading(false); }
-  }, [fetchPricesBackground]);
+  }, []);
+
+  useEffect(() => { void loadValuations(); }, [loadValuations]);
 
   useEffect(() => { load(); }, [load]);
-  const { pulling, refreshing, pullDistance } = usePullToRefresh(load);
+  const { pulling, refreshing, pullDistance } = usePullToRefresh(async () => { await Promise.all([load(), loadValuations()]); });
 
   // Arriving from a goal named on Overview. Waits for the goals to load so the
   // element being scrolled to actually exists.
@@ -249,7 +255,7 @@ const PortfolioPage: React.FC = () => {
   // Investment derived — one valuation pass, shared definitions. The page used
   // to headline only the live-priced subset while showing the cost of every
   // holding beside it, so an untickered holding vanished from the total.
-  const valuation = valuePortfolio(investments, stockPrices);
+  const valuation = valuePortfolio(investments, valuations);
   const byAssetId = new Map(valuation.holdings.map(h => [h.asset.id, h]));
 
   const types = ['all', ...Array.from(new Set(investments.map(a => a.type)))];
@@ -258,15 +264,22 @@ const PortfolioPage: React.FC = () => {
   const totalCurrent = valuation.total;
   const totalGain = valuation.changeSinceRecorded;
 
-  // Accounts plus *every* holding — investments and physical alike, which the
-  // page keeps in separate arrays. Net worth covers accounts only, so this is
-  // the figure that stays flat when cash is converted into an asset.
-  const wealth = totalWealth(accounts, [...investments, ...assets], stockPrices);
+  // Net worth: accounts plus *every* holding — investments and physical alike,
+  // which the page keeps in separate arrays — with the chart's "now" set to it.
+  const wealth = calculateNetWorth(accounts, [...investments, ...assets], valuations);
+  const trendSnapshots = withCurrentNetWorth(snapshots, wealth, monthKeyOf(new Date()));
 
-  // Asset derived
-  const totalAssetValue = assets.reduce((s, a) => s + Number(a.total_value), 0);
+  // Asset derived — the same valuation, so a piece has one value everywhere.
+  const assetValuation = valuePortfolio(assets, valuations);
+  const assetValueById = new Map(assetValuation.holdings.map(h => [h.asset.id, h]));
+  const totalAssetValue = assetValuation.total;
   const byType: Record<string, Asset[]> = {};
   assets.forEach(a => { if (!byType[a.type]) byType[a.type] = []; byType[a.type].push(a); });
+  const currentValueOf = (asset: Asset) => assetValueById.get(asset.id)?.currentValue ?? Number(asset.total_value);
+  const pricesAsOfLabel = pricesAsOf
+    ? new Date(pricesAsOf.endsWith('Z') ? pricesAsOf : `${pricesAsOf}Z`)
+      .toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : null;
 
   // Savings derived
   const allocatedPerAccount: Record<number, number> = {};
@@ -461,7 +474,7 @@ const PortfolioPage: React.FC = () => {
               </p>
             </section>
           ) : (
-            <NetWorthTrend snapshots={snapshots} wealth={wealth} />
+            <NetWorthTrend snapshots={trendSnapshots} wealth={wealth} />
           )}
 
           {/* Investments tab */}
@@ -481,10 +494,11 @@ const PortfolioPage: React.FC = () => {
                     {valuation.count > 0 && (
                       <p className="text-[11px] mt-1" style={{ color: 'var(--dim)' }}>
                         {valuation.unpricedCount === 0
-                          ? 'All holdings priced live'
+                          ? 'All holdings at market price'
                           : valuation.pricedCount === 0
-                            ? 'Recorded values — no holding has a live price'
-                            : `${valuation.pricedCount} of ${valuation.count} priced live · the rest at their recorded value`}
+                            ? 'Recorded values — no holding has a market price'
+                            : `${valuation.pricedCount} of ${valuation.count} at market price · the rest at their recorded value`}
+                        {valuation.pricedCount > 0 && pricesAsOfLabel && ` · prices as of ${pricesAsOfLabel}`}
                       </p>
                     )}
                   </div>
@@ -494,7 +508,7 @@ const PortfolioPage: React.FC = () => {
                       Live prices...
                     </span>
                   ) : (
-                    <button onClick={() => { localStorage.removeItem('stock_prices_cache'); localStorage.removeItem('stock_prices_cache_time'); fetchPricesBackground(investments, true); }}
+                    <button onClick={() => { void loadValuations(true); }}
                       className="text-xs mt-1 transition-colors"
                       style={{ color: 'var(--dim)' }}
                       onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
@@ -581,7 +595,7 @@ const PortfolioPage: React.FC = () => {
                               </span>
                             ) : (
                               <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: fetchingPrices ? 'var(--warn)' : 'var(--muted)' }}>
-                                {fetchingPrices ? 'Fetching...' : 'No live price'}
+                                {fetchingPrices ? 'Fetching...' : 'No market price'}
                               </span>
                             )}
                             <button onClick={() => handleDeleteInv(inv.id, inv.name)}
@@ -642,7 +656,7 @@ const PortfolioPage: React.FC = () => {
                       <div key={type}>
                         <p className="text-xs mb-0.5 text-muted">{type.replace('_', ' ')}</p>
                         <p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          ${fmt(list.reduce((s, a) => s + Number(a.total_value), 0))}
+                          ${fmt(list.reduce((s, a) => s + currentValueOf(a), 0))}
                         </p>
                       </div>
                     ))}
@@ -694,8 +708,10 @@ const PortfolioPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="mb-3">
-                          <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(Number(asset.total_value))}</p>
-                          <p className="text-[10px]" style={{ color: 'var(--dim)' }}>Recorded value</p>
+                          <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(currentValueOf(asset))}</p>
+                          <p className="text-[10px]" style={{ color: 'var(--dim)' }}>
+                            {assetValueById.get(asset.id)?.hasLivePrice ? 'Market value' : 'Recorded value'}
+                          </p>
                         </div>
                         {(asset.quantity || asset.value_per_unit) && (
                           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -859,11 +875,10 @@ const PortfolioPage: React.FC = () => {
         isOpen={showAddInv || (editAsset?.asset_class === 'investment')}
         onClose={() => { setShowAddInv(false); setEditAsset(null); }}
         onSuccess={() => {
-          // A recorded value changed, so any cached live price comparison is
-          // stale — drop the cache and refetch alongside the reload.
-          localStorage.removeItem('stock_prices_cache');
-          localStorage.removeItem('stock_prices_cache_time');
+          // A holding changed, so its valuation must be asked for again.
+          forgetHoldingValuations();
           load();
+          void loadValuations();
         }}
         mode="investment"
         asset={editAsset?.asset_class === 'investment' ? editAsset : null}
@@ -871,7 +886,11 @@ const PortfolioPage: React.FC = () => {
       <AddAssetModal
         isOpen={showAddAsset || (editAsset?.asset_class === 'physical')}
         onClose={() => { setShowAddAsset(false); setEditAsset(null); }}
-        onSuccess={load}
+        onSuccess={() => {
+          forgetHoldingValuations();
+          load();
+          void loadValuations();
+        }}
         mode="physical"
         asset={editAsset?.asset_class === 'physical' ? editAsset : null}
       />

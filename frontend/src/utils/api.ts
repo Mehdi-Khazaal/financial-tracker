@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, ImportRequest, RuleDraft, Transaction,
+  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, RuleDraft, Transaction,
 } from '../types';
 
 const api = axios.create({
@@ -278,6 +278,23 @@ export const deleteTransfer = (id: number) => api.delete(`/transfers/${id}`);
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 export const getAssets   = (params?: Record<string, any>) => api.get('/assets', { params });
+/**
+ * Every holding valued with the server's stored market prices — the one
+ * valuation every screen uses. `refresh` fetches every price before
+ * answering (Portfolio's Refresh button) and replaces the cached read.
+ */
+export const getHoldingValuations = (refresh = false) => {
+  if (!refresh) {
+    return cachedRead('valuations', () => api.get<HoldingsValuation>('/assets/valuations'));
+  }
+  const promise = api.get<HoldingsValuation>('/assets/valuations', { params: { refresh: true } });
+  readCache.set('valuations', { at: Date.now(), promise });
+  promise.catch(() => readCache.delete('valuations'));
+  return promise;
+};
+
+/** Drop the cached valuation so the next read asks the server again. */
+export const forgetHoldingValuations = () => { readCache.delete('valuations'); };
 export const createAsset = (data: any) => api.post('/assets', data);
 export const updateAsset = (id: number, data: any) => api.put(`/assets/${id}`, data);
 export const deleteAsset = (id: number) => api.delete(`/assets/${id}`);

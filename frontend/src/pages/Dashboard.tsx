@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
-import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary, Collection } from '../types';
+import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary, Collection, HoldingsValuation } from '../types';
 import {
   fetchAllTransactions, getAccounts, getSavingsGoals, getCategories,
   getNetWorthHistory, getAssets, getRecurring, getRecurringOverview,
-  getBudgetProgress, getCollections,
+  getBudgetProgress, getCollections, getHoldingValuations,
 } from '../utils/api';
+import { NO_VALUATIONS, indexValuations, type Valuations } from '../features/portfolio/calculations/investments';
 import { useAuth } from '../context/AuthContext';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
@@ -37,6 +38,7 @@ const Dashboard: React.FC = () => {
   const [categories, setCategories]           = useState<Category[]>([]);
   const [netWorthSnapshots, setNetWorthSnapshots] = useState<MonthSnapshot[]>([]);
   const [assetsList, setAssetsList]           = useState<Asset[]>([]);
+  const [valuations, setValuations]           = useState<Valuations>(NO_VALUATIONS);
   const [recurring, setRecurring]             = useState<RecurringTransaction[]>([]);
   const [recurringOverview, setRecurringOverview] = useState<RecurringOverview | null>(null);
   const [budgets, setBudgets]                 = useState<BudgetProgressSummary | null>(null);
@@ -70,10 +72,19 @@ const Dashboard: React.FC = () => {
       // Analytics averages transactions over up to twelve months, so the full
       // history is paged in rather than the API's default first 500 rows.
       // 24 months of net-worth snapshots feeds the chart's range selector.
-      const results = await Promise.allSettled([
-        getAccounts(), fetchAllTransactions(), getSavingsGoals(), getCategories(),
-        getNetWorthHistory(24), getAssets(), getRecurring(), getRecurringOverview(), getBudgetProgress(),
+      const [results, valuationResult] = await Promise.all([
+        Promise.allSettled([
+          getAccounts(), fetchAllTransactions(), getSavingsGoals(), getCategories(),
+          getNetWorthHistory(24), getAssets(), getRecurring(), getRecurringOverview(), getBudgetProgress(),
+        ]),
+        // Holding values. A failure here is not a banner: every holding then
+        // counts at its recorded value, which is still a true statement.
+        getHoldingValuations().then(
+          res => indexValuations(res.data as HoldingsValuation),
+          () => NO_VALUATIONS,
+        ),
       ]);
+      setValuations(valuationResult);
       const failed = SOURCES.filter((_, index) => results[index].status === 'rejected');
       const apply = <T,>(index: number, setter: React.Dispatch<React.SetStateAction<T[]>>) => {
         const result = results[index];
@@ -240,6 +251,7 @@ const Dashboard: React.FC = () => {
               recurringOverview={recurringOverview}
               snapshots={netWorthSnapshots}
               assets={assetsList}
+              valuations={valuations}
               failedSources={failedSources}
               today={today}
               budgets={budgets}
@@ -273,6 +285,7 @@ const Dashboard: React.FC = () => {
               recurringOverview={recurringOverview}
               snapshots={netWorthSnapshots}
               assets={assetsList}
+              valuations={valuations}
               failedSources={failedSources}
               initialCategoryId={initialCategoryId}
               budgets={budgets}

@@ -3,6 +3,7 @@ import { InfoHint } from '../../analytics/components/AnalyticsPrimitives';
 import { dollars, percent } from '../../analytics/format';
 import { UTILIZATION_LABELS, utilizationBand } from '../calculations/cards';
 import type { AccountTotals } from '../calculations/totals';
+import type { NetWorthBreakdown } from '../../portfolio/calculations/wealth';
 
 /**
  * The Accounts position, in one card.
@@ -19,19 +20,21 @@ import type { AccountTotals } from '../calculations/totals';
 
 export const DEFINITIONS = {
   netWorth:
-    'Every account except brokerage, with credit-card balances subtracting. The same definition the dashboard, Analytics and the net-worth chart use. Investment holdings are counted in Portfolio instead, so they are not double counted here.',
+    'Your account balances, with credit-card balances subtracting and brokerage cash left out, plus everything you hold at its current value. The same figure the Dashboard, Analytics, Portfolio and Fin show.',
   availableToSpend:
     'Checking and cash only — money you can spend without moving anything first. Savings, brokerage and credit are excluded.',
   liquid:
     'Checking, savings and cash. Money you hold, whether or not it is earmarked for something.',
   brokerage:
-    'Cash balances sitting in brokerage accounts. Kept out of net worth because your holdings are already valued in Portfolio; counting both would double the same money.',
+    'Cash balances sitting in brokerage accounts. Kept out of net worth because your holdings are already valued there; counting both would double the same money.',
   cardDebt:
     'Total owed across your credit cards, shown as a positive amount. The purchases behind it were already counted as spending, so paying a card down is not new spending.',
 } as const;
 
 interface Props {
   totals: AccountTotals;
+  /** The one net worth: these accounts plus holdings. */
+  netWorth: NetWorthBreakdown;
 }
 
 const Figure: React.FC<{
@@ -53,7 +56,7 @@ const Figure: React.FC<{
   </div>
 );
 
-const AccountsSummary: React.FC<Props> = ({ totals }) => {
+const AccountsSummary: React.FC<Props> = ({ totals, netWorth }) => {
   const band = utilizationBand(totals.utilization);
 
   return (
@@ -69,10 +72,15 @@ const AccountsSummary: React.FC<Props> = ({ totals }) => {
         </div>
         <p
           className="font-bold value-display"
-          style={{ fontSize: 'clamp(1.9rem, 4vw, 2.6rem)', color: totals.netWorth < 0 ? 'var(--neg)' : 'var(--fg)' }}
+          style={{ fontSize: 'clamp(1.9rem, 4vw, 2.6rem)', color: netWorth.total < 0 ? 'var(--neg)' : 'var(--fg)' }}
         >
-          {dollars(totals.netWorth)}
+          {netWorth.total < 0 ? '−' : ''}{dollars(Math.abs(netWorth.total))}
         </p>
+        {netWorth.holdingCount > 0 && (
+          <p className="font-mono tabular-nums text-xs mt-1" style={{ color: 'var(--dim)' }}>
+            {netWorth.accounts < 0 ? '−' : ''}{dollars(Math.abs(netWorth.accounts))} in accounts · {dollars(netWorth.holdings)} in holdings
+          </p>
+        )}
 
         <div
           className="grid grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4 mt-5 pt-5"

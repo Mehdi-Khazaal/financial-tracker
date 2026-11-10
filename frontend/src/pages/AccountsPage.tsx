@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
-import { Account, Loan, MonthSnapshot, Transaction } from '../types';
+import { Account, Asset, HoldingsValuation, Loan, MonthSnapshot, Transaction } from '../types';
 import {
   getAccounts, deleteAccount, getAccountHistories,
   getLoans, updateLoan, deleteLoan,
   fetchAllTransactions, cleanDescription,
+  getAssets, getHoldingValuations,
 } from '../utils/api';
 import { downloadCSV, printPDF } from '../utils/export';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
@@ -22,6 +23,8 @@ import DepositModal from '../components/modals/DepositModal';
 import AddLoanModal from '../components/modals/AddLoanModal';
 import { ACCOUNT_TYPE_META, AccountTypeIcon } from '../components/dashboard/DashboardPrimitives';
 import { calculateAccountTotals } from '../features/accounts/calculations/totals';
+import { NO_VALUATIONS, indexValuations, type Valuations } from '../features/portfolio/calculations/investments';
+import { calculateNetWorth } from '../features/portfolio/calculations/wealth';
 import { calculateLoanTotals } from '../features/accounts/calculations/loans';
 import AccountCard from '../features/accounts/components/AccountCard';
 import AccountsSummary from '../features/accounts/components/AccountsSummary';
@@ -57,6 +60,8 @@ const AccountsPage: React.FC = () => {
   // Loans state
   const [loans, setLoans] = useState<Loan[]>([]);
   const [showAddLoan, setShowAddLoan] = useState(false);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [valuations, setValuations] = useState<Valuations>(NO_VALUATIONS);
   const [repayInput, setRepayInput] = useState<Record<number, string>>({});
   const [repaying, setRepaying] = useState<number | null>(null);
   const [showLoanExport, setShowLoanExport] = useState(false);
@@ -71,6 +76,15 @@ const AccountsPage: React.FC = () => {
       // recent charges fell outside the newest 500 transactions showed nothing
       // — or worse, an older card's charges — with no indication anything was
       // missing.
+      // Holdings and their values are loaded quietly: net worth counts them,
+      // and without them it falls back to the accounts alone rather than
+      // raising an error over a figure this page only quotes.
+      getAssets()
+        .then(res => setAssets(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setAssets([]));
+      getHoldingValuations()
+        .then(res => setValuations(indexValuations(res.data as HoldingsValuation)))
+        .catch(() => setValuations(NO_VALUATIONS));
       const results = await Promise.allSettled([getAccounts(), fetchAllTransactions(), getLoans(), getAccountHistories(6)]);
       const labels = ['accounts', 'transactions', 'loans', 'history'];
       const failed = labels.filter((_, index) => results[index].status === 'rejected');
@@ -176,6 +190,7 @@ const AccountsPage: React.FC = () => {
   // and quietly disagreed with them about credit-card debt.
   const ccAccounts   = accounts.filter(a => a.type === 'credit_card');
   const totals       = calculateAccountTotals(accounts);
+  const netWorth     = calculateNetWorth(accounts, assets, valuations);
   const totalOwed    = totals.cardDebt;
   const totalLimit   = totals.creditLimit;
   const totalUtil    = totals.utilization;
@@ -336,7 +351,7 @@ const AccountsPage: React.FC = () => {
           {/* Wallet tab */}
           {tab === 'wallet' && !failedSources.includes('accounts') && (
             <>
-              <AccountsSummary totals={totals} />
+              <AccountsSummary totals={totals} netWorth={netWorth} />
 
               {accounts.length === 0 ? (
                 <div className="card py-12 text-center">
