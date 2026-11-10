@@ -204,6 +204,8 @@ export interface SavingsGoal {
   deadline: string | null;
   /** Its money is emergency cover; every other goal's is promised elsewhere. */
   is_emergency_fund?: boolean;
+  /** 1 is funded first. */
+  priority?: number | null;
   created_at: string;
   allocations: GoalAllocation[];
   current_amount: number;

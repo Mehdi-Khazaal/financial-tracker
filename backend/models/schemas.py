@@ -346,6 +346,12 @@ class SavingsGoalBase(BaseModel):
 class SavingsGoalCreate(SavingsGoalBase):
     pass
 
+class GoalOrderRequest(BaseModel):
+    """Every one of the user's goals, first-funded first."""
+
+    goal_ids: List[int] = Field(min_length=1, max_length=200)
+
+
 class SavingsGoalUpdate(BaseModel):
     name: Optional[str] = None
     target_amount: Optional[Decimal] = None
@@ -514,6 +520,7 @@ class SavingsGoalResponse(BaseModel):
     target_amount: Decimal
     deadline: Optional[date] = None
     is_emergency_fund: bool = False
+    priority: Optional[int] = None
     created_at: datetime
     allocations: list[AllocationResponse] = []
     current_amount: Decimal = Decimal("0")

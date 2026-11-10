@@ -322,6 +322,8 @@ export const getSavingsGoals      = () => api.get('/savings-goals');
 export const createSavingsGoal    = (data: any) => api.post('/savings-goals', data);
 export const updateSavingsGoal    = (id: number, data: any) => api.put(`/savings-goals/${id}`, data);
 export const deleteSavingsGoal    = (id: number) => api.delete(`/savings-goals/${id}`);
+/** The order goals are funded in: every goal id, first funded first. */
+export const setGoalOrder = (goalIds: number[]) => api.put('/savings-goals/order', { goal_ids: goalIds });
 export const setGoalAllocations   = (goalId: number, allocations: { account_id: number; amount: number }[]) =>
   api.put(`/savings-goals/${goalId}/allocations`, { allocations });
 export const spendFromGoal = (goalId: number, data: { account_id: number; amount: number; description?: string; transaction_date: string }) =>

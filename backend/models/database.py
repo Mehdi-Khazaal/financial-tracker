@@ -582,6 +582,9 @@ class SavingsGoal(Base):
     # money is promised to something, so it is left out of "available to
     # spend" and out of the emergency-fund cover; this goal's only of the first.
     is_emergency_fund = Column(Boolean, nullable=False, default=False, server_default="false")
+    # 1 is funded first. Money kept each month goes down the list in this
+    # order (see `services.goal_plan`); the user reorders it on the Savings tab.
+    priority = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

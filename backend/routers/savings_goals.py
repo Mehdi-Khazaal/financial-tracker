@@ -6,7 +6,7 @@ from decimal import Decimal
 from models.database import get_db, SavingsGoal, SavingsGoalAllocation, Account
 from models.auth import User
 from models.schemas import (
-    SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse,
+    GoalOrderRequest, SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse,
     AllocationResponse, SetAllocationsRequest, SpendFromGoalRequest,
     TransactionResponse,
 )
@@ -36,10 +36,16 @@ def _serialize_goal(goal: SavingsGoal) -> SavingsGoalResponse:
         target_amount=goal.target_amount,
         deadline=goal.deadline,
         is_emergency_fund=bool(goal.is_emergency_fund),
+        priority=goal.priority,
         created_at=goal.created_at,
         allocations=allocs,
         current_amount=current,
     )
+
+
+def _next_priority(db: Session, user_id: int) -> int:
+    highest = db.query(func.max(SavingsGoal.priority)).filter(SavingsGoal.user_id == user_id).scalar()
+    return (highest or 0) + 1
 
 
 MILESTONES = (100, 75, 50)
@@ -76,6 +82,8 @@ def create_goal(goal: SavingsGoalCreate, db: Session = Depends(get_db), current_
         target_amount=goal.target_amount,
         deadline=goal.deadline,
         is_emergency_fund=goal.is_emergency_fund,
+        # A new goal joins the end of the plan; the user moves it up if it matters more.
+        priority=_next_priority(db, current_user.id),
     )
     db.add(db_goal)
     db.commit()
@@ -95,10 +103,34 @@ def get_goals(request: Request, response: Response, db: Session = Depends(get_db
         db.query(SavingsGoal)
         .options(joinedload(SavingsGoal.allocations).joinedload(SavingsGoalAllocation.account))
         .filter(SavingsGoal.user_id == current_user.id)
-        .order_by(SavingsGoal.created_at)
+        .order_by(SavingsGoal.priority.is_(None), SavingsGoal.priority, SavingsGoal.created_at, SavingsGoal.id)
         .all()
     )
     return [_serialize_goal(g) for g in goals]
+
+
+@router.put("/order", response_model=List[SavingsGoalResponse])
+def set_goal_order(
+    request: GoalOrderRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the order goals are funded in. Must name every goal the user has, once."""
+    goals = db.query(SavingsGoal).filter(SavingsGoal.user_id == current_user.id).all()
+    by_id = {g.id: g for g in goals}
+    if len(request.goal_ids) != len(set(request.goal_ids)) or set(request.goal_ids) != set(by_id):
+        raise HTTPException(status_code=400, detail="List every goal exactly once.")
+    for position, goal_id in enumerate(request.goal_ids, start=1):
+        by_id[goal_id].priority = position
+    db.commit()
+    ordered = (
+        db.query(SavingsGoal)
+        .options(joinedload(SavingsGoal.allocations).joinedload(SavingsGoalAllocation.account))
+        .filter(SavingsGoal.user_id == current_user.id)
+        .order_by(SavingsGoal.priority, SavingsGoal.id)
+        .all()
+    )
+    return [_serialize_goal(g) for g in ordered]
 
 
 @router.put("/{goal_id}", response_model=SavingsGoalResponse)

@@ -29,6 +29,7 @@ import { clamp } from '../../analytics/calculations/transactions';
 import { dateKey } from '../../analytics/period';
 import { describeGoal } from '../../overview/calculations/goals';
 import type { GoalPresentation } from '../../overview/types';
+import type { PlannedGoal } from './goalPlan';
 
 /** Completed months required before a projected date is trustworthy. */
 export const MIN_PROJECTION_MONTHS = 3;
@@ -139,6 +140,12 @@ export interface GoalProgressOptions {
    * it is really a statement about the request. The two must not be confused.
    */
   historyUnavailable?: boolean;
+  /**
+   * The goal plan (`planGoals`), by goal id. When given, its finish month
+   * replaces the single-goal projection, which assumed each goal received
+   * everything saved each month; the card and the plan then agree.
+   */
+  plan?: ReadonlyMap<number, PlannedGoal>;
 }
 
 export function describeGoalProgress(
@@ -146,6 +153,7 @@ export function describeGoalProgress(
   options: GoalProgressOptions,
 ): GoalProgress {
   const { today, averageMonthlySaved, averageMonths, historyUnavailable = false } = options;
+  const planned = options.plan?.get(goal.id);
 
   const presentation = describeGoal(goal, today);
   const target = Number(goal.target_amount) || 0;
@@ -168,9 +176,11 @@ export function describeGoalProgress(
   const rateUsable = averageMonthlySaved != null
     && averageMonthlySaved > 0
     && averageMonths >= MIN_PROJECTION_MONTHS;
-  const monthsAtCurrentRate = rateUsable && remaining > 0
-    ? Math.ceil(remaining / (averageMonthlySaved as number))
-    : null;
+  const monthsAtCurrentRate = planned
+    ? (remaining > 0 ? planned.monthsToFinish : null)
+    : rateUsable && remaining > 0
+      ? Math.ceil(remaining / (averageMonthlySaved as number))
+      : null;
   const projectedCompletion = monthsAtCurrentRate != null && monthsAtCurrentRate <= 600
     ? monthLabelFrom(today, monthsAtCurrentRate)
     : null;
@@ -181,13 +191,17 @@ export function describeGoalProgress(
       ? 'date-passed'
       : deadline == null
         ? 'no-deadline'
-        : requiredMonthly == null || !rateUsable
-          ? 'unknown'
-          : (averageMonthlySaved as number) >= requiredMonthly * 1.1
-            ? 'ahead'
-            : (averageMonthlySaved as number) >= requiredMonthly
-              ? 'on-track'
-              : 'behind';
+        : planned
+          ? (planned.status === 'on-time' ? 'on-track'
+            : planned.status === 'late' || planned.status === 'never' ? 'behind'
+              : 'unknown')
+          : requiredMonthly == null || !rateUsable
+            ? 'unknown'
+            : (averageMonthlySaved as number) >= requiredMonthly * 1.1
+              ? 'ahead'
+              : (averageMonthlySaved as number) >= requiredMonthly
+                ? 'on-track'
+                : 'behind';
 
   const targetMonth = deadline != null ? deadline.slice(0, 7) : null;
   const projectedMonth = monthsAtCurrentRate != null
@@ -213,8 +227,25 @@ export function describeGoalProgress(
       && (targetMonth == null || projectedMonth !== targetMonth),
     pace,
     paceLabel: PACE_LABELS[pace],
-    paceDetail: paceDetailFor(pace, { monthsRemaining, averageMonths, historyUnavailable }),
+    paceDetail: (planned && planDetailFor(pace, planned))
+      ?? paceDetailFor(pace, { monthsRemaining, averageMonths, historyUnavailable }),
   };
+}
+
+/** The pace sentence when the goal plan decided it, or null to use the usual one. */
+function planDetailFor(pace: GoalPace, planned: PlannedGoal): string | null {
+  const when = planned.finishLabel;
+  if (pace === 'on-track' && when) return `In your goal plan it is funded by ${when}, in time for its date.`;
+  if (pace === 'behind' && planned.status === 'never') {
+    return 'Your goal plan does not reach it within ten years at your current saving. Move it up the plan or lower the target.';
+  }
+  if (pace === 'behind' && when && planned.lateBy != null) {
+    return `In your goal plan it is funded by ${when}, ${planned.lateBy} ${planned.lateBy === 1 ? 'month' : 'months'} after its date. Move it up the plan or set a later date.`;
+  }
+  if (pace === 'date-passed' && when) {
+    return `The target date has passed. In your goal plan it is funded by ${when}; set a new date to match.`;
+  }
+  return null;
 }
 
 function paceDetailFor(

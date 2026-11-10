@@ -234,7 +234,9 @@ def test_project_savings_goals_flags_an_unreachable_deadline(db_session, user, a
     # 12000 over ~3 months needs ~4000/mo against a real surplus of 100.
     assert projected["remaining"] == 12000.0
     assert projected["required_monthly"] > projected["avg_monthly_surplus"]
-    assert projected["verdict"] == "not on track — needs more than the current surplus"
+    assert projected["plan_status"] == "late"
+    assert projected["verdict"] == "finishes after its deadline in the plan"
+    assert projected["late_by_months"] > 0
     assert projected["shortfall_monthly"] > 0
 
 

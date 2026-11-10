@@ -398,53 +398,85 @@ def _t_financial_health(db: Session, user: User, **_) -> dict:
 
 
 def _t_project_savings_goals(db: Session, user: User, **_) -> list:
-    """Per goal: the gap, the pace it actually needs, and whether that is real."""
+    """Per goal: the gap, what it needs a month, and when it is really reached.
+
+    Goals are funded in the user's priority order (`services.goal_plan`), the
+    same plan the Savings tab shows: paycheck-plan lines first, then the
+    monthly surplus down the list. Judging each goal against the whole surplus
+    on its own promised four goals the same money.
+    """
+    from models.database import PaycheckPlan
+    from services import goal_plan, paycheck_plan
+
     today = _user_today(user)
     averages = _average_monthly(_monthly_flows(db, user, months=6, today=today))
     surplus = averages["net"]
-    goals = db.query(SavingsGoal).filter(SavingsGoal.user_id == user.id).all()
+    goals = (
+        db.query(SavingsGoal)
+        .filter(SavingsGoal.user_id == user.id)
+        .order_by(SavingsGoal.priority.is_(None), SavingsGoal.priority, SavingsGoal.created_at, SavingsGoal.id)
+        .all()
+    )
 
+    committed: dict[int, Decimal] = {}
+    plan_row = db.query(PaycheckPlan).filter(PaycheckPlan.user_id == user.id).first()
+    if plan_row is not None and plan_row.lines:
+        days = paycheck_plan.paydays(db, user.id, [s.merchant_key for s in plan_row.sources], today)
+        per_month = paycheck_plan.paydays_per_month(paycheck_plan.usual_gap_days(days))
+        committed = {line.goal_id: Decimal(str(line.amount)) * per_month for line in plan_row.lines}
+
+    saved_by_goal = {g.id: sum((Decimal(str(a.amount)) for a in g.allocations), Decimal("0")) for g in goals}
+    planned = goal_plan.plan(
+        [
+            goal_plan.GoalIn(g.id, max(Decimal(str(g.target_amount or 0)) - saved_by_goal[g.id], Decimal("0")), g.deadline)
+            for g in goals
+        ],
+        monthly_saving=surplus,
+        committed=committed,
+        today=today,
+    )
+    by_id = {p.goal_id: p for p in planned}
+
+    def month_label(months: Optional[int]) -> Optional[str]:
+        if months is None:
+            return None
+        index = today.year * 12 + today.month - 1 + months
+        return f"{index // 12:04d}-{index % 12 + 1:02d}"
+
+    verdicts = {
+        "complete": "already funded",
+        "on-time": "on track in the plan",
+        "late": "finishes after its deadline in the plan",
+        "date-passed": "deadline passed and still short",
+        "no-deadline": "no deadline set",
+        "never": "not reached within 10 years at the current surplus and plan",
+        "unknown": "no monthly surplus or paycheck plan to fund it",
+    }
     out = []
-    for goal in goals:
-        saved = sum((a.amount for a in goal.allocations), Decimal("0"))
-        target = goal.target_amount or Decimal("0")
-        gap = max(target - saved, Decimal("0"))
+    for position, goal in enumerate(goals, start=1):
+        saved = saved_by_goal[goal.id]
+        target = Decimal(str(goal.target_amount or 0))
+        result = by_id[goal.id]
         entry = {
             "id": goal.id,
             "name": goal.name,
+            "priority": position,
+            "is_emergency_fund": bool(goal.is_emergency_fund),
             "target_amount": _jsonable(target),
             "saved": _jsonable(saved),
-            "remaining": _jsonable(gap),
+            "remaining": _jsonable(max(target - saved, Decimal("0"))),
             "percent_complete": _jsonable((saved / target * 100).quantize(Decimal("0.1"))) if target else None,
             "deadline": _jsonable(goal.deadline),
             "avg_monthly_surplus": _jsonable(surplus.quantize(Decimal("0.01"))),
+            "from_paycheck_plan_monthly": _jsonable(committed[goal.id].quantize(Decimal("0.01"))) if goal.id in committed else None,
+            "required_monthly": _jsonable(result.needed_monthly),
+            "shortfall_monthly": _jsonable(max(result.needed_monthly - surplus, Decimal("0")).quantize(Decimal("0.01")))
+            if result.needed_monthly is not None else None,
+            "planned_finish_month": month_label(result.months_to_finish),
+            "plan_status": result.status,
+            "late_by_months": result.late_by_months,
+            "verdict": verdicts[result.status],
         }
-
-        if gap == 0:
-            entry["verdict"] = "already funded"
-        elif goal.deadline:
-            days_left = (goal.deadline - today).days
-            months_left = Decimal(max(days_left, 0)) / Decimal("30.44")
-            entry["days_remaining"] = days_left
-            if days_left <= 0:
-                entry["verdict"] = "deadline passed and still short"
-            else:
-                required = (gap / months_left) if months_left > 0 else gap
-                entry["required_monthly"] = _jsonable(required.quantize(Decimal("0.01")))
-                if surplus <= 0:
-                    entry["verdict"] = "not on track — no monthly surplus to fund it"
-                elif required <= surplus:
-                    entry["verdict"] = "on track at current surplus"
-                else:
-                    entry["shortfall_monthly"] = _jsonable((required - surplus).quantize(Decimal("0.01")))
-                    entry["verdict"] = "not on track — needs more than the current surplus"
-        else:
-            entry["deadline"] = None
-            if surplus > 0:
-                entry["months_at_current_surplus"] = _jsonable((gap / surplus).quantize(Decimal("0.1")))
-                entry["verdict"] = "no deadline set; reachable at current surplus"
-            else:
-                entry["verdict"] = "no deadline set and no monthly surplus"
         out.append(entry)
     return out
 
