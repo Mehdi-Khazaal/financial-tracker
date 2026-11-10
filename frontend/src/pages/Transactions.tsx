@@ -111,7 +111,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                 <h2 className="font-bold text-[15px]" style={{ color: 'var(--fg)' }}>{cat.name}</h2>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--dim)' }}>
                   {catTxs.length} transaction{catTxs.length !== 1 ? 's' : ''}
-                  {spent > 0 && <> · <span style={{ color: 'var(--neg)' }}>-${fmt(spent)}</span></>}
+                  {spent > 0 && <> · <span style={{ color: 'var(--fg)' }}>-${fmt(spent)}</span></>}
                   {income > 0 && <> · <span style={{ color: 'var(--pos)' }}>+${fmt(income)}</span></>}
                   {refunds > 0 && <> · <span style={{ color: 'var(--pos)' }}>${fmt(refunds)} refunded</span></>}
                 </p>
@@ -195,7 +195,7 @@ const CategoryDetailModal: React.FC<CatDetailProps> = ({ cat, allTransactions, a
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <p className="font-mono font-bold text-sm"
-                        style={{ color: pos ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                        style={{ color: pos ? 'var(--pos)' : 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
                         {pos ? '+' : '-'}${fmt(Math.abs(Number(tx.amount)))}
                       </p>
                       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"
@@ -975,7 +975,7 @@ const Transactions: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2 md:w-[420px]">
                   {[
                     { label: 'In', value: `+$${fmt(monthIncome)}`, color: 'var(--pos)' },
-                    { label: 'Out', value: `-$${fmt(monthExpenses)}`, color: 'var(--neg)' },
+                    { label: 'Out', value: `-$${fmt(monthExpenses)}`, color: 'var(--fg)' },
                     { label: 'Net', value: `${monthNet >= 0 ? '+' : '-'}$${fmt(Math.abs(monthNet))}`, color: monthNet >= 0 ? 'var(--pos)' : 'var(--neg)' },
                   ].map(item => (
                     <div key={item.label} className="ledger-cell px-3 py-2">
@@ -1303,7 +1303,7 @@ const Transactions: React.FC = () => {
                   </span>
                 )}
                 {filteredMetrics.expenses > 0 && (
-                  <span className="font-mono font-semibold" style={{ color: 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+                  <span className="font-mono font-semibold" style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
                     −${fmt(filteredMetrics.expenses)}
                   </span>
                 )}

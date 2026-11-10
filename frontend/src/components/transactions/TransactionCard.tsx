@@ -99,7 +99,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         <div className="flex flex-col items-end shrink-0">
           <p
             className="text-[11px] font-bold"
-            style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}
+            style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--fg)' }}
           >
             {amountStr}
           </p>
@@ -166,7 +166,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         <div
           className="w-6 h-9 flex items-center justify-center shrink-0 mt-0.5"
         >
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" style={{ color: pos ? 'var(--pos)' : 'var(--neg)' }}>
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" style={{ color: pos ? 'var(--pos)' : 'var(--muted)' }}>
             {pos ? (
               <path
                 fillRule="evenodd"
@@ -240,7 +240,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
       <div className="shrink-0 flex flex-col items-end">
         <p
           className={`${mobileCard ? 'text-base' : 'text-[11px]'} font-bold`}
-          style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--neg)' }}
+          style={{ fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: pos ? 'var(--pos)' : 'var(--fg)' }}
         >
           {amountStr}
         </p>
