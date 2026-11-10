@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, RuleDraft, Transaction,
+  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, MetalPrice, RuleDraft, Transaction,
   TransferSuggestion,
 } from '../types';
 
@@ -298,6 +298,9 @@ export const getHoldingValuations = (refresh = false) => {
   promise.catch(() => readCache.delete('valuations'));
   return promise;
 };
+
+/** Gold and silver per troy ounce, for previewing a piece's value. */
+export const getMetalPrices = () => cachedRead('metal-prices', () => api.get<MetalPrice[]>('/assets/metal-prices'));
 
 /** Drop the cached valuation so the next read asks the server again. */
 export const forgetHoldingValuations = () => { readCache.delete('valuations'); };

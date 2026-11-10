@@ -75,6 +75,12 @@ export interface Asset {
   total_value: number;
   currency: string;
   purchase_date: string | null;
+  /** With weight and purity set, the piece is valued by its metal at today's price. */
+  metal?: 'gold' | 'silver' | null;
+  /** Gross weight of one unit, in grams. */
+  weight_grams?: number | string | null;
+  /** Share of the weight that is the metal, 0–1. */
+  purity?: number | string | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,8 +105,17 @@ export interface HoldingValue {
   /** Null when unpriced: the change is unknown, not zero. */
   change_since_recorded: number | string | null;
   price_per_unit: number | string | null;
-  source: 'market' | 'recorded';
+  source: 'market' | 'metal' | 'recorded';
   priced_at: string | null;
+  /** The metal's price per troy ounce, for a piece priced by its metal. */
+  spot_price?: number | string | null;
+}
+
+export interface MetalPrice {
+  metal: 'gold' | 'silver';
+  /** US dollars per troy ounce. */
+  price: number | string;
+  fetched_at: string;
 }
 
 export interface HoldingsValuation {

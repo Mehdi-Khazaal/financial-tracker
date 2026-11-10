@@ -1,7 +1,7 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Optional, Literal, List
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing import Annotated, Optional, Literal, List
 from decimal import Decimal
 from datetime import datetime, date
 
@@ -248,6 +248,13 @@ class MarkTransferResponse(BaseModel):
     category_id: int
 
 # ─── Asset ────────────────────────────────────────────────────────────────────
+Metal = Literal["gold", "silver"]
+# Gross weight of one unit, in grams. 50 kg is far beyond any bar a person holds.
+MetalWeight = Annotated[Decimal, Field(gt=0, le=50000)]
+# Share of the weight that is the metal: 0.9999 for 24k, 0.9167 for 22k, 0.75 for 18k.
+MetalPurity = Annotated[Decimal, Field(gt=0, le=1)]
+
+
 class AssetBase(BaseModel):
     name: str
     type: str
@@ -257,6 +264,16 @@ class AssetBase(BaseModel):
     total_value: Decimal
     currency: str = "USD"
     purchase_date: Optional[date] = None
+    metal: Optional[Metal] = None
+    weight_grams: Optional[MetalWeight] = None
+    purity: Optional[MetalPurity] = None
+
+    @model_validator(mode="after")
+    def metal_fields_come_together(self):
+        given = [self.metal is not None, self.weight_grams is not None, self.purity is not None]
+        if any(given) and not all(given):
+            raise ValueError("Metal pricing needs the metal, the weight and the purity together.")
+        return self
 
 class AssetCreate(AssetBase):
     pass
@@ -270,6 +287,10 @@ class AssetUpdate(BaseModel):
     total_value: Optional[Decimal] = None
     currency: Optional[str] = None
     purchase_date: Optional[date] = None
+    # Send null for all three to stop pricing a holding by its metal.
+    metal: Optional[Metal] = None
+    weight_grams: Optional[MetalWeight] = None
+    purity: Optional[MetalPurity] = None
 
 class AssetResponse(AssetBase):
     model_config = ConfigDict(from_attributes=True)
@@ -290,8 +311,11 @@ class HoldingValueResponse(BaseModel):
     # Null when the holding has no market price: its change is unknown, not zero.
     change_since_recorded: Optional[Decimal] = None
     price_per_unit: Optional[Decimal] = None
-    source: Literal["market", "recorded"]
+    # "metal": priced from its fine weight at the metal's price.
+    source: Literal["market", "metal", "recorded"]
     priced_at: Optional[datetime] = None
+    # The metal's price per troy ounce, for a holding priced by its metal.
+    spot_price: Optional[Decimal] = None
 
 
 class HoldingsValuationResponse(BaseModel):
@@ -303,6 +327,13 @@ class HoldingsValuationResponse(BaseModel):
     # True when old prices were served and a refresh is running behind them.
     refreshing: bool = False
     holdings: List[HoldingValueResponse]
+
+
+class MetalPriceResponse(BaseModel):
+    metal: Literal["gold", "silver"]
+    # US dollars per troy ounce.
+    price: Decimal
+    fetched_at: datetime
 
 # ─── Savings Goal ─────────────────────────────────────────────────────────────
 class SavingsGoalBase(BaseModel):

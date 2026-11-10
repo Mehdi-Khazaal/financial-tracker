@@ -103,6 +103,16 @@ def crypto_key(symbol: str) -> str:
     return f"crypto:{symbol.upper()}"
 
 
+# Metal prices, US dollars per troy ounce, from the front-month COMEX future —
+# within a fraction of a percent of spot, and what yfinance carries reliably.
+METAL_KEYS = {"gold": "metal:XAU", "silver": "metal:XAG"}
+METAL_TICKERS = {"XAU": "GC=F", "XAG": "SI=F"}
+
+
+def metal_key(metal: str) -> str | None:
+    return METAL_KEYS.get((metal or "").lower())
+
+
 def fetch_for_key(key: str) -> tuple[Decimal, Optional[Decimal]] | None:
     """Look one stored key up on the network. None when no source has a price."""
     kind, _, symbol = key.partition(":")
@@ -116,6 +126,9 @@ def fetch_for_key(key: str) -> tuple[Decimal, Optional[Decimal]] | None:
         return (Decimal(str(price)), Decimal(str(change))) if price else None
     if kind == "stock":
         price, change = fetch_stock_price(symbol)
+        return (Decimal(str(price)), Decimal(str(change))) if price else None
+    if kind == "metal" and symbol in METAL_TICKERS:
+        price, change = fetch_stock_price(METAL_TICKERS[symbol])
         return (Decimal(str(price)), Decimal(str(change))) if price else None
     return None
 

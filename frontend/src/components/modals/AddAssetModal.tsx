@@ -4,6 +4,10 @@ import type { Asset } from '../../types';
 import { createAsset, updateAsset } from '../../utils/api';
 import { useToast } from '../../context/ToastContext';
 import { localDateStr } from '../../utils/date';
+import MetalPricingFields, {
+  EMPTY_METAL_FIELDS, metalFieldsFrom, metalPayload, type MetalFieldsState,
+} from '../../features/portfolio/components/MetalPricingFields';
+import { METAL_TYPES } from '../../features/portfolio/calculations/metal';
 
 interface Props {
   isOpen: boolean;
@@ -51,11 +55,14 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
   const [valuePerUnit, setValuePerUnit] = useState('');
   const [totalValue, setTotalValue] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(localDateStr());
+  const [metalFields, setMetalFields] = useState<MetalFieldsState>(EMPTY_METAL_FIELDS);
   const [loading, setLoading] = useState(false);
 
   const isInvestment = mode === 'investment';
   const isEditing = asset != null;
   const hasTicker = isInvestment && TICKER_TYPES.has(assetType);
+  // Gold, silver and jewelry can be valued by the metal they contain.
+  const canPriceByMetal = METAL_TYPES.has(assetType);
 
   // Load the asset being edited. `asset_class` is deliberately not editable —
   // flipping it would move the row to the other tab, which reads as the entry
@@ -71,10 +78,12 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
       setValuePerUnit(asset.value_per_unit != null ? String(asset.value_per_unit) : '');
       setTotalValue(String(asset.total_value ?? ''));
       setPurchaseDate(asset.purchase_date ? asset.purchase_date.slice(0, 10) : '');
+      setMetalFields(metalFieldsFrom(asset));
     } else {
       setAssetType(types[0].value);
       setName(''); setTicker(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
       setPurchaseDate(localDateStr());
+      setMetalFields(EMPTY_METAL_FIELDS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, asset?.id]);
@@ -104,6 +113,8 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
         total_value: parseFloat(totalValue) || 0,
         purchase_date: purchaseDate || null,
         currency: 'USD',
+        // Nulls clear metal pricing, so turning it off on an edit takes effect.
+        ...metalPayload(canPriceByMetal ? metalFields : EMPTY_METAL_FIELDS),
       };
 
       if (asset) {
@@ -119,6 +130,7 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
         setName(''); setTicker(''); setQuantity(''); setValuePerUnit(''); setTotalValue('');
         setPurchaseDate(localDateStr());
         setAssetType(types[0].value);
+        setMetalFields(EMPTY_METAL_FIELDS);
       }
     } catch { toast.error(asset ? 'Failed to update' : 'Failed to create asset'); }
     finally { setLoading(false); }
@@ -200,6 +212,14 @@ const AddAssetModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, mode, asse
               className="input-dark" placeholder="0.00" />
           </div>
         </div>
+
+        {canPriceByMetal && (
+          <MetalPricingFields
+            value={metalFields}
+            onChange={setMetalFields}
+            quantity={parseFloat(quantity) || 1}
+          />
+        )}
 
         {/* Total value */}
         <div>

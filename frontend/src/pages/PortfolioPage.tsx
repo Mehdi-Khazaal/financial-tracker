@@ -36,6 +36,7 @@ import {
 } from '../features/portfolio/calculations/investments';
 import { calculateAccountTotals } from '../features/accounts/calculations/totals';
 import { calculateNetWorth, withCurrentNetWorth } from '../features/portfolio/calculations/wealth';
+import { describeMetal } from '../features/portfolio/calculations/metal';
 import { InfoHint } from '../features/analytics/components/AnalyticsPrimitives';
 
 type Tab = 'investments' | 'assets' | 'savings';
@@ -710,9 +711,32 @@ const PortfolioPage: React.FC = () => {
                         </div>
                         <div className="mb-3">
                           <p className="font-mono tabular-nums font-bold text-lg text-text">${fmt(currentValueOf(asset))}</p>
-                          <p className="text-[10px]" style={{ color: 'var(--dim)' }}>
-                            {assetValueById.get(asset.id)?.hasLivePrice ? 'Market value' : 'Recorded value'}
-                          </p>
+                          {(() => {
+                            const held = assetValueById.get(asset.id);
+                            const metal = describeMetal(asset);
+                            if (!held?.hasLivePrice || !metal) {
+                              return (
+                                <p className="text-[10px]" style={{ color: 'var(--dim)' }}>
+                                  {held?.hasLivePrice ? 'Market value' : 'Recorded value'}
+                                </p>
+                              );
+                            }
+                            const change = held.changeSinceRecorded ?? 0;
+                            return (
+                              <>
+                                <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                                  {asset.metal === 'silver' ? 'Silver' : 'Gold'} value today · {metal}
+                                </p>
+                                <p className="text-[11px] font-mono tabular-nums" style={{ color: 'var(--muted)' }}>
+                                  Paid ${fmt(held.recordedValue)} ·{' '}
+                                  <span style={{ color: change >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
+                                    {change >= 0 ? '+' : '−'}${fmt(Math.abs(change))}
+                                    {held.changePct != null && ` (${change >= 0 ? '+' : '−'}${Math.abs(held.changePct * 100).toFixed(1)}%)`}
+                                  </span>
+                                </p>
+                              </>
+                            );
+                          })()}
                         </div>
                         {(asset.quantity || asset.value_per_unit) && (
                           <div className="grid grid-cols-2 gap-3 mb-3">

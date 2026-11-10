@@ -414,6 +414,12 @@ class Asset(Base):
     total_value = Column(Numeric(15, 2), nullable=False)
     currency = Column(String(3), default="USD")
     purchase_date = Column(Date, nullable=True)
+    # Metal pricing (see `services.valuation`). With all three set, the holding
+    # is worth its fine metal at today's price instead of what was recorded:
+    # weight_grams × purity / 31.1034768 troy ounces per unit, times the price.
+    metal = Column(String(10), nullable=True)
+    weight_grams = Column(Numeric(14, 7), nullable=True)
+    purity = Column(Numeric(6, 4), nullable=True)
     created_at = Column(DateTime, default=utc_now)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 

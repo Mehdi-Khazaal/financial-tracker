@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from models.database import get_db, Asset, SessionLocal, utc_now
 from models.auth import User
-from models.schemas import AssetCreate, AssetUpdate, AssetResponse, HoldingsValuationResponse, HoldingValueResponse
-from services.market_prices import get_quotes, keys_needing_refresh, refresh_quotes
+from models.schemas import (
+    AssetCreate, AssetUpdate, AssetResponse, HoldingsValuationResponse, HoldingValueResponse, MetalPriceResponse,
+)
+from services.market_prices import METAL_KEYS, get_quotes, keys_needing_refresh, refresh_quotes
 from services.valuation import price_keys, value_assets
 from utils.auth import get_current_user
 from utils.etag import check_etag, compute_user_etag, set_etag_headers
@@ -92,10 +94,37 @@ def get_valuations(
                 price_per_unit=h.price_per_unit,
                 source=h.source,
                 priced_at=h.priced_at,
+                spot_price=h.spot_price,
             )
             for h in valuation.holdings
         ],
     )
+
+
+@router.get("/metal-prices", response_model=List[MetalPriceResponse])
+@limiter.limit("60/minute")
+def get_metal_prices(
+    request: Request,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gold and silver per troy ounce, for previewing what a piece is worth.
+
+    Same policy as valuations: a price never fetched is fetched now, an old one
+    is served and refreshed behind the response.
+    """
+    del request, current_user
+    keys = set(METAL_KEYS.values())
+    quotes = get_quotes(db, keys, refresh="missing")
+    stale = keys_needing_refresh(quotes, keys, utc_now())
+    if stale:
+        background.add_task(_refresh_prices_in_background, stale)
+    by_key = {key: metal for metal, key in METAL_KEYS.items()}
+    return [
+        MetalPriceResponse(metal=by_key[key], price=quote.price, fetched_at=quote.fetched_at)
+        for key, quote in sorted(quotes.items())
+    ]
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
@@ -113,6 +142,10 @@ def update_asset(asset_id: int, update: AssetUpdate, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="Asset not found")
     for field, value in update.model_dump(exclude_unset=True).items():
         setattr(asset, field, value)
+    metal_fields = [asset.metal is not None, asset.weight_grams is not None, asset.purity is not None]
+    if any(metal_fields) and not all(metal_fields):
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Metal pricing needs the metal, the weight and the purity together.")
     db.commit()
     db.refresh(asset)
     return asset
