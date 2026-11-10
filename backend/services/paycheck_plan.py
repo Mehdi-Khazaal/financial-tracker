@@ -53,6 +53,8 @@ HISTORY_DAYS = 180
 # A payday is announced, and shown first, while it is this recent.
 RECENT_DAYS = 6
 DAYS_PER_MONTH = Decimal("30.4375")
+# A regular deposit smaller than this is interest or cashback, not pay.
+MIN_TYPICAL_PAYCHECK = Decimal("100")
 
 
 class PlanError(Exception):
@@ -145,8 +147,11 @@ class SourceSuggestion:
 def suggest_sources(db: Session, user_id: int, today: date) -> list[SourceSuggestion]:
     """Payers that deposit income on a regular rhythm: probably paychecks.
 
-    Three or more deposits in the window, at a usual gap of one to five weeks.
-    A one-off (a scholarship, a refund) is not suggested.
+    Three or more deposits in the window, at a usual gap of one to five weeks,
+    typically at least `MIN_TYPICAL_PAYCHECK`. A one-off (a scholarship, a
+    refund) is not suggested, and neither is a small regular credit such as
+    savings interest: the setup sheet ticks every suggestion the first time,
+    and $0.11 of interest a month is not a payday.
     """
     lookups = load_lookups(db, user_id)
     rows = (
@@ -173,12 +178,15 @@ def suggest_sources(db: Session, user_id: int, today: date) -> list[SourceSugges
         gap = round(statistics.median(gaps))
         if not 6 <= gap <= 35:
             continue
+        typical = Decimal(str(statistics.median([Decimal(str(t.amount)) for t in txs]))).quantize(Decimal("0.01"))
+        if typical < MIN_TYPICAL_PAYCHECK:
+            continue
         latest = max(txs, key=lambda t: t.transaction_date)
         found.append(SourceSuggestion(
             merchant_key=key,
             name=display_name(latest.description or key),
             count=len(dates),
-            typical_amount=Decimal(str(statistics.median([Decimal(str(t.amount)) for t in txs]))).quantize(Decimal("0.01")),
+            typical_amount=typical,
             gap_days=gap,
         ))
     found.sort(key=lambda s: (-s.count, s.name))

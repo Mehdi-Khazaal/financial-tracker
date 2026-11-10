@@ -96,6 +96,22 @@ def test_regular_payers_are_suggested_and_a_one_off_is_not(client, auth_headers,
     assert Decimal(names["philips"]["typical_amount"]) == Decimal("1835.29")
 
 
+def test_savings_interest_is_not_suggested_as_a_paycheck(client, db_session, user, auth_headers, second_account, paychecks, today):
+    """The live account's $0.11 monthly interest was offered, and pre-ticked, as pay."""
+    interest = Category(user_id=user.id, name="Interest", type="income")
+    db_session.add(interest)
+    db_session.commit()
+    for n in range(5):
+        db_session.add(Transaction(user_id=user.id, account_id=second_account.id, category_id=interest.id,
+                                   amount=Decimal("0.11"), description="INTEREST PAYMENT", merchant_key="interest payment",
+                                   transaction_date=today - timedelta(days=5 + 30 * n)))
+    db_session.commit()
+
+    body = client.get("/paycheck-plan", headers=auth_headers).json()
+
+    assert {s["merchant_key"] for s in body["suggested_sources"]} == {"philips", "passavant"}
+
+
 def test_same_day_deposits_are_one_payday(db_session, user, paychecks, today, last_payday):
     days = service.paydays(db_session, user.id, ["philips", "passavant"], today)
 
