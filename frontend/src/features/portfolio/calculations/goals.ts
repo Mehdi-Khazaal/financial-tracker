@@ -27,7 +27,8 @@
 import type { SavingsGoal } from '../../../types';
 import { clamp } from '../../analytics/calculations/transactions';
 import { dateKey } from '../../analytics/period';
-import { describeGoal } from '../../overview/calculations/goals';
+import { describeGoal, goalDeadline } from '../../overview/calculations/goals';
+import { dollars } from '../../analytics/format';
 import type { GoalPresentation } from '../../overview/types';
 import type { PlannedGoal } from './goalPlan';
 
@@ -41,6 +42,8 @@ export type GoalPace =
   | 'overfunded'
   /** No deadline, so there is no schedule to be ahead or behind of. */
   | 'no-deadline'
+  /** The emergency fund: measured by the months of spending it covers. */
+  | 'emergency'
   /** The target date has passed and the goal is unmet. */
   | 'date-passed'
   /** Recent rate comfortably clears the required contribution. */
@@ -100,6 +103,7 @@ const PACE_LABELS: Record<GoalPace, string> = {
   complete: 'Complete',
   overfunded: 'Overfunded',
   'no-deadline': 'No target date',
+  emergency: 'Emergency fund',
   'date-passed': 'Target date passed',
   ahead: 'Ahead of schedule',
   'on-track': 'On track',
@@ -146,6 +150,11 @@ export interface GoalProgressOptions {
    * everything saved each month; the card and the plan then agree.
    */
   plan?: ReadonlyMap<number, PlannedGoal>;
+  /**
+   * Usual monthly spending (one-offs left out), to say how many months the
+   * emergency fund covers. Null or absent when there is too little history.
+   */
+  monthlySpending?: number | null;
 }
 
 export function describeGoalProgress(
@@ -160,7 +169,7 @@ export function describeGoalProgress(
   const setAside = Number(goal.current_amount) || 0;
   const remaining = Math.max(0, target - setAside);
 
-  const deadline = goal.deadline ? goal.deadline.slice(0, 10) : null;
+  const deadline = goalDeadline(goal);
   const deadlinePassed = deadline != null && deadline < dateKey(today);
   const monthsRemaining = deadline != null && !deadlinePassed
     ? monthsUntil(deadline, today)
@@ -187,7 +196,9 @@ export function describeGoalProgress(
 
   const pace: GoalPace = presentation.status === 'complete'
     ? (presentation.rawProgress > 100 ? 'overfunded' : 'complete')
-    : deadlinePassed
+    : goal.is_emergency_fund
+      ? 'emergency'
+      : deadlinePassed
       ? 'date-passed'
       : deadline == null
         ? 'no-deadline'
@@ -226,10 +237,30 @@ export function describeGoalProgress(
     projectionAddsInformation: projectedCompletion != null
       && (targetMonth == null || projectedMonth !== targetMonth),
     pace,
-    paceLabel: PACE_LABELS[pace],
-    paceDetail: (planned && planDetailFor(pace, planned))
-      ?? paceDetailFor(pace, { monthsRemaining, averageMonths, historyUnavailable }),
+    paceLabel: pace === 'emergency' ? emergencyLabel(setAside, options.monthlySpending) : PACE_LABELS[pace],
+    paceDetail: pace === 'emergency'
+      ? emergencyDetail(setAside, target, options.monthlySpending, planned)
+      : (planned && planDetailFor(pace, planned))
+        ?? paceDetailFor(pace, { monthsRemaining, averageMonths, historyUnavailable }),
   };
+}
+
+const monthsOf = (amount: number, monthly: number) => {
+  const months = amount / monthly;
+  return `${months.toFixed(1)} ${months.toFixed(1) === '1.0' ? 'month' : 'months'}`;
+};
+
+function emergencyLabel(saved: number, monthly: number | null | undefined): string {
+  return monthly != null && monthly > 0 ? `Covers ${monthsOf(saved, monthly)}` : PACE_LABELS.emergency;
+}
+
+/** What the fund would carry you through, rather than a date it is "due" by. */
+function emergencyDetail(saved: number, target: number, monthly: number | null | undefined, planned?: PlannedGoal): string {
+  const plan = planned?.finishLabel ? ` In your goal plan it is full by ${planned.finishLabel}.` : '';
+  if (monthly == null || monthly <= 0) {
+    return `An emergency fund has no deadline; it is measured by the months of spending it covers.${plan}`;
+  }
+  return `Covers about ${monthsOf(saved, monthly)} of usual spending (${dollars(monthly, 0)} a month). The ${dollars(target, 0)} target would cover ${monthsOf(target, monthly)}.${plan}`;
 }
 
 /** The pace sentence when the goal plan decided it, or null to use the usual one. */

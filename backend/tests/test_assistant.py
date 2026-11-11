@@ -674,3 +674,16 @@ def test_quick_tier_is_materially_cheaper_than_deep():
     haiku = assistant._price_usage(totals, "claude-haiku-4-5")["estimated_cost_usd"]
 
     assert haiku * 2 == sonnet
+
+
+def test_fin_never_calls_the_emergency_fund_overdue(db_session, user, account):
+    """The live fund kept a July date it no longer meant; Fin read it as 'deadline passed'."""
+    db_session.add(SavingsGoal(user_id=user.id, name="Emergency Funds", target_amount=Decimal("5000"),
+                               deadline=assistant._user_today(user) - timedelta(days=100), is_emergency_fund=True))
+    db_session.commit()
+
+    fund = assistant._t_project_savings_goals(db_session, user)[0]
+
+    assert fund["is_emergency_fund"] is True
+    assert fund["deadline"] is None
+    assert fund["plan_status"] != "date-passed"

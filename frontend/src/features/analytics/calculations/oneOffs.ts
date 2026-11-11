@@ -19,6 +19,7 @@
 import type { Transaction } from '../../../types';
 import type { ClassificationContext } from '../types';
 import { classifyTransaction, merchantKeyOf } from './transactions';
+import { monthlyMetrics } from './metrics';
 
 export const ONE_OFF_MIN = 1000;
 const SIMILAR_SHARE = 0.25;
@@ -99,6 +100,8 @@ export interface UsualMonth {
   oneOffs: OneOff[];
   /** Their total spread over `months`. */
   oneOffMonthly: number;
+  /** Mean monthly spending over `months` without them: what a month costs to live. */
+  usualMonthlySpending: number | null;
 }
 
 /**
@@ -118,9 +121,11 @@ export function usualMonth(
     .sort((a, b) => b.amount - a.amount);
   const total = oneOffs.reduce((s, o) => s + o.amount, 0);
   const count = months.length;
+  const spending = monthlyMetrics(transactions, months, ctx).reduce((s, m) => s + m.metrics.expenses, 0);
   return {
     usualMonthlySaved: averageMonthlySaved != null && count > 0 ? averageMonthlySaved + total / count : null,
     oneOffs,
     oneOffMonthly: count > 0 ? total / count : 0,
+    usualMonthlySpending: count > 0 ? Math.max(0, (spending - total) / count) : null,
   };
 }

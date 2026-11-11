@@ -94,9 +94,11 @@ describe('a usual month', () => {
     expect(usual.usualMonthlySaved).toBe(1000);
     expect(usual.oneOffMonthly).toBe(1750);
     expect(usual.oneOffs.map(o => o.transaction.description)).toEqual(['Withdrawal']);
+    // $3,000 a month to live on; the motorcycle is not part of that.
+    expect(usual.usualMonthlySpending).toBe(3000);
   });
 
   it('has no usual month without months to average', () => {
-    expect(usualMonth(transactions, ctx, [], null)).toEqual({ usualMonthlySaved: null, oneOffs: [], oneOffMonthly: 0 });
+    expect(usualMonth(transactions, ctx, [], null)).toEqual({ usualMonthlySaved: null, oneOffs: [], oneOffMonthly: 0, usualMonthlySpending: null });
   });
 });

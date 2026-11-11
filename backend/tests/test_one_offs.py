@@ -104,3 +104,4 @@ def test_fin_funds_goals_from_a_usual_month(db_session, user, account, kinds):
     # Plainly averaged, the motorcycle turns $1,000 a month into -$750.
     assert projected["avg_monthly_surplus"] == 1000.0
     assert projected["one_off_spending_monthly"] == 1750.0
+

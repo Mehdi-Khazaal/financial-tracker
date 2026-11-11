@@ -260,3 +260,34 @@ describe('summary across goals', () => {
     expect(summary.totalSetAside).toBe(0);
   });
 });
+
+/**
+ * The emergency fund is never "due". The live one ($500 of $5,000) carried a
+ * July date and read "Past deadline" and "Target date passed" for months.
+ */
+describe('the emergency fund', () => {
+  const fund = goal({ name: 'Emergency Funds', target_amount: 5000, current_amount: 500, deadline: '2026-07-31', is_emergency_fund: true });
+
+  it('is measured by the months of usual spending it covers', () => {
+    const progress = describeGoalProgress(fund, { today: TODAY, averageMonthlySaved: 1935, averageMonths: 8, monthlySpending: 3950 });
+
+    expect(progress.pace).toBe('emergency');
+    expect(progress.paceLabel).toBe('Covers 0.1 months');
+    expect(progress.paceDetail).toBe('Covers about 0.1 months of usual spending ($3,950 a month). The $5,000 target would cover 1.3 months.');
+    expect(progress.deadline).toBeNull();
+    expect(progress.deadlinePassed).toBe(false);
+    expect(progress.requiredMonthly).toBeNull();
+  });
+
+  it('still explains itself without enough history to measure months', () => {
+    const progress = describeGoalProgress(fund, { today: TODAY, averageMonthlySaved: null, averageMonths: 1 });
+
+    expect(progress.paceLabel).toBe('Emergency fund');
+    expect(progress.paceDetail).toMatch(/^An emergency fund has no deadline/);
+  });
+
+  it('is never counted as behind', () => {
+    const summary = summariseGoals([fund], { today: TODAY, averageMonthlySaved: 500, averageMonths: 6 });
+    expect(summary.behindCount).toBe(0);
+  });
+});

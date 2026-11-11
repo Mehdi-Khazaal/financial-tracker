@@ -365,7 +365,8 @@ const PortfolioPage: React.FC = () => {
     averageMonths: savings.averageMonths,
     historyUnavailable,
     plan: historyUnavailable ? undefined : new Map(goalPlan.goals.map(g => [g.goal.id, g])),
-  }), [goals, savings.averageMonthlySaved, savings.averageMonths, savingsToday, historyUnavailable, goalPlan]);
+    monthlySpending: savings.averageMonths >= MIN_PROJECTION_MONTHS ? usual.usualMonthlySpending : null,
+  }), [goals, savings.averageMonthlySaved, savings.averageMonths, savingsToday, historyUnavailable, goalPlan, usual.usualMonthlySpending]);
 
   const goalProgress = useMemo(
     () => new Map(goalSummary.goals.map(g => [g.goal.id, g])),

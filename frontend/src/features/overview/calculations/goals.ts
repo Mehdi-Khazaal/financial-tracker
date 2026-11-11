@@ -33,6 +33,14 @@ const STATUS_COLORS: Record<GoalStatus, string> = {
   invalid: 'var(--dim)',
 };
 
+/**
+ * The date a goal is measured against, or null. An emergency fund has none:
+ * it is never "due", it is measured by the months of spending it covers. The
+ * live fund showed "Past deadline" for a date in July that meant nothing.
+ */
+export const goalDeadline = (goal: Pick<SavingsGoal, 'deadline' | 'is_emergency_fund'>): string | null =>
+  goal.is_emergency_fund || !goal.deadline ? null : goal.deadline.slice(0, 10);
+
 export function describeGoal(goal: SavingsGoal, today: Date): GoalPresentation {
   const target = Number(goal.target_amount) || 0;
   const current = Number(goal.current_amount) || 0;
@@ -54,7 +62,7 @@ export function describeGoal(goal: SavingsGoal, today: Date): GoalPresentation {
 
   const status: GoalStatus = rawProgress >= 100
     ? 'complete'
-    : goal.deadline != null && goal.deadline.slice(0, 10) < dateKey(today)
+    : (goalDeadline(goal) ?? '9999-12-31') < dateKey(today)
       ? 'overdue'
       : current <= 0
         ? 'not-started'

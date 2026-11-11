@@ -461,9 +461,14 @@ def _t_project_savings_goals(db: Session, user: User, **_) -> list:
         committed = {line.goal_id: Decimal(str(line.amount)) * per_month for line in plan_row.lines}
 
     saved_by_goal = {g.id: sum((Decimal(str(a.amount)) for a in g.allocations), Decimal("0")) for g in goals}
+    # An emergency fund is never due: it is measured by the months it covers,
+    # so any date left on it is ignored (the screens do the same).
+    def deadline_of(goal: SavingsGoal):
+        return None if goal.is_emergency_fund else goal.deadline
+
     planned = goal_plan.plan(
         [
-            goal_plan.GoalIn(g.id, max(Decimal(str(g.target_amount or 0)) - saved_by_goal[g.id], Decimal("0")), g.deadline)
+            goal_plan.GoalIn(g.id, max(Decimal(str(g.target_amount or 0)) - saved_by_goal[g.id], Decimal("0")), deadline_of(g))
             for g in goals
         ],
         monthly_saving=surplus,
@@ -501,7 +506,7 @@ def _t_project_savings_goals(db: Session, user: User, **_) -> list:
             "saved": _jsonable(saved),
             "remaining": _jsonable(max(target - saved, Decimal("0"))),
             "percent_complete": _jsonable((saved / target * 100).quantize(Decimal("0.1"))) if target else None,
-            "deadline": _jsonable(goal.deadline),
+            "deadline": _jsonable(deadline_of(goal)),
             # A usual month: big one-offs (a vehicle, tuition) are left out and
             # reported beside it, since goals are how those get paid for.
             "avg_monthly_surplus": _jsonable(surplus.quantize(Decimal("0.01"))),

@@ -70,7 +70,8 @@ describe('GoalPlanCard', () => {
   it('is honest when there is no saving history yet', () => {
     render(<GoalPlanCard plan={plan(goals, null)} onReordered={vi.fn()} />);
     expect(screen.getByText(/not enough saving history yet/i)).toBeInTheDocument();
-    expect(screen.getAllByText('Waiting for money left over each month')).toHaveLength(3);
+    // All four, the emergency fund included: its old July date no longer makes it "passed".
+    expect(screen.getAllByText('Waiting for money left over each month')).toHaveLength(4);
   });
 
   it('tells apart no history from history showing nothing kept', () => {

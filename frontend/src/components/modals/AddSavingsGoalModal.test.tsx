@@ -33,20 +33,33 @@ const emergency: SavingsGoal = {
 describe('AddSavingsGoalModal', () => {
   it('edits a goal: fields start from it and the save goes to that goal', async () => {
     const onSuccess = vi.fn();
-    render(<AddSavingsGoalModal isOpen onClose={vi.fn()} onSuccess={onSuccess} goal={emergency} />);
+    render(<AddSavingsGoalModal isOpen onClose={vi.fn()} onSuccess={onSuccess} goal={{ ...emergency, is_emergency_fund: false, name: 'Trip' }} />);
 
-    expect(screen.getByLabelText('Goal Name')).toHaveValue('Emergency Funds');
-    expect(screen.getByLabelText(/deadline/i)).toHaveValue('2026-07-01');
-    expect(screen.getByRole('checkbox', { name: /this is my emergency fund/i })).toBeChecked();
+    expect(screen.getByLabelText('Goal Name')).toHaveValue('Trip');
+    expect(screen.getByLabelText(/^deadline/i)).toHaveValue('2026-07-01');
+    expect(screen.getByRole('checkbox', { name: /this is my emergency fund/i })).not.toBeChecked();
 
-    fireEvent.change(screen.getByLabelText(/deadline/i), { target: { value: '2027-05-01' } });
+    fireEvent.change(screen.getByLabelText(/^deadline/i), { target: { value: '2027-05-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
 
     await waitFor(() => expect(updateSavingsGoal).toHaveBeenCalledWith(5, {
-      name: 'Emergency Funds', target_amount: 5000, deadline: '2027-05-01', is_emergency_fund: true,
+      name: 'Trip', target_amount: 5000, deadline: '2027-05-01', is_emergency_fund: false,
     }));
     expect(onSuccess).toHaveBeenCalled();
     expect(createSavingsGoal).not.toHaveBeenCalled();
+  });
+
+  it('keeps no date on the emergency fund, which is never due', async () => {
+    // The live fund carried a July date and read "Past deadline" ever since.
+    render(<AddSavingsGoalModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} goal={emergency} />);
+
+    expect(screen.getByRole('checkbox', { name: /this is my emergency fund/i })).toBeChecked();
+    expect(screen.queryByLabelText(/^deadline/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
+
+    await waitFor(() => expect(updateSavingsGoal).toHaveBeenCalledWith(5, {
+      name: 'Emergency Funds', target_amount: 5000, deadline: null, is_emergency_fund: true,
+    }));
   });
 
   it('creates a goal and can mark it as the emergency fund', async () => {

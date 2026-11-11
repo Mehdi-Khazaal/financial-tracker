@@ -373,6 +373,12 @@ describe('account balance presentation', () => {
 describe('describeGoal', () => {
   const today = EARLY_AUGUST;
 
+  it('never calls the emergency fund past its deadline', () => {
+    const fund = goal({ current_amount: 500, target_amount: 5000, deadline: '2026-07-01', is_emergency_fund: true });
+    expect(describeGoal(fund, today).statusLabel).toBe('In progress');
+    expect(describeGoal({ ...fund, is_emergency_fund: false }, today).statusLabel).toBe('Past deadline');
+  });
+
   it('shows a completed goal in the positive colour, never red', () => {
     const result = describeGoal(goal({ current_amount: 10000 }), today);
 

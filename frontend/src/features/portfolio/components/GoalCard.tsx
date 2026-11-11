@@ -22,6 +22,7 @@ const PACE_COLORS: Record<GoalPace, string> = {
   complete: 'var(--pos)',
   overfunded: 'var(--pos)',
   'no-deadline': 'var(--muted)',
+  emergency: 'var(--accent)',
   'date-passed': 'var(--neg)',
   ahead: 'var(--pos)',
   'on-track': 'var(--pos)',

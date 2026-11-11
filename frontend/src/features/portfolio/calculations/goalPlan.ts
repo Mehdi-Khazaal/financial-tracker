@@ -20,6 +20,7 @@
 import type { SavingsGoal } from '../../../types';
 import { monthsUntil } from './goals';
 import { dateKey } from '../../analytics/period';
+import { goalDeadline } from '../../overview/calculations/goals';
 
 export const PLAN_HORIZON_MONTHS = 120;
 
@@ -123,7 +124,7 @@ export function planGoals({ goals, monthlySaving, fromPaychecks = new Map(), tod
 
   const planned: PlannedGoal[] = goals.map(goal => {
     const rem = remaining.get(goal.id) ?? 0;
-    const deadline = goal.deadline ? goal.deadline.slice(0, 10) : null;
+    const deadline = goalDeadline(goal);
     const passed = deadline != null && deadline < todayKey;
     const toDeadline = deadline != null && !passed ? monthsUntil(deadline, today) : null;
     const neededMonthly = toDeadline != null && rem > 0 ? rem / Math.max(1, toDeadline) : null;

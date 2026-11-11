@@ -48,7 +48,8 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal
     const payload = {
       name: name.trim(),
       target_amount: parseFloat(targetAmount),
-      deadline: deadline || null,
+      // An emergency fund is never due (see `goalDeadline`), so it keeps no date.
+      deadline: isEmergency ? null : deadline || null,
       is_emergency_fund: isEmergency,
     };
     try {
@@ -87,12 +88,14 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal
           </div>
         </div>
 
-        <div>
-          <label className="label mb-2 block" htmlFor="goal-deadline">
-            Deadline <span className="text-dim">(optional)</span>
-          </label>
-          <input id="goal-deadline" type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input-dark" />
-        </div>
+        {!isEmergency && (
+          <div>
+            <label className="label mb-2 block" htmlFor="goal-deadline">
+              Deadline <span className="text-dim">(optional)</span>
+            </label>
+            <input id="goal-deadline" type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input-dark" />
+          </div>
+        )}
 
         <label className="flex items-start gap-3 cursor-pointer min-h-[44px]" htmlFor="goal-emergency">
           <input
@@ -105,7 +108,7 @@ const AddSavingsGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal
           <span>
             <span className="block text-sm font-medium" style={{ color: 'var(--fg)' }}>This is my emergency fund</span>
             <span className="block text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-              Its money counts as emergency cover. Money for every other goal is left out of available to spend and of cover.
+              Its money counts as emergency cover. Money for every other goal is left out of available to spend and of cover. It has no deadline: it is measured by the months of spending it covers.
             </span>
           </span>
         </label>
