@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { Account, Transaction, SavingsGoal, Category, MonthSnapshot, Asset, RecurringTransaction, RecurringOverview, BudgetProgressSummary, Collection, HoldingsValuation } from '../types';
 import {
@@ -11,9 +11,6 @@ import { useAuth } from '../context/AuthContext';
 import { AppShell, PageLayout } from '../components/layout/AppShell';
 import PullToRefresh from '../components/PullToRefresh';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import AddTransactionModal from '../components/modals/AddTransactionModal';
-import TransferModal from '../components/modals/TransferModal';
-import BudgetsSheet from '../components/modals/BudgetsSheet';
 import { DashboardSkeleton } from '../components/dashboard/DashboardPrimitives';
 import { consumeQuickAction } from '../context/UIContext';
 import LoadErrorBanner from '../components/LoadErrorBanner';
@@ -22,11 +19,17 @@ import OverviewTab from '../features/overview/OverviewTab';
 import { useToday } from '../features/overview/useOverviewModel';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
+import { useOpenedOnce } from '../hooks/useOpenedOnce';
 
 // Split out on its own: this subtree owns the charting library, the largest
 // dependency in the app, and the dashboard opens on the Overview tab. Someone
 // who never opens Analytics never downloads it.
 const AnalyticsTab = React.lazy(() => import('../features/analytics/AnalyticsTab'));
+// Opened by a tap, never on arrival, so they load on first open rather than
+// in the code every visit downloads.
+const AddTransactionModal = React.lazy(() => import('../components/modals/AddTransactionModal'));
+const TransferModal = React.lazy(() => import('../components/modals/TransferModal'));
+const BudgetsSheet = React.lazy(() => import('../components/modals/BudgetsSheet'));
 
 type Tab = 'overview' | 'analytics';
 
@@ -44,13 +47,16 @@ const Dashboard: React.FC = () => {
   const [budgets, setBudgets]                 = useState<BudgetProgressSummary | null>(null);
   const [collections, setCollections]         = useState<Collection[]>([]);
   const [showBudgets, setShowBudgets]         = useState(false);
+  const budgetsOpened = useOpenedOnce(showBudgets);
   const [loading, setLoading]                 = useState(true);
   const [loadError, setLoadError]             = useState(false);
   const [failedSources, setFailedSources]     = useState<string[]>([]);
   const [tab, setTab]                         = useRouteTab('/');
   const [showTx, setShowTx]                   = useState(false);
+  const txOpened = useOpenedOnce(showTx);
   const [txType, setTxType]                   = useState<'income' | 'expense'>('expense');
   const [showTransfer, setShowTransfer]       = useState(false);
+  const transferOpened = useOpenedOnce(showTransfer);
   const [initialCategoryId, setInitialCategoryId] = useState<number | null>(null);
 
   const today = useToday();
@@ -300,15 +306,23 @@ const Dashboard: React.FC = () => {
         </div>
       </PageLayout>
 
-      <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
-      <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
-      <BudgetsSheet
-        isOpen={showBudgets}
-        onClose={() => setShowBudgets(false)}
-        onChanged={() => { void refreshBudgets(); }}
-        categories={categories}
-        progress={budgets}
-      />
+      <Suspense fallback={null}>
+        {txOpened && (
+          <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={loadAll} defaultType={txType} />
+        )}
+        {transferOpened && (
+          <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={loadAll} />
+        )}
+        {budgetsOpened && (
+          <BudgetsSheet
+            isOpen={showBudgets}
+            onClose={() => setShowBudgets(false)}
+            onChanged={() => { void refreshBudgets(); }}
+            categories={categories}
+            progress={budgets}
+          />
+        )}
+      </Suspense>
     </AppShell>
   );
 };
