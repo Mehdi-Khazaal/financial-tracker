@@ -56,26 +56,32 @@ const BudgetsCard: React.FC<Props> = ({ summary, today, onManage, unavailable = 
         </button>
       </div>
 
-      <div className="py-3" style={{ borderTop: '1px solid var(--line)' }}>
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="font-mono tabular-nums text-sm" style={{ color: 'var(--fg)' }}>
-            {dollars(view.spent)}<span style={{ color: 'var(--dim)' }}> / {dollars(view.budgeted)}</span>
-          </p>
-          <p className="text-[10px] font-medium shrink-0" style={{ color: view.overCount > 0 ? 'var(--neg)' : 'var(--muted)' }}>
-            {view.overCount > 0 ? `${view.overCount} over` : view.paceLabel}
-          </p>
+      {/* The total only adds something with two or more budgets; with one it
+          repeated the row below it, unlabelled. */}
+      {view.items.length > 1 && (
+        <div className="py-3" style={{ borderTop: '1px solid var(--line)' }}>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="font-mono tabular-nums text-sm" style={{ color: 'var(--fg)' }}>
+              <span className="font-sans text-xs mr-2" style={{ color: 'var(--muted)' }}>All budgets</span>
+              {dollars(view.spent)}<span style={{ color: 'var(--dim)' }}> / {dollars(view.budgeted)}</span>
+            </p>
+            <p className="text-[10px] font-medium shrink-0" style={{ color: view.overCount > 0 ? 'var(--neg)' : 'var(--muted)' }}>
+              {view.overCount > 0 ? `${view.overCount} over` : view.paceLabel}
+            </p>
+          </div>
+          <div className="mt-2">
+            <ProgressBar
+              value={view.budgeted > 0 ? (view.spent / view.budgeted) * 100 : 0}
+              color={view.overCount > 0 ? 'var(--neg)' : 'var(--accent)'}
+              height={4}
+              label="Share of this month's budgets spent"
+            />
+          </div>
         </div>
-        <div className="mt-2">
-          <ProgressBar
-            value={view.budgeted > 0 ? (view.spent / view.budgeted) * 100 : 0}
-            color={view.overCount > 0 ? 'var(--neg)' : 'var(--accent)'}
-            height={4}
-            label="Share of this month's budgets spent"
-          />
-        </div>
-      </div>
+      )}
 
-      <div className="row-list">
+      {/* With no total above, the list carries the rule under the heading. */}
+      <div className="row-list" style={view.items.length > 1 ? undefined : { borderTop: '1px solid var(--line)' }}>
         {view.items.slice(0, MAX_ROWS).map(item => (
           <div key={item.id} className="py-3" aria-label={`${item.name}: ${item.statusLabel}`}>
             <div className="flex items-center justify-between gap-2 mb-2">

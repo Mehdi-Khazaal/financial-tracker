@@ -37,6 +37,25 @@ describe('BudgetsCard', () => {
     expect(screen.getByText('1 over')).toBeInTheDocument();
   });
 
+  it('totals two or more budgets, and leaves a single one to speak for itself', () => {
+    const one: BudgetProgressSummary = {
+      month: '2026-09', budgeted: '200.00', spent: '0.00', remaining: '200.00', over_count: 0,
+      budgets: [progress({ category_name: 'Whish', amount: '200.00', available: '200.00', spent: '0.00', remaining: '200.00', percent: '0.0' })],
+    };
+    const { unmount } = render(<BudgetsCard summary={one} today={today} onManage={vi.fn()} />);
+    expect(screen.queryByText('All budgets')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar', { name: "Share of this month's budgets spent" })).not.toBeInTheDocument();
+    expect(screen.getByText('Whish')).toBeInTheDocument();
+    unmount();
+
+    const two: BudgetProgressSummary = {
+      ...one, budgeted: '600.00', spent: '120.00',
+      budgets: [...one.budgets, progress({ id: 2, category_name: 'Groceries' })],
+    };
+    render(<BudgetsCard summary={two} today={today} onManage={vi.fn()} />);
+    expect(screen.getByText('All budgets')).toBeInTheDocument();
+  });
+
   it('says so when the source failed instead of pretending there are no budgets', () => {
     render(<BudgetsCard summary={null} today={today} onManage={vi.fn()} unavailable />);
     expect(screen.getByText('Budgets could not be loaded')).toBeInTheDocument();

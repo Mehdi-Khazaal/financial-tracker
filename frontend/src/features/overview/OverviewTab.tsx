@@ -146,6 +146,10 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
             invested={model.metrics.investments}
             showNextCharge={!model.brief.some(item => item.id === 'bill-due')}
           />
+          {/* Goals sit in the wide column: a name, an amount and a bar read
+              well at width, and the right column ran long while this one
+              stopped halfway down the page. */}
+          {!goalsFailed && <GoalsList goals={goals} today={today} />}
         </div>
 
         <div className="space-y-9 min-w-0">
@@ -158,7 +162,6 @@ const OverviewTab: React.FC<OverviewTabProps> = props => {
               unavailable={failedSources.includes('budgets')}
             />
           )}
-          {!goalsFailed && <GoalsList goals={goals} today={today} />}
           <section aria-labelledby="overview-accounts-heading">
             <div className="flex items-baseline justify-between mb-2">
               <h2 className="section-title" id="overview-accounts-heading">Accounts</h2>
