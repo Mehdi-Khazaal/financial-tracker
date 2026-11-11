@@ -72,6 +72,11 @@ def test_past_months_still_read_their_snapshots(client, db_session, user, auth_h
 def test_a_holding_counts_from_the_day_it_was_bought(client, db_session, user, auth_headers, account, today):
     """Buying an $800 coin with cash moves money between parts; the total holds."""
     bought = _months_ago_end(today, 1) - timedelta(days=3)
+    # Records start two months ago, with the deposit that funded the account.
+    db_session.add(Transaction(
+        user_id=user.id, account_id=account.id, amount=Decimal("1000.00"),
+        description="Opening deposit", transaction_date=_months_ago_end(today, 2) - timedelta(days=5),
+    ))
     db_session.add(Transaction(
         user_id=user.id, account_id=account.id, amount=Decimal("-800.00"),
         description="Coin dealer", transaction_date=bought,
@@ -90,6 +95,29 @@ def test_a_holding_counts_from_the_day_it_was_bought(client, db_session, user, a
     assert [p["accounts"] for p in points] == ["1000.00", "200.00", "200.00"]
     assert [p["holdings"] for p in points] == ["0.00", "800.00", "800.00"]
     assert [p["net_worth"] for p in points] == ["1000.00", "1000.00", "1000.00"]
+
+
+def test_history_starts_where_the_records_start(client, db_session, user, auth_headers, account, today):
+    """Records from three months ago: no flat line drawn back two years before them."""
+    db_session.add(Transaction(user_id=user.id, account_id=account.id, amount=Decimal("-50.00"),
+                               description="First purchase", transaction_date=_months_ago_end(today, 3) - timedelta(days=2)))
+    db_session.commit()
+
+    points = _history(client, auth_headers, months=24)
+
+    assert len(points) == 4
+    assert points[0]["month"] == _months_ago_end(today, 3).strftime("%Y-%m")
+    assert points[-1]["month"] == today.strftime("%Y-%m")
+
+
+def test_a_transfer_also_marks_where_records_start(client, db_session, user, auth_headers, account, second_account, today):
+    from models.database import Transfer
+
+    db_session.add(Transfer(user_id=user.id, from_account_id=account.id, to_account_id=second_account.id,
+                            amount=Decimal("100"), transfer_date=_months_ago_end(today, 1) - timedelta(days=1)))
+    db_session.commit()
+
+    assert len(_history(client, auth_headers, months=12)) == 2
 
 
 def test_the_current_month_values_holdings_at_the_stored_price(

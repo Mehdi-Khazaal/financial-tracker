@@ -77,7 +77,8 @@ BUDGETS = [
     ("/transactions/?limit=500", 4),
     ("/categories/", 3),
     ("/savings-goals/", 5),
-    ("/history/net-worth?months=12", 6),
+    # One aggregate finds where the records start (months before it are not reported).
+    ("/history/net-worth?months=12", 7),
     ("/history/accounts?months=6", 4),
     ("/recurring/", 6),
     # Cold: includes the detection pass plus the four fingerprint aggregates

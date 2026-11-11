@@ -62,13 +62,16 @@ def test_a_transfer_moves_both_histories(client, db_session, user, auth_headers,
 
 
 def test_a_transfer_does_not_change_net_worth_history(client, db_session, user, auth_headers, account, cash, today):
-    account.balance = Decimal("0.00")
+    # Records start last month (a $100 deposit), so last month is reported.
+    db_session.add(Transaction(user_id=user.id, account_id=account.id, amount=Decimal("100.00"),
+                               description="Deposit", transaction_date=_last_month_end(today) - timedelta(days=3)))
+    account.balance = Decimal("100.00")
     db_session.commit()
     _transfer(db_session, user, account, cash, "1500.00", today)
 
     points = client.get("/history/net-worth?months=2", headers=auth_headers).json()
 
-    assert [p["net_worth"] for p in points] == ["1500.00", "1500.00"]
+    assert [p["net_worth"] for p in points] == ["1600.00", "1600.00"]
 
 
 def test_on_a_linked_account_the_banks_row_wins(db_session, user, account, cash, today):

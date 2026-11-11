@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import func, select, union_all
 from sqlalchemy.orm import Session
 from typing import Dict, List
 from datetime import date
 from decimal import Decimal
 import calendar
 
-from models.database import get_db, Account, AccountBalanceSnapshot, Asset
+from models.database import get_db, Account, AccountBalanceSnapshot, Asset, Transaction, Transfer
 from models.auth import User
 from utils.auth import get_current_user
 from services.balance_snapshots import balance_movements
@@ -70,6 +71,18 @@ def _balance_history(current_balance: Decimal, movements, months: int, today: da
     return result
 
 
+def _first_record(db: Session, user_id: int) -> date | None:
+    """The earliest transaction or transfer: where the user's records begin."""
+    earliest = union_all(
+        select(func.min(Transaction.transaction_date).label("day")).where(Transaction.user_id == user_id),
+        select(func.min(Transfer.transfer_date).label("day")).where(Transfer.user_id == user_id),
+    ).subquery()
+    day = db.execute(select(func.min(earliest.c.day))).scalar()
+    if isinstance(day, str):  # SQLite hands back the text
+        day = date.fromisoformat(day[:10])
+    return day
+
+
 @router.get("/net-worth", response_model=List[NetWorthPoint])
 def net_worth_history(
     months: int = Query(default=12, ge=1, le=36),
@@ -89,6 +102,12 @@ def net_worth_history(
     drifted from the balances on screen as soon as anything posted. It uses
     today's balances and today's holdings valuation instead, which is exactly
     what the screens show as "now".
+
+    Months before the first transaction or transfer are not reported. Walking
+    back from today's balances past the first record only repeats the opening
+    balance, so the live account's chart drew a flat line back to December
+    2024 from records that start in March 2026, and quoted "+130% in 24
+    months". The screens label a shorter series "Since <month>".
     """
     accounts = db.query(Account).filter(Account.user_id == current_user.id).all()
     assets = db.query(Asset).filter(Asset.user_id == current_user.id).all()
@@ -99,6 +118,12 @@ def net_worth_history(
     account_ids = {a.id for a in counted}
     today = user_today(current_user)
     month_targets = [(_end_of_month(y, m), f"{y}-{m:02d}") for (y, m) in _month_range(months, today)]
+    # With no transactions or transfers there is nothing to trim to, and a
+    # holdings-only history (or a snapshot one) is still drawn in full.
+    first = _first_record(db, current_user.id)
+    if first is not None:
+        first_month_end = _end_of_month(first.year, first.month)
+        month_targets = [(end, label) for end, label in month_targets if end >= first_month_end]
     past_dates = {d for d, _ in month_targets if d < today}
 
     # Pre-computed month-end snapshots — one row per (account, date).
