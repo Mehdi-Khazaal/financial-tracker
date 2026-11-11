@@ -46,10 +46,14 @@ const PriceChart: React.FC<{ points: { month: string; price: number }[]; average
         <polyline points={line} fill="none" stroke="var(--fg)" strokeWidth={1.75} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="flex justify-between text-[11px] mt-1" style={{ color: 'var(--dim)' }} aria-hidden="true">
-        <span>{shortMonthLabel(first.month)}</span>
-        {averageCost != null && <span>Dashed: what you paid per ounce</span>}
-        <span>{shortMonthLabel(last.month)}</span>
+        <span className="tabular-nums">{shortMonthLabel(first.month)} · {dollars(first.price, 0)}</span>
+        <span className="tabular-nums">{dollars(last.price, 0)} · {shortMonthLabel(last.month)}</span>
       </div>
+      {averageCost != null && (
+        <p className="text-[11px] mt-0.5" style={{ color: 'var(--dim)' }} aria-hidden="true">
+          Dashed line: the {dollars(averageCost, 0)} an ounce you paid on average.
+        </p>
+      )}
       <figcaption className="sr-only">
         {`${name} per ounce: ${dollars(first.price, 0)} in ${monthLabel(first.month)}, ${dollars(last.price, 0)} in ${monthLabel(last.month)}, highest ${dollars(high.price, 0)} in ${monthLabel(high.month)}.`}
         {averageCost != null ? ` You paid ${dollars(averageCost, 0)} an ounce on average.` : ''}
