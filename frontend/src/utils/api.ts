@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, MetalPrice, RuleDraft, Transaction,
+  Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, MetalPrice, MetalHistoryPoint, RuleDraft, Transaction,
   TransferSuggestion, PaycheckPlan, PaycheckPlanInput, MissingTransfers,
 } from '../types';
 
@@ -314,6 +314,8 @@ export const untickPaycheckLine = (payday: string, lineId: number) =>
 
 /** Gold and silver per troy ounce, for previewing a piece's value. */
 export const getMetalPrices = () => cachedRead('metal-prices', () => api.get<MetalPrice[]>('/assets/metal-prices'));
+export const getMetalHistory = (metal: 'gold' | 'silver', months = 12) =>
+  api.get<MetalHistoryPoint[]>(`/assets/metal-history?metal=${metal}&months=${months}`);
 
 /** Drop the cached valuation so the next read asks the server again. */
 export const forgetHoldingValuations = () => { readCache.delete('valuations'); };

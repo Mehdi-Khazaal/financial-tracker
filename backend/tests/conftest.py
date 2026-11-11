@@ -147,6 +147,7 @@ def no_market_data(monkeypatch):
     from services import market_prices
 
     monkeypatch.setattr(market_prices, "fetch_for_key", lambda key: None)
+    monkeypatch.setattr(market_prices, "fetch_monthly_closes", lambda symbol, months: {})
 
 
 @pytest.fixture(autouse=True)

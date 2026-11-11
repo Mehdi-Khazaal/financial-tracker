@@ -79,3 +79,57 @@ export function describeMetal(asset: Pick<Asset, 'metal' | 'weight_grams' | 'pur
   const weight = Math.abs(grams - TROY_OUNCE_GRAMS) < 0.001 ? '1 oz' : `${Number(grams.toFixed(2))} g`;
   return `${weight} · ${fineness} ${asset.metal}`;
 }
+
+export interface MetalSummary {
+  metal: Metal;
+  /** Holdings priced by this metal. */
+  holdings: number;
+  /** Troy ounces of the pure metal across every piece. */
+  fineOunces: number;
+  paid: number;
+  value: number;
+  gain: number;
+  gainPct: number | null;
+  /** What was paid per ounce of pure metal, on average. */
+  averageCostPerOunce: number | null;
+  /** Today's price per troy ounce, when known. */
+  spotPrice: number | null;
+}
+
+/**
+ * Every piece of one metal, taken together: how much pure metal it holds,
+ * what it cost and what it is worth. Gold was two thirds of the live
+ * account's net worth, spread over six separate cards with no total.
+ */
+export function summariseMetal(
+  assets: Asset[],
+  valuations: Readonly<Record<number, { current_value: number | string; spot_price?: number | string | null }>>,
+  metal: Metal,
+): MetalSummary | null {
+  const pieces = assets.filter(a => a.metal === metal && a.weight_grams != null && a.purity != null);
+  if (pieces.length === 0) return null;
+  let fine = 0;
+  let paid = 0;
+  let value = 0;
+  let spot: number | null = null;
+  pieces.forEach(a => {
+    const quantity = Number(a.quantity) || 0;
+    fine += fineOunces(Number(a.weight_grams), Number(a.purity)) * quantity;
+    paid += Number(a.total_value) || 0;
+    const valued = valuations[a.id];
+    value += valued ? Number(valued.current_value) || 0 : Number(a.total_value) || 0;
+    if (spot == null && valued?.spot_price != null) spot = Number(valued.spot_price) || null;
+  });
+  const gain = value - paid;
+  return {
+    metal,
+    holdings: pieces.length,
+    fineOunces: fine,
+    paid,
+    value,
+    gain,
+    gainPct: paid > 0 ? gain / paid : null,
+    averageCostPerOunce: fine > 0 ? paid / fine : null,
+    spotPrice: spot,
+  };
+}

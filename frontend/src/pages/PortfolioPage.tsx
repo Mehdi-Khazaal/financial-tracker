@@ -40,7 +40,8 @@ import {
 } from '../features/portfolio/calculations/investments';
 import { calculateAccountTotals } from '../features/accounts/calculations/totals';
 import { calculateNetWorth, withCurrentNetWorth } from '../features/portfolio/calculations/wealth';
-import { describeMetal } from '../features/portfolio/calculations/metal';
+import { describeMetal, summariseMetal, type MetalSummary } from '../features/portfolio/calculations/metal';
+import MetalSummaryCard from '../features/portfolio/components/MetalSummaryCard';
 import { InfoHint } from '../features/analytics/components/AnalyticsPrimitives';
 
 type Tab = 'investments' | 'assets' | 'savings';
@@ -339,6 +340,14 @@ const PortfolioPage: React.FC = () => {
       .filter(m => m < monthKeyOf(savingsToday));
     return usualMonth(transactions, ctx, months, savings.averageMonthlySaved);
   }, [transactions, accounts, categories, savingsToday, savings.averageMonthlySaved]);
+
+  // Gold and silver taken together, for the Assets tab.
+  const metalSummaries = useMemo(
+    () => (['gold', 'silver'] as const)
+      .map(metal => summariseMetal(assets, valuations, metal))
+      .filter((s): s is MetalSummary => s != null),
+    [assets, valuations],
+  );
 
   const historyUnavailable = failedSources.includes('transactions');
   // The goal plan: goals funded in priority order, paycheck-plan lines first,
@@ -701,7 +710,7 @@ const PortfolioPage: React.FC = () => {
                   <div className="flex flex-wrap gap-4">
                     {Object.entries(byType).map(([type, list]) => (
                       <div key={type}>
-                        <p className="text-xs mb-0.5 text-muted">{type.replace('_', ' ')}</p>
+                        <p className="text-xs mb-0.5 text-muted">{type.replace('_', ' ').replace(/^./, c => c.toUpperCase())}</p>
                         <p className="font-mono text-sm font-semibold text-text" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           ${fmt(list.reduce((s, a) => s + currentValueOf(a), 0))}
                         </p>
@@ -710,6 +719,8 @@ const PortfolioPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {metalSummaries.map(summary => <MetalSummaryCard key={summary.metal} summary={summary} />)}
 
               {assets.length === 0 ? (
                 <EmptyState

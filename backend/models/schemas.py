@@ -338,6 +338,12 @@ class MetalPriceResponse(BaseModel):
     price: Decimal
     fetched_at: datetime
 
+
+class MetalHistoryPoint(BaseModel):
+    month: str
+    # US dollars per troy ounce at the month's end (the latest for this month).
+    price: Decimal
+
 # ─── Savings Goal ─────────────────────────────────────────────────────────────
 class SavingsGoalBase(BaseModel):
     name: str

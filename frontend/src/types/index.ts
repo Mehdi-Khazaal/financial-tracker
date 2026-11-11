@@ -196,6 +196,12 @@ export interface MetalPrice {
   fetched_at: string;
 }
 
+/** A metal's price per troy ounce at a month's end (the latest, for this month). */
+export interface MetalHistoryPoint {
+  month: string;
+  price: number | string;
+}
+
 export interface HoldingsValuation {
   total: number | string;
   recorded_total: number | string;

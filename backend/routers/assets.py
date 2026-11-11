@@ -4,9 +4,11 @@ from typing import List, Optional
 from models.database import get_db, Asset, SessionLocal, utc_now
 from models.auth import User
 from models.schemas import (
-    AssetCreate, AssetUpdate, AssetResponse, HoldingsValuationResponse, HoldingValueResponse, MetalPriceResponse,
+    AssetCreate, AssetUpdate, AssetResponse, HoldingsValuationResponse, HoldingValueResponse, MetalHistoryPoint,
+    MetalPriceResponse,
 )
-from services.market_prices import METAL_KEYS, get_quotes, keys_needing_refresh, refresh_quotes
+from services.market_prices import METAL_KEYS, get_quotes, keys_needing_refresh, metal_history, refresh_quotes
+from utils.dates import user_today
 from services.valuation import price_keys, value_assets
 from utils.auth import get_current_user
 from utils.etag import check_etag, compute_user_etag, set_etag_headers
@@ -125,6 +127,29 @@ def get_metal_prices(
         MetalPriceResponse(metal=by_key[key], price=quote.price, fetched_at=quote.fetched_at)
         for key, quote in sorted(quotes.items())
     ]
+
+
+@router.get("/metal-history", response_model=List[MetalHistoryPoint])
+@limiter.limit("30/minute")
+def get_metal_history(
+    request: Request,
+    metal: str = Query("gold", pattern="^(gold|silver)$"),
+    months: int = Query(12, ge=2, le=36),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The metal's price per troy ounce at each month's end, oldest first.
+
+    For the chart beside the owner's gold: what an ounce has done against what
+    they paid for theirs. Past months are fetched once and kept.
+    """
+    del request
+    today = user_today(current_user)
+    labels = []
+    for back in range(months - 1, -1, -1):
+        index = today.year * 12 + today.month - 1 - back
+        labels.append(f"{index // 12:04d}-{index % 12 + 1:02d}")
+    return [MetalHistoryPoint(month=month, price=price) for month, price in metal_history(db, metal, labels)]
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)

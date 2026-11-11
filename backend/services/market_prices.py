@@ -220,3 +220,57 @@ def get_quotes(db: Session, keys: Iterable[str], refresh: RefreshMode = "missing
     if fetch:
         quotes.update(refresh_quotes(db, fetch))
     return quotes
+
+
+# ─── Monthly history ──────────────────────────────────────────────────────────
+# Month-end closes, stored in the same table under `<key>@YYYY-MM`. A past
+# month's close never changes, so it is fetched once; the month in progress is
+# refetched when its row is older than `HISTORY_FRESH_FOR`.
+HISTORY_FRESH_FOR = timedelta(hours=6)
+
+
+def history_key(key: str, month: str) -> str:
+    return f"{key}@{month}"
+
+
+def fetch_monthly_closes(symbol: str, months: int) -> dict[str, Decimal]:
+    """Each month's last closing price from yfinance, by `YYYY-MM`. Empty when unavailable.
+
+    Built from daily closes: Yahoo's monthly series for the gold future skips
+    months around contract rolls (February and March 2026 were missing).
+    """
+    try:
+        frame = yf.Ticker(symbol).history(period=f"{months + 1}mo", interval="1d")
+    except Exception as exc:  # network, parsing: the chart simply waits
+        logger.info("market_history_unavailable %s", kv(symbol=symbol, error=type(exc).__name__))
+        return {}
+    closes: dict[str, Decimal] = {}
+    for stamp, close in sorted(frame.get("Close", {}).items()):
+        if close == close and close > 0:  # NaN is not equal to itself
+            closes[stamp.strftime("%Y-%m")] = Decimal(str(round(float(close), 6)))  # later days win
+    return closes
+
+
+def metal_history(db: Session, metal: str, months: list[str]) -> list[tuple[str, Decimal]]:
+    """Price per troy ounce at each month's end (the latest price for the current month).
+
+    `months` is oldest first and ends with the month in progress. Months with
+    no price are left out rather than invented.
+    """
+    key = metal_key(metal)
+    if key is None or not months:
+        return []
+    symbol = METAL_TICKERS[key.partition(":")[2]]
+    keys = {month: history_key(key, month) for month in months}
+    stored = stored_quotes(db, keys.values())
+    current = keys[months[-1]]
+    now = utc_now()
+    missing_past = any(keys[m] not in stored for m in months[:-1])
+    current_stale = current not in stored or now - stored[current].fetched_at > HISTORY_FRESH_FOR
+    if missing_past or current_stale:
+        closes = fetch_monthly_closes(symbol, len(months))
+        for month, price in closes.items():
+            if month in keys:
+                _store(db, keys[month], price, None, now)
+        stored = stored_quotes(db, keys.values())
+    return [(m, stored[keys[m]].price) for m in months if keys[m] in stored]

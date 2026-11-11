@@ -1,4 +1,4 @@
-import { PRESETS, TROY_OUNCE_GRAMS, describeMetal, fineOunces, gramsFrom, metalValue } from './metal';
+import { PRESETS, TROY_OUNCE_GRAMS, describeMetal, fineOunces, gramsFrom, metalValue, summariseMetal } from './metal';
 import { metalFieldsFrom, metalPayload, EMPTY_METAL_FIELDS } from '../components/MetalPricingFields';
 
 /**
@@ -72,5 +72,46 @@ describe('metal form state', () => {
     expect(metalFieldsFrom({ metal: 'gold', weight_grams: '7.9880500', purity: '0.9167' }))
       .toEqual({ enabled: true, metal: 'gold', weight: '7.9881', unit: 'g', purity: 0.9167 });
     expect(metalFieldsFrom(null)).toEqual(EMPTY_METAL_FIELDS);
+  });
+});
+
+describe('summariseMetal', () => {
+  // The live account's six gold pieces and what they cost.
+  const piece = (id: number, quantity: number, paid: number, grams: number, purity: number) => ({
+    id, user_id: 1, name: 'Gold', type: 'jewelry', asset_class: 'physical', quantity, value_per_unit: paid / quantity,
+    total_value: paid, currency: 'USD', purchase_date: null, metal: 'gold', weight_grams: grams, purity,
+    created_at: '', updated_at: '',
+  }) as unknown as import('../../../types').Asset;
+  const pieces = [
+    piece(17, 2, 8000, TROY_OUNCE_GRAMS, 0.9999),
+    piece(15, 1, 4099.99, TROY_OUNCE_GRAMS, 0.9999),
+    piece(14, 1, 1050, 8, 0.875),
+    piece(13, 1, 3620, TROY_OUNCE_GRAMS, 0.9999),
+    piece(12, 2, 1460, 8, 0.875),
+    piece(11, 1, 1200, 8, 0.875),
+  ];
+  const valuations = Object.fromEntries(pieces.map(p => [p.id, {
+    current_value: metalValue(Number(p.weight_grams), Number(p.purity), Number(p.quantity), 4048.8)!.toFixed(2),
+    spot_price: '4048.8',
+  }]));
+
+  it('adds up the pure gold, the cost and the value', () => {
+    const gold = summariseMetal(pieces, valuations, 'gold')!;
+
+    // Four 0.9999 ounces and four 21k liras of 7 g pure gold each.
+    expect(gold.fineOunces).toBeCloseTo(3.9996 + 28 / TROY_OUNCE_GRAMS, 4);
+    expect(gold.holdings).toBe(6);
+    expect(gold.paid).toBeCloseTo(19429.99, 2);
+    expect(gold.value).toBeCloseTo(gold.fineOunces * 4048.8, 0);
+    expect(gold.averageCostPerOunce).toBeCloseTo(3965.45, 1);
+    expect(gold.spotPrice).toBe(4048.8);
+    expect(gold.gain).toBeCloseTo(gold.value - gold.paid, 2);
+  });
+
+  it('values an unpriced piece at what was paid, and ignores other metals', () => {
+    const gold = summariseMetal(pieces.slice(0, 1), {}, 'gold')!;
+    expect(gold.value).toBe(8000);
+    expect(gold.spotPrice).toBeNull();
+    expect(summariseMetal(pieces, valuations, 'silver')).toBeNull();
   });
 });
