@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import type { SavingsGoal } from '../../../types';
 import { setGoalOrder } from '../../../utils/api';
 import { useToast } from '../../../context/ToastContext';
-import { dollars } from '../../analytics/format';
+import { dollars, plural, shortMonthLabel } from '../../analytics/format';
+import type { OneOff } from '../../analytics/calculations/oneOffs';
 import { describePlannedGoal, type GoalPlan } from '../calculations/goalPlan';
 
 /**
@@ -14,10 +15,17 @@ import { describePlannedGoal, type GoalPlan } from '../calculations/goalPlan';
  * if it got all of it. This states the gap once and shows the order that
  * decides who waits. Moving a goal up or down changes the order on the server
  * and every date follows.
+ *
+ * What is kept is a usual month: big one-offs (the motorcycle, a semester's
+ * tuition) are left out and listed, because paying for those is what goals
+ * are for. Averaged in, they turned about $1,935 a month into $783.
  */
 
 interface Props {
   plan: GoalPlan;
+  /** One-offs left out of the usual month, largest first. */
+  oneOffs?: OneOff[];
+  oneOffMonthly?: number;
   /** Called with the new order after it is saved. */
   onReordered: (goals: SavingsGoal[]) => void;
 }
@@ -27,7 +35,9 @@ const statusColor = (status: string) =>
     ? 'var(--warn)'
     : status === 'on-time' || status === 'complete' ? 'var(--pos)' : 'var(--muted)';
 
-const GoalPlanCard: React.FC<Props> = ({ plan, onReordered }) => {
+const SHOWN_ONE_OFFS = 3;
+
+const GoalPlanCard: React.FC<Props> = ({ plan, oneOffs = [], oneOffMonthly = 0, onReordered }) => {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -60,7 +70,7 @@ const GoalPlanCard: React.FC<Props> = ({ plan, onReordered }) => {
           <>Your goals need <span className="tabular-nums font-semibold" style={{ color: 'var(--fg)' }}>{dollars(plan.neededMonthly)}</span> a month to finish on time. </>
         )}
         {saving$ != null
-          ? <>You keep about <span className="tabular-nums font-semibold" style={{ color: 'var(--fg)' }}>{dollars(saving$)}</span> a month</>
+          ? <>You keep about <span className="tabular-nums font-semibold" style={{ color: 'var(--fg)' }}>{dollars(saving$)}</span> in a usual month</>
           : plan.monthlySaving == null
             ? 'There is not enough saving history yet to plan with'
             // Two different facts: no history, or history showing nothing kept.
@@ -71,6 +81,15 @@ const GoalPlanCard: React.FC<Props> = ({ plan, onReordered }) => {
         .
         {plan.neededMonthly > 0 && shortfall > 0 && plan.hasCapacity && ' Not every goal can make its date, so the order decides which waits.'}
       </p>
+      {oneOffs.length > 0 && (
+        <p className="text-xs mt-1 max-w-2xl" style={{ color: 'var(--muted)' }}>
+          A usual month leaves out {plural(oneOffs.length, 'big one-off')}, about{' '}
+          <span className="tabular-nums">{dollars(oneOffMonthly, 0)}</span> a month:{' '}
+          {oneOffs.slice(0, SHOWN_ONE_OFFS).map(o => `${o.transaction.description || 'Unnamed'} ${dollars(o.amount, 0)} (${shortMonthLabel(o.month)})`).join(', ')}
+          {oneOffs.length > SHOWN_ONE_OFFS ? ` and ${oneOffs.length - SHOWN_ONE_OFFS} more` : ''}.
+          Things like these are what goals are for. You can mark any transaction as a one-off or not when you edit it.
+        </p>
+      )}
       <p className="text-xs mt-1" style={{ color: 'var(--dim)' }}>
         What you keep each month goes to the top goal first, then the next.
       </p>

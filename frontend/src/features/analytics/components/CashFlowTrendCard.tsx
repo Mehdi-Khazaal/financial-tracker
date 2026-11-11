@@ -52,6 +52,7 @@ const CashFlowTrendCard: React.FC<Props> = ({ trend, periodLabel }) => {
   const avg = (pick: (m: TrendMonth) => number) =>
     complete.length > 0 ? complete.reduce((s, m) => s + pick(m), 0) / complete.length : 0;
   const surplusMonths = complete.filter(m => m.net > 0).length;
+  const oneOffCount = complete.filter(m => m.oneOffs > 0).length;
   const best = complete.reduce<TrendMonth | null>((b, m) => (b == null || m.net > b.net ? m : b), null);
   const partial = trend.find(m => m.partial);
 
@@ -180,7 +181,12 @@ const CashFlowTrendCard: React.FC<Props> = ({ trend, periodLabel }) => {
                 <dd className="metric-value" style={{ color: avg(m => m.net) >= 0 ? 'var(--pos)' : 'var(--neg)' }}>
                   {signedCompact(Math.round(avg(m => m.net)))}
                 </dd>
-                <dd className="metric-note">a month</dd>
+                <dd className="metric-note">
+                  {/* The goal plan funds goals from a usual month, so say what that is. */}
+                  {oneOffCount > 0
+                    ? `a month; ${signedCompact(Math.round(avg(m => m.net + m.oneOffs)))} in a usual month, leaving out big one-offs`
+                    : 'a month'}
+                </dd>
               </div>
               <div className="metric-tile">
                 <dt className="metric-label">Months with money left</dt>

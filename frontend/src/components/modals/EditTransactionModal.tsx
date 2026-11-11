@@ -15,18 +15,21 @@ import { errorText } from '../../features/collections/errors';
 import { useToast } from '../../context/ToastContext';
 import { selectableCategories } from './categoryOptions';
 import SplitEditor from '../../features/transactions/components/SplitEditor';
+import OneOffToggle from '../../features/transactions/components/OneOffToggle';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   transaction: Transaction | null;
+  /** Loaded transactions, to judge whether a charge repeats (one-offs). */
+  history?: Transaction[];
 }
 
 const fmt = (n: number) =>
   Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction }) => {
+const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, transaction, history = [] }) => {
   const toast = useToast();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'view' | 'edit' | 'split'>('view');
@@ -222,6 +225,15 @@ const EditTransactionModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, tra
                 disabled={savingCollections}
               />
             </div>
+          )}
+
+          {accounts.length > 0 && (
+            <OneOffToggle
+              transaction={transaction}
+              history={history}
+              ctx={buildClassificationContext(accounts, categories)}
+              onSaved={onSuccess}
+            />
           )}
 
           {/* A rule from this transaction: the most common reason to want one

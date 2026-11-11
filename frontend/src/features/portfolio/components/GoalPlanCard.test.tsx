@@ -99,3 +99,35 @@ describe('goal cards read the plan', () => {
     expect(summer.paceDetail).toMatch(/^In your goal plan it is funded by .+ months after its date\./);
   });
 });
+
+describe('the usual month', () => {
+  const oneOff = (description: string, amount: number, month: string) => ({
+    transaction: {
+      id: amount, user_id: 1, account_id: 1, category_id: null, amount: -amount, description,
+      transaction_date: `${month}-15`, created_at: '',
+    },
+    month, amount, automatic: true,
+  });
+  // The live ledger's big one-offs, about $2,577 a month over eight months.
+  const oneOffs = [
+    oneOff('FALL 2026 TUITION', 8455, '2026-08'),
+    oneOff('WITHDRAWAL *7190', 7000, '2026-06'),
+    oneOff('Catalytic Converter', 3050, '2026-04'),
+    oneOff('PSU TUITION', 2055, '2026-05'),
+  ];
+
+  it('funds goals from a usual month and names what it leaves out', () => {
+    render(<GoalPlanCard plan={plan(goals, 1935)} oneOffs={oneOffs} oneOffMonthly={2570} onReordered={vi.fn()} />);
+
+    expect(screen.getByText('$1,935.00').parentElement).toHaveTextContent('in a usual month');
+    const note = screen.getByText(/A usual month leaves out 4 big one-offs/);
+    expect(note).toHaveTextContent('$2,570 a month');
+    expect(note).toHaveTextContent('FALL 2026 TUITION $8,455 (Aug 2026), WITHDRAWAL *7190 $7,000 (Jun 2026), Catalytic Converter $3,050 (Apr 2026) and 1 more.');
+  });
+
+  it('says nothing about one-offs when there were none', () => {
+    render(<GoalPlanCard plan={plan()} onReordered={vi.fn()} />);
+
+    expect(screen.queryByText(/big one-off/)).not.toBeInTheDocument();
+  });
+});

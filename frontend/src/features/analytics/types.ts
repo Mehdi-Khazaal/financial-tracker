@@ -210,6 +210,8 @@ export interface TrendMonth {
   income: number;
   expenses: number;
   net: number;
+  /** Spending on big one-offs in the month (see `oneOffs.ts`), already in `expenses`. */
+  oneOffs: number;
   /** The month is still running, so its figures are "so far". */
   partial: boolean;
   /** Inside the period the page is showing. */

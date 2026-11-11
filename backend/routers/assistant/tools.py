@@ -397,6 +397,41 @@ def _t_financial_health(db: Session, user: User, **_) -> dict:
     }
 
 
+def _usual_monthly_surplus(db: Session, user: User, flows: list[dict], today: date) -> tuple[Decimal, Decimal]:
+    """Average monthly surplus with big one-offs left out, and those one-offs a month.
+
+    The goal plan funds goals from a usual month (`services.one_offs`): a
+    $7,000 motorcycle or a semester's tuition is not what a month keeps, and
+    tuition is what the Education goal saves for, so counting it would charge
+    it twice. Routine is judged over the last year, so a monthly charge shows
+    up in other months.
+    """
+    from services.one_offs import one_offs
+
+    active = [f for f in flows if f["income"] or f["spending"]]
+    if not active:
+        return Decimal("0"), Decimal("0")
+    rows = (
+        db.query(Transaction)
+        .filter(
+            Transaction.user_id == user.id,
+            Transaction.transaction_date >= _add_months(_month_floor(today), -12),
+            Transaction.transaction_date < _month_floor(today),
+        )
+        .all()
+    )
+    amounts = one_offs(rows, load_lookups(db, user.id))
+    by_month: dict[str, Decimal] = {}
+    for tx in rows:
+        if tx.id in amounts:
+            key = tx.transaction_date.strftime("%Y-%m")
+            by_month[key] = by_month.get(key, Decimal("0")) + amounts[tx.id]
+    count = Decimal(len(active))
+    left_out = sum((by_month.get(f["month"], Decimal("0")) for f in active), Decimal("0"))
+    usual = sum((f["net"] for f in active), Decimal("0")) / count + left_out / count
+    return usual, left_out / count
+
+
 def _t_project_savings_goals(db: Session, user: User, **_) -> list:
     """Per goal: the gap, what it needs a month, and when it is really reached.
 
@@ -409,8 +444,8 @@ def _t_project_savings_goals(db: Session, user: User, **_) -> list:
     from services import goal_plan, paycheck_plan
 
     today = _user_today(user)
-    averages = _average_monthly(_monthly_flows(db, user, months=6, today=today))
-    surplus = averages["net"]
+    flows = _monthly_flows(db, user, months=6, today=today)
+    surplus, one_off_monthly = _usual_monthly_surplus(db, user, flows, today)
     goals = (
         db.query(SavingsGoal)
         .filter(SavingsGoal.user_id == user.id)
@@ -467,7 +502,10 @@ def _t_project_savings_goals(db: Session, user: User, **_) -> list:
             "remaining": _jsonable(max(target - saved, Decimal("0"))),
             "percent_complete": _jsonable((saved / target * 100).quantize(Decimal("0.1"))) if target else None,
             "deadline": _jsonable(goal.deadline),
+            # A usual month: big one-offs (a vehicle, tuition) are left out and
+            # reported beside it, since goals are how those get paid for.
             "avg_monthly_surplus": _jsonable(surplus.quantize(Decimal("0.01"))),
+            "one_off_spending_monthly": _jsonable(one_off_monthly.quantize(Decimal("0.01"))),
             "from_paycheck_plan_monthly": _jsonable(committed[goal.id].quantize(Decimal("0.01"))) if goal.id in committed else None,
             "required_monthly": _jsonable(result.needed_monthly),
             "shortfall_monthly": _jsonable(max(result.needed_monthly - surplus, Decimal("0")).quantize(Decimal("0.01")))

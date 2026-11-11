@@ -447,7 +447,7 @@ describe('StatementCard', () => {
 
 describe('CashFlowTrendCard', () => {
   const month = (m: string, income: number, expenses: number, over: Partial<TrendMonth> = {}): TrendMonth => ({
-    month: m, income, expenses, net: income - expenses, partial: false, inPeriod: false, ...over,
+    month: m, income, expenses, net: income - expenses, oneOffs: 0, partial: false, inPeriod: false, ...over,
   });
 
   it('gives screen readers every month as a table row', () => {
@@ -458,6 +458,15 @@ describe('CashFlowTrendCard', () => {
     const table = screen.getByRole('table', { name: /by month/ });
     expect(within(table).getAllByRole('row')).toHaveLength(4);
     expect(within(table).getByText('July 2026 (so far)')).toBeInTheDocument();
+  });
+
+  it('says what a usual month keeps when big one-offs pulled the average down', () => {
+    // June held a $7,000 motorcycle: −$6.0k kept, a usual $1.0k without it.
+    render(<CashFlowTrendCard periodLabel="July 2026" trend={[
+      month('2026-05', 4000, 3000), month('2026-06', 4000, 10000, { oneOffs: 7000 }),
+    ]} />);
+    const kept = screen.getByText('Average kept').parentElement!;
+    expect(kept).toHaveTextContent('a month; +$1.0k in a usual month, leaving out big one-offs');
   });
 
   it('averages only finished months and counts the ones that ended ahead', () => {

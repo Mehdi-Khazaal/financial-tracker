@@ -49,6 +49,8 @@ export interface Transaction {
   splits?: TransactionSplit[];
   /** How `category_id` was set: "user" | "merchant_history" | "plaid_pfc". */
   category_source?: string | null;
+  /** The user's call: true a big one-off, false routine, null left to the rule. */
+  one_off?: boolean | null;
   /** Collections (a trip, a holiday...) this transaction is part of. */
   collection_ids?: number[];
 }

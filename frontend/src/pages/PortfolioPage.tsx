@@ -27,6 +27,7 @@ import { MIN_PROJECTION_MONTHS, summariseGoals } from '../features/portfolio/cal
 import { byPriority, planGoals } from '../features/portfolio/calculations/goalPlan';
 import GoalPlanCard from '../features/portfolio/components/GoalPlanCard';
 import { calculateSavingsMetrics } from '../features/analytics/calculations/savings';
+import { usualMonth } from '../features/analytics/calculations/oneOffs';
 import { buildClassificationContext } from '../features/analytics/calculations/transactions';
 import { monthKeyOf, resolvePeriod } from '../features/analytics/period';
 import {
@@ -331,6 +332,14 @@ const PortfolioPage: React.FC = () => {
     });
   }, [transactions, categories, accounts, goals, savingsToday]);
 
+  // A usual month, with big one-offs added back: what goals are funded from.
+  const usual = useMemo(() => {
+    const ctx = buildClassificationContext(accounts, categories);
+    const months = Array.from(new Set(transactions.map(t => t.transaction_date.slice(0, 7))))
+      .filter(m => m < monthKeyOf(savingsToday));
+    return usualMonth(transactions, ctx, months, savings.averageMonthlySaved);
+  }, [transactions, accounts, categories, savingsToday, savings.averageMonthlySaved]);
+
   const historyUnavailable = failedSources.includes('transactions');
   // The goal plan: goals funded in priority order, paycheck-plan lines first,
   // then typical saving down the list. One finish date per goal, which the
@@ -340,14 +349,15 @@ const PortfolioPage: React.FC = () => {
     const fromPaychecks = new Map<number, number>(
       (paycheckPlan?.configured ? paycheckPlan.lines : []).map(l => [l.goal_id, (Number(l.amount) || 0) * perMonth]),
     );
-    const rateUsable = savings.averageMonthlySaved != null && savings.averageMonths >= MIN_PROJECTION_MONTHS;
+    // Funded from a usual month: big one-offs are what goals are for.
+    const rateUsable = usual.usualMonthlySaved != null && savings.averageMonths >= MIN_PROJECTION_MONTHS;
     return planGoals({
       goals: byPriority(goals),
-      monthlySaving: rateUsable ? savings.averageMonthlySaved : null,
+      monthlySaving: rateUsable ? usual.usualMonthlySaved : null,
       fromPaychecks,
       today: savingsToday,
     });
-  }, [goals, paycheckPlan, savings.averageMonthlySaved, savings.averageMonths, savingsToday]);
+  }, [goals, paycheckPlan, usual.usualMonthlySaved, savings.averageMonths, savingsToday]);
 
   const goalSummary = useMemo(() => summariseGoals(byPriority(goals), {
     today: savingsToday,
@@ -848,7 +858,12 @@ const PortfolioPage: React.FC = () => {
               />
 
               {!historyUnavailable && (
-                <GoalPlanCard plan={goalPlan} onReordered={setGoals} />
+                <GoalPlanCard
+                  plan={goalPlan}
+                  oneOffs={usual.oneOffs}
+                  oneOffMonthly={usual.oneOffMonthly}
+                  onReordered={setGoals}
+                />
               )}
 
               <div className="grid md:grid-cols-2 gap-4">

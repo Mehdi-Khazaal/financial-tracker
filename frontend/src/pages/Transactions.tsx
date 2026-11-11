@@ -1423,7 +1423,7 @@ const Transactions: React.FC = () => {
       />
 
       <AddTransactionModal isOpen={showTx} onClose={() => setShowTx(false)} onSuccess={load} defaultType={txType} />
-      <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} />
+      <EditTransactionModal isOpen={!!editTx} onClose={() => setEditTx(null)} onSuccess={load} transaction={editTx} history={transactions} />
       <ImportSheet isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { void load(); }} accounts={accounts} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
       <AddToCollectionSheet

@@ -43,6 +43,7 @@ import {
 } from './calculations/metrics';
 import { calculateCategoryComparisons, spendingBreakdown } from './calculations/categories';
 import { calculateSavingsMetrics } from './calculations/savings';
+import { findOneOffs } from './calculations/oneOffs';
 import { calculateNetWorthChange } from './calculations/netWorth';
 import { buildCashFlow } from './calculations/cashflow';
 import { buildRecurringOutlook } from './calculations/recurring';
@@ -267,12 +268,15 @@ export function useAnalyticsModel(
     }
     const firstActive = ascendingMonths[0] ?? currentMonth;
     const periodMonths = new Set(period.months);
+    const oneOffsByMonth = new Map<string, number>();
+    findOneOffs(transactions, ctx).forEach(o => oneOffsByMonth.set(o.month, (oneOffsByMonth.get(o.month) ?? 0) + o.amount));
     const trend: TrendMonth[] = monthlyMetrics(transactions, trendMonths.filter(m => m >= firstActive), ctx)
       .map(({ month, metrics: m }) => ({
         month,
         income: m.income,
         expenses: m.expenses,
         net: m.net,
+        oneOffs: oneOffsByMonth.get(month) ?? 0,
         partial: month === currentMonth,
         inPeriod: periodMonths.has(month),
       }));

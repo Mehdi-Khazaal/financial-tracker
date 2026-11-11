@@ -252,6 +252,10 @@ class Transaction(Base):
     # inferred category from one the user chose so it never overwrites a
     # deliberate choice.
     category_source = Column(String(20), nullable=True)
+    # The user's call on whether this is a big one-off, left out of a usual
+    # month: true or false overrides the automatic rule, null leaves it to the
+    # rule (`services/one_offs.py`).
+    one_off = Column(Boolean, nullable=True)
 
     # ── Recurrence signals ───────────────────────────────────────────────────
     # "online" / "in store" / "other". A subscription is almost never charged

@@ -160,6 +160,8 @@ class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = None
     description: Optional[str] = None
     transaction_date: Optional[date] = None
+    # True or false marks it a one-off or routine; null hands it back to the rule.
+    one_off: Optional[bool] = None
 
 class TransactionSplitOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -197,6 +199,7 @@ class TransactionResponse(TransactionBase):
     plaid_merchant_name: Optional[str] = None
     plaid_merchant_entity_id: Optional[str] = None
     category_source: Optional[str] = None
+    one_off: Optional[bool] = None
     # Empty unless the amount is filed across several categories.
     splits: List[TransactionSplitOut] = []
     # The collections (trip, holiday...) this transaction is part of.
