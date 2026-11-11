@@ -1,6 +1,31 @@
 # Changelog
 
-## [Unreleased] — trust and planning (branch `feat/trust-and-planning`)
+## [Unreleased] — accuracy round (branch `feat/accuracy-round`)
+
+### Before deploying
+Nothing manual. Migration `20261111_000035` adds one nullable column (`transactions.one_off`) and runs at boot. Checked on Postgres: the chain matches the models, and the revision reverts and re-applies.
+
+### Added
+- **Restore deleted card payments and transfers** (Accounts → "Find them" on an account whose history is incomplete): asks each bank for its full history, read-only, and lists the transfer-like rows the ledger lacks. The ones you keep come back filed as Transfers, so they fix each account's past balances and never count as income or spending.
+- **Gold summary** (Portfolio → Assets): pure weight across every piece, what it cost, what it is worth, the average paid per ounce against today's price, and a year of month-end gold prices (`GET /assets/metal-history`, cached in `market_prices`).
+- **One-offs**: a charge of $1,000 or more that does not repeat is a one-off, left out of the "usual month" the goal plan funds goals from. Any transaction can be marked either way from its window.
+
+### Changed
+- **The month-end outlook counts paychecks still due**, at each payer's typical pay over the last 90 days, with a low-high range. It said "spend $33.41 more than you earn" with two paychecks due on the 21st.
+- **The goal plan funds goals from a usual month** (one-offs left out, and listed). The plain average had turned about $1,935 a month into $783 and counted tuition twice. The assistant uses the same figure.
+- **The emergency fund has no deadline**: it shows the months of usual spending it covers, and is never "past deadline".
+- **Net-worth history starts at the first transaction or transfer** instead of drawing a flat line back before it; the screens say "Since <month>".
+- Analytics sizes its "move money toward a goal" suggestion by cash that is free now (available to spend less this month's bills), not by what the period kept.
+- The paycheck plan's suggested amounts use recent pay, and a split deposit counts as one paycheck.
+- The Dashboard's goals moved to the wide column, and the budget total shows only with two or more budgets.
+- The Dashboard's add, transfer and budgets sheets load on first open (initial bundle 149.1 → 145.3 kB).
+
+### Fixed
+- **The API stalled under a burst of requests.** `get_current_user` was `async def` with a blocking query, so a request waiting for a pooled connection blocked the event loop: 13 parallel requests took 22 s on production and two failed. It is a plain function now, and the idempotency middleware and Plaid webhook do their database work in the threadpool. A test fails if any query runs on the event loop.
+- Account cards showed impossible histories (checking walked back to −$14k, a paid-off card "$1,444 more owed") when card payments had been deleted; they now say the history is incomplete.
+- Transactions' "Add" button sat under the search button at desktop widths.
+
+## [Released 2026-11-10] — trust and planning (branch `feat/trust-and-planning`)
 
 ### Before deploying
 Nothing manual. Migrations `20261110_000029` to `20261110_000034` are additive (one new table for prices, four for the paycheck plan, nullable columns elsewhere) and run at boot. Checked on Postgres: the chain matches the models, and every revision reverts and re-applies.

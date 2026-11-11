@@ -118,3 +118,11 @@ Nothing is required for the release itself. To get its value:
 1. Portfolio → Assets: edit each gold piece and turn on "Value it by its gold or silver" with its weight and karat. Until then a piece keeps its recorded value.
 2. Portfolio → Savings: set up the paycheck plan, then order the goals in the goal plan.
 3. Optional: Settings → Connections → "Rebuild bank history" brings back card payments that were deleted after import. They arrive uncategorized; Review suggests them as transfers. With them back, past account balances read correctly.
+
+## After deploying `feat/accuracy-round`
+
+Nothing is required for the release itself (migration `20261111_000035` is one nullable column). To get its value:
+
+1. Accounts: on an account marked "History incomplete", tap **Find them**. Untick anything you did not mean to delete, then restore; the rows come back as Transfers. This supersedes step 3 above: "Rebuild bank history" brings back every deleted row uncategorized, this brings back only transfer-like rows, already filed.
+2. Portfolio → Savings: the goal plan now lists the one-offs it leaves out of a usual month. Open any of them (or any other big charge) from Transactions to mark it routine or one-off.
+3. The emergency fund's old date is ignored; editing the goal clears it.

@@ -86,11 +86,18 @@ Each figure has one definition on the server and, where the screens compute it t
 | A holding's current value: metal (weight × purity × metal price), market (ticker price × quantity), or recorded | `services/valuation.py` | the server's valuation is passed in (`GET /assets/valuations`) |
 | Available to spend, emergency cash (goal money left out) | `services/cash_position.py` | `features/accounts/calculations/totals.ts` |
 | Goal plan: goals funded in priority order, paycheck lines first | `services/goal_plan.py` | `features/portfolio/calculations/goalPlan.ts` |
+| **One-offs**: spending of $1,000+ that does not repeat (or marked by the user), left out of the usual month | `services/one_offs.py` | `features/analytics/calculations/oneOffs.ts` |
+| **Paychecks**: payers on a 1–5 week rhythm; typical pay = median of the last 90 days, same-day deposits summed | `services/paycheck_plan.py` (`suggest_sources`) | `features/analytics/calculations/paychecks.ts` |
 
 - **Market prices** live in `market_prices`, one row per symbol (`stock:GLD`, `crypto:BTC`, `metal:XAU`), shared by every user. A reader serves the stored price and refreshes an old one in the background; a price never fetched is fetched inline. A failed lookup keeps the last good price. The assistant never waits on a provider (`refresh="never"`).
 - **Net-worth history** (`/history/net-worth`): past months are each account's month-end balance plus every holding acquired by then at its recorded value; the current month is today's balances and today's valuation, never a stored snapshot.
 - **Past balances** walk back from today's balance through `balance_movements()` (`services/balance_snapshots.py`): transactions plus transfers. On a bank-linked account the bank's own row wins, and a recorded transfer counts only when no transaction of the same amount sits within five days of it.
 - **Transfers** between the user's own accounts are either rows in `transfers` or imported rows filed under a `transfer` category. Review suggests the second kind (`services/transfer_suggestions.py`); nothing is filed without a tap.
+- **Net-worth history** starts at the month of the first transaction or transfer; earlier months would only repeat the opening balance. With no transactions or transfers at all, it is not trimmed.
+- **Usual month**: the goal plan, the goal cards and the assistant fund goals from average monthly saving with one-offs added back; Analytics shows it beside the plain average. The emergency fund is measured in months of usual spending, and its deadline is ignored everywhere (`goalDeadline`).
+- **Month-end outlook** (`forecast.ts`): income is what has landed, scheduled income, and paychecks still due at their typical size, with a range from the lowest to the highest recent paycheck. A stable monthly income fills the rest of the month only when no paycheck rhythm is found.
+- **Missing bank rows** (`routers/plaid_router/missing.py`): a read-only `/transactions/sync` from the beginning finds transfer-like posted rows the ledger lacks; restoring re-fetches them and files them under Transfer without touching balances.
+- **No database work on the event loop**: dependencies and routes that take a session are plain functions; async middleware hands its queries to the threadpool (`tests/test_event_loop_safety.py`).
 - **Paycheck plan** (`services/paycheck_plan.py`): a payday is a date on which any chosen payer deposited. Its split is bills due before the next payday, a fixed line per goal, and what is free. Ticking a line can set its amount aside for the goal if the line's account holds that much unassigned.
 
 ## Bank sync
