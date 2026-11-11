@@ -196,13 +196,13 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db),
 
 # ─── Get current user ─────────────────────────────────────────────────────────
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
 # ─── Change password (authenticated) ─────────────────────────────────────────
 @router.post("/change-password")
-async def change_password(
+def change_password(
     body: ChangePasswordRequest,
     response: Response,
     current_user: User = Depends(get_current_user),

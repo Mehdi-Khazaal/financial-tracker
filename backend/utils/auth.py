@@ -105,7 +105,16 @@ def _get_request_token(request: Request) -> Optional[str]:
     return token or None
 
 
-async def get_current_user(request: Request, db: Session = Depends(get_db)):
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """The signed-in user, from the access cookie.
+
+    A plain `def` on purpose. FastAPI runs a sync dependency in its threadpool
+    and an `async def` one on the event loop, and this one queries the
+    database. As a coroutine, a request waiting for a pooled connection froze
+    the whole server: the loop could not run the teardowns that would have
+    returned the connections it was waiting for, so a burst of eleven requests
+    stalled for the pool timeout and ended in 500s.
+    """
     token = _get_request_token(request)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")

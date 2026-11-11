@@ -94,6 +94,34 @@ def _verify_plaid_webhook(body: bytes, signed_token: str) -> bool:
         return False
 
 
+def _stamp_webhook(item_id: str, webhook_code: str) -> tuple[int, int] | None:
+    """Record that a webhook arrived; return the Item's (id, user_id) to sync, or None.
+
+    Sync, and called through the threadpool: the route is async (it awaits the
+    raw body), and a database call on the event loop would stall every other
+    request while it waited for a connection.
+    """
+    db = SessionLocal()
+    try:
+        item = db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first()
+        if not item:
+            return None
+        # Stamp receipt before scheduling the sync. This is the field
+        # that distinguishes "Plaid never sent it" from "Plaid sent it
+        # and we never got it" — comparing this against `/item/get`'s
+        # `status.last_webhook.sent_at` answers that directly.
+        try:
+            item.last_webhook_at = utc_now()
+            item.last_webhook_code = webhook_code[:60]
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.warning("plaid_webhook_stamp_failed %s", kv(item_id=item.id))
+        return item.id, item.user_id
+    finally:
+        db.close()
+
+
 @router.post("/webhook")
 @limiter.limit("300/minute")
 async def plaid_webhook(request: Request, background: BackgroundTasks):
@@ -124,23 +152,8 @@ async def plaid_webhook(request: Request, background: BackgroundTasks):
     if webhook_type == "TRANSACTIONS" and webhook_code in (
         "SYNC_UPDATES_AVAILABLE", "DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"
     ):
-        db = SessionLocal()
-        try:
-            item = db.query(PlaidItem).filter(PlaidItem.item_id == item_id).first()
-            if item:
-                # Stamp receipt before scheduling the sync. This is the field
-                # that distinguishes "Plaid never sent it" from "Plaid sent it
-                # and we never got it" — comparing this against `/item/get`'s
-                # `status.last_webhook.sent_at` answers that directly.
-                try:
-                    item.last_webhook_at = utc_now()
-                    item.last_webhook_code = webhook_code[:60]
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                    logger.warning("plaid_webhook_stamp_failed %s", kv(item_id=item.id))
-                background.add_task(facade._do_sync_and_notify, item.id, item.user_id, SYNC_SOURCE_WEBHOOK)
-        finally:
-            db.close()
+        found = await run_in_threadpool(_stamp_webhook, item_id, webhook_code)
+        if found is not None:
+            background.add_task(facade._do_sync_and_notify, found[0], found[1], SYNC_SOURCE_WEBHOOK)
 
     return {"status": "ok"}
