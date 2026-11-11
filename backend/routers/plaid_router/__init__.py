@@ -277,9 +277,12 @@ from routers.plaid_router.webhook import (  # noqa: E402
     router as _webhook_router,
 )
 
+from routers.plaid_router.missing import router as _missing_router  # noqa: E402
+
 router = APIRouter(prefix="/plaid", tags=["plaid"])
 router.include_router(_items_router)
 router.include_router(_diagnostics_router)
 router.include_router(_webhook_router)
+router.include_router(_missing_router)
 
 __all__ = [name for name in dir() if not name.startswith("__")]

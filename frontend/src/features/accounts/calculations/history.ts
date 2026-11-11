@@ -9,6 +9,13 @@
  * account opened last week has no six-month trend, and printing `+$0.00` for it
  * would be a statement about its balance rather than about the absence of data.
  * A single snapshot is the same problem — one point is a position, not a trend.
+ *
+ * The second rule: **an impossible history is not a trend either.** History is
+ * walked back from today's balance through the ledger, so a deleted card
+ * payment or transfer shifts every earlier month by its amount. The live
+ * ledger had none of either, and printed checking "+$15,125 over 6 months"
+ * (it would have been −$14,432 in May) and a paid-off card "$1,444 more
+ * owed". Such a history is reported as incomplete instead of drawn.
  */
 
 import type { MonthSnapshot } from '../../../types';
@@ -32,6 +39,8 @@ export interface BalanceChange {
   series: number[];
   /** Spoken summary, so the sparkline is not sighted-only. */
   summary: string;
+  /** The history passes through a balance a complete ledger cannot produce. */
+  incomplete: boolean;
 }
 
 const UNAVAILABLE: BalanceChange = {
@@ -44,7 +53,23 @@ const UNAVAILABLE: BalanceChange = {
   windowLabel: '',
   series: [],
   summary: 'Not enough history to show a trend yet.',
+  incomplete: false,
 };
+
+/**
+ * How far past zero a reconstructed balance may go before it is taken as
+ * missing rows rather than a real overdraft or a card refund.
+ */
+export const IMPOSSIBLE_BALANCE_MARGIN = 500;
+
+/** Everyday money far below zero, or a card far in credit, somewhere in `series`. */
+export function historyLooksIncomplete(type: string | undefined, series: number[]): boolean {
+  if (type === 'credit_card') return series.some(v => v > IMPOSSIBLE_BALANCE_MARGIN);
+  if (type === 'checking' || type === 'savings' || type === 'cash') {
+    return series.some(v => v < -IMPOSSIBLE_BALANCE_MARGIN);
+  }
+  return false;
+}
 
 /** Balance out of a snapshot, whichever field the endpoint filled. */
 const balanceOf = (snapshot: MonthSnapshot): number =>
@@ -60,6 +85,7 @@ const balanceOf = (snapshot: MonthSnapshot): number =>
 export function calculateBalanceChange(
   snapshots: MonthSnapshot[] | undefined,
   accountName = 'This account',
+  accountType?: string,
 ): BalanceChange {
   if (!snapshots || snapshots.length < 2) return UNAVAILABLE;
 
@@ -90,6 +116,7 @@ export function calculateBalanceChange(
     points: months,
     windowLabel: months === 1 ? '1 month' : `${months} months`,
     series,
+    incomplete: historyLooksIncomplete(accountType, series),
     summary: change === 0
       ? `${accountName} is unchanged over the last ${months} months.`
       : `${accountName} is ${direction} $${magnitude} over the last ${months} months.`,

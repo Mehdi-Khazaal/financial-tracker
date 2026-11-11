@@ -1,5 +1,5 @@
 import type { MonthSnapshot } from '../../../types';
-import { calculateBalanceChange } from './history';
+import { IMPOSSIBLE_BALANCE_MARGIN, calculateBalanceChange, historyLooksIncomplete } from './history';
 
 /**
  * Recent balance change.
@@ -122,5 +122,40 @@ describe('edge cases', () => {
 
     // Debt fell by 500 — the sign is the caller's to interpret.
     expect(change.change).toBe(500);
+  });
+});
+
+/**
+ * Walked-back balances a complete ledger cannot produce. The live ledger had
+ * no card payments and no transfers between accounts, so every history was
+ * shifted: these are its actual six-month series, rounded.
+ */
+describe('an incomplete history', () => {
+  const series = (...values: number[]) => values.map((v, i) => snap(`2026-0${i + 4}`, v));
+
+  it('flags checking that walked back far below zero', () => {
+    const spend = series(-14432, -9800, -5200, -1900, 300, 693);
+    expect(calculateBalanceChange(spend, 'Spend', 'checking').incomplete).toBe(true);
+  });
+
+  it('flags a card that walked back deep into credit', () => {
+    expect(calculateBalanceChange(series(5315, 3900, 2100, 900, 120, -385), 'VentureOne', 'credit_card').incomplete).toBe(true);
+    expect(calculateBalanceChange(series(1444, 1100, 700, 300, 40, 0), 'Quicksilver', 'credit_card').incomplete).toBe(true);
+  });
+
+  it('leaves a real drop in savings alone', () => {
+    const reserve = series(20361, 18000, 9500, 9000, 4000, 4000);
+    expect(calculateBalanceChange(reserve, 'Reserve', 'savings').incomplete).toBe(false);
+  });
+
+  it('allows a small overdraft and a small card credit, which happen', () => {
+    expect(historyLooksIncomplete('checking', [-80, 200])).toBe(false);
+    expect(historyLooksIncomplete('credit_card', [-300, 35])).toBe(false);
+    expect(historyLooksIncomplete('checking', [-IMPOSSIBLE_BALANCE_MARGIN - 1])).toBe(true);
+  });
+
+  it('does not judge accounts it has no rule for', () => {
+    expect(historyLooksIncomplete('investment', [-9000])).toBe(false);
+    expect(calculateBalanceChange(series(-9000, 0)).incomplete).toBe(false);
   });
 });

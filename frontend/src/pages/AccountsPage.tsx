@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { Suspense, lazy, useEffect, useState, useCallback, useRef } from 'react';
 import { useRouteTab } from '../context/TabContext';
 import { useDeepLinkParams } from '../hooks/useDeepLinkParams';
 import { DEEP_LINK_KEYS, parseIdParam } from '../lib/deepLinks';
@@ -32,6 +32,9 @@ import LoanCard from '../features/accounts/components/LoanCard';
 import LoadErrorBanner from '../components/LoadErrorBanner';
 import { AccountsPageSkeleton } from '../components/Skeleton';
 
+// Loaded on request: it asks every bank for its whole history.
+const MissingTransfersSheet = lazy(() => import('../features/accounts/components/MissingTransfersSheet'));
+
 type Tab = 'wallet' | 'cards' | 'loans';
 
 const fmt = (n: number) => Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -56,6 +59,7 @@ const AccountsPage: React.FC = () => {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showFundsMenu, setShowFundsMenu] = useState(false);
   const [payCard, setPayCard] = useState<Account | null>(null);
+  const [showMissing, setShowMissing] = useState(false);
 
   // Loans state
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -386,6 +390,7 @@ const AccountsPage: React.FC = () => {
                             onEdit={setEditAccount}
                             onDelete={a => handleDeleteAccount(a.id, a.name)}
                             onRecordPayment={setPayCard}
+                            onFindMissing={() => setShowMissing(true)}
                           />
                         ))}
                       </div>
@@ -440,6 +445,7 @@ const AccountsPage: React.FC = () => {
                             onEdit={setEditAccount}
                             onDelete={a => handleDeleteAccount(a.id, a.name)}
                             onRecordPayment={setPayCard}
+                            onFindMissing={() => setShowMissing(true)}
                           />
 
                           {/* Tab-specific detail, not a second account card. */}
@@ -561,6 +567,11 @@ const AccountsPage: React.FC = () => {
       <AddAccountModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSuccess={load} />
       <EditAccountModal isOpen={!!editAccount} onClose={() => setEditAccount(null)} onSuccess={load} account={editAccount} />
       <TransferModal isOpen={showTransfer} onClose={() => setShowTransfer(false)} onSuccess={load} />
+      {showMissing && (
+        <Suspense fallback={null}>
+          <MissingTransfersSheet isOpen onClose={() => setShowMissing(false)} onRestored={count => { if (count > 0) load(); }} />
+        </Suspense>
+      )}
       <TransferModal isOpen={!!payCard} onClose={() => setPayCard(null)} onSuccess={() => { setPayCard(null); load(); }} preselectedToId={payCard?.id} />
       <WithdrawModal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} onSuccess={load} />
       <DepositModal isOpen={showDeposit} onClose={() => setShowDeposit(false)} onSuccess={load} />

@@ -38,6 +38,8 @@ interface Props {
   onDelete: (account: Account) => void;
   /** Shown on credit cards only — records a payment as a transfer. */
   onRecordPayment?: (account: Account) => void;
+  /** Offered when the history is incomplete: find the missing bank rows. */
+  onFindMissing?: () => void;
 }
 
 const TONE_COLORS: Record<'positive' | 'negative' | 'neutral', string> = {
@@ -65,13 +67,14 @@ const Sparkline: React.FC<{ series: number[]; color: string }> = ({ series, colo
 };
 
 const AccountCard: React.FC<Props> = ({
-  account, history, isFocused = false, onEdit, onDelete, onRecordPayment,
+  account, history, isFocused = false, onEdit, onDelete, onRecordPayment, onFindMissing,
 }) => {
   const meta = ACCOUNT_TYPE_META[account.type] ?? ACCOUNT_TYPE_META.checking;
   const balance = describeBalance(account);
   const isCard = account.type === 'credit_card';
 
-  const change = calculateBalanceChange(history, account.name);
+  const change = calculateBalanceChange(history, account.name, account.type);
+  const incomplete = change.available && change.incomplete;
   // A card's balance is stored negative while it is owed (see
   // `describeBalance`), so on a card a *rising* balance is debt being paid
   // down. This used to read the other way and printed a card whose debt grew
@@ -150,12 +153,31 @@ const AccountCard: React.FC<Props> = ({
             </p>
           )}
         </div>
-        {change.available && <Sparkline series={change.series} color={changeColor} />}
+        {change.available && !incomplete && <Sparkline series={change.series} color={changeColor} />}
       </div>
 
       {/* Recent change — stated, never invented */}
       <div className="mt-2">
-        {change.available ? (
+        {incomplete ? (
+          // A walked-back balance that cannot be real: rows are missing.
+          // Showing the number would state something false about the account.
+          <p className="text-[11px]" style={{ color: 'var(--dim)' }}>
+            History incomplete: card payments or transfers are missing.
+            {onFindMissing && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={onFindMissing}
+                  className="font-medium hover:underline"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  Find them
+                </button>
+              </>
+            )}
+          </p>
+        ) : change.available ? (
           <p className="text-[11px]" style={{ color: 'var(--dim)' }}>
             <span className="tabular-nums" style={{ color: changeColor }}>
               {change.change === 0

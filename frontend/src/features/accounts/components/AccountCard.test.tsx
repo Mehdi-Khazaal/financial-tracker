@@ -311,3 +311,34 @@ describe('privacy mode', () => {
     expect(container.querySelectorAll('.tabular-nums').length).toBeGreaterThan(0);
   });
 });
+
+describe('an incomplete history', () => {
+  // Quicksilver on the live ledger: paid off, yet "$1,444.32 more owed over 6
+  // months", because the payments that cleared it had been deleted.
+  const quicksilver = account({ type: 'credit_card', name: 'Quicksilver', balance: 0, credit_limit: 1300 });
+  const walkedBack = [snap('2026-06', 1444.32), snap('2026-08', 600), snap('2026-11', 0)];
+
+  it('says the history is incomplete instead of printing an impossible change', () => {
+    const { container } = renderCard(quicksilver, walkedBack, { onFindMissing: vi.fn() });
+
+    expect(screen.getByText(/History incomplete/)).toBeInTheDocument();
+    expect(screen.queryByText(/more owed/)).not.toBeInTheDocument();
+    expect(container.querySelector('polyline')).toBeNull();
+  });
+
+  it('offers to find the missing rows', () => {
+    const onFindMissing = vi.fn();
+    renderCard(quicksilver, walkedBack, { onFindMissing });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Find them' }));
+
+    expect(onFindMissing).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps showing a believable history as a trend', () => {
+    renderCard(quicksilver, [snap('2026-06', -400), snap('2026-11', 0)], { onFindMissing: vi.fn() });
+
+    expect(screen.queryByText(/History incomplete/)).not.toBeInTheDocument();
+    expect(screen.getByText(/less owed/)).toBeInTheDocument();
+  });
+});

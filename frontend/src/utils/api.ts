@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Collection, CollectionAddResult, CollectionDraft, CollectionSuggestion, HoldingsValuation, ImportRequest, MetalPrice, RuleDraft, Transaction,
-  TransferSuggestion, PaycheckPlan, PaycheckPlanInput,
+  TransferSuggestion, PaycheckPlan, PaycheckPlanInput, MissingTransfers,
 } from '../types';
 
 const api = axios.create({
@@ -271,6 +271,10 @@ const fetchTransactionPages = async (
 export const createTransaction = (data: any) => api.post('/transactions', data);
 /** Uncategorized rows that look like moves between the user's own accounts. */
 export const getTransferSuggestions = () => api.get<TransferSuggestion[]>('/transactions/transfer-suggestions');
+/** Asks every connected bank for its full history; slow, so only on request. */
+export const getMissingTransfers = () => api.get<MissingTransfers>('/plaid/missing-transfers', { timeout: 120_000 });
+export const restoreMissingTransfers = (ids: string[]) =>
+  api.post<{ restored: number }>('/plaid/missing-transfers/restore', { ids }, { timeout: 120_000 });
 /** File these rows under the user's Transfer category. All or nothing. */
 export const markTransfers = (transactionIds: number[]) =>
   api.post<{ updated: number; category_id: number }>('/transactions/mark-transfer', { transaction_ids: transactionIds });

@@ -157,6 +157,22 @@ export interface TransferSuggestion {
   descriptions: string[];
 }
 
+/** A card payment or transfer a bank has that the ledger does not (see `GET /plaid/missing-transfers`). */
+export interface MissingTransfer {
+  plaid_transaction_id: string;
+  account_id: number;
+  account_name: string;
+  date: string;
+  amount: number | string;
+  description: string;
+}
+
+export interface MissingTransfers {
+  rows: MissingTransfer[];
+  /** Banks that could not be asked; their rows are not in `rows`. */
+  unavailable: string[];
+}
+
 /** One holding as `GET /assets/valuations` values it. Money arrives as decimal strings. */
 export interface HoldingValue {
   asset_id: number;
