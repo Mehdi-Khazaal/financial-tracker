@@ -20,6 +20,17 @@ export const money = (value: number, decimals = 2): string =>
 /** `1234.5` → `"$1,234.50"`. */
 export const dollars = (value: number, decimals = 2): string => `$${money(value, decimals)}`;
 
+/**
+ * Where a month could end, in whole dollars: "Between $2,100 and $3,900 left
+ * over", with "short" for an end below zero.
+ */
+export function leftOverRange(low: number, high: number): string {
+  const d = (v: number) => dollars(Math.abs(v), 0);
+  if (low >= 0) return `Between ${d(low)} and ${d(high)} left over`;
+  if (high >= 0) return `Between ${d(low)} short and ${d(high)} left over`;
+  return `Between ${d(high)} and ${d(low)} short`;
+}
+
 /** `-1234.5` → `"−$1,234.50"`, `1234.5` → `"+$1,234.50"`. */
 export const signedDollars = (value: number, decimals = 2): string =>
   `${value < 0 ? MINUS : '+'}$${money(value, decimals)}`;

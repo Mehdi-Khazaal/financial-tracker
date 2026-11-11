@@ -55,6 +55,10 @@ RECENT_DAYS = 6
 DAYS_PER_MONTH = Decimal("30.4375")
 # A regular deposit smaller than this is interest or cashback, not pay.
 MIN_TYPICAL_PAYCHECK = Decimal("100")
+# A typical paycheck is measured over this many recent days (or the last three
+# paychecks when fewer), so a change in pay is not averaged with the old pay.
+RECENT_PAY_DAYS = 90
+MIN_PAYCHECKS = 3
 
 
 class PlanError(Exception):
@@ -147,11 +151,18 @@ class SourceSuggestion:
 def suggest_sources(db: Session, user_id: int, today: date) -> list[SourceSuggestion]:
     """Payers that deposit income on a regular rhythm: probably paychecks.
 
-    Three or more deposits in the window, at a usual gap of one to five weeks,
+    Three or more paydays in the window, at a usual gap of one to five weeks,
     typically at least `MIN_TYPICAL_PAYCHECK`. A one-off (a scholarship, a
     refund) is not suggested, and neither is a small regular credit such as
     savings interest: the setup sheet ticks every suggestion the first time,
-    and $0.11 of interest a month is not a payday.
+    and $0.11 of interest a month is not a payday. A payer silent for more
+    than two gaps and a week has stopped paying and is not suggested.
+
+    Deposits from one payer on one day are one paycheck. The typical paycheck
+    is the median of the last `RECENT_PAY_DAYS` (at least the last three), so
+    pay that changed (the owner went part time at one job in August) is quoted
+    at its new size. The Dashboard's month-end outlook projects paychecks the
+    same way (`features/analytics/calculations/paychecks.ts`).
     """
     lookups = load_lookups(db, user_id)
     rows = (
@@ -171,14 +182,21 @@ def suggest_sources(db: Session, user_id: int, today: date) -> list[SourceSugges
             groups.setdefault(key, []).append(tx)
     found = []
     for key, txs in groups.items():
-        dates = sorted({t.transaction_date for t in txs})
-        if len(dates) < 3:
+        by_day: dict[date, Decimal] = {}
+        for t in txs:
+            by_day[t.transaction_date] = by_day.get(t.transaction_date, ZERO) + Decimal(str(t.amount))
+        dates = sorted(by_day)
+        if len(dates) < MIN_PAYCHECKS:
             continue
         gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
         gap = round(statistics.median(gaps))
         if not 6 <= gap <= 35:
             continue
-        typical = Decimal(str(statistics.median([Decimal(str(t.amount)) for t in txs]))).quantize(Decimal("0.01"))
+        if (today - dates[-1]).days > gap * 2 + 7:
+            continue
+        recent = [d for d in dates if d >= today - timedelta(days=RECENT_PAY_DAYS)]
+        sample = recent if len(recent) >= MIN_PAYCHECKS else dates[-MIN_PAYCHECKS:]
+        typical = Decimal(str(statistics.median([by_day[d] for d in sample]))).quantize(Decimal("0.01"))
         if typical < MIN_TYPICAL_PAYCHECK:
             continue
         latest = max(txs, key=lambda t: t.transaction_date)

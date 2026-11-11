@@ -19,9 +19,11 @@
  * bills still due in them, plus a typical rest of the month. A one-off
  * purchase raises a category by its own amount and no more.
  *
- * Irregular income is handled by refusing to run-rate it: income is projected
- * only from what has landed plus what is scheduled, unless month-to-month
- * income has been stable.
+ * Income is never run-rated either. It is what has landed, plus scheduled
+ * income, plus the paychecks still due at their typical recent size (see
+ * `paychecks.ts`), with a range from the lowest to the highest recent pay.
+ * Only when no paycheck rhythm is found does a stable monthly income fill the
+ * rest of the month toward its usual total.
  */
 
 import type { RecurringTransaction, Transaction } from '../../../types';
@@ -44,6 +46,7 @@ import {
   merchantKeyOf,
 } from './transactions';
 import { activeRecurringExpenses } from './recurring';
+import { expectedPaychecks, payerRhythms } from './paychecks';
 
 const MIN_DAYS_ELAPSED = 5;
 const MIN_MONTHS = 3;
@@ -84,6 +87,7 @@ const unavailable = (reason: string, period: ResolvedPeriod): Forecast => ({
   expenses: null,
   income: null,
   savings: null,
+  savingsRange: null,
   savingsRate: null,
   categoryRisks: [],
 });
@@ -168,13 +172,26 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
       return due > todayKey && due <= period.end ? sum + Number(r.amount) : sum;
     }, 0);
 
-  // Only fill the gap toward a typical month when income has been predictable.
-  const impliedRemainingIncome = incomeIsRegular
+  // Paychecks still due, from the rhythm of past pay.
+  const rhythms = payerRhythms(transactions, ctx, todayKey);
+  const paychecks = expectedPaychecks(rhythms, todayKey, period.end, recurring);
+  const sumOf = (pick: (p: (typeof paychecks)[number]) => number) => paychecks.reduce((s, p) => s + pick(p), 0);
+  const expectedPay = sumOf(p => p.typical);
+
+  // Only fill the gap toward a typical month when income has been predictable
+  // and no paycheck rhythm speaks for it; the two would count the same pay.
+  const impliedRemainingIncome = incomeIsRegular && rhythms.length === 0
     ? Math.max(0, medianIncome - metrics.income - scheduledIncome) * (daysRemaining / period.daysTotal)
     : 0;
-  const projectedIncome = metrics.income + scheduledIncome + impliedRemainingIncome;
+  const knownIncome = metrics.income + scheduledIncome + impliedRemainingIncome;
+  const projectedIncome = knownIncome + expectedPay;
+  const incomeLow = knownIncome + sumOf(p => p.low);
+  const incomeHigh = knownIncome + sumOf(p => p.high);
 
   const projectedSavings = projectedIncome - projectedExpenses;
+  const savingsRange = paychecks.length > 0 && incomeHigh - incomeLow >= 1
+    ? { low: incomeLow - projectedExpenses, high: incomeHigh - projectedExpenses }
+    : null;
 
   // ── Categories tracking above their own average ─────────────────────────────
   // Spent so far + bills still due + a typical rest of the month.
@@ -205,7 +222,7 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
     confidence,
     // `period.daysElapsed` is the single source for "how far in are we" — the
     // progress bar and this sentence must never quote different numbers.
-    basis: `Based on spending through ${asOf}, ${plural(period.daysElapsed, 'day')} into the period, and your previous ${plural(monthly.length, 'month')}.${incomeIsRegular ? '' : ' Income has varied month to month, so only income already received or scheduled is counted.'}`,
+    basis: `Based on spending through ${asOf}, ${plural(period.daysElapsed, 'day')} into the period, and your previous ${plural(monthly.length, 'month')}.${incomeBasis(paychecks.length, rhythms.length, incomeIsRegular)}`,
     monthLabel: period.isSingleMonth ? monthLabel(period.months[0]) : period.label,
     daysElapsed: period.daysElapsed,
     daysTotal: period.daysTotal,
@@ -218,9 +235,22 @@ export function calculateForecast(inputs: ForecastInputs): Forecast {
       projected: projectedIncome,
       soFar: metrics.income,
       scheduled: scheduledIncome,
+      expected: expectedPay,
+      paychecks: paychecks.length,
+      low: incomeLow,
+      high: incomeHigh,
     },
     savings: projectedSavings,
+    savingsRange,
     savingsRate: projectedIncome > 0 ? projectedSavings / projectedIncome : null,
     categoryRisks,
   };
+}
+
+function incomeBasis(paychecksDue: number, payers: number, incomeIsRegular: boolean): string {
+  if (paychecksDue > 0) {
+    return ` ${plural(paychecksDue, 'paycheck')} still due ${paychecksDue === 1 ? 'is' : 'are'} counted at your typical recent pay; the range runs from your lowest to your highest recent paycheck.`;
+  }
+  if (payers > 0) return ' No more paychecks are due this period, so income is what has arrived.';
+  return incomeIsRegular ? '' : ' Income has varied month to month, so only income already received or scheduled is counted.';
 }

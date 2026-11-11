@@ -112,6 +112,51 @@ def test_savings_interest_is_not_suggested_as_a_paycheck(client, db_session, use
     assert {s["merchant_key"] for s in body["suggested_sources"]} == {"philips", "passavant"}
 
 
+def _pay(db, user, account, salary, key, amount, on):
+    db.add(Transaction(user_id=user.id, account_id=account.id, category_id=salary.id, amount=Decimal(str(amount)),
+                       description=key.title(), merchant_key=key, transaction_date=on))
+
+
+def test_a_typical_paycheck_is_recent_pay_so_part_time_is_not_averaged_with_full_time(
+    client, db_session, user, auth_headers, account, salary, last_payday,
+):
+    """The owner went part time at Philips in August: about $957 a paycheck, not $1,835."""
+    for n in range(6):
+        _pay(db_session, user, account, salary, "philips", "957.05", last_payday - timedelta(days=14 * n))
+    for n in range(6, 12):
+        _pay(db_session, user, account, salary, "philips", "1835.29", last_payday - timedelta(days=14 * n))
+    db_session.commit()
+
+    body = client.get("/paycheck-plan", headers=auth_headers).json()
+
+    philips = next(s for s in body["suggested_sources"] if s["merchant_key"] == "philips")
+    assert philips["count"] == 12
+    assert Decimal(philips["typical_amount"]) == Decimal("957.05")
+
+
+def test_a_paycheck_split_into_two_deposits_counts_once(client, db_session, user, auth_headers, account, salary, last_payday):
+    for n in range(4):
+        _pay(db_session, user, account, salary, "passavant", "1100", last_payday - timedelta(days=14 * n))
+        _pay(db_session, user, account, salary, "passavant", "87.71", last_payday - timedelta(days=14 * n))
+    db_session.commit()
+
+    body = client.get("/paycheck-plan", headers=auth_headers).json()
+
+    passavant = next(s for s in body["suggested_sources"] if s["merchant_key"] == "passavant")
+    assert passavant["count"] == 4
+    assert Decimal(passavant["typical_amount"]) == Decimal("1187.71")
+
+
+def test_a_payer_that_stopped_paying_is_not_suggested(client, db_session, user, auth_headers, account, salary, today):
+    for n in range(5):
+        _pay(db_session, user, account, salary, "old job", "1500", today - timedelta(days=60 + 14 * n))
+    db_session.commit()
+
+    body = client.get("/paycheck-plan", headers=auth_headers).json()
+
+    assert body["suggested_sources"] == []
+
+
 def test_same_day_deposits_are_one_payday(db_session, user, paychecks, today, last_payday):
     days = service.paydays(db_session, user.id, ["philips", "passavant"], today)
 

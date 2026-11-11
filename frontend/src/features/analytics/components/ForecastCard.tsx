@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Forecast } from '../types';
-import { dollars, percent } from '../format';
+import { dollars, leftOverRange, percent, plural } from '../format';
 import { SectionHeader } from './AnalyticsPrimitives';
 
 interface Props {
@@ -44,16 +44,21 @@ const ForecastCard: React.FC<Props> = ({ forecast, onOpenCategory }) => {
       value: dollars(forecast.income.projected, 0),
       color: 'var(--pos)',
       footnote: `${dollars(forecast.income.soFar, 0)} received`
-        + (forecast.income.scheduled > 0 ? ` · ${dollars(forecast.income.scheduled, 0)} scheduled` : ''),
+        + (forecast.income.scheduled > 0 ? ` · ${dollars(forecast.income.scheduled, 0)} scheduled` : '')
+        + (forecast.income.paychecks > 0
+          ? ` · ${dollars(forecast.income.expected, 0)} from ${plural(forecast.income.paychecks, 'paycheck')} still due`
+          : ''),
     },
     {
       key: 'savings',
       label: 'Projected saving',
       value: `${(forecast.savings ?? 0) < 0 ? '−' : ''}${dollars(Math.abs(forecast.savings ?? 0), 0)}`,
       color: (forecast.savings ?? 0) >= 0 ? 'var(--pos)' : 'var(--neg)',
-      footnote: forecast.savingsRate != null
-        ? `${percent(forecast.savingsRate)} savings rate`
-        : 'No income projected',
+      footnote: forecast.savingsRange
+        ? `${leftOverRange(forecast.savingsRange.low, forecast.savingsRange.high)}, depending on pay`
+        : forecast.savingsRate != null
+          ? `${percent(forecast.savingsRate)} savings rate`
+          : 'No income projected',
     },
   ];
 

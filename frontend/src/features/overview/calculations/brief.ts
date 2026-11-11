@@ -22,7 +22,7 @@
 
 import type { Account, Collection, Transaction } from '../../../types';
 import type { Forecast, PeriodMetrics, PrimaryGoal, UpcomingBill } from '../../analytics/types';
-import { dollars, monthLabel, plural, relativeDays, signedPercent, verbFor } from '../../analytics/format';
+import { dollars, leftOverRange, monthLabel, plural, relativeDays, signedPercent, verbFor } from '../../analytics/format';
 import {
   merchantDisplayName,
   merchantKeyOf,
@@ -312,15 +312,22 @@ export function briefCandidates(inputs: BriefInputs): BriefItem[] {
 
   if (forecast.available && forecast.savings != null) {
     const saving = forecast.savings >= 0;
+    // Paychecks still due are estimates, so the figure is rounded and "about".
+    const estimated = (forecast.income?.paychecks ?? 0) > 0;
+    const amount = estimated ? `about ${dollars(Math.abs(forecast.savings), 0)}` : dollars(Math.abs(forecast.savings));
+    const range = forecast.savingsRange
+      ? `${leftOverRange(forecast.savingsRange.low, forecast.savingsRange.high)}, depending on pay.`
+      : null;
+    const caution = forecast.confidence === 'low' ? 'Based on limited history — treat as a rough guide.' : null;
     items.push({
       id: 'projection',
       priority: 9,
       tone: saving ? 'positive' : 'neutral',
       icon: 'trend',
       text: saving
-        ? `On track to have ${dollars(forecast.savings)} left over this month`
-        : `On track to spend ${dollars(Math.abs(forecast.savings))} more than you earn this month`,
-      detail: forecast.confidence === 'low' ? 'Based on limited history — treat as a rough guide.' : null,
+        ? `On track to have ${amount} left over this month`
+        : `On track to spend ${amount} more than you earn this month`,
+      detail: [range, caution].filter(Boolean).join(' ') || null,
       action: null,
     });
   }

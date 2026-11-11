@@ -1,6 +1,7 @@
 import type { Account, Collection, Transaction } from '../../../types';
 import type { Forecast, PeriodMetrics, PrimaryGoal } from '../../analytics/types';
 import { EMPTY_METRICS } from '../../analytics/calculations/metrics';
+import { leftOverRange } from '../../analytics/format';
 import { buildMonthActivity } from './activity';
 import {
   BRIEF_LIMIT, briefCandidates, buildMorningBrief, calculateSpendingPace,
@@ -62,7 +63,7 @@ const activeActivity = buildMonthActivity({
 const noForecast: Forecast = {
   available: false, reason: 'Not enough history.', confidence: 'none', basis: '',
   monthLabel: 'August 2026', daysElapsed: 12, daysTotal: 31,
-  expenses: null, income: null, savings: null, savingsRate: null, categoryRisks: [],
+  expenses: null, income: null, savings: null, savingsRange: null, savingsRate: null, categoryRisks: [],
 };
 
 const metrics = (overrides: Partial<PeriodMetrics> = {}): PeriodMetrics =>
@@ -240,6 +241,30 @@ describe('projection', () => {
     const item = find('projection', { forecast: { ...forecast, confidence: 'low' } });
 
     expect(item?.detail).toContain('rough guide');
+  });
+
+  // Nov 10: two paychecks due on the 21st turned "spend $33.41 more than you
+  // earn" into roughly $3,000 left over, somewhere between the lowest and the
+  // highest recent pay.
+  const withPaychecks: Forecast = {
+    ...forecast,
+    savings: 3036.4,
+    income: { projected: 6000, soFar: 3022.39, scheduled: 0, expected: 2977.61, paychecks: 2, low: 5100, high: 7100 },
+    savingsRange: { low: 2136.4, high: 4136.4 },
+  };
+
+  it('rounds an outlook that counts paychecks still due, and gives its range', () => {
+    const item = find('projection', { forecast: withPaychecks });
+
+    expect(item?.text).toBe('On track to have about $3,036 left over this month');
+    expect(item?.detail).toBe('Between $2,136 and $4,136 left over, depending on pay.');
+  });
+
+  it('says "short" for the low end of a range that dips below zero', () => {
+    const item = find('projection', { forecast: { ...withPaychecks, savingsRange: { low: -150, high: 900 } } });
+
+    expect(item?.detail).toBe('Between $150 short and $900 left over, depending on pay.');
+    expect(leftOverRange(-900, -150)).toBe('Between $150 and $900 short');
   });
 });
 

@@ -397,6 +397,16 @@ export interface ForecastValue {
   scheduled: number;
 }
 
+/** Projected income, with the paychecks still due counted at their typical size. */
+export interface IncomeForecast extends ForecastValue {
+  /** Paychecks still due this period, at their typical recent amount. */
+  expected: number;
+  paychecks: number;
+  /** The projection with every paycheck still due at its lowest and highest recent amount. */
+  low: number;
+  high: number;
+}
+
 export interface Forecast {
   available: boolean;
   reason: string | null;
@@ -406,8 +416,10 @@ export interface Forecast {
   daysElapsed: number;
   daysTotal: number;
   expenses: ForecastValue | null;
-  income: ForecastValue | null;
+  income: IncomeForecast | null;
   savings: number | null;
+  /** Left over at the low and high ends of the paychecks still due; null when none are. */
+  savingsRange: { low: number; high: number } | null;
   savingsRate: number | null;
   /** Categories tracking meaningfully above their own average. */
   categoryRisks: { id: number; name: string; color: string; projected: number; average: number; pct: number }[];
