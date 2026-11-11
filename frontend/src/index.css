@@ -560,9 +560,17 @@ body {
     .sheet-panel--lg { max-width: 46rem; }
   }
 
+  /* Room for the fixed top bar (`.app-topbar`), derived from what it holds:
+     its round buttons at the hit size, the gaps between them, its offset from
+     the edge, and a little air. A fixed 10rem fell 4px short once the buttons
+     grew to 44px, and Transactions' "Add" ran under the search button. */
   .topbar-safe {
+    --topbar-buttons: 2;
     min-height: var(--hit-min);
-    padding-right: calc(7rem + var(--safe-right)) !important;
+    padding-right: calc(
+      var(--topbar-buttons) * var(--hit-min) + (var(--topbar-buttons) - 1) * 0.5rem
+      + 1rem + 0.75rem + var(--safe-right)
+    ) !important;
   }
 
   .fab-dock-aware { bottom: calc(var(--safe-bottom) + var(--dock-height) + 10px); }
@@ -589,9 +597,8 @@ body {
   }
 
   @media (min-width: 768px) {
-    .topbar-safe {
-      padding-right: calc(10rem + var(--safe-right)) !important;
-    }
+    /* Search joins the bar from this width (`hidden md:flex` in TopBar). */
+    .topbar-safe { --topbar-buttons: 3; }
   }
 
   .recharts-tooltip-wrapper {
