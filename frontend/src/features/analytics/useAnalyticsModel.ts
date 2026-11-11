@@ -36,7 +36,7 @@ import type {
   TypicalPeriod,
 } from './types';
 import type { CashFlowData } from './types';
-import { baselineDescription, baselineMonths, monthKeyOf, resolvePeriod } from './period';
+import { baselineDescription, baselineMonths, dateKey, monthKeyOf, resolvePeriod } from './period';
 import { buildClassificationContext } from './calculations/transactions';
 import {
   calculatePeriodMetrics, investedInYear, monthlyMetrics, transactionsInRange,
@@ -217,6 +217,16 @@ export function useAnalyticsModel(
         : null,
     });
 
+    // Free today: spendable money not set aside for goals, less the bills
+    // still due before the month ends.
+    const monthEnd = dateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+    const billsStillDue = recurringOutlook.upcoming
+      .filter(b => b.daysUntil >= 0 && b.dueDate <= monthEnd)
+      .reduce((s, b) => s + b.amount, 0);
+    const spareCash = accounts.length > 0
+      ? calculateAccountTotals(accounts, goals).availableToSpend - billsStillDue
+      : null;
+
     const summary = buildPeriodSummary({
       period,
       metrics,
@@ -225,6 +235,7 @@ export function useAnalyticsModel(
       savings,
       netWorth,
       recurring: recurringOutlook,
+      spareCash,
     });
 
     // Completed months only — the month in progress would distort both the

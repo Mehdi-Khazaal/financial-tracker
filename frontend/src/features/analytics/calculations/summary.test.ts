@@ -101,13 +101,23 @@ describe('buildPeriodSummary', () => {
     expect(buildPeriodSummary(ctx({ netWorth: netWorth({ points, change: 10 }) })).sentences.join(' ')).not.toContain('Net worth');
   });
 
+  it('never suggests moving money that is no longer there', () => {
+    // Nine months "kept" $8,199, all of it since put into gold: nothing spare.
+    const trip = { id: 9, name: 'Trip', target: 2500, current: 1000, remaining: 1500 } as unknown as SavingsMetrics['primaryGoal'];
+    const kept = savings({ saved: 8199.19, primaryGoal: trip });
+    expect(buildPeriodSummary(ctx({ savings: kept, spareCash: 20 })).suggestion).toBeNull();
+    expect(buildPeriodSummary(ctx({ savings: kept, spareCash: -150 })).suggestion).toBeNull();
+    expect(buildPeriodSummary(ctx({ savings: kept })).suggestion).toBeNull();
+  });
+
   it('offers exactly one suggestion, most useful first', () => {
     expect(buildPeriodSummary(ctx({ metrics: metrics({ uncategorizedCount: 4 }) })).suggestion).toBe('Filing the 4 uncategorized transactions would sharpen every comparison on this page.');
     expect(buildPeriodSummary(ctx({ recurring: recurring([{ name: 'Spotify', from: 9.99, to: 11.99, delta: 2 }]) })).suggestion).toBe('Worth reviewing Spotify — its charge went up by $2.00.');
     const rise = category({ name: 'Dining', deltaVsPrevious: 200 });
     expect(buildPeriodSummary(ctx({ categories: [rise] })).suggestion).toBe('If you want one thing to watch next period, Dining is the category that moved most.');
     const goal = { id: 1, name: 'Holiday', target: 2000, current: 500, remaining: 1500 } as unknown as SavingsMetrics['primaryGoal'];
-    expect(buildPeriodSummary(ctx({ savings: savings({ primaryGoal: goal }) })).suggestion).toBe('You could move some of the $1,000.00 you kept toward Holiday, which needs $1,500.00 more.');
+    expect(buildPeriodSummary(ctx({ savings: savings({ primaryGoal: goal }), spareCash: 426.65 })).suggestion)
+      .toBe("You have $426.65 not set aside for a goal or needed for this month's bills. You could move some of it toward Holiday, which needs $1,500.00 more.");
     expect(buildPeriodSummary(ctx({ savings: savings({ goalCount: 0 }) })).suggestion).toBe('You saved $1,000.00 without a goal attached — setting one makes the progress visible.');
     expect(buildPeriodSummary(ctx({ savings: savings({ saved: 0 }) })).suggestion).toBeNull();
   });

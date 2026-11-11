@@ -36,6 +36,13 @@ export interface SummaryContext {
   savings: SavingsMetrics;
   netWorth: NetWorthAnalysis;
   recurring: RecurringOutlook;
+  /**
+   * Money that is free today: available to spend (goal money left out) less
+   * the bills still due this month. Null when it cannot be worked out. A
+   * suggestion to move money toward a goal is sized by this, never by what a
+   * period "kept", which may long since have been spent or invested.
+   */
+  spareCash?: number | null;
 }
 
 const periodName = (period: ResolvedPeriod): string =>
@@ -175,6 +182,9 @@ export function buildPeriodSummary(ctx: SummaryContext): PeriodSummaryData {
   };
 }
 
+/** Below this, a nudge to move spare money is noise. */
+const MIN_SPARE_TO_SUGGEST = 50;
+
 function buildSuggestion(
   ctx: SummaryContext,
   topRise: CategoryComparison | undefined,
@@ -191,8 +201,12 @@ function buildSuggestion(
   if (topRise && !topRise.drivenByOneTransaction && topRise.baselineMonths >= 3) {
     return `If you want one thing to watch next period, ${topRise.name} is the category that moved most.`;
   }
-  if (savings.primaryGoal && savings.saved > 0) {
-    return `You could move some of the ${dollars(savings.saved)} you kept toward ${savings.primaryGoal.name}, which needs ${dollars(savings.primaryGoal.remaining)} more.`;
+  // Sized by money that is free now. The live ledger "kept" $8,199 over nine
+  // months and was told to move some of it to Trip; it had gone into $12,100
+  // of gold, and only $693 was free, most of it needed for the month's bills.
+  const spare = ctx.spareCash ?? 0;
+  if (savings.primaryGoal && spare >= MIN_SPARE_TO_SUGGEST) {
+    return `You have ${dollars(spare)} not set aside for a goal or needed for this month's bills. You could move some of it toward ${savings.primaryGoal.name}, which needs ${dollars(savings.primaryGoal.remaining)} more.`;
   }
   if (savings.goalCount === 0 && savings.saved > 0) {
     return `You saved ${dollars(savings.saved)} without a goal attached — setting one makes the progress visible.`;
