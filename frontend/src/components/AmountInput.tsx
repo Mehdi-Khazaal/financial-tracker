@@ -1,4 +1,5 @@
 import React, { useId, useRef } from 'react';
+import { shouldAutoFocus } from '../utils/device';
 
 interface Props {
   value: string;
@@ -40,7 +41,8 @@ const AmountInput: React.FC<Props> = ({ value, onChange, currency = '$', autoFoc
           className="min-w-0 max-w-full font-semibold bg-transparent text-3xl tabular-nums"
           style={{ color: 'var(--fg)', width: `${Math.max((value || '0.00').length, 1) + 0.6}ch` }}
           placeholder="0.00"
-          autoFocus={autoFocus}
+          // Not on phones: the keyboard would cover the sheet before it is read.
+          autoFocus={autoFocus && shouldAutoFocus()}
         />
       </div>
     </div>

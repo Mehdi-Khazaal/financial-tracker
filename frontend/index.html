@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- No zoom, like a native app (the owner's call): maximum-scale stops iOS
+         zooming in when a small field is tapped, user-scalable=no stops pinch
+         on Android. iOS ignores user-scalable, so lib/noZoom.ts blocks its
+         pinch gesture; double-tap zoom is off via touch-action in index.css. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
 
     <!-- PWA / Theme -->
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF8" />

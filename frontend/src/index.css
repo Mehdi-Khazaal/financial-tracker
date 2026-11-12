@@ -5,6 +5,10 @@
 /* ── Base ──────────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* No double-tap zoom anywhere (pinch is handled by the viewport tag and
+   lib/noZoom.ts). It also drops the old 300 ms wait before a tap registers. */
+html { touch-action: manipulation; }
+
 body {
   font-family: var(--font-sans);
   background: var(--bg);

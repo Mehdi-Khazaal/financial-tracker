@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import BottomSheet from '../../../components/BottomSheet';
 import type { Category } from '../../../types';
+import { shouldAutoFocus } from '../../../utils/device';
 
 /**
  * Create and edit a category, in one form.
@@ -93,7 +94,7 @@ const CategoryFormSheet: React.FC<Props> = ({ isOpen, onClose, editing, type, on
             onChange={event => { setName(event.target.value); setError(null); }}
             className="input-dark"
             placeholder={`e.g. ${type === 'income' ? 'Freelance' : type === 'investment' ? 'Bullion' : 'Coffee'}`}
-            autoFocus
+            autoFocus={shouldAutoFocus()}
             autoComplete="off"
             maxLength={100}
             aria-invalid={error ? true : undefined}

@@ -4,6 +4,7 @@ import { createCollection, deleteCollection, updateCollection } from '../../../u
 import type { Collection, CollectionDraft } from '../../../types';
 import { useToast } from '../../../context/ToastContext';
 import { errorText } from '../errors';
+import { shouldAutoFocus } from '../../../utils/device';
 
 /**
  * Create or edit a collection (a trip, a holiday, a move).
@@ -137,7 +138,7 @@ const CollectionFormSheet: React.FC<Props> = ({ isOpen, onClose, editing = null,
             onChange={event => { setName(event.target.value); setError(null); }}
             className="input-dark"
             placeholder="e.g. Ohio trip, Christmas, House move"
-            autoFocus
+            autoFocus={shouldAutoFocus()}
             autoComplete="off"
             maxLength={60}
             aria-invalid={error ? true : undefined}

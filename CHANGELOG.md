@@ -12,6 +12,8 @@ Nothing manual. Frontend only.
 - The add and edit forms share one set of controls: an Expense/Income switch, bordered category chips with their colour dot, and an amount box with the currency beside the number. Spending is shown in ink, not red, as everywhere else.
 - Every sheet now animates out instead of vanishing (respecting reduced motion), and the confirm dialog is a proper alert dialog: focus starts on Cancel, Escape cancels, its button says what it does ("Delete", "Discard").
 - A transaction with no description reads "No description" in the list.
+- **On a phone, sheets no longer open the keyboard by themselves.** Add expense/income, deposit, withdraw, transfer, log a bill, spend from a goal, new collection and new category wait for a tap on the field; on a computer the cursor still goes straight to it.
+- **The app no longer zooms**, like a native app: no pinch-zoom, no double-tap zoom, and iPhone no longer zooms in when a small field is tapped.
 
 ### Fixed
 - **Editing a transaction overwrote fields that had not changed.** Saving sent every field: a transaction with no description had "No note" written into it, and an untouched category was re-marked as set by hand. Only the changed fields are sent now.

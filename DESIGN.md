@@ -60,6 +60,8 @@ The Tally mark (`components/LogoMark.tsx`): four strokes crossed by a fifth on a
 - **Targets**: 44px (`--hit-min`) for controls.
 - **Names**: icon-only buttons have an `aria-label`; inputs have labels.
 - **Disabled primary** drops to 45% opacity.
+- **No zoom, by the owner's choice** (2026-11-12), to behave like a native app: the viewport tag sets `maximum-scale=1, user-scalable=no`, `lib/noZoom.ts` cancels iOS pinch, and `html { touch-action: manipulation }` stops double-tap zoom. axe reports this as a *moderate* `meta-viewport` finding on every page; the CI gate fails only on serious and critical, so it passes. Text size must therefore stay readable without zoom.
+- **Sheets do not pop the phone keyboard on open**: autofocus goes through `shouldAutoFocus()` (`utils/device.ts`), true only for a hover-capable fine pointer.
 
 ## Z-scale
 

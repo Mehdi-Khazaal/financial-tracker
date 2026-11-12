@@ -4,6 +4,7 @@ import { spendFromGoal } from '../../utils/api';
 import { SavingsGoal } from '../../types';
 import { localDateStr } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { shouldAutoFocus } from '../../utils/device';
 
 interface Props {
   isOpen: boolean;
@@ -139,7 +140,7 @@ const SpendFromGoalModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, goal 
                       onChange={e => setAmount(e.target.value)}
                       className="input-dark pl-8 font-mono text-lg font-bold"
                       placeholder="0.00"
-                      autoFocus
+                      autoFocus={shouldAutoFocus()}
                       required
                     />
                   </div>

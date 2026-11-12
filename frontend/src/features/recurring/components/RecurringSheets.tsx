@@ -3,6 +3,7 @@ import BottomSheet from '../../../components/BottomSheet';
 import type { RecurringBill, RecurringGroupKey, RecurringPeriod } from '../../../types';
 import { GroupIcon } from './GroupIcon';
 import { PERIOD_LABEL, num } from '../calculations';
+import { shouldAutoFocus } from '../../../utils/device';
 
 type GroupOption = { key: RecurringGroupKey; label: string };
 
@@ -185,7 +186,7 @@ export const LogAmountSheet: React.FC<{
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-muted" aria-hidden="true">$</span>
           <input aria-label="Amount" className="input-dark pl-8 text-lg font-mono tabular-nums" type="number" inputMode="decimal" step="0.01" min="0.01"
-            value={amount} onChange={e => setAmount(e.target.value)} autoFocus required />
+            value={amount} onChange={e => setAmount(e.target.value)} autoFocus={shouldAutoFocus()} required />
         </div>
         <button type="submit" disabled={saving} className="btn-gradient w-full py-3 text-sm disabled:opacity-50">
           {saving ? 'Logging…' : 'Log amount'}
