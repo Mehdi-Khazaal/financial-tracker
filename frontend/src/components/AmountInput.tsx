@@ -9,6 +9,11 @@ interface Props {
   label?: string;
 }
 
+/**
+ * The big amount field at the top of a money form. The whole box is the
+ * control: it carries the border and the focus ring, and a click anywhere in
+ * it focuses the input.
+ */
 const AmountInput: React.FC<Props> = ({ value, onChange, currency = '$', autoFocus = true, id, label = 'Amount' }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const generatedId = useId();
@@ -18,10 +23,10 @@ const AmountInput: React.FC<Props> = ({ value, onChange, currency = '$', autoFoc
     <div>
       <label className="form-label" htmlFor={inputId}>{label}</label>
       <div
-        className="flex min-h-[76px] items-center justify-center gap-1 rounded-lg bg-surface px-4 py-3 cursor-text"
+        className="amount-field flex min-h-[72px] items-center justify-center gap-1 px-4 py-3 cursor-text"
         onClick={() => inputRef.current?.focus()}
       >
-        <span className="font-mono font-bold text-2xl text-dim" aria-hidden="true">{currency}</span>
+        <span className="font-semibold text-2xl" style={{ color: 'var(--dim)' }} aria-hidden="true">{currency}</span>
         <input
           id={inputId}
           ref={inputRef}
@@ -31,7 +36,9 @@ const AmountInput: React.FC<Props> = ({ value, onChange, currency = '$', autoFoc
           min="0"
           value={value}
           onChange={e => onChange(e.target.value)}
-          className="min-w-0 flex-1 font-mono font-bold bg-transparent outline-none text-center text-3xl text-text placeholder-dim"
+          // Sized to what is typed, so the currency sign sits right beside the number.
+          className="min-w-0 max-w-full font-semibold bg-transparent text-3xl tabular-nums"
+          style={{ color: 'var(--fg)', width: `${Math.max((value || '0.00').length, 1) + 0.6}ch` }}
           placeholder="0.00"
           autoFocus={autoFocus}
         />

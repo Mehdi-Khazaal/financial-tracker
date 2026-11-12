@@ -302,6 +302,18 @@ body {
   }
   .btn-danger:hover { background: var(--neg-dim); }
 
+  /* A destructive action that should not compete with the primary one:
+     red text, no box until hovered. */
+  .btn-text-danger {
+    @apply font-semibold px-3 py-2.5 text-sm;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--neg);
+    transition: background-color 160ms ease;
+  }
+  .btn-text-danger:hover { background: var(--neg-dim); }
+  .btn-text-danger:disabled { opacity: .45; cursor: not-allowed; }
+
   /* Quick-action button (dashboard row, reusable) */
   .qa-btn {
     @apply flex items-center justify-center gap-2 py-3 text-sm font-medium;
@@ -539,6 +551,37 @@ body {
     padding-bottom: var(--safe-bottom);
   }
 
+  /* Actions pinned under the scrolling body, so Save is always in reach —
+     on a phone the form used to push it below the fold. */
+  .sheet-body--with-footer { padding-bottom: 0; }
+  .sheet-footer {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--elev-1);
+  }
+  .sheet-footer > * { min-height: var(--hit-min); }
+
+  /* Header icon buttons (back, close): quiet until hovered. */
+  .sheet-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--hit-min);
+    height: var(--hit-min);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .sheet-icon-btn:hover { background: var(--elev-sub); color: var(--fg); }
+  @media (min-width: 768px) {
+    .sheet-icon-btn { width: 36px; height: 36px; }
+  }
+
   @supports not (height: 100dvh) {
     .bottom-sheet-panel { max-height: 92vh; }
   }
@@ -558,6 +601,111 @@ body {
        drawers that would otherwise wrap every number onto its own line. */
     .sheet-panel--md { max-width: 28rem; }
     .sheet-panel--lg { max-width: 46rem; }
+
+    /* Side panel: a full-height drawer on the right, inset from the edges,
+       so the list it was opened from stays in view beside it. */
+    .sheet-root--side {
+      align-items: stretch;
+      justify-content: flex-end;
+      padding: 12px;
+    }
+    .sheet-root--side .bottom-sheet-panel {
+      max-height: none;
+      height: 100%;
+    }
+    .sheet-root--side .sheet-panel--md { max-width: 30rem; }
+  }
+
+  /* ── Form controls shared by the transaction sheets ─────────────────────── */
+  /* The amount box is the control, so it carries the border and the ring;
+     the input inside has neither, and no number spinners. */
+  .amount-field {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line-strong);
+    background: var(--elev-1);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+  .amount-field:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+  .amount-field input { outline: none; -moz-appearance: textfield; appearance: textfield; }
+  .amount-field input:focus-visible { outline: none; }
+  .amount-field input::-webkit-outer-spin-button,
+  .amount-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .amount-field input::placeholder { color: var(--dim); }
+
+  /* Segmented control: a bordered strip, the active segment filled in ink. */
+  .segmented {
+    display: flex;
+    padding: 3px;
+    gap: 3px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    background: var(--elev-1);
+  }
+  .segmented > button {
+    flex: 1 1 0;
+    min-height: 38px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .segmented > button:hover { color: var(--fg); }
+  .segmented > button[aria-pressed='true'] { background: var(--fg); color: var(--bg); font-weight: 600; }
+
+  /* A pickable chip (category, collection). Bordered so it reads as a
+     control; the chosen one takes the accent. */
+  .choice-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line-strong);
+    background: var(--elev-1);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 500;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+  .choice-chip:hover { border-color: var(--muted); }
+  .choice-chip[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--fg);
+  }
+  @media (pointer: coarse) {
+    .choice-chip { min-height: var(--hit-min); }
+    .segmented > button { min-height: 40px; }
+  }
+
+  /* A detail row in a sheet: label left, value right, hairline between. */
+  .detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 0;
+    text-align: left;
+    border-top: 1px solid var(--line);
+  }
+  .detail-row:last-child { border-bottom: 1px solid var(--line); }
+  button.detail-row { transition: background-color 120ms ease, box-shadow 120ms ease; }
+  button.detail-row:active { opacity: 0.7; }
+  /* The hover fill reaches a little past the text on both sides without
+     moving it, so the label still lines up with the rows that are not
+     buttons. */
+  @media (hover: hover) and (pointer: fine) {
+    button.detail-row:hover {
+      background: var(--elev-sub);
+      box-shadow: -10px 0 0 var(--elev-sub), 10px 0 0 var(--elev-sub);
+    }
   }
 
   /* Room for the fixed top bar (`.app-topbar`), derived from what it holds:
@@ -1005,6 +1153,41 @@ body {
   to   { opacity: 1; }
 }
 
+/* ── Sheet motion ─────────────────────────────────────────────────────────────
+   Phone: the sheet rises from the bottom edge and sinks back on close. Desktop:
+   a centred dialog fades in place; a side panel slides in from the right.
+   Exits are shorter than entrances and use the exit curve, so closing never
+   feels like waiting. `.is-exiting` is set by BottomSheet for the few
+   milliseconds it keeps the sheet mounted after `isOpen` turns false. */
+@keyframes sheetRise    { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheetSink    { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes sheetPop     { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes sheetUnpop   { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes sheetSlideIn { from { transform: translateX(calc(100% + 24px)); } to { transform: translateX(0); } }
+@keyframes sheetSlideOut { from { transform: translateX(0); } to { transform: translateX(calc(100% + 24px)); } }
+@keyframes sheetScrimIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetScrimOut { from { opacity: 1; } to { opacity: 0; } }
+/* A step inside a sheet (details → edit → split) slides the way you went. */
+@keyframes sheetStepForward { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+@keyframes sheetStepBack    { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
+
+.sheet-scrim { animation: sheetScrimIn 200ms ease both; }
+.sheet-root.is-exiting { pointer-events: none; }
+.sheet-root.is-exiting .sheet-scrim { animation: sheetScrimOut 180ms ease both; }
+.bottom-sheet-panel { animation: sheetRise 340ms var(--ease-drawer) both; }
+.sheet-root.is-exiting .bottom-sheet-panel { animation: sheetSink 200ms var(--ease-exit) both; }
+.sheet-step-forward { animation: sheetStepForward 220ms var(--ease-out) both; }
+.sheet-step-back    { animation: sheetStepBack 220ms var(--ease-out) both; }
+
+@media (min-width: 768px) {
+  .bottom-sheet-panel { animation: sheetPop 200ms var(--ease-out) both; }
+  .sheet-root.is-exiting .bottom-sheet-panel { animation: sheetUnpop 140ms var(--ease-exit) both; }
+  .sheet-root--side .bottom-sheet-panel { animation: sheetSlideIn 300ms var(--ease-drawer) both; }
+  .sheet-root--side.is-exiting .bottom-sheet-panel { animation: sheetSlideOut 200ms var(--ease-exit) both; }
+  /* Toasts move beside an open side panel instead of covering its header. */
+  body:has(.sheet-root--side:not(.is-exiting)) .toast-stack { right: calc(30rem + 2rem); }
+}
+
 .slide-up    { animation: slideUp .3s var(--ease-drawer) both; }
 .slide-down  { animation: slideDown .25s var(--ease-exit) both; }
 .fade-in     { animation: fadeIn .2s ease both; }
@@ -1167,6 +1350,9 @@ select.input-dark option {
 @media (prefers-reduced-motion: reduce) {
   .stagger-in > * { animation-duration: 1ms; animation-delay: 0ms; }
   .slide-up, .slide-down, .scale-in { animation: fadeIn 150ms ease both; }
+  .bottom-sheet-panel,
+  .sheet-root--side .bottom-sheet-panel { animation: sheetScrimIn 150ms ease both; }
+  .sheet-step-forward, .sheet-step-back { animation: none; }
   .typing-dot,
   .skeleton,
   .pulse-dot,

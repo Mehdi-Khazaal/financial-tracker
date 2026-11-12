@@ -278,6 +278,7 @@ export const restoreMissingTransfers = (ids: string[]) =>
 /** File these rows under the user's Transfer category. All or nothing. */
 export const markTransfers = (transactionIds: number[]) =>
   api.post<{ updated: number; category_id: number }>('/transactions/mark-transfer', { transaction_ids: transactionIds });
+export const getTransaction = (id: number) => api.get<Transaction>(`/transactions/${id}`);
 export const updateTransaction = (id: number, data: any) => api.put(`/transactions/${id}`, data);
 export const deleteTransaction = (id: number) => api.delete(`/transactions/${id}`);
 
@@ -455,7 +456,7 @@ export const assistantDeleteMemory  = (id: number) => api.delete(`/assistant/mem
 
 // ── Plaid helpers ─────────────────────────────────────────────────────────────
 export const cleanDescription = (desc: string | null | undefined): string => {
-  if (!desc) return 'No note';
+  if (!desc) return 'No description';
   return desc.replace(/^\[plaid:[^\]]+\]\s*/, '');
 };
 

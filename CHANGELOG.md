@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased] — transaction sheet
+
+### Before deploying
+Nothing manual. Frontend only.
+
+### Changed
+- **The transaction window is one sheet with three steps** (details → edit → split). It is a side panel on desktop, so the list stays in view, and a bottom sheet on a phone. Steps slide the way you go, the panel eases to each step's height, and a back arrow (or Escape) returns to the details. Category, account and date rows on the details open the form on that field.
+- **Save, Edit, Split and Delete sit in a pinned footer**, so a long category list no longer pushes Save below the fold on a phone. Save stays disabled until something changes; saving returns to the details with the new values.
+- Opening Edit no longer puts the cursor in the amount, so the phone keyboard does not jump up over the form. Leaving with unsaved changes asks first.
+- The add and edit forms share one set of controls: an Expense/Income switch, bordered category chips with their colour dot, and an amount box with the currency beside the number. Spending is shown in ink, not red, as everywhere else.
+- Every sheet now animates out instead of vanishing (respecting reduced motion), and the confirm dialog is a proper alert dialog: focus starts on Cancel, Escape cancels, its button says what it does ("Delete", "Discard").
+- A transaction with no description reads "No description" in the list.
+
+### Fixed
+- **Editing a transaction overwrote fields that had not changed.** Saving sent every field: a transaction with no description had "No note" written into it, and an untouched category was re-marked as set by hand. Only the changed fields are sent now.
+- A sheet re-ran its open logic on every re-render of the page behind it (a list reload after saving), moving keyboard focus out of the sheet and back.
+- With a sheet open, the confirm dialog could not be reached with Tab, and Escape closed the sheet behind it.
+- The Add sheet's amount lost its focus to the close button a frame after opening.
+- Toasts covered the close button of a side panel on desktop.
+
 ## [Unreleased] — accuracy round (branch `feat/accuracy-round`)
 
 ### Before deploying

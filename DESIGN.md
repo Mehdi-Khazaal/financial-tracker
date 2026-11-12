@@ -46,6 +46,8 @@ Thin lines, no gradient fills, square bars. Money in is ink, outflows are greys,
 
 Curves in tokens (`--ease-out`, `--ease-drawer`, `--ease-exit`). Transitions 120–260ms; feedback is opacity, not bouncing scale. No grain and no looping animations (they repainted every frame). `prefers-reduced-motion` strips movement.
 
+Sheets (`BottomSheet`): on a phone they rise from the bottom edge and sink on close; on desktop a centred dialog fades in place and a side panel (`placement="side"`) slides in from the right. Exits are shorter than entrances and keep showing the content the sheet had. A sheet with steps (details → edit) passes `stepKey`: the panel eases to the new height and the step slides the way you went (`.sheet-step-forward` / `-back`); `onBack` adds a back arrow and makes Escape go back. Actions go in `footer`, pinned under the scrolling body.
+
 ## Logo
 
 The Tally mark (`components/LogoMark.tsx`): four strokes crossed by a fifth on a rounded `--logo-bg` square; three strokes below 20px. The same drawing is rendered into every icon in `frontend/public/` (favicon.svg/.png/.ico, icon-192/512, maskable, apple-touch-icon).
@@ -65,7 +67,7 @@ The Tally mark (`components/LogoMark.tsx`): four strokes crossed by a fifth on a
 
 ## Component vocabulary
 
-`.card`, `.ledger-panel`, `.ledger-cell`, `.btn-gradient` (the solid primary; name kept), `.btn-ghost`, `.btn-danger`, `.input-dark`, `.form-label`, `.header-action` / `--primary`, `.menu-surface` / `.menu-item`, `.pill-*`, `.section-title`, `.section-link`, `.row-list`, `.row-link`, `.metric-strip`, `.skeleton`, `.cmdk-*`.
+`.card`, `.ledger-panel`, `.ledger-cell`, `.btn-gradient` (the solid primary; name kept), `.btn-ghost`, `.btn-danger`, `.btn-text-danger` (a destructive action beside a primary), `.input-dark`, `.form-label`, `.amount-field`, `.segmented`, `.choice-chip`, `.detail-row`, `.sheet-footer`, `.sheet-icon-btn`, `.header-action` / `--primary`, `.menu-surface` / `.menu-item`, `.pill-*`, `.section-title`, `.section-link`, `.row-list`, `.row-link`, `.metric-strip`, `.skeleton`, `.cmdk-*`.
 
 ## App-level features with design hooks
 

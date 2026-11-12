@@ -1,5 +1,6 @@
+import { vi } from 'vitest';
 import React, { useState } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import BottomSheet from './BottomSheet';
 
@@ -103,6 +104,89 @@ describe('BottomSheet', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAttribute('aria-label', 'Motorcycle');
+  });
+
+  it('goes back on Escape when the sheet has a back step', () => {
+    const onBack = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <BottomSheet isOpen onClose={onClose} onBack={onBack} title="Edit">
+        <button type="button">Field</button>
+      </BottomSheet>,
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+  });
+
+  it('pins the footer outside the scrolling body', () => {
+    render(
+      <BottomSheet isOpen onClose={() => {}} title="Edit" footer={<button type="button">Save</button>}>
+        <p>Body</p>
+      </BottomSheet>,
+    );
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.closest('.sheet-footer')).not.toBeNull();
+    expect(save.closest('.sheet-body')).toBeNull();
+  });
+
+  it('leaves focus alone when the page behind re-renders', () => {
+    // The parent passes a new onClose on every render, as most pages do.
+    const Page: React.FC<{ tick: number }> = ({ tick }) => (
+      <BottomSheet isOpen onClose={() => void tick} title="Details">
+        <input aria-label="Note" />
+      </BottomSheet>
+    );
+    const { rerender } = render(<Page tick={1} />);
+    const note = screen.getByLabelText('Note');
+    note.focus();
+
+    rerender(<Page tick={2} />);
+    expect(document.activeElement).toBe(note);
+    expect(document.body.style.overflow).toBe('hidden');
+  });
+
+  it('ignores Escape while a confirm dialog on top has focus', () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <BottomSheet isOpen onClose={onClose} title="Details"><p>Body</p></BottomSheet>
+        <div role="alertdialog" aria-label="Sure?"><button type="button">Cancel</button></div>
+      </>,
+    );
+    screen.getByRole('button', { name: 'Cancel' }).focus();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('plays its exit with the content it had, then unmounts', () => {
+    vi.useFakeTimers();
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query })) as unknown as typeof window.matchMedia;
+    try {
+      // The page clears the record as it closes the sheet, as many do.
+      const Page: React.FC<{ name: string | null }> = ({ name }) => (
+        <BottomSheet isOpen={!!name} onClose={() => {}} title="Category">
+          {name && <p>{name}</p>}
+        </BottomSheet>
+      );
+      const { rerender } = render(<Page name="Groceries" />);
+      rerender(<Page name={null} />);
+
+      expect(screen.getByText('Groceries')).toBeInTheDocument();
+      expect(document.querySelector('.sheet-root')).toHaveClass('is-exiting');
+      expect(document.body.style.overflow).toBe('');
+
+      act(() => { vi.advanceTimersByTime(250); });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the title and close button outside the scrolling region', () => {

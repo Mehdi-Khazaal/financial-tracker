@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useId, useRef } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'info';
@@ -9,10 +9,15 @@ interface ToastItem {
   message: string;
 }
 
-interface ConfirmState {
-  message: string;
+interface ConfirmOptions {
   title?: string;
   danger?: boolean;
+  /** The confirm button's text, e.g. "Delete". Defaults to "Confirm". */
+  confirmLabel?: string;
+}
+
+interface ConfirmState extends ConfirmOptions {
+  message: string;
   resolve: (val: boolean) => void;
 }
 
@@ -20,7 +25,7 @@ interface ToastContextType {
   success: (message: string) => void;
   error: (message: string) => void;
   info: (message: string) => void;
-  confirm: (message: string, options?: { title?: string; danger?: boolean }) => Promise<boolean>;
+  confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -66,37 +71,69 @@ const ToastBubble: React.FC<{ toast: ToastItem; onDismiss: () => void }> = ({ to
 };
 
 // ── Confirm dialog ─────────────────────────────────────────────────────────────
+/**
+ * Asks before something that cannot be taken back. It is an alert dialog:
+ * focus starts on Cancel (the safe answer), Escape cancels, and Tab stays
+ * inside, so it also works when opened over a sheet.
+ */
 const ConfirmDialog: React.FC<{
   state: ConfirmState;
   onAnswer: (val: boolean) => void;
-}> = ({ state, onAnswer }) => (
-  <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-    <div className="absolute inset-0 bg-black/40" onClick={() => onAnswer(false)} />
-    <div className="scale-in relative w-full max-w-sm rounded-2xl p-6"
-      style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
-      {state.title && (
-        <p className="font-bold text-base mb-2" style={{ color: 'var(--fg)' }}>{state.title}</p>
-      )}
-      <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--muted)' }}>{state.message}</p>
-      <div className="flex gap-3">
-        <button
-          onClick={() => onAnswer(false)}
-          className="pressable flex-1 py-2.5 text-sm font-semibold rounded-xl"
-          style={{ backgroundColor: 'var(--elev-sub)', color: 'var(--muted)', border: '1px solid var(--line)' }}>
-          Cancel
-        </button>
-        <button
-          onClick={() => onAnswer(true)}
-          className="pressable flex-1 py-2.5 text-sm font-semibold rounded-xl"
-          style={state.danger
-            ? { backgroundColor: 'var(--neg-dim)', color: 'var(--neg)', border: '1px solid color-mix(in oklab, var(--neg) 25%, transparent)' }
-            : { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>
-          Confirm
-        </button>
+}> = ({ state, onAnswer }) => {
+  const titleId = useId();
+  const messageId = useId();
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      onAnswer(false);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button'));
+    if (buttons.length === 0) return;
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center px-4" onKeyDown={onKeyDown}>
+      <div className="sheet-scrim absolute inset-0 bg-black/40" onClick={() => onAnswer(false)} aria-hidden="true" />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={state.title ? titleId : messageId}
+        aria-describedby={state.title ? messageId : undefined}
+        className="scale-in relative w-full max-w-sm rounded-lg p-5"
+        style={{ backgroundColor: 'var(--elev-1)', border: '1px solid var(--line-strong)', boxShadow: 'var(--edge-light), var(--shadow-modal)' }}>
+        {state.title && (
+          <p id={titleId} className="font-semibold text-base mb-1.5" style={{ color: 'var(--fg)' }}>{state.title}</p>
+        )}
+        <p id={messageId} className="text-sm leading-relaxed mb-5" style={{ color: state.title ? 'var(--muted)' : 'var(--fg)' }}>
+          {state.message}
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            autoFocus
+            onClick={() => onAnswer(false)}
+            className="btn-ghost pressable min-h-[44px] md:min-h-[38px]">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onAnswer(true)}
+            className="pressable min-h-[44px] md:min-h-[38px] px-4 text-sm font-semibold rounded-md"
+            style={{ backgroundColor: state.danger ? 'var(--neg)' : 'var(--accent)', color: 'var(--ink-on-fill)' }}>
+            {state.confirmLabel ?? 'Confirm'}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -114,9 +151,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const error   = useCallback((msg: string) => push('error', msg),   [push]);
   const info    = useCallback((msg: string) => push('info', msg),    [push]);
 
-  const confirm = useCallback((message: string, options?: { title?: string; danger?: boolean }): Promise<boolean> => {
+  const confirm = useCallback((message: string, options?: ConfirmOptions): Promise<boolean> => {
     return new Promise(resolve => {
-      setConfirmState({ message, title: options?.title, danger: options?.danger ?? true, resolve });
+      setConfirmState({ message, title: options?.title, danger: options?.danger ?? true, confirmLabel: options?.confirmLabel, resolve });
     });
   }, []);
 
@@ -131,8 +168,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ success, error, info, confirm }}>
       {children}
 
-      {/* Toast stack — top-right on desktop, top-center on mobile */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-5 z-[100] space-y-2 pointer-events-none flex flex-col items-center md:items-end">
+      {/* Toast stack — top-right on desktop (beside an open side panel, not over
+          its close button), top-center on mobile */}
+      <div className="toast-stack fixed top-4 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-5 z-[100] space-y-2 pointer-events-none flex flex-col items-center md:items-end">
         {toasts.map(t => (
           <ToastBubble key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
         ))}
